@@ -4,6 +4,7 @@ struct CreateAccountScreenView: View {
     private let indianMobileGuidance = "For this MVP, enter a 10-digit Indian mobile number."
 
     @Binding var draft: CreateAccountDraft
+    let onContinue: (() -> Void)?
 
     @EnvironmentObject private var router: AppRouter
     @FocusState private var focusedField: CreateAccountField?
@@ -13,10 +14,12 @@ struct CreateAccountScreenView: View {
 
     init(
         draft: Binding<CreateAccountDraft>,
-        initialTouchedFields: Set<CreateAccountField> = []
+        initialTouchedFields: Set<CreateAccountField> = [],
+        onContinue: (() -> Void)? = nil
     ) {
         _draft = draft
         _touchedFields = State(initialValue: initialTouchedFields)
+        self.onContinue = onContinue
     }
 
     var body: some View {
@@ -109,7 +112,7 @@ struct CreateAccountScreenView: View {
                 KairoPrimaryButton(
                     title: "Continue",
                     accessibilityIdentifier: KairoAccessibilityID.createAccountContinue,
-                    action: { router.advanceOnboarding(from: .createAccount) }
+                    action: handleContinue
                 )
                 .disabled(!isFormValid)
 
@@ -194,6 +197,14 @@ struct CreateAccountScreenView: View {
             focusedField = nextField
         } else {
             focusedField = nil
+        }
+    }
+
+    private func handleContinue() {
+        if let onContinue {
+            onContinue()
+        } else {
+            router.advanceOnboarding(from: .createAccount)
         }
     }
 

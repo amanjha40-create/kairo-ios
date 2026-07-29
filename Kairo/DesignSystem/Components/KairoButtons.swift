@@ -66,16 +66,24 @@ struct KairoPrimaryButton: View {
 
 struct KairoSecondaryButton: View {
     let title: String
+    var isLoading: Bool = false
     var accessibilityIdentifier: String?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(KairoTypography.headline)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, KairoSpacing.medium)
+            HStack(spacing: KairoSpacing.xSmall) {
+                if isLoading {
+                    ProgressView()
+                        .tint(KairoColors.brandPrimary)
+                }
+
+                Text(title)
+                    .font(KairoTypography.headline)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, KairoSpacing.medium)
         }
         .accessibilityIdentifier(accessibilityIdentifier ?? title)
         .buttonStyle(

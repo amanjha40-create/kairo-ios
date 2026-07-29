@@ -41,7 +41,7 @@ extension OnboardingStep {
         case .createAccount:
             "Start building your portable professional trust profile."
         case .verifyIdentity:
-            "Identity verification remains a placeholder in this milestone."
+            "Verify your email and mobile number to create your Trust Passport."
         case .chooseStart:
             "The branching point is locked in, but not yet connected to product flows."
         case .resumeImportOrQuickProfile:

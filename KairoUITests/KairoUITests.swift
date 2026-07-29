@@ -16,6 +16,9 @@ final class KairoUITests: XCTestCase {
     private let onboardingWelcomeTitle = "onboarding.step.welcome"
     private let onboardingCreateAccountTitle = "onboarding.step.createAccount"
     private let onboardingVerifyIdentityTitle = "onboarding.step.verifyIdentity"
+    private let onboardingVerifyIdentityEmailTitle = "onboarding.verifyIdentity.email.title"
+    private let onboardingVerifyIdentityMobileTitle = "onboarding.verifyIdentity.mobile.title"
+    private let onboardingChooseStartTitle = "onboarding.step.chooseStart"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
     private let welcomeExistingAccountButton = "onboarding.existingAccount"
@@ -25,8 +28,19 @@ final class KairoUITests: XCTestCase {
     private let createAccountMobileField = "onboarding.createAccount.mobile"
     private let createAccountContinueButton = "onboarding.createAccount.continue"
     private let createAccountLoginButton = "onboarding.createAccount.login"
+    private let verifyIdentityIntroContinueButton = "onboarding.verifyIdentity.intro.continue"
+    private let verifyIdentityEmailCodeField = "onboarding.verifyIdentity.email.code"
+    private let verifyIdentityEmailSendCodeButton = "onboarding.verifyIdentity.email.sendCode"
+    private let verifyIdentityEmailVerifyButton = "onboarding.verifyIdentity.email.verify"
+    private let verifyIdentityEmailResendCodeButton = "onboarding.verifyIdentity.email.resendCode"
+    private let verifyIdentityEmailCountdown = "onboarding.verifyIdentity.email.countdown"
+    private let verifyIdentityEmailSuccess = "onboarding.verifyIdentity.email.success"
+    private let verifyIdentityMobileCodeField = "onboarding.verifyIdentity.mobile.code"
+    private let verifyIdentityMobileSendCodeButton = "onboarding.verifyIdentity.mobile.sendCode"
+    private let verifyIdentityMobileVerifyButton = "onboarding.verifyIdentity.mobile.verify"
+    private let verifyIdentityMobileSuccess = "onboarding.verifyIdentity.mobile.success"
     private let onboardingLoginTitle = "onboarding.login.title"
-    private let remainingOnboardingTransitionCount = 4
+    private let remainingPlaceholderTransitionCount = 3
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -167,15 +181,99 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    private func advanceThroughOnboarding(in app: XCUIApplication) {
-        XCTAssertTrue(app.buttons[onboardingGetStartedButton].waitForExistence(timeout: 10))
-        app.buttons[onboardingGetStartedButton].tap()
-        XCTAssertTrue(app.staticTexts[onboardingCreateAccountTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[createAccountContinueButton].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[createAccountContinueButton].isEnabled)
-        app.buttons[createAccountContinueButton].tap()
+    func testVerifyIdentityIntroductionContinuesToEmailVerification() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
 
-        for _ in 0..<remainingOnboardingTransitionCount {
+        navigateToVerifyIdentityIntroduction(in: app)
+
+        XCTAssertTrue(app.buttons[verifyIdentityIntroContinueButton].waitForExistence(timeout: 10))
+        app.buttons[verifyIdentityIntroContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityEmailTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testEmailVerificationSendCodeEnablesCountdownState() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToEmailVerification(in: app)
+
+        let sendCodeButton = app.buttons[verifyIdentityEmailSendCodeButton]
+        XCTAssertTrue(sendCodeButton.waitForExistence(timeout: 10))
+        sendCodeButton.tap()
+
+        XCTAssertTrue(app.staticTexts[verifyIdentityEmailCountdown].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyIdentityEmailResendCodeButton].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[verifyIdentityEmailResendCodeButton].isEnabled)
+    }
+
+    @MainActor
+    func testEmailVerificationShowsInvalidOTPMessage() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToEmailVerification(in: app)
+        sendEmailCode(in: app)
+
+        let otpField = app.textFields[verifyIdentityEmailCodeField]
+        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
+        otpField.tap()
+        otpField.typeText("123")
+
+        XCTAssertTrue(app.staticTexts["Enter the full 6-digit code."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
+    }
+
+    @MainActor
+    func testEmailVerificationValidOTPEnablesVerify() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToEmailVerification(in: app)
+        sendEmailCode(in: app)
+
+        let otpField = app.textFields[verifyIdentityEmailCodeField]
+        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
+        otpField.tap()
+        otpField.typeText("123456")
+
+        XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
+    }
+
+    @MainActor
+    func testEmailVerificationShowsSuccessState() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToEmailVerification(in: app)
+        completeEmailVerification(in: app)
+
+        XCTAssertTrue(app.staticTexts[verifyIdentityEmailSuccess].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMobileVerificationShowsSuccessAndRoutesToChooseStartPlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToMobileVerification(in: app)
+        completeMobileVerification(in: app)
+
+        XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingChooseStartTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func advanceThroughOnboarding(in app: XCUIApplication) {
+        navigateToVerifyIdentityIntroduction(in: app)
+        continueToEmailVerification(in: app)
+        completeEmailVerification(in: app)
+        continueFromEmailSuccess(in: app)
+        completeMobileVerification(in: app)
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
+
+        for _ in 0..<remainingPlaceholderTransitionCount {
             XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
             app.buttons[onboardingContinueButton].tap()
         }
@@ -195,7 +293,77 @@ final class KairoUITests: XCTestCase {
     private func navigateToCreateAccount(in app: XCUIApplication) {
         XCTAssertTrue(app.buttons[onboardingGetStartedButton].waitForExistence(timeout: 10))
         app.buttons[onboardingGetStartedButton].tap()
-        XCTAssertTrue(app.staticTexts[onboardingCreateAccountTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields[createAccountFirstNameField].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func navigateToVerifyIdentityIntroduction(in app: XCUIApplication) {
+        navigateToCreateAccount(in: app)
+        XCTAssertTrue(app.buttons[createAccountContinueButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[createAccountContinueButton].isEnabled)
+        app.buttons[createAccountContinueButton].tap()
+        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func navigateToEmailVerification(in app: XCUIApplication) {
+        navigateToVerifyIdentityIntroduction(in: app)
+        continueToEmailVerification(in: app)
+    }
+
+    @MainActor
+    private func continueToEmailVerification(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons[verifyIdentityIntroContinueButton].waitForExistence(timeout: 10))
+        app.buttons[verifyIdentityIntroContinueButton].tap()
+        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityEmailTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func navigateToMobileVerification(in app: XCUIApplication) {
+        navigateToEmailVerification(in: app)
+        completeEmailVerification(in: app)
+        continueFromEmailSuccess(in: app)
+        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityMobileTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func sendEmailCode(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons[verifyIdentityEmailSendCodeButton].waitForExistence(timeout: 10))
+        app.buttons[verifyIdentityEmailSendCodeButton].tap()
+        XCTAssertTrue(app.textFields[verifyIdentityEmailCodeField].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func completeEmailVerification(in app: XCUIApplication) {
+        sendEmailCode(in: app)
+        let otpField = app.textFields[verifyIdentityEmailCodeField]
+        otpField.tap()
+        otpField.typeText("123456")
+        XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
+        app.buttons[verifyIdentityEmailVerifyButton].tap()
+        XCTAssertTrue(app.staticTexts[verifyIdentityEmailSuccess].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func continueFromEmailSuccess(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
+        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityMobileTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func completeMobileVerification(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons[verifyIdentityMobileSendCodeButton].waitForExistence(timeout: 10))
+        app.buttons[verifyIdentityMobileSendCodeButton].tap()
+        let otpField = app.textFields[verifyIdentityMobileCodeField]
+        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
+        otpField.tap()
+        otpField.typeText("123456")
+        XCTAssertTrue(app.buttons[verifyIdentityMobileVerifyButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyIdentityMobileVerifyButton].isEnabled)
+        app.buttons[verifyIdentityMobileVerifyButton].tap()
+        XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -217,5 +385,14 @@ final class KairoUITests: XCTestCase {
             "KAIRO_UI_TEST_CREATE_ACCOUNT_MOBILE": mobile,
             "KAIRO_UI_TEST_CREATE_ACCOUNT_TOUCHED_FIELDS": touchedFields.sorted().joined(separator: ",")
         ]
+    }
+
+    private func validCreateAccountEnvironment() -> [String: String] {
+        createAccountEnvironment(
+            firstName: "Aman",
+            lastName: "Jha",
+            email: "aman@example.com",
+            mobile: "9876543210"
+        )
     }
 }
