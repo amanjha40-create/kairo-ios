@@ -1,6 +1,8 @@
 import SwiftUI
 
 private struct KairoButtonChrome: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let foregroundColor: Color
     let backgroundColor: Color
     let pressedBackgroundColor: Color
@@ -19,8 +21,8 @@ private struct KairoButtonChrome: ButtonStyle {
                         .stroke(borderColor, lineWidth: 1)
                 }
             }
-            .scaleEffect(configuration.isPressed ? 0.99 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -40,6 +42,7 @@ struct KairoPrimaryButton: View {
 
                 Text(title)
                     .font(KairoTypography.headline)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, KairoSpacing.medium)
@@ -65,6 +68,7 @@ struct KairoSecondaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(KairoTypography.headline)
+                .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, KairoSpacing.medium)
         }
@@ -72,8 +76,8 @@ struct KairoSecondaryButton: View {
         .buttonStyle(
             KairoButtonChrome(
                 foregroundColor: KairoColors.brandPrimary,
-                backgroundColor: KairoColors.surfaceMuted,
-                pressedBackgroundColor: KairoColors.surface,
+                backgroundColor: KairoColors.surface,
+                pressedBackgroundColor: KairoColors.surfaceMuted,
                 borderColor: KairoColors.border
             )
         )

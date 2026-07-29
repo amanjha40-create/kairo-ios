@@ -4,12 +4,12 @@ import Combine
 final class AppRouter: ObservableObject {
     @Published private(set) var rootDestination: RootDestination
     @Published var selectedTab: CandidateTab
-    @Published var onboardingPath: [OnboardingStep]
+    @Published var onboardingPath: [OnboardingDestination]
 
     init(
         rootDestination: RootDestination = .onboarding,
         selectedTab: CandidateTab = .home,
-        onboardingPath: [OnboardingStep] = []
+        onboardingPath: [OnboardingDestination] = []
     ) {
         self.rootDestination = rootDestination
         self.selectedTab = selectedTab
@@ -17,20 +17,31 @@ final class AppRouter: ObservableObject {
     }
 
     func showOnboarding() {
-        rootDestination = .onboarding
+        if rootDestination != .onboarding {
+            rootDestination = .onboarding
+        }
         onboardingPath = []
     }
 
     func navigateToOnboarding(_ step: OnboardingStep) {
-        rootDestination = .onboarding
-        onboardingPath = Array(OnboardingStep.path(to: step).dropFirst())
+        if rootDestination != .onboarding {
+            rootDestination = .onboarding
+        }
+        onboardingPath = OnboardingStep.destinationPath(to: step)
+    }
+
+    func showLoginPlaceholder() {
+        if rootDestination != .onboarding {
+            rootDestination = .onboarding
+        }
+        onboardingPath = [.loginPlaceholder]
     }
 
     func advanceOnboarding(from step: OnboardingStep) {
-        let currentPath = Array(OnboardingStep.path(to: step).dropFirst())
+        let currentPath = OnboardingStep.destinationPath(to: step)
 
         if let next = step.next {
-            onboardingPath = currentPath + [next]
+            onboardingPath = currentPath + [.step(next)]
         } else {
             enterMainTabs()
         }
@@ -43,7 +54,7 @@ final class AppRouter: ObservableObject {
             return
         }
 
-        onboardingPath = Array(path.dropFirst().dropLast())
+        onboardingPath = Array(path.dropFirst().dropLast()).map(OnboardingDestination.step)
     }
 
     func enterMainTabs(selectedTab: CandidateTab = .home) {

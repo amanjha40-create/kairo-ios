@@ -1,5 +1,32 @@
 import Foundation
 
+enum UITestLaunchRoute: String {
+    case onboarding
+    case demoHome
+}
+
+struct UITestLaunchConfiguration {
+    static let enabledArgument = "-KAIRO_UI_TESTING"
+    static let routeEnvironmentKey = "KAIRO_UI_TEST_ROUTE"
+    static let disableAnimationsEnvironmentKey = "KAIRO_UI_TEST_DISABLE_ANIMATIONS"
+
+    let route: UITestLaunchRoute
+    let disablesAnimations: Bool
+
+    static func current(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> UITestLaunchConfiguration {
+        let isEnabled = arguments.contains(enabledArgument)
+        let route = UITestLaunchRoute(rawValue: environment[routeEnvironmentKey] ?? "") ?? .onboarding
+
+        return UITestLaunchConfiguration(
+            route: route,
+            disablesAnimations: isEnabled && environment[disableAnimationsEnvironmentKey] != "0"
+        )
+    }
+}
+
 enum AppBuildConfiguration: String, CaseIterable, Sendable {
     case development = "Development"
     case demo = "Demo"

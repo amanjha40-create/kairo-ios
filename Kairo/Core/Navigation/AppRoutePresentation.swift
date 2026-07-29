@@ -37,7 +37,7 @@ extension OnboardingStep {
     var subtitle: String {
         switch self {
         case .welcome:
-            "Candidate onboarding will land here once the real experience is implemented."
+            "Build, own, and share your professional trust that moves with you."
         case .createAccount:
             "Account creation UI is intentionally deferred while the architecture is established."
         case .verifyIdentity:

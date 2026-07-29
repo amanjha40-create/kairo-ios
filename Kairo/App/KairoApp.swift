@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct KairoApp: App {
@@ -7,8 +8,17 @@ struct KairoApp: App {
     init() {
         let configuration = AppConfiguration.resolve()
         let dependencies = AppDependencies.make(configuration: configuration)
+        let uiTestConfiguration = UITestLaunchConfiguration.current()
 
-        _router = StateObject(wrappedValue: AppRouter())
+        if uiTestConfiguration.disablesAnimations {
+            UIView.setAnimationsEnabled(false)
+        }
+
+        _router = StateObject(wrappedValue: AppRouter(
+            rootDestination: uiTestConfiguration.route == .demoHome ? .mainTabs : .onboarding,
+            selectedTab: .home,
+            onboardingPath: []
+        ))
         self.configuration = configuration
         self.dependencies = dependencies
     }

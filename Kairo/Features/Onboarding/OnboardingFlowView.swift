@@ -5,9 +5,18 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         NavigationStack(path: $router.onboardingPath) {
-            OnboardingPlaceholderScreen(step: .welcome)
-                .navigationDestination(for: OnboardingStep.self) { step in
-                    OnboardingPlaceholderScreen(step: step)
+            WelcomeScreenView()
+                .navigationDestination(for: OnboardingDestination.self) { destination in
+                    switch destination {
+                    case .step(let step):
+                        if step == .welcome {
+                            WelcomeScreenView()
+                        } else {
+                            OnboardingPlaceholderScreen(step: step)
+                        }
+                    case .loginPlaceholder:
+                        LoginPlaceholderScreen()
+                    }
                 }
         }
     }

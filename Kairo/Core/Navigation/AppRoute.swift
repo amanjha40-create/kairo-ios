@@ -5,6 +5,20 @@ enum RootDestination: Equatable {
     case mainTabs
 }
 
+enum OnboardingDestination: Hashable, Identifiable {
+    case step(OnboardingStep)
+    case loginPlaceholder
+
+    var id: String {
+        switch self {
+        case .step(let step):
+            "step.\(step.rawValue)"
+        case .loginPlaceholder:
+            "login.placeholder"
+        }
+    }
+}
+
 enum CandidateTab: String, CaseIterable, Hashable, Identifiable {
     case home
     case career
@@ -40,5 +54,9 @@ enum OnboardingStep: String, CaseIterable, Hashable, Identifiable {
         }
 
         return Array(allCases[...index])
+    }
+
+    static func destinationPath(to step: OnboardingStep) -> [OnboardingDestination] {
+        Array(path(to: step).dropFirst()).map(OnboardingDestination.step)
     }
 }

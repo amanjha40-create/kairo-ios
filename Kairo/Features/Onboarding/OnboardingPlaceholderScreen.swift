@@ -4,50 +4,91 @@ struct OnboardingPlaceholderScreen: View {
     let step: OnboardingStep
 
     @EnvironmentObject private var router: AppRouter
-    @State private var sampleInput = ""
 
     var body: some View {
-        KairoScreenContainer(
+        if step == .createAccount {
+            createAccountPlaceholder
+        } else {
+            genericPlaceholder
+        }
+    }
+
+    private var genericPlaceholder: some View {
+        OnboardingScreenLayout(
+            eyebrow: "Coming Next",
             title: step.title,
-            subtitle: "Navigation is wired to the locked onboarding flow while product content remains intentionally unimplemented.",
+            subtitle: step.subtitle,
             titleAccessibilityIdentifier: step.titleAccessibilityIdentifier
         ) {
+            OnboardingIllustrationPlaceholder()
+        } content: {
             KairoCard {
-                Text("Foundation Placeholder")
+                Text("Product content is intentionally deferred.")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text(step.subtitle)
+
+                Text("This placeholder keeps the locked onboarding flow testable while the real \(step.title) experience is still pending.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            KairoTextField(
-                title: "Sample Input",
-                prompt: "Used only to validate the reusable text field foundation",
-                text: $sampleInput
+        } actions: {
+            OnboardingActionGroup(
+                primaryTitle: step.next == nil ? "Enter Home" : "Continue",
+                primaryAccessibilityIdentifier: KairoAccessibilityID.onboardingContinue,
+                primaryAction: { router.advanceOnboarding(from: step) },
+                secondaryTitle: "Back",
+                secondaryAccessibilityIdentifier: KairoAccessibilityID.onboardingBack,
+                secondaryAction: { router.goBackOnboarding(from: step) }
             )
-
-            KairoEmptyStateView(
-                title: "No Product Screen Yet",
-                message: "This milestone sets up navigation, shared UI, and app infrastructure without building the actual \(step.title) screen.",
-                systemImage: "square.stack.3d.up"
-            )
-
-            VStack(spacing: KairoSpacing.small) {
-                KairoPrimaryButton(
-                    title: step.next == nil ? "Enter Home" : "Continue",
-                    accessibilityIdentifier: KairoAccessibilityID.onboardingContinue,
-                    action: { router.advanceOnboarding(from: step) }
-                )
-
-                if step != .welcome {
-                    KairoSecondaryButton(
-                        title: "Back",
-                        accessibilityIdentifier: KairoAccessibilityID.onboardingBack,
-                        action: { router.goBackOnboarding(from: step) }
-                    )
-                }
-            }
         }
+    }
+
+    private var createAccountPlaceholder: some View {
+        OnboardingScreenLayout(
+            eyebrow: "Coming Next",
+            title: "Create your account",
+            subtitle: "Account creation arrives next milestone. This placeholder keeps the locked route available for onboarding validation today.",
+            titleAccessibilityIdentifier: step.titleAccessibilityIdentifier
+        ) {
+            createAccountHero
+        } content: {
+            KairoCard {
+                Text("Placeholder only")
+                    .font(KairoTypography.title2)
+                    .foregroundStyle(KairoColors.textPrimary)
+
+                Text("Real account creation ships next milestone.")
+                    .font(KairoTypography.body)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } actions: {
+            OnboardingActionGroup(
+                primaryTitle: "Continue",
+                primaryAccessibilityIdentifier: KairoAccessibilityID.onboardingContinue,
+                primaryAction: { router.advanceOnboarding(from: step) },
+                secondaryTitle: nil,
+                secondaryAccessibilityIdentifier: nil,
+                secondaryAction: nil
+            )
+        }
+    }
+
+    private var createAccountHero: some View {
+        ZStack {
+            Circle()
+                .fill(KairoColors.surface)
+                .overlay(
+                    Circle()
+                        .stroke(KairoColors.border, lineWidth: 1)
+                )
+                .kairoShadow(KairoShadow.card)
+
+            Image(systemName: "person.badge.plus")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .foregroundStyle(KairoColors.brandPrimary)
+        }
+        .frame(width: 84, height: 84)
     }
 }

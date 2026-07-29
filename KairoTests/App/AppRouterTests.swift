@@ -31,8 +31,22 @@ final class AppRouterTests: XCTestCase {
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(
             router.onboardingPath,
-            [.createAccount, .verifyIdentity, .chooseStart, .resumeImportOrQuickProfile]
+            [
+                .step(.createAccount),
+                .step(.verifyIdentity),
+                .step(.chooseStart),
+                .step(.resumeImportOrQuickProfile)
+            ]
         )
+    }
+
+    func test_existingAccountRouteUsesLoginPlaceholder() {
+        let router = AppRouter()
+
+        router.showLoginPlaceholder()
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath, [.loginPlaceholder])
     }
 
     func test_lockedNavigationRemainsInExpectedOrder() {
