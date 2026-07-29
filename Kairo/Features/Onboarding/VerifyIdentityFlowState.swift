@@ -3,13 +3,16 @@ import Foundation
 struct OnboardingFlowState: Equatable, Sendable {
     var createAccountDraft: CreateAccountDraft
     var verifyIdentityState: VerifyIdentityFlowState
+    var chooseStartState: ChooseStartState
 
     init(
         createAccountDraft: CreateAccountDraft = CreateAccountDraft(),
-        verifyIdentityState: VerifyIdentityFlowState = VerifyIdentityFlowState()
+        verifyIdentityState: VerifyIdentityFlowState = VerifyIdentityFlowState(),
+        chooseStartState: ChooseStartState = ChooseStartState()
     ) {
         self.createAccountDraft = createAccountDraft
         self.verifyIdentityState = verifyIdentityState
+        self.chooseStartState = chooseStartState
     }
 }
 

@@ -59,6 +59,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
                             bottomPadding: contentBottomPadding
                         )
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {

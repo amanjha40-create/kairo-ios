@@ -43,7 +43,11 @@ struct OnboardingFlowView: View {
                 createAccountDraft: $flowState.createAccountDraft,
                 state: $flowState.verifyIdentityState
             )
-        case .chooseStart, .resumeImportOrQuickProfile, .passportCreated:
+        case .chooseStart:
+            ChooseStartScreenView(state: $flowState.chooseStartState)
+        case .resumeImportOrQuickProfile:
+            ChooseStartDestinationPlaceholderScreen(selection: flowState.chooseStartState.selection)
+        case .passportCreated:
             OnboardingPlaceholderScreen(step: step)
         }
     }

@@ -19,8 +19,13 @@ final class KairoUITests: XCTestCase {
     private let onboardingVerifyIdentityEmailTitle = "onboarding.verifyIdentity.email.title"
     private let onboardingVerifyIdentityMobileTitle = "onboarding.verifyIdentity.mobile.title"
     private let onboardingChooseStartTitle = "onboarding.step.chooseStart"
+    private let onboardingResumeImportTitle = "onboarding.resumeImport.title"
+    private let onboardingManualProfileTitle = "onboarding.manualProfile.title"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
+    private let chooseStartContinueButton = "onboarding.chooseStart.continue"
+    private let chooseStartResumeOptionButton = "onboarding.chooseStart.resume"
+    private let chooseStartManualOptionButton = "onboarding.chooseStart.manual"
     private let welcomeExistingAccountButton = "onboarding.existingAccount"
     private let createAccountFirstNameField = "onboarding.createAccount.firstName"
     private let createAccountLastNameField = "onboarding.createAccount.lastName"
@@ -40,7 +45,7 @@ final class KairoUITests: XCTestCase {
     private let verifyIdentityMobileVerifyButton = "onboarding.verifyIdentity.mobile.verify"
     private let verifyIdentityMobileSuccess = "onboarding.verifyIdentity.mobile.success"
     private let onboardingLoginTitle = "onboarding.login.title"
-    private let remainingPlaceholderTransitionCount = 3
+    private let remainingPlaceholderTransitionCount = 2
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -264,6 +269,65 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testChooseStartContinueRemainsDisabledUntilSelectionIsMade() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToChooseStart(in: app)
+
+        let continueButton = app.buttons[chooseStartContinueButton]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
+        XCTAssertFalse(continueButton.isEnabled)
+    }
+
+    @MainActor
+    func testChooseStartResumeSelectionEnablesContinue() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToChooseStart(in: app)
+
+        let resumeOption = app.buttons[chooseStartResumeOptionButton]
+        XCTAssertTrue(resumeOption.waitForExistence(timeout: 10))
+        resumeOption.tap()
+
+        XCTAssertEqual(resumeOption.value as? String, "Selected")
+        XCTAssertTrue(app.buttons[chooseStartContinueButton].isEnabled)
+    }
+
+    @MainActor
+    func testChooseStartManualSelectionEnablesContinue() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToChooseStart(in: app)
+
+        let manualOption = app.buttons[chooseStartManualOptionButton]
+        XCTAssertTrue(manualOption.waitForExistence(timeout: 10))
+        manualOption.tap()
+
+        XCTAssertEqual(manualOption.value as? String, "Selected")
+        XCTAssertTrue(app.buttons[chooseStartContinueButton].isEnabled)
+    }
+
+    @MainActor
+    func testChooseStartContinueRoutesToResumeImportPlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToChooseStart(in: app)
+        continueFromChooseStart(in: app, selecting: chooseStartResumeOptionButton)
+
+        XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testChooseStartContinueRoutesToManualProfilePlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment())
+
+        navigateToChooseStart(in: app)
+        continueFromChooseStart(in: app, selecting: chooseStartManualOptionButton)
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     private func advanceThroughOnboarding(in app: XCUIApplication) {
         navigateToVerifyIdentityIntroduction(in: app)
         continueToEmailVerification(in: app)
@@ -272,6 +336,7 @@ final class KairoUITests: XCTestCase {
         completeMobileVerification(in: app)
         XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
         app.buttons[onboardingContinueButton].tap()
+        continueFromChooseStart(in: app, selecting: chooseStartResumeOptionButton)
 
         for _ in 0..<remainingPlaceholderTransitionCount {
             XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
@@ -327,6 +392,15 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func navigateToChooseStart(in app: XCUIApplication) {
+        navigateToMobileVerification(in: app)
+        completeMobileVerification(in: app)
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
+        XCTAssertTrue(app.staticTexts[onboardingChooseStartTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     private func sendEmailCode(in app: XCUIApplication) {
         XCTAssertTrue(app.buttons[verifyIdentityEmailSendCodeButton].waitForExistence(timeout: 10))
         app.buttons[verifyIdentityEmailSendCodeButton].tap()
@@ -364,6 +438,18 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[verifyIdentityMobileVerifyButton].isEnabled)
         app.buttons[verifyIdentityMobileVerifyButton].tap()
         XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func continueFromChooseStart(in app: XCUIApplication, selecting optionIdentifier: String) {
+        let option = app.buttons[optionIdentifier]
+        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        option.tap()
+
+        let continueButton = app.buttons[chooseStartContinueButton]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(continueButton.isEnabled)
+        continueButton.tap()
     }
 
     @MainActor
