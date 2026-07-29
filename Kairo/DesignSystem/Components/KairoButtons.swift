@@ -2,6 +2,7 @@ import SwiftUI
 
 private struct KairoButtonChrome: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
     let foregroundColor: Color
     let backgroundColor: Color
@@ -9,19 +10,23 @@ private struct KairoButtonChrome: ButtonStyle {
     let borderColor: Color?
 
     func makeBody(configuration: Configuration) -> some View {
+        let resolvedForegroundColor = isEnabled ? foregroundColor : foregroundColor.opacity(0.58)
+        let resolvedBackgroundColor = isEnabled ? (configuration.isPressed ? pressedBackgroundColor : backgroundColor) : backgroundColor.opacity(0.42)
+
         configuration.label
-            .foregroundStyle(foregroundColor)
+            .foregroundStyle(resolvedForegroundColor)
             .background(
-                (configuration.isPressed ? pressedBackgroundColor : backgroundColor),
+                resolvedBackgroundColor,
                 in: Capsule()
             )
             .overlay {
                 if let borderColor {
                     Capsule()
-                        .stroke(borderColor, lineWidth: 1)
+                        .stroke(isEnabled ? borderColor : borderColor.opacity(0.45), lineWidth: 1)
                 }
             }
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
+            .opacity(isEnabled ? 1 : 0.92)
+            .scaleEffect(configuration.isPressed && isEnabled && !reduceMotion ? 0.99 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

@@ -10,6 +10,7 @@ struct UITestLaunchConfiguration {
     static let routeEnvironmentKey = "KAIRO_UI_TEST_ROUTE"
     static let disableAnimationsEnvironmentKey = "KAIRO_UI_TEST_DISABLE_ANIMATIONS"
 
+    let isEnabled: Bool
     let route: UITestLaunchRoute
     let disablesAnimations: Bool
 
@@ -21,6 +22,7 @@ struct UITestLaunchConfiguration {
         let route = UITestLaunchRoute(rawValue: environment[routeEnvironmentKey] ?? "") ?? .onboarding
 
         return UITestLaunchConfiguration(
+            isEnabled: isEnabled,
             route: route,
             disablesAnimations: isEnabled && environment[disableAnimationsEnvironmentKey] != "0"
         )

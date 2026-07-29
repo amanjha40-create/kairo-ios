@@ -39,7 +39,7 @@ extension OnboardingStep {
         case .welcome:
             "Build, own, and share your professional trust that moves with you."
         case .createAccount:
-            "Account creation UI is intentionally deferred while the architecture is established."
+            "Start building your portable professional trust profile."
         case .verifyIdentity:
             "Identity verification remains a placeholder in this milestone."
         case .chooseStart:
