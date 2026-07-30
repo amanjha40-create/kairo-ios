@@ -17,7 +17,9 @@ struct KairoApp: App {
         _router = StateObject(wrappedValue: AppRouter(
             rootDestination: uiTestConfiguration.route == .demoHome ? .mainTabs : .onboarding,
             selectedTab: .home,
-            onboardingPath: []
+            onboardingPath: uiTestConfiguration.route == .demoHome
+                ? []
+                : uiTestConfiguration.onboardingStep.map(OnboardingStep.destinationPath(to:)) ?? []
         ))
         self.configuration = configuration
         self.dependencies = dependencies

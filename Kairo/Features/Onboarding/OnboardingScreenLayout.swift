@@ -4,12 +4,13 @@ enum OnboardingScreenLayoutMode {
     case hero
     case form
     case choice
+    case task
 
     var pinsActionsToBottom: Bool {
         switch self {
         case .hero, .choice:
             true
-        case .form:
+        case .form, .task:
             false
         }
     }
@@ -101,6 +102,12 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
             } else {
                 portraitChoiceContent()
             }
+        case .task:
+            if isLandscape {
+                landscapeTaskContent()
+            } else {
+                portraitTaskContent()
+            }
         }
     }
 
@@ -180,6 +187,38 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
+    private func portraitTaskContent() -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
+            hero
+                .frame(maxWidth: .infinity)
+
+            copyBlock(
+                contentSpacing: KairoSpacing.medium,
+                titleSpacing: KairoSpacing.small
+            )
+
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func landscapeTaskContent() -> some View {
+        HStack(alignment: .top, spacing: KairoSpacing.xLarge) {
+            hero
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                copyBlock(
+                    contentSpacing: KairoSpacing.medium,
+                    titleSpacing: KairoSpacing.small
+                )
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
     private func copyBlock(contentSpacing: CGFloat, titleSpacing: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: contentSpacing) {
             if let eyebrow {
@@ -207,7 +246,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
 
     private func topPadding(for layoutMode: OnboardingScreenLayoutMode) -> CGFloat {
         switch layoutMode {
-        case .hero, .choice:
+        case .hero, .choice, .task:
             KairoSpacing.medium
         case .form:
             KairoSpacing.small

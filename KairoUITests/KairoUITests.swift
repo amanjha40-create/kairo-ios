@@ -45,7 +45,15 @@ final class KairoUITests: XCTestCase {
     private let verifyIdentityMobileVerifyButton = "onboarding.verifyIdentity.mobile.verify"
     private let verifyIdentityMobileSuccess = "onboarding.verifyIdentity.mobile.success"
     private let onboardingLoginTitle = "onboarding.login.title"
-    private let remainingPlaceholderTransitionCount = 2
+    private let resumeImportChooseButton = "onboarding.resumeImport.choose"
+    private let resumeImportPrepareButton = "onboarding.resumeImport.prepare"
+    private let resumeImportManualButton = "onboarding.resumeImport.manual"
+    private let resumeImportProcessingTitle = "onboarding.resumeImport.processing.title"
+    private let resumeImportFileName = "onboarding.resumeImport.fileName"
+    private let resumeImportRetryButton = "onboarding.resumeImport.retry"
+    private let resumeImportChooseAnotherButton = "onboarding.resumeImport.chooseAnother"
+    private let resumeImportLooksGoodButton = "onboarding.resumeImport.looksGood"
+    private let resumeImportFailureMessage = "onboarding.resumeImport.failure.message"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -71,15 +79,15 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testOnboardingFlowReachesLockedHomeShell() throws {
-        let app = launchApp(environment: createAccountEnvironment(
-            firstName: "Aman",
-            lastName: "Jha",
-            email: "aman@example.com",
-            mobile: "9876543210"
-        ))
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(phase: "readyForReview")) { _, override in override })
 
-        XCTAssertTrue(app.staticTexts[onboardingWelcomeTitle].waitForExistence(timeout: 10))
-        advanceThroughOnboarding(in: app)
+        XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportLooksGoodButton].waitForExistence(timeout: 10))
+        app.buttons[resumeImportLooksGoodButton].tap()
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
@@ -187,9 +195,8 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testVerifyIdentityIntroductionContinuesToEmailVerification() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToVerifyIdentityIntroduction(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override })
 
         XCTAssertTrue(app.buttons[verifyIdentityIntroContinueButton].waitForExistence(timeout: 10))
         app.buttons[verifyIdentityIntroContinueButton].tap()
@@ -199,30 +206,23 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testEmailVerificationSendCodeEnablesCountdownState() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override }
+            .merging(verifyIdentityEnvironment(phase: "email", emailState: "codeSent")) { _, override in override })
 
-        navigateToEmailVerification(in: app)
+        let resendCodeControl = app.descendants(matching: .any)
+            .matching(identifier: verifyIdentityEmailResendCodeButton)
+            .firstMatch
 
-        let sendCodeButton = app.buttons[verifyIdentityEmailSendCodeButton]
-        XCTAssertTrue(sendCodeButton.waitForExistence(timeout: 10))
-        sendCodeButton.tap()
-
-        XCTAssertTrue(app.staticTexts[verifyIdentityEmailCountdown].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[verifyIdentityEmailResendCodeButton].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons[verifyIdentityEmailResendCodeButton].isEnabled)
+        XCTAssertTrue(resendCodeControl.waitForExistence(timeout: 10))
+        XCTAssertFalse(resendCodeControl.isEnabled)
     }
 
     @MainActor
     func testEmailVerificationShowsInvalidOTPMessage() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToEmailVerification(in: app)
-        sendEmailCode(in: app)
-
-        let otpField = app.textFields[verifyIdentityEmailCodeField]
-        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
-        otpField.tap()
-        otpField.typeText("123")
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override }
+            .merging(verifyIdentityEnvironment(phase: "email", emailState: "invalidCode")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts["Enter the full 6-digit code."].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
@@ -230,15 +230,9 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testEmailVerificationValidOTPEnablesVerify() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToEmailVerification(in: app)
-        sendEmailCode(in: app)
-
-        let otpField = app.textFields[verifyIdentityEmailCodeField]
-        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
-        otpField.tap()
-        otpField.typeText("123456")
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override }
+            .merging(verifyIdentityEnvironment(phase: "email", emailState: "validCode")) { _, override in override })
 
         XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
@@ -246,20 +240,18 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testEmailVerificationShowsSuccessState() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToEmailVerification(in: app)
-        completeEmailVerification(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override }
+            .merging(verifyIdentityEnvironment(phase: "email", emailState: "verified")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts[verifyIdentityEmailSuccess].waitForExistence(timeout: 10))
     }
 
     @MainActor
     func testMobileVerificationShowsSuccessAndRoutesToChooseStartPlaceholder() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToMobileVerification(in: app)
-        completeMobileVerification(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("verifyIdentity")) { _, override in override }
+            .merging(verifyIdentityEnvironment(phase: "mobile", mobileState: "verified")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
@@ -270,9 +262,8 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testChooseStartContinueRemainsDisabledUntilSelectionIsMade() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToChooseStart(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
         let continueButton = app.buttons[chooseStartContinueButton]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
@@ -281,9 +272,8 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testChooseStartResumeSelectionEnablesContinue() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToChooseStart(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
         let resumeOption = app.buttons[chooseStartResumeOptionButton]
         XCTAssertTrue(resumeOption.waitForExistence(timeout: 10))
@@ -295,9 +285,8 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testChooseStartManualSelectionEnablesContinue() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
-
-        navigateToChooseStart(in: app)
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
         let manualOption = app.buttons[chooseStartManualOptionButton]
         XCTAssertTrue(manualOption.waitForExistence(timeout: 10))
@@ -309,39 +298,103 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     func testChooseStartContinueRoutesToResumeImportPlaceholder() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
-        navigateToChooseStart(in: app)
         continueFromChooseStart(in: app, selecting: chooseStartResumeOptionButton)
 
         XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportChooseButton].waitForExistence(timeout: 10))
     }
 
     @MainActor
     func testChooseStartContinueRoutesToManualProfilePlaceholder() throws {
-        let app = launchApp(environment: validCreateAccountEnvironment())
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
-        navigateToChooseStart(in: app)
         continueFromChooseStart(in: app, selecting: chooseStartManualOptionButton)
 
         XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
     }
 
     @MainActor
-    private func advanceThroughOnboarding(in app: XCUIApplication) {
-        navigateToVerifyIdentityIntroduction(in: app)
-        continueToEmailVerification(in: app)
-        completeEmailVerification(in: app)
-        continueFromEmailSuccess(in: app)
-        completeMobileVerification(in: app)
-        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
-        app.buttons[onboardingContinueButton].tap()
-        continueFromChooseStart(in: app, selecting: chooseStartResumeOptionButton)
+    func testResumeImportManualButtonRoutesToManualProfilePlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override })
 
-        for _ in 0..<remainingPlaceholderTransitionCount {
-            XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
-            app.buttons[onboardingContinueButton].tap()
-        }
+        XCTAssertTrue(app.buttons[resumeImportManualButton].waitForExistence(timeout: 10))
+        app.buttons[resumeImportManualButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testResumeImportInitialStateHasNoSelectedFile() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportChooseButton].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Resume selected"].exists)
+    }
+
+    @MainActor
+    func testResumeImportSeededSelectedStateShowsFileMetadata() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(phase: "selected", fileName: "Candidate_Resume.docx")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Resume selected"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[resumeImportFileName].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportPrepareButton].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testResumeImportProcessingStateShowsDeterministicStatus() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(
+                phase: "processingPreparing",
+                autoAdvance: false
+            )) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[resumeImportProcessingTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Preparing your resume"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testResumeImportFailureStateShowsRetryAction() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(phase: "failed")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[resumeImportFailureMessage].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportRetryButton].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testResumeImportReviewStateCanChooseAnotherResume() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(phase: "readyForReview")) { _, override in override })
+
+        XCTAssertTrue(app.buttons[resumeImportChooseAnotherButton].waitForExistence(timeout: 10))
+        app.buttons[resumeImportChooseAnotherButton].tap()
+
+        XCTAssertTrue(app.buttons[resumeImportChooseButton].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testResumeImportLooksGoodRoutesToPassportCreatedPlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(phase: "readyForReview")) { _, override in override })
+
+        XCTAssertTrue(app.buttons[resumeImportLooksGoodButton].waitForExistence(timeout: 10))
+        app.buttons[resumeImportLooksGoodButton].tap()
+
+        XCTAssertTrue(app.staticTexts["onboarding.step.passportCreated"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -410,9 +463,8 @@ final class KairoUITests: XCTestCase {
     @MainActor
     private func completeEmailVerification(in app: XCUIApplication) {
         sendEmailCode(in: app)
-        let otpField = app.textFields[verifyIdentityEmailCodeField]
-        otpField.tap()
-        otpField.typeText("123456")
+        focusOTPField(identifier: verifyIdentityEmailCodeField, in: app)
+        app.typeText("123456")
         XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[verifyIdentityEmailVerifyButton].isEnabled)
         app.buttons[verifyIdentityEmailVerifyButton].tap()
@@ -430,14 +482,19 @@ final class KairoUITests: XCTestCase {
     private func completeMobileVerification(in app: XCUIApplication) {
         XCTAssertTrue(app.buttons[verifyIdentityMobileSendCodeButton].waitForExistence(timeout: 10))
         app.buttons[verifyIdentityMobileSendCodeButton].tap()
-        let otpField = app.textFields[verifyIdentityMobileCodeField]
-        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
-        otpField.tap()
-        otpField.typeText("123456")
+        focusOTPField(identifier: verifyIdentityMobileCodeField, in: app)
+        app.typeText("123456")
         XCTAssertTrue(app.buttons[verifyIdentityMobileVerifyButton].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[verifyIdentityMobileVerifyButton].isEnabled)
         app.buttons[verifyIdentityMobileVerifyButton].tap()
         XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func focusOTPField(identifier: String, in app: XCUIApplication) {
+        let otpField = app.textFields[identifier]
+        XCTAssertTrue(otpField.waitForExistence(timeout: 10))
+        otpField.tap()
     }
 
     @MainActor
@@ -448,7 +505,12 @@ final class KairoUITests: XCTestCase {
 
         let continueButton = app.buttons[chooseStartContinueButton]
         XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
-        XCTAssertTrue(continueButton.isEnabled)
+        let enabledPredicate = NSPredicate(format: "isEnabled == true")
+        let enabledExpectation = XCTNSPredicateExpectation(
+            predicate: enabledPredicate,
+            object: continueButton
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [enabledExpectation], timeout: 5), .completed)
         continueButton.tap()
     }
 
@@ -480,5 +542,35 @@ final class KairoUITests: XCTestCase {
             email: "aman@example.com",
             mobile: "9876543210"
         )
+    }
+
+    private func onboardingStepEnvironment(_ step: String) -> [String: String] {
+        [
+            "KAIRO_UI_TEST_ONBOARDING_STEP": step
+        ]
+    }
+
+    private func verifyIdentityEnvironment(
+        phase: String,
+        emailState: String = "pristine",
+        mobileState: String = "pristine"
+    ) -> [String: String] {
+        [
+            "KAIRO_UI_TEST_VERIFY_IDENTITY_PHASE": phase,
+            "KAIRO_UI_TEST_VERIFY_IDENTITY_EMAIL_STATE": emailState,
+            "KAIRO_UI_TEST_VERIFY_IDENTITY_MOBILE_STATE": mobileState
+        ]
+    }
+
+    private func resumeImportEnvironment(
+        phase: String,
+        fileName: String = "Aman_Jha_Resume.pdf",
+        autoAdvance: Bool = true
+    ) -> [String: String] {
+        [
+            "KAIRO_UI_TEST_RESUME_IMPORT_PHASE": phase,
+            "KAIRO_UI_TEST_RESUME_IMPORT_FILE_NAME": fileName,
+            "KAIRO_UI_TEST_RESUME_IMPORT_AUTO_ADVANCE": autoAdvance ? "1" : "0"
+        ]
     }
 }

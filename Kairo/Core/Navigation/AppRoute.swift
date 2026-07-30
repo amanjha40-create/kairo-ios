@@ -37,9 +37,9 @@ enum OnboardingStep: String, CaseIterable, Hashable, Identifiable {
     case resumeImportOrQuickProfile
     case passportCreated
 
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
 
-    var next: OnboardingStep? {
+    nonisolated var next: OnboardingStep? {
         let allSteps = Self.allCases
         guard let index = allSteps.firstIndex(of: self), index < allSteps.index(before: allSteps.endIndex) else {
             return nil
@@ -48,7 +48,7 @@ enum OnboardingStep: String, CaseIterable, Hashable, Identifiable {
         return allSteps[allSteps.index(after: index)]
     }
 
-    static func path(to step: OnboardingStep) -> [OnboardingStep] {
+    nonisolated static func path(to step: OnboardingStep) -> [OnboardingStep] {
         guard let index = allCases.firstIndex(of: step) else {
             return [.welcome]
         }
@@ -56,7 +56,7 @@ enum OnboardingStep: String, CaseIterable, Hashable, Identifiable {
         return Array(allCases[...index])
     }
 
-    static func destinationPath(to step: OnboardingStep) -> [OnboardingDestination] {
+    nonisolated static func destinationPath(to step: OnboardingStep) -> [OnboardingDestination] {
         Array(path(to: step).dropFirst()).map(OnboardingDestination.step)
     }
 }

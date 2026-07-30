@@ -6,11 +6,15 @@ struct OnboardingFlowView: View {
     private let createAccountInitialTouchedFields: Set<CreateAccountField>
 
     init() {
-        let uiTestConfiguration = UITestCreateAccountConfiguration.current()
+        let createAccountConfiguration = UITestCreateAccountConfiguration.current()
+        let verifyIdentityConfiguration = UITestVerifyIdentityConfiguration.current()
+        let resumeImportConfiguration = UITestResumeImportConfiguration.current()
         _flowState = State(initialValue: OnboardingFlowState(
-            createAccountDraft: uiTestConfiguration.draft
+            createAccountDraft: createAccountConfiguration.draft,
+            verifyIdentityState: verifyIdentityConfiguration.state,
+            resumeImportState: resumeImportConfiguration.state
         ))
-        createAccountInitialTouchedFields = uiTestConfiguration.touchedFields
+        createAccountInitialTouchedFields = createAccountConfiguration.touchedFields
     }
 
     var body: some View {
@@ -46,7 +50,17 @@ struct OnboardingFlowView: View {
         case .chooseStart:
             ChooseStartScreenView(state: $flowState.chooseStartState)
         case .resumeImportOrQuickProfile:
-            ChooseStartDestinationPlaceholderScreen(selection: flowState.chooseStartState.selection)
+            if flowState.chooseStartState.selection == .buildProfileManually {
+                ChooseStartDestinationPlaceholderScreen(selection: flowState.chooseStartState.selection)
+            } else {
+                ResumeImportScreenView(
+                    createAccountDraft: flowState.createAccountDraft,
+                    state: $flowState.resumeImportState,
+                    onBuildProfileManually: {
+                        flowState.chooseStartState.select(.buildProfileManually)
+                    }
+                )
+            }
         case .passportCreated:
             OnboardingPlaceholderScreen(step: step)
         }

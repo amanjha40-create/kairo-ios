@@ -4,15 +4,18 @@ struct OnboardingFlowState: Equatable, Sendable {
     var createAccountDraft: CreateAccountDraft
     var verifyIdentityState: VerifyIdentityFlowState
     var chooseStartState: ChooseStartState
+    var resumeImportState: ResumeImportState
 
     init(
         createAccountDraft: CreateAccountDraft = CreateAccountDraft(),
         verifyIdentityState: VerifyIdentityFlowState = VerifyIdentityFlowState(),
-        chooseStartState: ChooseStartState = ChooseStartState()
+        chooseStartState: ChooseStartState = ChooseStartState(),
+        resumeImportState: ResumeImportState = ResumeImportState()
     ) {
         self.createAccountDraft = createAccountDraft
         self.verifyIdentityState = verifyIdentityState
         self.chooseStartState = chooseStartState
+        self.resumeImportState = resumeImportState
     }
 }
 

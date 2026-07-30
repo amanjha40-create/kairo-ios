@@ -8,10 +8,12 @@ enum UITestLaunchRoute: String {
 struct UITestLaunchConfiguration {
     static let enabledArgument = "-KAIRO_UI_TESTING"
     static let routeEnvironmentKey = "KAIRO_UI_TEST_ROUTE"
+    static let onboardingStepEnvironmentKey = "KAIRO_UI_TEST_ONBOARDING_STEP"
     static let disableAnimationsEnvironmentKey = "KAIRO_UI_TEST_DISABLE_ANIMATIONS"
 
     let isEnabled: Bool
     let route: UITestLaunchRoute
+    let onboardingStep: OnboardingStep?
     let disablesAnimations: Bool
 
     static func current(
@@ -20,10 +22,12 @@ struct UITestLaunchConfiguration {
     ) -> UITestLaunchConfiguration {
         let isEnabled = arguments.contains(enabledArgument)
         let route = UITestLaunchRoute(rawValue: environment[routeEnvironmentKey] ?? "") ?? .onboarding
+        let onboardingStep = OnboardingStep(rawValue: environment[onboardingStepEnvironmentKey] ?? "")
 
         return UITestLaunchConfiguration(
             isEnabled: isEnabled,
             route: route,
+            onboardingStep: isEnabled ? onboardingStep : nil,
             disablesAnimations: isEnabled && environment[disableAnimationsEnvironmentKey] != "0"
         )
     }
