@@ -21,6 +21,8 @@ final class KairoUITests: XCTestCase {
     private let onboardingChooseStartTitle = "onboarding.step.chooseStart"
     private let onboardingResumeImportTitle = "onboarding.resumeImport.title"
     private let onboardingManualProfileTitle = "onboarding.manualProfile.title"
+    private let onboardingManualProfileEmploymentTitle = "onboarding.manualProfile.employment.title"
+    private let onboardingManualProfileEducationTitle = "onboarding.manualProfile.education.title"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
     private let chooseStartContinueButton = "onboarding.chooseStart.continue"
@@ -54,6 +56,14 @@ final class KairoUITests: XCTestCase {
     private let resumeImportChooseAnotherButton = "onboarding.resumeImport.chooseAnother"
     private let resumeImportLooksGoodButton = "onboarding.resumeImport.looksGood"
     private let resumeImportFailureMessage = "onboarding.resumeImport.failure.message"
+    private let manualProfileHeadlineField = "onboarding.manualProfile.headline"
+    private let manualProfileCurrentCityField = "onboarding.manualProfile.currentCity"
+    private let manualProfileCurrentCountryField = "onboarding.manualProfile.currentCountry"
+    private let manualProfileBasicContinueButton = "onboarding.manualProfile.basic.continue"
+    private let manualProfileEmploymentAddButton = "onboarding.manualProfile.employment.add"
+    private let manualProfileEmploymentContinueButton = "onboarding.manualProfile.employment.continue"
+    private let manualProfileEducationAddButton = "onboarding.manualProfile.education.add"
+    private let manualProfileEducationContinueButton = "onboarding.manualProfile.education.continue"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -308,17 +318,18 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testChooseStartContinueRoutesToManualProfilePlaceholder() throws {
+    func testChooseStartContinueRoutesToManualProfileFlow() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("chooseStart")) { _, override in override })
 
         continueFromChooseStart(in: app, selecting: chooseStartManualOptionButton)
 
         XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields[manualProfileCurrentCityField].waitForExistence(timeout: 10))
     }
 
     @MainActor
-    func testResumeImportManualButtonRoutesToManualProfilePlaceholder() throws {
+    func testResumeImportManualButtonRoutesToManualProfileFlow() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override })
 
@@ -326,6 +337,69 @@ final class KairoUITests: XCTestCase {
         app.buttons[resumeImportManualButton].tap()
 
         XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields[manualProfileCurrentCountryField].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testManualProfileCompletePathRoutesToPassportCreatedPlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("chooseStart")) { _, override in override }
+            .merging(manualProfileEnvironment(phase: "basicProfile")) { _, override in override })
+
+        continueFromChooseStart(in: app, selecting: chooseStartManualOptionButton)
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileBasicContinueButton].isEnabled)
+        app.buttons[manualProfileBasicContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileEmploymentTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileEmploymentContinueButton].isEnabled)
+        app.buttons[manualProfileEmploymentContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileEducationTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileEducationContinueButton].isEnabled)
+        app.buttons[manualProfileEducationContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts["onboarding.step.passportCreated"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testManualProfileEmploymentCanAddAndRemoveEntry() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(manualProfileEnvironment(phase: "employment")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileEmploymentTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileEmploymentAddButton].waitForExistence(timeout: 10))
+        app.buttons[manualProfileEmploymentAddButton].tap()
+
+        let secondCompanyField = app.textFields[manualProfileEmploymentCompanyField(index: 1)]
+        XCTAssertTrue(secondCompanyField.waitForExistence(timeout: 10))
+
+        let secondDeleteButton = app.buttons[manualProfileEmploymentDeleteButton(index: 1)]
+        XCTAssertTrue(secondDeleteButton.waitForExistence(timeout: 10))
+        secondDeleteButton.tap()
+
+        XCTAssertFalse(secondCompanyField.exists)
+    }
+
+    @MainActor
+    func testManualProfileEducationCanAddAndRemoveEntry() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(manualProfileEnvironment(phase: "education")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileEducationTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileEducationAddButton].waitForExistence(timeout: 10))
+        app.buttons[manualProfileEducationAddButton].tap()
+
+        let secondInstitutionField = app.textFields[manualProfileEducationInstitutionField(index: 1)]
+        XCTAssertTrue(secondInstitutionField.waitForExistence(timeout: 10))
+
+        let secondDeleteButton = app.buttons[manualProfileEducationDeleteButton(index: 1)]
+        XCTAssertTrue(secondDeleteButton.waitForExistence(timeout: 10))
+        secondDeleteButton.tap()
+
+        XCTAssertFalse(secondInstitutionField.exists)
     }
 
     @MainActor
@@ -519,6 +593,31 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[onboardingLoginTitle].waitForExistence(timeout: 10))
     }
 
+    @MainActor
+    private func enterText(_ value: String, into element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10))
+
+        let focusedPredicate = NSPredicate(format: "hasKeyboardFocus == true")
+        func waitForKeyboardFocus() -> XCTWaiter.Result {
+            let expectation = XCTNSPredicateExpectation(
+                predicate: focusedPredicate,
+                object: element
+            )
+            return XCTWaiter().wait(for: [expectation], timeout: 2)
+        }
+
+        if waitForKeyboardFocus() != .completed {
+            element.tap()
+        }
+
+        if waitForKeyboardFocus() != .completed {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+
+        XCTAssertEqual(waitForKeyboardFocus(), .completed)
+        element.typeText(value)
+    }
+
     private func createAccountEnvironment(
         firstName: String = "",
         lastName: String = "",
@@ -572,5 +671,75 @@ final class KairoUITests: XCTestCase {
             "KAIRO_UI_TEST_RESUME_IMPORT_FILE_NAME": fileName,
             "KAIRO_UI_TEST_RESUME_IMPORT_AUTO_ADVANCE": autoAdvance ? "1" : "0"
         ]
+    }
+
+    private func manualProfileEnvironment(
+        phase: String,
+        prefill: Bool = true
+    ) -> [String: String] {
+        [
+            "KAIRO_UI_TEST_MANUAL_PROFILE_PHASE": phase,
+            "KAIRO_UI_TEST_MANUAL_PROFILE_PREFILL": prefill ? "1" : "0"
+        ]
+    }
+
+    private func manualProfileEmploymentCompanyField(index: Int) -> String {
+        "onboarding.manualProfile.employment.company.\(index)"
+    }
+
+    private func manualProfileEmploymentJobTitleField(index: Int) -> String {
+        "onboarding.manualProfile.employment.jobTitle.\(index)"
+    }
+
+    private func manualProfileEmploymentTypeField(index: Int) -> String {
+        "onboarding.manualProfile.employment.type.\(index)"
+    }
+
+    private func manualProfileEmploymentStartMonthField(index: Int) -> String {
+        "onboarding.manualProfile.employment.startMonth.\(index)"
+    }
+
+    private func manualProfileEmploymentStartYearField(index: Int) -> String {
+        "onboarding.manualProfile.employment.startYear.\(index)"
+    }
+
+    private func manualProfileEmploymentDeleteButton(index: Int) -> String {
+        "onboarding.manualProfile.employment.delete.\(index)"
+    }
+
+    private func manualProfileEmploymentCurrentToggle(index: Int) -> String {
+        "onboarding.manualProfile.employment.current.\(index)"
+    }
+
+    private func manualProfileEmploymentEndMonthField(index: Int) -> String {
+        "onboarding.manualProfile.employment.endMonth.\(index)"
+    }
+
+    private func manualProfileEmploymentEndYearField(index: Int) -> String {
+        "onboarding.manualProfile.employment.endYear.\(index)"
+    }
+
+    private func manualProfileEducationInstitutionField(index: Int) -> String {
+        "onboarding.manualProfile.education.institution.\(index)"
+    }
+
+    private func manualProfileEducationDegreeField(index: Int) -> String {
+        "onboarding.manualProfile.education.degree.\(index)"
+    }
+
+    private func manualProfileEducationFieldOfStudyField(index: Int) -> String {
+        "onboarding.manualProfile.education.fieldOfStudy.\(index)"
+    }
+
+    private func manualProfileEducationStartYearField(index: Int) -> String {
+        "onboarding.manualProfile.education.startYear.\(index)"
+    }
+
+    private func manualProfileEducationEndYearField(index: Int) -> String {
+        "onboarding.manualProfile.education.endYear.\(index)"
+    }
+
+    private func manualProfileEducationDeleteButton(index: Int) -> String {
+        "onboarding.manualProfile.education.delete.\(index)"
     }
 }

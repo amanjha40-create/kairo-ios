@@ -62,9 +62,83 @@ enum KairoAccessibilityID {
     static let resumeImportFailureMessage = "onboarding.resumeImport.failure.message"
     static let resumeImportUnsupportedMessage = "onboarding.resumeImport.unsupported.message"
     static let manualProfilePlaceholderTitle = "onboarding.manualProfile.title"
+    static let manualProfileTitle = "onboarding.manualProfile.title"
+    static let manualProfileHeadline = "onboarding.manualProfile.headline"
+    static let manualProfileCurrentCity = "onboarding.manualProfile.currentCity"
+    static let manualProfileCurrentCountry = "onboarding.manualProfile.currentCountry"
+    static let manualProfileBasicContinue = "onboarding.manualProfile.basic.continue"
+    static let manualProfileBasicBack = "onboarding.manualProfile.basic.back"
+    static let manualProfileEmploymentTitle = "onboarding.manualProfile.employment.title"
+    static let manualProfileEmploymentAdd = "onboarding.manualProfile.employment.add"
+    static let manualProfileEmploymentContinue = "onboarding.manualProfile.employment.continue"
+    static let manualProfileEmploymentBack = "onboarding.manualProfile.employment.back"
+    static let manualProfileEducationTitle = "onboarding.manualProfile.education.title"
+    static let manualProfileEducationAdd = "onboarding.manualProfile.education.add"
+    static let manualProfileEducationContinue = "onboarding.manualProfile.education.continue"
+    static let manualProfileEducationBack = "onboarding.manualProfile.education.back"
     static let onboardingLoginScreen = "onboarding.login.screen"
     static let onboardingLoginTitle = "onboarding.login.title"
     static let candidateTabShell = "candidate.tabShell"
     static let candidateNavigationVerified = "candidate.navigationVerified"
     static let candidateNetworkStatusMessage = "candidate.networkStatusMessage"
+
+    static func manualProfileEmploymentCompany(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.company.\(index)"
+    }
+
+    static func manualProfileEmploymentJobTitle(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.jobTitle.\(index)"
+    }
+
+    static func manualProfileEmploymentType(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.type.\(index)"
+    }
+
+    static func manualProfileEmploymentStartMonth(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.startMonth.\(index)"
+    }
+
+    static func manualProfileEmploymentStartYear(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.startYear.\(index)"
+    }
+
+    static func manualProfileEmploymentEndMonth(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.endMonth.\(index)"
+    }
+
+    static func manualProfileEmploymentEndYear(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.endYear.\(index)"
+    }
+
+    static func manualProfileEmploymentDelete(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.delete.\(index)"
+    }
+
+    static func manualProfileEmploymentCurrentToggle(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.current.\(index)"
+    }
+
+    static func manualProfileEducationInstitution(_ index: Int) -> String {
+        "onboarding.manualProfile.education.institution.\(index)"
+    }
+
+    static func manualProfileEducationDegree(_ index: Int) -> String {
+        "onboarding.manualProfile.education.degree.\(index)"
+    }
+
+    static func manualProfileEducationFieldOfStudy(_ index: Int) -> String {
+        "onboarding.manualProfile.education.fieldOfStudy.\(index)"
+    }
+
+    static func manualProfileEducationStartYear(_ index: Int) -> String {
+        "onboarding.manualProfile.education.startYear.\(index)"
+    }
+
+    static func manualProfileEducationEndYear(_ index: Int) -> String {
+        "onboarding.manualProfile.education.endYear.\(index)"
+    }
+
+    static func manualProfileEducationDelete(_ index: Int) -> String {
+        "onboarding.manualProfile.education.delete.\(index)"
+    }
 }

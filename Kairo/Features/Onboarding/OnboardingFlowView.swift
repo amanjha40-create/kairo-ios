@@ -9,10 +9,15 @@ struct OnboardingFlowView: View {
         let createAccountConfiguration = UITestCreateAccountConfiguration.current()
         let verifyIdentityConfiguration = UITestVerifyIdentityConfiguration.current()
         let resumeImportConfiguration = UITestResumeImportConfiguration.current()
+        let manualProfileConfiguration = UITestManualProfileConfiguration.current()
         _flowState = State(initialValue: OnboardingFlowState(
             createAccountDraft: createAccountConfiguration.draft,
             verifyIdentityState: verifyIdentityConfiguration.state,
-            resumeImportState: resumeImportConfiguration.state
+            chooseStartState: manualProfileConfiguration.isActive
+                ? ChooseStartState(selection: .buildProfileManually)
+                : ChooseStartState(),
+            resumeImportState: resumeImportConfiguration.state,
+            manualProfileState: manualProfileConfiguration.state
         ))
         createAccountInitialTouchedFields = createAccountConfiguration.touchedFields
     }
@@ -51,7 +56,7 @@ struct OnboardingFlowView: View {
             ChooseStartScreenView(state: $flowState.chooseStartState)
         case .resumeImportOrQuickProfile:
             if flowState.chooseStartState.selection == .buildProfileManually {
-                ChooseStartDestinationPlaceholderScreen(selection: flowState.chooseStartState.selection)
+                ManualProfileScreenView(state: $flowState.manualProfileState)
             } else {
                 ResumeImportScreenView(
                     createAccountDraft: flowState.createAccountDraft,
