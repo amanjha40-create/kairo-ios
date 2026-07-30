@@ -24,13 +24,13 @@ struct CreateAccountScreenView: View {
 
     var body: some View {
         OnboardingScreenLayout(
+            layoutMode: .form,
             eyebrow: "Set up your profile",
             title: "Create your account",
             subtitle: "Start building your portable professional trust profile.",
             titleAccessibilityIdentifier: OnboardingStep.createAccount.titleAccessibilityIdentifier
         ) {
-            CreateAccountHero()
-                .frame(maxWidth: 168)
+            EmptyView()
         } content: {
             KairoCard {
                 VStack(spacing: KairoSpacing.medium) {
@@ -219,70 +219,6 @@ struct CreateAccountScreenView: View {
         default:
             return .systemAction
         }
-    }
-}
-
-private struct CreateAccountHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                .fill(KairoColors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                        .stroke(KairoColors.border, lineWidth: 1)
-                )
-                .kairoShadow(KairoShadow.card)
-
-            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                        Text("Kairo")
-                            .font(KairoTypography.caption)
-                            .foregroundStyle(KairoColors.textSecondary)
-
-                        Text("Candidate")
-                            .font(KairoTypography.title2)
-                            .foregroundStyle(KairoColors.textPrimary)
-                    }
-
-                    Spacer()
-
-                    Circle()
-                        .fill(KairoColors.brandPrimary.opacity(0.12))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Image(systemName: "person.badge.plus")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundStyle(KairoColors.brandPrimary)
-                        )
-                }
-
-                VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                    Capsule()
-                        .fill(KairoColors.textPrimary.opacity(0.12))
-                        .frame(width: 132, height: 10)
-
-                    Capsule()
-                        .fill(KairoColors.textPrimary.opacity(0.08))
-                        .frame(width: 108, height: 10)
-
-                    HStack(spacing: KairoSpacing.small) {
-                        Label("Secure setup", systemImage: "checkmark.shield")
-                            .font(KairoTypography.caption)
-                            .foregroundStyle(KairoColors.brandPrimary)
-                            .padding(.horizontal, KairoSpacing.small)
-                            .padding(.vertical, KairoSpacing.xSmall)
-                            .background(KairoColors.brandPrimary.opacity(0.1), in: Capsule())
-
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-            .padding(KairoSpacing.large)
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1.1, contentMode: .fit)
-        .accessibilityHidden(true)
     }
 }
 
