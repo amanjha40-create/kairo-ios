@@ -7,6 +7,7 @@ struct ChooseStartScreenView: View {
 
     var body: some View {
         OnboardingScreenLayout(
+            layoutMode: .choice,
             eyebrow: nil,
             title: "How would you like to begin?",
             subtitle: "Choose how you'd like to begin building your Trust Passport.",
@@ -24,7 +25,6 @@ struct ChooseStartScreenView: View {
                     )
                 }
             }
-            .padding(.top, -KairoSpacing.large)
         } actions: {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: KairoSpacing.small) {

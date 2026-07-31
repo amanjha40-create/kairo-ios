@@ -67,7 +67,7 @@ struct OnboardingFlowView: View {
                 )
             }
         case .passportCreated:
-            OnboardingPlaceholderScreen(step: step)
+            PassportCreatedScreenView(state: flowState.passportCreatedState)
         }
     }
 

@@ -23,6 +23,7 @@ final class KairoUITests: XCTestCase {
     private let onboardingManualProfileTitle = "onboarding.manualProfile.title"
     private let onboardingManualProfileEmploymentTitle = "onboarding.manualProfile.employment.title"
     private let onboardingManualProfileEducationTitle = "onboarding.manualProfile.education.title"
+    private let onboardingPassportCreatedTitle = "onboarding.step.passportCreated"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
     private let chooseStartContinueButton = "onboarding.chooseStart.continue"
@@ -56,6 +57,10 @@ final class KairoUITests: XCTestCase {
     private let resumeImportChooseAnotherButton = "onboarding.resumeImport.chooseAnother"
     private let resumeImportLooksGoodButton = "onboarding.resumeImport.looksGood"
     private let resumeImportFailureMessage = "onboarding.resumeImport.failure.message"
+    private let passportCreatedSummaryCard = "onboarding.passportCreated.summary"
+    private let passportCreatedTrustScoreMessage = "onboarding.passportCreated.trustScoreMessage"
+    private let passportCreatedContinueHomeButton = "onboarding.passportCreated.continueHome"
+    private let passportCreatedReviewProfileButton = "onboarding.passportCreated.reviewProfile"
     private let manualProfileHeadlineField = "onboarding.manualProfile.headline"
     private let manualProfileCurrentCityField = "onboarding.manualProfile.currentCity"
     private let manualProfileCurrentCountryField = "onboarding.manualProfile.currentCountry"
@@ -94,10 +99,10 @@ final class KairoUITests: XCTestCase {
             .merging(resumeImportEnvironment(phase: "readyForReview")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts[onboardingResumeImportTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[resumeImportLooksGoodButton].waitForExistence(timeout: 10))
-        app.buttons[resumeImportLooksGoodButton].tap()
-        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
-        app.buttons[onboardingContinueButton].tap()
+        tapWhenHittable(app.buttons[resumeImportLooksGoodButton], in: app)
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedContinueHomeButton].waitForExistence(timeout: 10))
+        app.buttons[passportCreatedContinueHomeButton].tap()
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
@@ -341,7 +346,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testManualProfileCompletePathRoutesToPassportCreatedPlaceholder() throws {
+    func testManualProfileCompletePathRoutesToPassportCreatedExperience() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("chooseStart")) { _, override in override }
             .merging(manualProfileEnvironment(phase: "basicProfile")) { _, override in override })
@@ -359,7 +364,9 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[manualProfileEducationContinueButton].isEnabled)
         app.buttons[manualProfileEducationContinueButton].tap()
 
-        XCTAssertTrue(app.staticTexts["onboarding.step.passportCreated"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[passportCreatedSummaryCard].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[passportCreatedTrustScoreMessage].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -460,15 +467,41 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testResumeImportLooksGoodRoutesToPassportCreatedPlaceholder() throws {
+    func testResumeImportLooksGoodRoutesToPassportCreatedExperience() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
             .merging(resumeImportEnvironment(phase: "readyForReview")) { _, override in override })
 
-        XCTAssertTrue(app.buttons[resumeImportLooksGoodButton].waitForExistence(timeout: 10))
-        app.buttons[resumeImportLooksGoodButton].tap()
+        tapWhenHittable(app.buttons[resumeImportLooksGoodButton], in: app)
 
-        XCTAssertTrue(app.staticTexts["onboarding.step.passportCreated"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[passportCreatedSummaryCard].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportCreatedContinueRoutesToHomePlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("passportCreated")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedContinueHomeButton].waitForExistence(timeout: 10))
+        app.buttons[passportCreatedContinueHomeButton].tap()
+
+        XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportCreatedReviewProfileRoutesToPassportPlaceholder() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("passportCreated")) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedReviewProfileButton].waitForExistence(timeout: 10))
+        app.buttons[passportCreatedReviewProfileButton].tap()
+
+        XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["candidate.screen.passport"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -616,6 +649,29 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertEqual(waitForKeyboardFocus(), .completed)
         element.typeText(value)
+    }
+
+    @MainActor
+    private func tapWhenHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 10
+    ) {
+        XCTAssertTrue(element.waitForExistence(timeout: timeout))
+
+        let scrollView = app.scrollViews.firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while !element.isHittable, Date() < deadline {
+            guard scrollView.exists else {
+                break
+            }
+
+            scrollView.swipeUp()
+        }
+
+        XCTAssertTrue(element.isHittable)
+        element.tap()
     }
 
     private func createAccountEnvironment(
