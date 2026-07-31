@@ -81,6 +81,18 @@ enum KairoAccessibilityID {
     static let candidateTabShell = "candidate.tabShell"
     static let candidateNavigationVerified = "candidate.navigationVerified"
     static let candidateNetworkStatusMessage = "candidate.networkStatusMessage"
+    static let homeScreen = "candidate.home.screen"
+    static let homeNotificationsButton = "candidate.home.notifications"
+    static let homeTrustScoreCard = "candidate.home.trustScore"
+    static let homeViewTrustPassport = "candidate.home.viewTrustPassport"
+    static let homeRecommendation = "candidate.home.recommendation"
+    static let homeStartVerification = "candidate.home.startVerification"
+    static let homeVerificationRequest = "candidate.home.verificationRequest"
+    static let homeVerificationRequestAction = "candidate.home.verificationRequest.action"
+    static let homeProfileCompletion = "candidate.home.profileCompletion"
+    static let homeContinueProfile = "candidate.home.continueProfile"
+    static let homeRecentActivity = "candidate.home.recentActivity"
+    static let homeRecentPassportViews = "candidate.home.recentPassportViews"
 
     static func manualProfileEmploymentCompany(_ index: Int) -> String {
         "onboarding.manualProfile.employment.company.\(index)"

@@ -64,6 +64,16 @@ final class KairoUITests: XCTestCase {
     private let manualProfileEmploymentContinueButton = "onboarding.manualProfile.employment.continue"
     private let manualProfileEducationAddButton = "onboarding.manualProfile.education.add"
     private let manualProfileEducationContinueButton = "onboarding.manualProfile.education.continue"
+    private let homeScreen = "candidate.home.screen"
+    private let homeTrustScoreCard = "candidate.home.trustScore"
+    private let homeViewTrustPassportButton = "candidate.home.viewTrustPassport"
+    private let homeStartVerificationButton = "candidate.home.startVerification"
+    private let homeVerificationRequest = "candidate.home.verificationRequest"
+    private let homeVerificationRequestActionButton = "candidate.home.verificationRequest.action"
+    private let homeProfileCompletion = "candidate.home.profileCompletion"
+    private let homeContinueProfileButton = "candidate.home.continueProfile"
+    private let homeRecentActivity = "candidate.home.recentActivity"
+    private let homeRecentPassportViews = "candidate.home.recentPassportViews"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -100,7 +110,7 @@ final class KairoUITests: XCTestCase {
         app.buttons[onboardingContinueButton].tap()
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
+        XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -112,8 +122,92 @@ final class KairoUITests: XCTestCase {
         ])
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["candidate.networkStatusMessage"].waitForExistence(timeout: 10))
+        XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeTrustScoreIsVisibleInDemoMode() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Trust Score"].exists)
+    }
+
+    @MainActor
+    func testHomeViewTrustPassportRoutesToPassportTab() throws {
+        let app = launchApp(environment: homeEnvironment())
+        let trustScoreCard = homeTrustScoreCardElement(in: app)
+        let action = trustScoreCard.descendants(matching: .any)
+            .matching(identifier: homeViewTrustPassportButton)
+            .firstMatch
+
+        XCTAssertTrue(trustScoreCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        action.tap()
+
+        XCTAssertTrue(app.staticTexts["candidate.screen.passport"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeStartVerificationRoutesToVerifyTab() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        XCTAssertTrue(app.buttons[homeStartVerificationButton].waitForExistence(timeout: 10))
+        app.buttons[homeStartVerificationButton].tap()
+
+        XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeContinueProfileRoutesToCareerTab() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        let continueProfileButton = app.buttons[homeContinueProfileButton]
+        XCTAssertTrue(waitForElementAfterScrolling(continueProfileButton, in: app))
+        continueProfileButton.tap()
+
+        XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeVerificationRequestActionRoutesToVerifyTab() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        let requestCard = app.descendants(matching: .any)
+            .matching(identifier: homeVerificationRequest)
+            .firstMatch
+        let requestAction = requestCard.descendants(matching: .any)
+            .matching(identifier: homeVerificationRequestActionButton)
+            .firstMatch
+
+        XCTAssertTrue(waitForElementAfterScrolling(requestCard, in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(requestAction, in: app))
+        requestAction.tap()
+
+        XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeEmptyStateRendersCorrectly() throws {
+        let app = launchApp(environment: homeEnvironment(state: "empty"))
+        let profileCompletionCard = app.descendants(matching: .any)
+            .matching(identifier: homeProfileCompletion)
+            .firstMatch
+        let recentActivitySection = app.descendants(matching: .any)
+            .matching(identifier: homeRecentActivity)
+            .firstMatch
+        let recentPassportViewsSection = app.descendants(matching: .any)
+            .matching(identifier: homeRecentPassportViews)
+            .firstMatch
+
+        XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Your Home is ready to grow"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(profileCompletionCard, in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(recentActivitySection, in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(recentPassportViewsSection, in: app))
     }
 
     @MainActor
@@ -594,6 +688,43 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func homeScreenElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: homeScreen)
+            .firstMatch
+    }
+
+    @MainActor
+    private func homeTrustScoreCardElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: homeTrustScoreCard)
+            .firstMatch
+    }
+
+    @MainActor
+    private func waitForElementAfterScrolling(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        if element.waitForExistence(timeout: 2) {
+            return true
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            app.swipeUp()
+
+            if element.exists {
+                return true
+            }
+        }
+
+        return element.exists
+    }
+
+    @MainActor
     private func enterText(_ value: String, into element: XCUIElement) {
         XCTAssertTrue(element.waitForExistence(timeout: 10))
 
@@ -680,6 +811,15 @@ final class KairoUITests: XCTestCase {
         [
             "KAIRO_UI_TEST_MANUAL_PROFILE_PHASE": phase,
             "KAIRO_UI_TEST_MANUAL_PROFILE_PREFILL": prefill ? "1" : "0"
+        ]
+    }
+
+    private func homeEnvironment(state: String = "populated") -> [String: String] {
+        [
+            demoModeKey: "true",
+            appEnvironmentKey: "staging",
+            uiTestRouteKey: "demoHome",
+            "KAIRO_UI_TEST_HOME_STATE": state
         ]
     }
 
