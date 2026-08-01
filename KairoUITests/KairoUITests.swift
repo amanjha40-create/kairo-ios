@@ -103,6 +103,20 @@ final class KairoUITests: XCTestCase {
     private let passportEmptyState = "candidate.passport.empty"
     private let passportContinueProfile = "candidate.passport.continueProfile"
     private let passportStartVerification = "candidate.passport.startVerification"
+    private let verifyScreen = "candidate.verify.screen"
+    private let verifyPriorityRecommendation = "candidate.verify.priorityRecommendation"
+    private let verifyStartVerificationButton = "candidate.verify.startVerification"
+    private let verifyPendingRequestsSection = "candidate.verify.pendingRequests"
+    private let verifyInProgressSection = "candidate.verify.inProgress"
+    private let verifyCompletedSection = "candidate.verify.completed"
+    private let verifySuggestedNextSection = "candidate.verify.suggestedNext"
+    private let verifyRequestDetail = "candidate.verify.requestDetail"
+    private let verifyAcceptRequest = "candidate.verify.request.accept"
+    private let verifyProvideInformation = "candidate.verify.request.provideInformation"
+    private let verifyDeclineRequest = "candidate.verify.request.decline"
+    private let verifyStartVerificationSheet = "candidate.verify.startVerificationSheet"
+    private let verifyEmptyState = "candidate.verify.empty"
+    private let verifyViewTrustPassport = "candidate.verify.viewTrustPassport"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -451,6 +465,149 @@ final class KairoUITests: XCTestCase {
         app.buttons[passportStartVerification].tap()
 
         XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyTabOpensRealVerifyScreen() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(verifyScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[verifyPriorityRecommendation].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Verify your current employment"].exists)
+    }
+
+    @MainActor
+    func testVerifyPriorityRecommendationIsVisible() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[verifyPriorityRecommendation].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyStartVerificationOpensLocalSheet() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
+        app.buttons[verifyStartVerificationButton].tap()
+
+        XCTAssertTrue(app.otherElements[verifyStartVerificationSheet].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Start verification"].exists)
+    }
+
+    @MainActor
+    func testVerifyPendingRequestOpensDetail() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        let button = app.buttons[verifyRequestActionButton(id: "employment-brightpath")]
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        button.tap()
+
+        XCTAssertTrue(app.otherElements[verifyRequestDetail].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["BrightPath Technologies"].exists)
+    }
+
+    @MainActor
+    func testVerifyAcceptRequestUpdatesLocalState() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        app.buttons[verifyRequestActionButton(id: "employment-brightpath")].tap()
+        XCTAssertTrue(app.buttons[verifyAcceptRequest].waitForExistence(timeout: 10))
+        app.buttons[verifyAcceptRequest].tap()
+
+        XCTAssertTrue(app.staticTexts["Approved and submitted locally"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyProvideInformationOpensLocalPlaceholder() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        app.buttons[verifyRequestActionButton(id: "education-welingkar-pending")].tap()
+        XCTAssertTrue(app.buttons[verifyProvideInformation].waitForExistence(timeout: 10))
+        app.buttons[verifyProvideInformation].tap()
+
+        XCTAssertTrue(app.staticTexts["Provide information"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyDeclineRequestOpensConfirmation() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        app.buttons[verifyRequestActionButton(id: "education-welingkar-pending")].tap()
+        XCTAssertTrue(app.buttons[verifyDeclineRequest].waitForExistence(timeout: 10))
+        app.buttons[verifyDeclineRequest].tap()
+
+        XCTAssertTrue(app.sheets.buttons["Decline request"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyInProgressSectionRenders() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyInProgressSection], in: app))
+        XCTAssertTrue(app.staticTexts["Northstar Labs"].exists)
+    }
+
+    @MainActor
+    func testVerifyCompletedSectionRenders() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyCompletedSection], in: app))
+        XCTAssertTrue(app.staticTexts["aarav@example.com"].exists)
+    }
+
+    @MainActor
+    func testVerifySuggestedNextSectionRenders() throws {
+        let app = launchApp(environment: verifyEnvironment())
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifySuggestedNextSection], in: app))
+        XCTAssertTrue(app.staticTexts["Verify your highest education"].exists)
+    }
+
+    @MainActor
+    func testVerifyEmptyStateStartVerificationWorks() throws {
+        let app = launchApp(environment: verifyEnvironment(state: "empty"))
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[verifyEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
+        app.buttons[verifyStartVerificationButton].tap()
+
+        XCTAssertTrue(app.otherElements[verifyStartVerificationSheet].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testVerifyEmptyStateViewTrustPassportOpensPassport() throws {
+        let app = launchApp(environment: verifyEnvironment(state: "empty"))
+
+        openVerifyTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[verifyEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[verifyViewTrustPassport].waitForExistence(timeout: 10))
+        app.buttons[verifyViewTrustPassport].tap()
+
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -987,6 +1144,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func verifyScreenElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: verifyScreen)
+            .firstMatch
+    }
+
+    @MainActor
     private func openCareerTab(in app: XCUIApplication) {
         let careerTab = app.tabBars.buttons["Career"]
         XCTAssertTrue(careerTab.waitForExistence(timeout: 10))
@@ -1015,6 +1179,29 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(passportTab.waitForExistence(timeout: 10))
         passportTab.tap()
         XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    private func openVerifyTab(in app: XCUIApplication) {
+        let verifyTab = app.tabBars.buttons["Verify"]
+        XCTAssertTrue(verifyTab.waitForExistence(timeout: 10))
+        let verifyScreen = verifyScreenElement(in: app)
+
+        if verifyScreen.exists {
+            return
+        }
+
+        let deadline = Date().addingTimeInterval(10)
+
+        while Date() < deadline {
+            tapWhenHittable(verifyTab, in: app, timeout: 2)
+
+            if verifyScreen.waitForExistence(timeout: 1) {
+                return
+            }
+        }
+
+        XCTAssertTrue(verifyScreen.waitForExistence(timeout: 1))
     }
 
     @MainActor
@@ -1178,6 +1365,19 @@ final class KairoUITests: XCTestCase {
             uiTestRouteKey: "demoHome",
             "KAIRO_UI_TEST_PASSPORT_STATE": state
         ]
+    }
+
+    private func verifyEnvironment(state: String = "populated") -> [String: String] {
+        [
+            demoModeKey: "true",
+            appEnvironmentKey: "staging",
+            uiTestRouteKey: "demoHome",
+            "KAIRO_UI_TEST_VERIFY_STATE": state
+        ]
+    }
+
+    private func verifyRequestActionButton(id: String) -> String {
+        "candidate.verify.request.action.\(id)"
     }
 
     private func manualProfileEmploymentCompanyField(index: Int) -> String {

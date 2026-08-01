@@ -126,9 +126,35 @@ enum KairoAccessibilityID {
     static let passportEmptyState = "candidate.passport.empty"
     static let passportContinueProfile = "candidate.passport.continueProfile"
     static let passportStartVerification = "candidate.passport.startVerification"
+    static let verifyScreen = "candidate.verify.screen"
+    static let verifyPriorityRecommendation = "candidate.verify.priorityRecommendation"
+    static let verifyStartVerification = "candidate.verify.startVerification"
+    static let verifyPendingRequestsSection = "candidate.verify.pendingRequests"
+    static let verifyInProgressSection = "candidate.verify.inProgress"
+    static let verifyCompletedSection = "candidate.verify.completed"
+    static let verifySuggestedNextSection = "candidate.verify.suggestedNext"
+    static let verifyRequestDetail = "candidate.verify.requestDetail"
+    static let verifyAcceptRequest = "candidate.verify.request.accept"
+    static let verifyProvideInformation = "candidate.verify.request.provideInformation"
+    static let verifyDeclineRequest = "candidate.verify.request.decline"
+    static let verifyStartVerificationSheet = "candidate.verify.startVerificationSheet"
+    static let verifyEmptyState = "candidate.verify.empty"
+    static let verifyViewTrustPassport = "candidate.verify.viewTrustPassport"
 
     static func manualProfileEmploymentCompany(_ index: Int) -> String {
         "onboarding.manualProfile.employment.company.\(index)"
+    }
+
+    static func verifyRequestCard(_ id: String) -> String {
+        "candidate.verify.request.\(id)"
+    }
+
+    static func verifyRequestAction(_ id: String) -> String {
+        "candidate.verify.request.action.\(id)"
+    }
+
+    static func verifySuggestedAction(_ type: String) -> String {
+        "candidate.verify.suggested.\(type)"
     }
 
     static func manualProfileEmploymentJobTitle(_ index: Int) -> String {
