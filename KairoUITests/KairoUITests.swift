@@ -79,6 +79,14 @@ final class KairoUITests: XCTestCase {
     private let homeContinueProfileButton = "candidate.home.continueProfile"
     private let homeRecentActivity = "candidate.home.recentActivity"
     private let homeRecentPassportViews = "candidate.home.recentPassportViews"
+    private let careerScreen = "candidate.career.screen"
+    private let careerSummarySection = "candidate.career.summary"
+    private let careerEmploymentSection = "candidate.career.employment"
+    private let careerEducationSection = "candidate.career.education"
+    private let careerCertificationsSection = "candidate.career.certifications"
+    private let careerProjectsSection = "candidate.career.projects"
+    private let careerSkillsSection = "candidate.career.skills"
+    private let careerEmptyState = "candidate.career.empty"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -173,7 +181,9 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(continueProfileButton, in: app))
         continueProfileButton.tap()
 
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
     }
 
     @MainActor
@@ -213,6 +223,70 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(profileCompletionCard, in: app))
         XCTAssertTrue(waitForElementAfterScrolling(recentActivitySection, in: app))
         XCTAssertTrue(waitForElementAfterScrolling(recentPassportViewsSection, in: app))
+    }
+
+    @MainActor
+    func testCareerTabDisplaysProfessionalSummary() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[careerSummarySection].exists)
+        XCTAssertTrue(app.staticTexts["Aarav Anand"].exists)
+    }
+
+    @MainActor
+    func testCareerEmploymentSectionRendersFixtureCards() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
+        XCTAssertTrue(app.staticTexts["Northline Career Services"].exists)
+        XCTAssertTrue(app.staticTexts["Pending Verification"].exists)
+    }
+
+    @MainActor
+    func testCareerEducationSectionRendersFixtureCards() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerEducationSection], in: app))
+        XCTAssertTrue(app.staticTexts["Christ University"].exists)
+    }
+
+    @MainActor
+    func testCareerCertificationSectionRendersFixtureCards() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerCertificationsSection], in: app))
+        XCTAssertTrue(app.staticTexts["People Operations Foundations"].exists)
+    }
+
+    @MainActor
+    func testCareerProjectsSectionRendersFixtureCards() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
+        XCTAssertTrue(app.staticTexts["Career Trust Onboarding Pilot"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
+    }
+
+    @MainActor
+    func testCareerEmptyStateRendersCorrectly() throws {
+        let app = launchApp(environment: careerEnvironment(state: "empty"))
+
+        openCareerTab(in: app)
+
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[careerEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Your professional timeline starts here"].exists)
     }
 
     @MainActor
@@ -573,7 +647,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportCreatedContinueRoutesToHomePlaceholder() throws {
+    func testPassportCreatedContinueRoutesToHomeOverview() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("passportCreated")) { _, override in override })
 
@@ -582,7 +656,7 @@ final class KairoUITests: XCTestCase {
         app.buttons[passportCreatedContinueHomeButton].tap()
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["candidate.screen.home"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.home.screen"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -735,6 +809,21 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func careerScreenElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: careerScreen)
+            .firstMatch
+    }
+
+    @MainActor
+    private func openCareerTab(in app: XCUIApplication) {
+        let careerTab = app.tabBars.buttons["Career"]
+        XCTAssertTrue(careerTab.waitForExistence(timeout: 10))
+        careerTab.tap()
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     private func waitForElementAfterScrolling(
         _ element: XCUIElement,
         in app: XCUIApplication,
@@ -876,6 +965,15 @@ final class KairoUITests: XCTestCase {
             appEnvironmentKey: "staging",
             uiTestRouteKey: "demoHome",
             "KAIRO_UI_TEST_HOME_STATE": state
+        ]
+    }
+
+    private func careerEnvironment(state: String = "populated") -> [String: String] {
+        [
+            demoModeKey: "true",
+            appEnvironmentKey: "staging",
+            uiTestRouteKey: "demoHome",
+            "KAIRO_UI_TEST_CAREER_STATE": state
         ]
     }
 
