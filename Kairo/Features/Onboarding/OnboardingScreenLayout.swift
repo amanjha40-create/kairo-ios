@@ -295,7 +295,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
                 .padding(.horizontal, horizontalPadding(for: size))
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
     }
 
     private func horizontalPadding(for size: CGSize) -> CGFloat {

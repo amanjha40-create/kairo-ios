@@ -126,24 +126,6 @@ struct CreateAccountScreenView: View {
             }
             .accessibilityElement(children: .contain)
         }
-        .toolbar {
-            if let focusedField {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if let previousField = focusedField.previous {
-                        Button("Previous") {
-                            touch(focusedField)
-                            self.focusedField = previousField
-                        }
-                    }
-
-                    Spacer()
-
-                    Button(focusedField == .mobileNumber ? "Done" : "Next") {
-                        moveFocusForward(from: focusedField)
-                    }
-                }
-            }
-        }
         .environment(\.openURL, OpenURLAction { url in
             handleOpenURL(url)
         })

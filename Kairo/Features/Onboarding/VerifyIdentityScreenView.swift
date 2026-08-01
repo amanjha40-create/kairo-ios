@@ -130,30 +130,6 @@ private struct ContactVerificationScreenView: View {
         } actions: {
             actionGroup
         }
-        .toolbar {
-            if focusedField == .contact || focusedField == .code {
-                ToolbarItemGroup(placement: .keyboard) {
-                    if focusedField == .code {
-                        Button("Previous") {
-                            state.markOTPTouched()
-                            focusedField = .contact
-                        }
-                    }
-
-                    Spacer()
-
-                    Button(focusedField == .contact ? "Next" : "Done") {
-                        if focusedField == .contact {
-                            state.markContactTouched()
-                            focusedField = state.hasSentCode ? .code : nil
-                        } else {
-                            state.markOTPTouched()
-                            focusedField = nil
-                        }
-                    }
-                }
-            }
-        }
         .onChange(of: focusedField) { _, newValue in
             if let lastFocusedField, lastFocusedField != newValue {
                 markTouched(lastFocusedField)
