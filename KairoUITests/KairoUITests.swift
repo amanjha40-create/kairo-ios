@@ -87,6 +87,22 @@ final class KairoUITests: XCTestCase {
     private let careerProjectsSection = "candidate.career.projects"
     private let careerSkillsSection = "candidate.career.skills"
     private let careerEmptyState = "candidate.career.empty"
+    private let passportScreen = "candidate.passport.screen"
+    private let passportHeader = "candidate.passport.header"
+    private let passportTrustScoreCard = "candidate.passport.trustScore"
+    private let passportStrengthSummary = "candidate.passport.strength"
+    private let passportIdentitySection = "candidate.passport.identity"
+    private let passportEmploymentSection = "candidate.passport.employment"
+    private let passportEducationSection = "candidate.passport.education"
+    private let passportCertificationsSection = "candidate.passport.certifications"
+    private let passportProjectsSection = "candidate.passport.projects"
+    private let passportTimelineSection = "candidate.passport.timeline"
+    private let passportShareAction = "candidate.passport.share"
+    private let passportPreviewAction = "candidate.passport.preview"
+    private let passportDownloadAction = "candidate.passport.download"
+    private let passportEmptyState = "candidate.passport.empty"
+    private let passportContinueProfile = "candidate.passport.continueProfile"
+    private let passportStartVerification = "candidate.passport.startVerification"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -160,7 +176,8 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
 
-        XCTAssertTrue(app.staticTexts["candidate.screen.passport"].waitForExistence(timeout: 10))
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[passportTrustScoreCard].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -287,6 +304,153 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)[careerEmptyState].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Your professional timeline starts here"].exists)
+    }
+
+    @MainActor
+    func testPassportTabOpensRealPassportScreen() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[passportHeader].exists)
+        XCTAssertTrue(app.staticTexts["Aarav Mehta"].exists)
+    }
+
+    @MainActor
+    func testPassportTrustScoreIsVisible() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[passportTrustScoreCard].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Trust Score"].exists)
+        XCTAssertTrue(app.staticTexts["72"].exists)
+    }
+
+    @MainActor
+    func testPassportIdentitySectionRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportIdentitySection], in: app))
+        XCTAssertTrue(app.staticTexts["aarav.mehta@example.com"].exists)
+    }
+
+    @MainActor
+    func testPassportEmploymentSectionRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportEmploymentSection], in: app))
+        XCTAssertTrue(app.staticTexts["BrightPath Technologies"].exists)
+    }
+
+    @MainActor
+    func testPassportEducationSectionRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportEducationSection], in: app))
+        XCTAssertTrue(app.staticTexts["Welingkar Institute of Management"].exists)
+    }
+
+    @MainActor
+    func testPassportCertificationsSectionRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportCertificationsSection], in: app))
+        XCTAssertTrue(app.staticTexts["Certified Scrum Product Owner"].exists)
+    }
+
+    @MainActor
+    func testPassportProjectsSectionRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportProjectsSection], in: app))
+        XCTAssertTrue(app.staticTexts["Trust Operations Workflow Redesign"].exists)
+    }
+
+    @MainActor
+    func testPassportTrustTimelineRenders() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportTimelineSection], in: app))
+        XCTAssertTrue(app.staticTexts["Identity verified"].exists)
+    }
+
+    @MainActor
+    func testPassportSharePlaceholderOpens() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        let button = app.buttons[passportShareAction]
+        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
+        button.tap()
+
+        XCTAssertTrue(app.staticTexts["Share Trust Passport"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportPreviewPlaceholderOpens() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        let button = app.buttons[passportPreviewAction]
+        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
+        button.tap()
+
+        XCTAssertTrue(app.staticTexts["Preview public Passport"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportDownloadPDFPlaceholderOpens() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        let button = app.buttons[passportDownloadAction]
+        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
+        button.tap()
+
+        XCTAssertTrue(app.staticTexts["Download PDF"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportEmptyStateContinueProfileRoutesToCareer() throws {
+        let app = launchApp(environment: passportEnvironment(state: "empty"))
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[passportEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportContinueProfile].waitForExistence(timeout: 10))
+        app.buttons[passportContinueProfile].tap()
+
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportEmptyStateStartVerificationRoutesToVerify() throws {
+        let app = launchApp(environment: passportEnvironment(state: "empty"))
+
+        openPassportTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[passportEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportStartVerification].waitForExistence(timeout: 10))
+        app.buttons[passportStartVerification].tap()
+
+        XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -816,11 +980,41 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func passportScreenElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: passportScreen)
+            .firstMatch
+    }
+
+    @MainActor
     private func openCareerTab(in app: XCUIApplication) {
         let careerTab = app.tabBars.buttons["Career"]
         XCTAssertTrue(careerTab.waitForExistence(timeout: 10))
-        careerTab.tap()
-        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+        let careerScreen = careerScreenElement(in: app)
+
+        if careerScreen.exists {
+            return
+        }
+
+        let deadline = Date().addingTimeInterval(10)
+
+        while Date() < deadline {
+            tapWhenHittable(careerTab, in: app, timeout: 2)
+
+            if careerScreen.waitForExistence(timeout: 1) {
+                return
+            }
+        }
+
+        XCTAssertTrue(careerScreen.waitForExistence(timeout: 1))
+    }
+
+    @MainActor
+    private func openPassportTab(in app: XCUIApplication) {
+        let passportTab = app.tabBars.buttons["Passport"]
+        XCTAssertTrue(passportTab.waitForExistence(timeout: 10))
+        passportTab.tap()
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -974,6 +1168,15 @@ final class KairoUITests: XCTestCase {
             appEnvironmentKey: "staging",
             uiTestRouteKey: "demoHome",
             "KAIRO_UI_TEST_CAREER_STATE": state
+        ]
+    }
+
+    private func passportEnvironment(state: String = "populated") -> [String: String] {
+        [
+            demoModeKey: "true",
+            appEnvironmentKey: "staging",
+            uiTestRouteKey: "demoHome",
+            "KAIRO_UI_TEST_PASSPORT_STATE": state
         ]
     }
 
