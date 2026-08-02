@@ -117,6 +117,28 @@ final class KairoUITests: XCTestCase {
     private let verifyStartVerificationSheet = "candidate.verify.startVerificationSheet"
     private let verifyEmptyState = "candidate.verify.empty"
     private let verifyViewTrustPassport = "candidate.verify.viewTrustPassport"
+    private let moreScreen = "candidate.more.screen"
+    private let moreAccountSummary = "candidate.more.accountSummary"
+    private let moreViewProfileButton = "candidate.more.viewProfile"
+    private let moreAccountSection = "candidate.more.account"
+    private let morePreferencesSection = "candidate.more.preferences"
+    private let morePrivacyDataSection = "candidate.more.privacyData"
+    private let moreHelpSupportSection = "candidate.more.helpSupport"
+    private let moreAboutSection = "candidate.more.about"
+    private let moreNotificationsVerificationUpdates = "candidate.more.notifications.verificationUpdates"
+    private let moreNotificationsPassportViews = "candidate.more.notifications.passportViews"
+    private let moreNotificationsProductUpdates = "candidate.more.notifications.productUpdates"
+    private let moreAppearanceSelection = "candidate.more.appearance"
+    private let moreAppearanceSystemButton = "candidate.more.appearance.system"
+    private let moreAppearanceLightButton = "candidate.more.appearance.light"
+    private let moreAppearanceDarkButton = "candidate.more.appearance.dark"
+    private let moreContactSupportButton = "candidate.more.contactSupport"
+    private let moreDeleteAccountButton = "candidate.more.deleteAccount"
+    private let moreTermsOfServiceButton = "candidate.more.terms"
+    private let morePrivacyPolicyButton = "candidate.more.privacyPolicy"
+    private let moreCookiePolicyButton = "candidate.more.cookiePolicy"
+    private let moreSignOutButton = "candidate.more.signOut"
+    private let moreSignOutConfirmation = "candidate.more.signOut.confirmation"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -608,6 +630,197 @@ final class KairoUITests: XCTestCase {
         app.buttons[verifyViewTrustPassport].tap()
 
         XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreTabOpensRealMoreScreen() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[moreAccountSummary].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreAccountSummaryRenders() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(app.descendants(matching: .any)[moreAccountSummary].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Aarav Mehta"].exists)
+        XCTAssertTrue(app.staticTexts["aarav@example.com"].exists)
+    }
+
+    @MainActor
+    func testMoreViewProfileRoutesToPassportTab() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(app.buttons[moreViewProfileButton].waitForExistence(timeout: 10))
+        app.buttons[moreViewProfileButton].tap()
+
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreAccountRowsOpenLocalPlaceholders() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(app.staticTexts[moreAccountSection].exists)
+        app.buttons["personalInformation"].tap()
+        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
+        dismissPresentedSheet(in: app)
+
+        XCTAssertTrue(app.buttons["loginSecurity"].waitForExistence(timeout: 10))
+        app.buttons["loginSecurity"].tap()
+        XCTAssertTrue(app.navigationBars["Login & security"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreNotificationTogglesWorkLocally() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let productUpdatesToggle = app.switches[moreNotificationsProductUpdates]
+        XCTAssertTrue(waitForElementAfterScrolling(productUpdatesToggle, in: app))
+        XCTAssertEqual(productUpdatesToggle.value as? String, "0")
+
+        productUpdatesToggle.tap()
+
+        XCTAssertEqual(productUpdatesToggle.value as? String, "1")
+    }
+
+    @MainActor
+    func testMoreAppearanceSelectionRendersAndUpdatesLocally() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.otherElements[moreAppearanceSelection], in: app))
+        let darkAppearanceButton = app.buttons[moreAppearanceDarkButton]
+        XCTAssertTrue(darkAppearanceButton.waitForExistence(timeout: 10))
+        darkAppearanceButton.tap()
+
+        XCTAssertEqual(darkAppearanceButton.value as? String, "Selected")
+        XCTAssertEqual(app.buttons[moreAppearanceSystemButton].value as? String, "Not selected")
+    }
+
+    @MainActor
+    func testMorePrivacySectionRenders() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePrivacyDataSection], in: app))
+        XCTAssertTrue(app.staticTexts["Privacy settings"].exists)
+        XCTAssertTrue(app.staticTexts["Delete account"].exists)
+    }
+
+    @MainActor
+    func testMoreDeleteAccountConfirmationOpensAndCancels() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let deleteButton = app.buttons[moreDeleteAccountButton]
+        XCTAssertTrue(waitForElementAfterScrolling(deleteButton, in: app))
+        deleteButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Delete account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 10))
+        app.buttons["Cancel"].tap()
+
+        XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreContactSupportSheetOpens() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let contactSupport = app.buttons[moreContactSupportButton]
+        XCTAssertTrue(waitForElementAfterScrolling(contactSupport, in: app))
+        contactSupport.tap()
+
+        XCTAssertTrue(app.navigationBars["Contact support"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["contact@kairoid.com"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreLegalPlaceholdersOpen() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let termsButton = app.buttons[moreTermsOfServiceButton]
+        XCTAssertTrue(waitForElementAfterScrolling(termsButton, in: app))
+        termsButton.tap()
+        XCTAssertTrue(app.navigationBars["Terms of Service"].waitForExistence(timeout: 10))
+        dismissPresentedSheet(in: app)
+
+        let privacyButton = app.buttons[morePrivacyPolicyButton]
+        XCTAssertTrue(waitForElementAfterScrolling(privacyButton, in: app))
+        privacyButton.tap()
+        XCTAssertTrue(app.navigationBars["Privacy Policy"].waitForExistence(timeout: 10))
+        dismissPresentedSheet(in: app)
+
+        let cookieButton = app.buttons[moreCookiePolicyButton]
+        XCTAssertTrue(waitForElementAfterScrolling(cookieButton, in: app))
+        cookieButton.tap()
+        XCTAssertTrue(app.navigationBars["Cookie Policy"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreSignOutConfirmationOpens() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let signOutButton = app.buttons[moreSignOutButton]
+        XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
+        signOutButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Sign Out"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMoreCancellingSignOutPreservesMoreScreen() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let signOutButton = app.buttons[moreSignOutButton]
+        XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
+        signOutButton.tap()
+
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 10))
+        app.buttons["Cancel"].tap()
+
+        XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[moreAccountSummary].exists)
+    }
+
+    @MainActor
+    func testMoreConfirmingSignOutReturnsToLoginPlaceholder() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+
+        let signOutButton = app.buttons[moreSignOutButton]
+        XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
+        signOutButton.tap()
+
+        XCTAssertTrue(app.buttons["Sign Out"].waitForExistence(timeout: 10))
+        app.buttons["Sign Out"].tap()
+
+        assertLoginPlaceholderVisible(in: app)
     }
 
     @MainActor
@@ -1151,6 +1364,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func moreScreenElement(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(identifier: moreScreen)
+            .firstMatch
+    }
+
+    @MainActor
     private func openCareerTab(in app: XCUIApplication) {
         let careerTab = app.tabBars.buttons["Career"]
         XCTAssertTrue(careerTab.waitForExistence(timeout: 10))
@@ -1202,6 +1422,29 @@ final class KairoUITests: XCTestCase {
         }
 
         XCTAssertTrue(verifyScreen.waitForExistence(timeout: 1))
+    }
+
+    @MainActor
+    private func openMoreTab(in app: XCUIApplication) {
+        let moreTab = app.tabBars.buttons["More"]
+        XCTAssertTrue(moreTab.waitForExistence(timeout: 10))
+        let moreScreen = moreScreenElement(in: app)
+
+        if moreScreen.exists {
+            return
+        }
+
+        let deadline = Date().addingTimeInterval(10)
+
+        while Date() < deadline {
+            tapWhenHittable(moreTab, in: app, timeout: 2)
+
+            if moreScreen.waitForExistence(timeout: 1) {
+                return
+            }
+        }
+
+        XCTAssertTrue(moreScreen.waitForExistence(timeout: 1))
     }
 
     @MainActor
@@ -1273,6 +1516,13 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(element.isHittable)
         element.tap()
+    }
+
+    @MainActor
+    private func dismissPresentedSheet(in app: XCUIApplication) {
+        let doneButton = app.navigationBars.buttons["Done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 10))
+        doneButton.tap()
     }
 
     private func createAccountEnvironment(
@@ -1373,6 +1623,15 @@ final class KairoUITests: XCTestCase {
             appEnvironmentKey: "staging",
             uiTestRouteKey: "demoHome",
             "KAIRO_UI_TEST_VERIFY_STATE": state
+        ]
+    }
+
+    private func moreEnvironment(state: String = "populated") -> [String: String] {
+        [
+            demoModeKey: "true",
+            appEnvironmentKey: "staging",
+            uiTestRouteKey: "demoHome",
+            "KAIRO_UI_TEST_MORE_STATE": state
         ]
     }
 

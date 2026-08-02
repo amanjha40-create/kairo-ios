@@ -7,12 +7,14 @@ struct CandidateTabShellView: View {
     private let uiTestCareerConfiguration: UITestCareerConfiguration
     private let uiTestVerifyConfiguration: UITestVerifyConfiguration
     private let uiTestPassportConfiguration: UITestPassportConfiguration
+    private let uiTestMoreConfiguration: UITestMoreConfiguration
 
     init() {
         uiTestHomeConfiguration = UITestHomeConfiguration.current()
         uiTestCareerConfiguration = UITestCareerConfiguration.current()
         uiTestVerifyConfiguration = UITestVerifyConfiguration.current()
         uiTestPassportConfiguration = UITestPassportConfiguration.current()
+        uiTestMoreConfiguration = UITestMoreConfiguration.current()
     }
 
     var body: some View {
@@ -49,7 +51,9 @@ struct CandidateTabShellView: View {
                 state: uiTestPassportConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)
             )
         case .more:
-            TabPlaceholderScreen(tab: tab)
+            MoreOverviewScreenView(
+                state: uiTestMoreConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)
+            )
         }
     }
 }
