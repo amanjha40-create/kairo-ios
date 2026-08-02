@@ -300,6 +300,7 @@ struct ContactVerificationState: Equatable, Sendable {
     let channel: VerificationChannel
     var contactValue: String = ""
     var otpCode: String = ""
+    var serverErrorMessage: String?
     var isContactTouched = false
     var isOTPTouched = false
     var hasSentCode = false
@@ -346,7 +347,11 @@ struct ContactVerificationState: Equatable, Sendable {
     }
 
     var displayedOTPErrorMessage: String? {
-        isOTPTouched ? otpErrorMessage : nil
+        if let otpErrorMessage, isOTPTouched {
+            return otpErrorMessage
+        }
+
+        return serverErrorMessage
     }
 
     var canSendCode: Bool {
@@ -394,6 +399,7 @@ struct ContactVerificationState: Equatable, Sendable {
 
     mutating func setContactValue(_ value: String) {
         contactValue = channel.sanitizeContact(value)
+        serverErrorMessage = nil
     }
 
     mutating func setOTPCode(_ value: String) {
@@ -401,6 +407,7 @@ struct ContactVerificationState: Equatable, Sendable {
         if !otpCode.isEmpty {
             isOTPTouched = true
         }
+        serverErrorMessage = nil
     }
 
     mutating func markContactTouched() {
@@ -430,6 +437,12 @@ struct ContactVerificationState: Equatable, Sendable {
         otpCode = ""
         isOTPTouched = false
         countdownRemaining = channel.countdownDuration
+        serverErrorMessage = nil
+    }
+
+    mutating func failSendingCode(message: String) {
+        isSendingCode = false
+        serverErrorMessage = message
     }
 
     mutating func tickCountdown() {
@@ -454,6 +467,12 @@ struct ContactVerificationState: Equatable, Sendable {
         isVerifying = false
         isVerified = true
         countdownRemaining = 0
+        serverErrorMessage = nil
+    }
+
+    mutating func failVerification(message: String) {
+        isVerifying = false
+        serverErrorMessage = message
     }
 
     mutating func resetForContactChange() {
@@ -464,6 +483,7 @@ struct ContactVerificationState: Equatable, Sendable {
         isVerifying = false
         isVerified = false
         countdownRemaining = 0
+        serverErrorMessage = nil
     }
 
     static func sanitizedOTPCode(_ value: String, length: Int = 6) -> String {

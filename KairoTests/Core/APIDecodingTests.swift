@@ -1,0 +1,287 @@
+import Foundation
+import XCTest
+@testable import Kairo
+
+final class APIDecodingTests: XCTestCase {
+    func test_apiErrorDecodesValidationDetailsArrayIntoFieldErrors() throws {
+        let data = Data(
+            """
+            {
+              "error": {
+                "code": "validation_error",
+                "message": "Request validation failed",
+                "details": [
+                  {
+                    "location": ["body", "email"],
+                    "message": "value is not a valid email address",
+                    "error_type": "value_error"
+                  },
+                  {
+                    "location": ["body", "phone"],
+                    "message": "Field required",
+                    "error_type": "missing"
+                  }
+                ]
+              }
+            }
+            """.utf8
+        )
+
+        let error = try XCTUnwrap(APIError.decode(from: data, statusCode: 422))
+
+        XCTAssertEqual(error.statusCode, 422)
+        XCTAssertEqual(error.code, .validationError)
+        XCTAssertEqual(error.message, "Request validation failed")
+        XCTAssertEqual(error.fieldErrors["email"], ["value is not a valid email address"])
+        XCTAssertEqual(error.fieldErrors["phone"], ["Field required"])
+        XCTAssertEqual(error.globalErrors, [])
+        XCTAssertEqual(error.validationDetails.count, 2)
+    }
+
+    func test_apiErrorCollectsMultipleErrorsForTheSameField() throws {
+        let data = Data(
+            """
+            {
+              "error": {
+                "code": "validation_error",
+                "message": "Request validation failed",
+                "details": [
+                  {
+                    "location": ["body", "password"],
+                    "message": "String should have at least 12 characters",
+                    "error_type": "string_too_short"
+                  },
+                  {
+                    "location": ["body", "password"],
+                    "message": "String should have at most 128 characters",
+                    "error_type": "string_too_long"
+                  }
+                ]
+              }
+            }
+            """.utf8
+        )
+
+        let error = try XCTUnwrap(APIError.decode(from: data, statusCode: 422))
+
+        XCTAssertEqual(
+            error.fieldErrors["password"],
+            [
+                "String should have at least 12 characters",
+                "String should have at most 128 characters"
+            ]
+        )
+    }
+
+    func test_apiErrorRetainsGlobalValidationErrors() throws {
+        let data = Data(
+            """
+            {
+              "error": {
+                "code": "validation_error",
+                "message": "Request validation failed",
+                "details": [
+                  {
+                    "location": ["body"],
+                    "message": "Request body is invalid",
+                    "error_type": "value_error"
+                  }
+                ]
+              }
+            }
+            """.utf8
+        )
+
+        let error = try XCTUnwrap(APIError.decode(from: data, statusCode: 422))
+
+        XCTAssertEqual(error.fieldErrors, [:])
+        XCTAssertEqual(error.globalErrors, ["Request body is invalid"])
+    }
+
+    func test_apiErrorFallsBackToStatusCodeMappingWhenBodyIsEmpty() {
+        let error = APIError.decode(from: Data(), statusCode: 503)
+
+        XCTAssertEqual(error?.statusCode, 503)
+        XCTAssertEqual(error?.code, .serviceUnavailable)
+        XCTAssertEqual(error?.message, "Kairo is temporarily unavailable. Please try again.")
+        XCTAssertEqual(error?.fieldErrors, [:])
+    }
+
+    func test_tokenResponseDTODecodesStagingShape() throws {
+        let data = Data(
+            """
+            {
+              "access_token": "access-token",
+              "refresh_token": "refresh-token",
+              "token_type": "bearer",
+              "expires_in": 3600
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(TokenResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.accessToken, "access-token")
+        XCTAssertEqual(response.refreshToken, "refresh-token")
+        XCTAssertEqual(response.tokenType, "bearer")
+        XCTAssertEqual(response.expiresIn, 3600)
+    }
+
+    func test_signupStartResponseDefaultsVerificationFlagsWhenOmitted() throws {
+        let data = Data(
+            """
+            {
+              "signup_session_id": "signup-session-123",
+              "email_masked": "am**@example.com",
+              "phone_masked": "+91******3210",
+              "email_resend_after_seconds": 30,
+              "phone_resend_after_seconds": 30,
+              "expires_in_seconds": 900
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(SignupStartResponseDTO.self, from: data)
+
+        XCTAssertFalse(response.emailVerified)
+        XCTAssertFalse(response.phoneVerified)
+        XCTAssertNil(response.message)
+    }
+
+    func test_userPublicDTODecodesRealisticStagingFixture() throws {
+        let data = Data(
+            """
+            {
+              "id": "6f4f1f5a-a89d-4b4b-9d67-3f0e8a0d1492",
+              "email": "aarav@example.com",
+              "full_name": "Aarav Mehta",
+              "profile_slug": "aarav-mehta",
+              "phone": "+919876543210",
+              "current_role": "People Operations Lead",
+              "industry": "Technology",
+              "years_of_experience": 6,
+              "location": "Bengaluru, India",
+              "location_city": "Bengaluru",
+              "location_region": "Karnataka",
+              "location_country": "India",
+              "headline": "People Operations Lead",
+              "bio": "Building verified professional trust.",
+              "date_of_birth": "1994-09-14",
+              "avatar_url": "https://cdn.example.com/avatar.png",
+              "role": "user",
+              "is_active": true,
+              "phone_verified_at": "2026-07-31T10:15:30Z",
+              "email_verified_at": "2026-07-31T10:14:10Z",
+              "employment_onboarding_completed_at": null,
+              "languages": [
+                {
+                  "id": "cc2cf4b4-5d75-4a4b-a3b6-89b25abef001",
+                  "language": "English",
+                  "proficiency": "native"
+                }
+              ],
+              "professional_links": [
+                {
+                  "id": "b4033575-d634-4e3d-92b6-d8e8ebf21002",
+                  "link_type": "linkedin",
+                  "label": "LinkedIn",
+                  "url": "https://linkedin.com/in/aarav"
+                }
+              ],
+              "profile_completion_percentage": 75,
+              "created_at": "2026-07-30T08:00:00Z"
+            }
+            """.utf8
+        )
+
+        let user = try APIJSONCoder.makeDecoder().decode(UserPublicDTO.self, from: data)
+
+        XCTAssertEqual(user.id, "6f4f1f5a-a89d-4b4b-9d67-3f0e8a0d1492")
+        XCTAssertEqual(user.fullName, "Aarav Mehta")
+        XCTAssertEqual(user.phone, "+919876543210")
+        XCTAssertEqual(user.role, "user")
+        XCTAssertEqual(user.languages.first?.language, "English")
+        XCTAssertEqual(user.professionalLinks.first?.linkType, "linkedin")
+        XCTAssertEqual(user.profileCompletionPercentage, 75)
+        XCTAssertEqual(user.dateOfBirth, makeUTCDate(year: 1994, month: 9, day: 14))
+        XCTAssertEqual(user.createdAt, makeUTCTimestamp(year: 2026, month: 7, day: 30, hour: 8, minute: 0, second: 0))
+    }
+
+    func test_userPublicDTODefaultsOptionalCollectionsAndCompletionPercentage() throws {
+        let data = Data(
+            """
+            {
+              "id": "6f4f1f5a-a89d-4b4b-9d67-3f0e8a0d1492",
+              "email": "aarav@example.com",
+              "full_name": null,
+              "role": "user",
+              "is_active": true,
+              "created_at": "2026-07-30T08:00:00Z"
+            }
+            """.utf8
+        )
+
+        let user = try APIJSONCoder.makeDecoder().decode(UserPublicDTO.self, from: data)
+
+        XCTAssertEqual(user.languages, [])
+        XCTAssertEqual(user.professionalLinks, [])
+        XCTAssertEqual(user.profileCompletionPercentage, 0)
+    }
+
+    func test_onboardingStatusDTODecodesFrozenLiveShape() throws {
+        let data = Data(
+            """
+            {
+              "current_step": "complete_profile",
+              "email_verified": true,
+              "phone_verified": true,
+              "passport_ready": false,
+              "completed_steps": ["verify_email", "verify_phone"],
+              "missing_requirements": ["headline"],
+              "next_recommended_step": "complete_profile",
+              "completion_percentage": 75,
+              "is_onboarding_complete": false
+            }
+            """.utf8
+        )
+
+        let status = try APIJSONCoder.makeDecoder().decode(OnboardingStatusResponseDTO.self, from: data)
+
+        XCTAssertEqual(status.currentStep, "complete_profile")
+        XCTAssertEqual(status.resolvedCurrentStep, .completeProfile)
+        XCTAssertEqual(status.completedSteps, ["verify_email", "verify_phone"])
+        XCTAssertEqual(status.missingRequirements, ["headline"])
+        XCTAssertEqual(status.completionPercentage, 75)
+        XCTAssertFalse(status.isOnboardingComplete)
+    }
+
+    private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = year
+        components.month = month
+        components.day = day
+        return components.date
+    }
+
+    private func makeUTCTimestamp(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int,
+        second: Int
+    ) -> Date? {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        components.second = second
+        return components.date
+    }
+}

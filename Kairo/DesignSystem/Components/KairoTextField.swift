@@ -12,6 +12,7 @@ struct KairoTextField<Field: Hashable>: View {
     let keyboardType: UIKeyboardType
     let textContentType: UITextContentType?
     let textInputAutocapitalization: TextInputAutocapitalization
+    let isSecure: Bool
     let submitLabel: SubmitLabel
     let focus: FocusState<Field?>.Binding?
     let focusedField: Field?
@@ -39,7 +40,7 @@ struct KairoTextField<Field: Hashable>: View {
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
 
-            TextField(prompt, text: $text)
+            fieldInput
                 .textInputAutocapitalization(textInputAutocapitalization)
                 .autocorrectionDisabled()
                 .textContentType(textContentType)
@@ -82,6 +83,15 @@ struct KairoTextField<Field: Hashable>: View {
 
         return KairoColors.border
     }
+
+    @ViewBuilder
+    private var fieldInput: some View {
+        if isSecure {
+            SecureField(prompt, text: $text)
+        } else {
+            TextField(prompt, text: $text)
+        }
+    }
 }
 
 extension KairoTextField where Field == Never {
@@ -96,6 +106,7 @@ extension KairoTextField where Field == Never {
         keyboardType: UIKeyboardType = .default,
         textContentType: UITextContentType? = nil,
         textInputAutocapitalization: TextInputAutocapitalization = .sentences,
+        isSecure: Bool = false,
         submitLabel: SubmitLabel = .done,
         onSubmit: (() -> Void)? = nil
     ) {
@@ -109,6 +120,7 @@ extension KairoTextField where Field == Never {
         self.keyboardType = keyboardType
         self.textContentType = textContentType
         self.textInputAutocapitalization = textInputAutocapitalization
+        self.isSecure = isSecure
         self.submitLabel = submitLabel
         self.focus = nil
         self.focusedField = nil
@@ -128,6 +140,7 @@ extension KairoTextField {
         keyboardType: UIKeyboardType = .default,
         textContentType: UITextContentType? = nil,
         textInputAutocapitalization: TextInputAutocapitalization = .sentences,
+        isSecure: Bool = false,
         submitLabel: SubmitLabel = .done,
         focus: FocusState<Field?>.Binding,
         focusedField: Field,
@@ -143,6 +156,7 @@ extension KairoTextField {
         self.keyboardType = keyboardType
         self.textContentType = textContentType
         self.textInputAutocapitalization = textInputAutocapitalization
+        self.isSecure = isSecure
         self.submitLabel = submitLabel
         self.focus = focus
         self.focusedField = focusedField

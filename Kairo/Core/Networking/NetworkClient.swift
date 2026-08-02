@@ -1,6 +1,6 @@
 import Foundation
 
-enum HTTPMethod: String, Sendable {
+nonisolated enum HTTPMethod: String, Sendable {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -8,7 +8,7 @@ enum HTTPMethod: String, Sendable {
     case delete = "DELETE"
 }
 
-struct NetworkRequest: Sendable {
+nonisolated struct NetworkRequest: Sendable {
     let path: String
     var method: HTTPMethod = .get
     var headers: [String: String] = [:]
@@ -33,7 +33,7 @@ struct NetworkRequest: Sendable {
 enum NetworkError: Error, Equatable, LocalizedError {
     case invalidURL
     case invalidResponse
-    case httpStatus(Int)
+    case api(APIError)
     case unavailableInDemoMode
     case transport(String)
 
@@ -43,8 +43,8 @@ enum NetworkError: Error, Equatable, LocalizedError {
             "The request URL could not be constructed."
         case .invalidResponse:
             "The server response was invalid."
-        case .httpStatus(let code):
-            "The server responded with HTTP status \(code)."
+        case .api(let error):
+            error.message
         case .unavailableInDemoMode:
             "Networking is disabled while Demo Mode is enabled."
         case .transport(let message):
@@ -58,12 +58,31 @@ protocol NetworkClient: Sendable {
 }
 
 extension NetworkClient {
+    func sendJSON<Body: Encodable>(
+        path: String,
+        method: HTTPMethod,
+        body: Body,
+        headers: [String: String] = [:]
+    ) async throws -> Data {
+        var requestHeaders = headers
+        requestHeaders["Content-Type"] = requestHeaders["Content-Type"] ?? "application/json"
+        requestHeaders["Accept"] = requestHeaders["Accept"] ?? "application/json"
+
+        let request = NetworkRequest(
+            path: path,
+            method: method,
+            headers: requestHeaders,
+            body: try APIJSONCoder.makeEncoder().encode(body)
+        )
+        return try await send(request)
+    }
+
     func decode<T: Decodable>(
         _ type: T.Type,
         from request: NetworkRequest,
-        decoder: JSONDecoder = JSONDecoder()
+        decoder: JSONDecoder? = nil
     ) async throws -> T {
         let data = try await send(request)
-        return try decoder.decode(type, from: data)
+        return try (decoder ?? APIJSONCoder.makeDecoder()).decode(type, from: data)
     }
 }

@@ -34,7 +34,7 @@ final class AppConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.buildConfiguration, .production)
         XCTAssertEqual(configuration.environment, .staging)
         XCTAssertTrue(configuration.isDemoModeEnabled)
-        XCTAssertEqual(configuration.apiBaseURL, URL(string: "https://staging-api.kairo.invalid"))
+        XCTAssertEqual(configuration.apiBaseURL, URL(string: "https://staging-api.kairoid.com/api/v1"))
     }
 
     func test_developmentBuildDefaultsToLiveModeUnlessDemoConfigured() {

@@ -48,6 +48,10 @@ final class KairoUITests: XCTestCase {
     private let verifyIdentityMobileVerifyButton = "onboarding.verifyIdentity.mobile.verify"
     private let verifyIdentityMobileSuccess = "onboarding.verifyIdentity.mobile.success"
     private let onboardingLoginTitle = "onboarding.login.title"
+    private let onboardingLoginEmailField = "onboarding.login.email"
+    private let onboardingLoginPasswordField = "onboarding.login.password"
+    private let onboardingLoginSubmitButton = "onboarding.login.submit"
+    private let onboardingLoginError = "onboarding.login.error"
     private let resumeImportChooseButton = "onboarding.resumeImport.choose"
     private let resumeImportPrepareButton = "onboarding.resumeImport.prepare"
     private let resumeImportManualButton = "onboarding.resumeImport.manual"
@@ -836,6 +840,46 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testLoginSuccessRoutesToMainTabs() throws {
+        let app = launchApp(environment: authEnvironment(
+            loginResult: "success",
+            onboardingStatus: "complete"
+        ))
+
+        navigateToLogin(in: app)
+        enterText("aman@example.com", into: app.textFields[onboardingLoginEmailField])
+        enterText("Password123", into: app.secureTextFields[onboardingLoginPasswordField])
+
+        let submitButton = app.buttons[onboardingLoginSubmitButton]
+        XCTAssertTrue(submitButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(submitButton.isEnabled)
+        submitButton.tap()
+
+        XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
+        XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testLoginInvalidCredentialsShowsInlineError() throws {
+        let app = launchApp(environment: authEnvironment(
+            loginResult: "invalidCredentials",
+            onboardingStatus: "complete"
+        ))
+
+        navigateToLogin(in: app)
+        enterText("aman@example.com", into: app.textFields[onboardingLoginEmailField])
+        enterText("wrong-password", into: app.secureTextFields[onboardingLoginPasswordField])
+
+        let submitButton = app.buttons[onboardingLoginSubmitButton]
+        XCTAssertTrue(submitButton.waitForExistence(timeout: 10))
+        submitButton.tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingLoginError].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Check your email and password, then try again."].exists)
+        XCTAssertTrue(app.staticTexts[onboardingLoginTitle].exists)
+    }
+
+    @MainActor
     func testCreateAccountEmptyFormKeepsContinueDisabled() throws {
         let app = launchApp()
 
@@ -908,6 +952,43 @@ final class KairoUITests: XCTestCase {
         loginButton.tap()
 
         assertLoginPlaceholderVisible(in: app)
+    }
+
+    @MainActor
+    func testCreateAccountConflictShowsSubmissionError() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(authEnvironment(signupStartResult: "conflict")) { _, override in override })
+
+        navigateToCreateAccount(in: app)
+
+        let continueButton = app.buttons[createAccountContinueButton]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(continueButton.isEnabled)
+        continueButton.tap()
+
+        XCTAssertTrue(app.staticTexts["An account with this email already exists."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingCreateAccountTitle].exists)
+    }
+
+    @MainActor
+    func testAuthenticatedSignupHappyPathRoutesToChooseStart() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(authEnvironment(
+                signupStartResult: "success",
+                emailVerifyResult: "success",
+                onboardingStatus: "complete_profile"
+            )) { _, override in override })
+
+        navigateToVerifyIdentityIntroduction(in: app)
+        continueToEmailVerification(in: app)
+        completeEmailVerification(in: app)
+        continueFromEmailSuccess(in: app)
+        completeMobileVerification(in: app)
+
+        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingContinueButton].tap()
+
+        XCTAssertTrue(app.staticTexts[onboardingChooseStartTitle].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -1224,6 +1305,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    private func navigateToLogin(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons[welcomeExistingAccountButton].waitForExistence(timeout: 10))
+        app.buttons[welcomeExistingAccountButton].tap()
+        XCTAssertTrue(app.otherElements[onboardingLoginTitle].waitForExistence(timeout: 10) || app.staticTexts[onboardingLoginTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     private func navigateToVerifyIdentityIntroduction(in app: XCUIApplication) {
         navigateToCreateAccount(in: app)
         XCTAssertTrue(app.buttons[createAccountContinueButton].waitForExistence(timeout: 10))
@@ -1530,6 +1618,7 @@ final class KairoUITests: XCTestCase {
         lastName: String = "",
         email: String = "",
         mobile: String = "",
+        password: String = "",
         touchedFields: Set<String> = []
     ) -> [String: String] {
         [
@@ -1537,6 +1626,7 @@ final class KairoUITests: XCTestCase {
             "KAIRO_UI_TEST_CREATE_ACCOUNT_LAST_NAME": lastName,
             "KAIRO_UI_TEST_CREATE_ACCOUNT_EMAIL": email,
             "KAIRO_UI_TEST_CREATE_ACCOUNT_MOBILE": mobile,
+            "KAIRO_UI_TEST_CREATE_ACCOUNT_PASSWORD": password,
             "KAIRO_UI_TEST_CREATE_ACCOUNT_TOUCHED_FIELDS": touchedFields.sorted().joined(separator: ",")
         ]
     }
@@ -1546,13 +1636,28 @@ final class KairoUITests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             email: "aman@example.com",
-            mobile: "9876543210"
+            mobile: "9876543210",
+            password: "StrongPassword123!"
         )
     }
 
     private func onboardingStepEnvironment(_ step: String) -> [String: String] {
         [
             "KAIRO_UI_TEST_ONBOARDING_STEP": step
+        ]
+    }
+
+    private func authEnvironment(
+        loginResult: String = "success",
+        signupStartResult: String = "success",
+        emailVerifyResult: String = "success",
+        onboardingStatus: String = "complete_profile"
+    ) -> [String: String] {
+        [
+            "KAIRO_UI_TEST_LOGIN_RESULT": loginResult,
+            "KAIRO_UI_TEST_SIGNUP_START_RESULT": signupStartResult,
+            "KAIRO_UI_TEST_EMAIL_VERIFY_RESULT": emailVerifyResult,
+            "KAIRO_UI_TEST_AUTH_ONBOARDING_STATUS": onboardingStatus
         ]
     }
 

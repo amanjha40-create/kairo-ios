@@ -6,6 +6,7 @@ struct UITestCreateAccountConfiguration {
         static let lastName = "KAIRO_UI_TEST_CREATE_ACCOUNT_LAST_NAME"
         static let emailAddress = "KAIRO_UI_TEST_CREATE_ACCOUNT_EMAIL"
         static let mobileNumber = "KAIRO_UI_TEST_CREATE_ACCOUNT_MOBILE"
+        static let password = "KAIRO_UI_TEST_CREATE_ACCOUNT_PASSWORD"
         static let touchedFields = "KAIRO_UI_TEST_CREATE_ACCOUNT_TOUCHED_FIELDS"
     }
 
@@ -28,7 +29,8 @@ struct UITestCreateAccountConfiguration {
                 firstName: environment[EnvironmentKey.firstName] ?? "",
                 lastName: environment[EnvironmentKey.lastName] ?? "",
                 emailAddress: environment[EnvironmentKey.emailAddress] ?? "",
-                mobileNumber: environment[EnvironmentKey.mobileNumber] ?? ""
+                mobileNumber: environment[EnvironmentKey.mobileNumber] ?? "",
+                password: environment[EnvironmentKey.password] ?? ""
             ),
             touchedFields: parseTouchedFields(environment[EnvironmentKey.touchedFields] ?? "")
         )

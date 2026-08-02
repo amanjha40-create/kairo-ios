@@ -134,7 +134,7 @@ struct AppConfiguration: Equatable, Sendable {
             buildConfiguration: buildConfiguration,
             environment: environment,
             isDemoModeEnabled: isDemoModeEnabled,
-            apiBaseURL: baseURL(for: environment),
+            apiBaseURL: APIConfiguration.make(for: environment).baseURL,
             keychainService: "com.kairoid.Kairo.\(environment.rawValue)"
         )
     }
@@ -166,14 +166,4 @@ struct AppConfiguration: Equatable, Sendable {
         }
     }
 
-    private static func baseURL(for environment: AppEnvironment) -> URL {
-        switch environment {
-        case .development:
-            URL(string: "https://dev-api.kairo.invalid")!
-        case .staging:
-            URL(string: "https://staging-api.kairo.invalid")!
-        case .production:
-            URL(string: "https://api.kairo.invalid")!
-        }
-    }
 }

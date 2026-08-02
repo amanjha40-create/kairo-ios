@@ -7,7 +7,8 @@ final class CreateAccountValidationTests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             emailAddress: "aman@example.com",
-            mobileNumber: "9876543210"
+            mobileNumber: "9876543210",
+            password: "StrongPassword123!"
         )
 
         XCTAssertTrue(CreateAccountValidation.isFormValid(draft))
@@ -32,6 +33,10 @@ final class CreateAccountValidationTests: XCTestCase {
             CreateAccountValidation.errorMessage(for: .mobileNumber, in: draft),
             "Enter your mobile number."
         )
+        XCTAssertEqual(
+            CreateAccountValidation.errorMessage(for: .password, in: draft),
+            "Enter a password."
+        )
     }
 
     func test_invalidEmailFailsValidation() {
@@ -39,7 +44,8 @@ final class CreateAccountValidationTests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             emailAddress: "aman@invalid",
-            mobileNumber: "9876543210"
+            mobileNumber: "9876543210",
+            password: "StrongPassword123!"
         )
 
         XCTAssertEqual(
@@ -54,13 +60,15 @@ final class CreateAccountValidationTests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             emailAddress: "  aman@example.com  ",
-            mobileNumber: "9876543210"
+            mobileNumber: "9876543210",
+            password: "StrongPassword123!"
         )
         let invalidDraft = CreateAccountDraft(
             firstName: "Aman",
             lastName: "Jha",
             emailAddress: "<aman@example.com>",
-            mobileNumber: "9876543210"
+            mobileNumber: "9876543210",
+            password: "StrongPassword123!"
         )
 
         XCTAssertNil(CreateAccountValidation.errorMessage(for: .emailAddress, in: trimmedDraft))
@@ -75,7 +83,8 @@ final class CreateAccountValidationTests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             emailAddress: "aman@example.com",
-            mobileNumber: "987654321"
+            mobileNumber: "987654321",
+            password: "StrongPassword123!"
         )
 
         XCTAssertEqual(
@@ -93,6 +102,39 @@ final class CreateAccountValidationTests: XCTestCase {
         XCTAssertEqual(
             CreateAccountValidation.sanitizedMobileNumber("09876543210"),
             "9876543210"
+        )
+    }
+
+    func test_mobileNumberSubmissionFormatsToE164() {
+        XCTAssertEqual(
+            CreateAccountValidation.e164PhoneNumber("98765 43210"),
+            "+919876543210"
+        )
+    }
+
+    func test_passwordMustMeetBackendMinimumLength() {
+        let draft = CreateAccountDraft(
+            firstName: "Aman",
+            lastName: "Jha",
+            emailAddress: "aman@example.com",
+            mobileNumber: "9876543210",
+            password: "Short123"
+        )
+
+        XCTAssertEqual(
+            CreateAccountValidation.errorMessage(for: .password, in: draft),
+            "Use at least 12 characters."
+        )
+        XCTAssertFalse(CreateAccountValidation.isFormValid(draft))
+    }
+
+    func test_fullNameCombinesTrimmedFirstAndLastName() {
+        XCTAssertEqual(
+            CreateAccountValidation.normalizedFullName(
+                firstName: "  Aman ",
+                lastName: " Jha  "
+            ),
+            "Aman Jha"
         )
     }
 }

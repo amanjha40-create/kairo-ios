@@ -21,7 +21,7 @@ struct WelcomeScreenView: View {
                 primaryAction: { router.advanceOnboarding(from: .welcome) },
                 secondaryTitle: "I already have an account",
                 secondaryAccessibilityIdentifier: KairoAccessibilityID.onboardingExistingAccount,
-                secondaryAction: { router.showLoginPlaceholder() }
+                secondaryAction: { router.showLogin() }
             )
         }
         .toolbar(.hidden, for: .navigationBar)

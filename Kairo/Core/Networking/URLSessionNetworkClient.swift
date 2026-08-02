@@ -14,7 +14,11 @@ struct URLSessionNetworkClient: NetworkClient {
             }
 
             guard (200 ..< 300).contains(httpResponse.statusCode) else {
-                throw NetworkError.httpStatus(httpResponse.statusCode)
+                if let apiError = APIError.decode(from: data, statusCode: httpResponse.statusCode) {
+                    throw NetworkError.api(apiError)
+                }
+
+                throw NetworkError.invalidResponse
             }
 
             return data

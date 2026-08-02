@@ -31,6 +31,10 @@ final class AppRouter: ObservableObject {
     }
 
     func showLoginPlaceholder() {
+        showLogin()
+    }
+
+    func showLogin() {
         if rootDestination != .onboarding {
             rootDestination = .onboarding
         }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MoreOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
     @State private var currentState: MoreOverviewState
     @State private var presentedModal: MorePresentedModal?
 
@@ -398,8 +399,10 @@ struct MoreOverviewScreenView: View {
                     currentState.confirmPendingAction()
                     presentedModal = nil
 
-                    if currentState.signOutResult == .signedOutLocally {
-                        router.showLoginPlaceholder()
+                    if confirmation == .signOut {
+                        Task {
+                            await sessionStore.signOut()
+                        }
                     }
                 }
             )

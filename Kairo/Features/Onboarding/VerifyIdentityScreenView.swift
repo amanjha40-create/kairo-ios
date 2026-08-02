@@ -107,8 +107,11 @@ private struct ContactVerificationScreenView: View {
     let onBack: () -> Void
     let onContinue: () -> Void
 
+    @Environment(\.authService) private var authService
+    @EnvironmentObject private var sessionStore: AppSessionStore
     @FocusState private var focusedField: FocusField?
     @State private var lastFocusedField: FocusField?
+    @State private var isCompletingSignup = false
 
     var body: some View {
         OnboardingScreenLayout(
@@ -284,20 +287,19 @@ private struct ContactVerificationScreenView: View {
     private var actionGroup: some View {
         VStack(spacing: KairoSpacing.small) {
             KairoPrimaryButton(
-                title: state.isVerified ? channel.continueButtonTitle : channel.verifyButtonTitle,
-                isLoading: state.isVerifying,
-                accessibilityIdentifier: state.isVerified
-                    ? KairoAccessibilityID.onboardingContinue
-                    : channel.verifyButtonAccessibilityIdentifier,
-                action: state.isVerified ? onContinue : verifyCode
+                title: primaryButtonTitle,
+                isLoading: primaryButtonLoading,
+                accessibilityIdentifier: primaryButtonAccessibilityIdentifier,
+                action: primaryButtonAction
             )
-            .disabled(state.isVerified ? false : !state.canVerify)
+            .disabled(primaryButtonDisabled)
 
             KairoSecondaryButton(
                 title: "Back",
                 accessibilityIdentifier: KairoAccessibilityID.verifyIdentityBack,
                 action: onBack
             )
+            .disabled(isCompletingSignup)
         }
         .accessibilityElement(children: .contain)
     }
@@ -309,17 +311,52 @@ private struct ContactVerificationScreenView: View {
         }
 
         Task {
-            try? await Task.sleep(for: .milliseconds(500))
-            await MainActor.run {
-                state.completeSendingCode()
-                focusedField = .code
+            do {
+                switch channel {
+                case .email:
+                    try await authService.sendEmailCode(email: state.contactValue)
+                case .mobile:
+                    try await authService.sendPhoneCode(mobileNumber: state.contactValue)
+                }
+
+                await MainActor.run {
+                    state.completeSendingCode()
+                    focusedField = .code
+                }
+            } catch {
+                await MainActor.run {
+                    state.failSendingCode(message: authMessage(for: error))
+                }
             }
         }
     }
 
     private func resendCode() {
         state.resetForContactChange()
-        sendCode()
+        state.beginSendingCode()
+        guard state.isSendingCode else {
+            return
+        }
+
+        Task {
+            do {
+                switch channel {
+                case .email:
+                    try await authService.resendEmailCode(email: state.contactValue)
+                case .mobile:
+                    try await authService.resendPhoneCode(mobileNumber: state.contactValue)
+                }
+
+                await MainActor.run {
+                    state.completeSendingCode()
+                    focusedField = .code
+                }
+            } catch {
+                await MainActor.run {
+                    state.failSendingCode(message: authMessage(for: error))
+                }
+            }
+        }
     }
 
     private func changeContact() {
@@ -334,10 +371,28 @@ private struct ContactVerificationScreenView: View {
         }
 
         Task {
-            try? await Task.sleep(for: .milliseconds(650))
-            await MainActor.run {
-                state.completeVerification()
-                focusedField = nil
+            do {
+                switch channel {
+                case .email:
+                    try await authService.verifyEmail(
+                        email: state.contactValue,
+                        code: state.otpCode
+                    )
+                case .mobile:
+                    try await authService.verifyPhone(
+                        mobileNumber: state.contactValue,
+                        code: state.otpCode
+                    )
+                }
+
+                await MainActor.run {
+                    state.completeVerification()
+                    focusedField = nil
+                }
+            } catch {
+                await MainActor.run {
+                    state.failVerification(message: authMessage(for: error))
+                }
             }
         }
     }
@@ -363,6 +418,93 @@ private struct ContactVerificationScreenView: View {
             get: { state.otpCode },
             set: { state.setOTPCode($0) }
         )
+    }
+
+    private func continueAfterVerification() {
+        guard state.isVerified else {
+            return
+        }
+
+        if channel == .email {
+            onContinue()
+            return
+        }
+
+        isCompletingSignup = true
+
+        Task {
+            do {
+                _ = try await authService.completeSignup()
+                await sessionStore.completeAuthenticationAndRoute()
+                await MainActor.run {
+                    isCompletingSignup = false
+                }
+            } catch {
+                await MainActor.run {
+                    isCompletingSignup = false
+                    state.serverErrorMessage = authMessage(for: error)
+                }
+            }
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        state.isVerified ? channel.continueButtonTitle : channel.verifyButtonTitle
+    }
+
+    private var primaryButtonLoading: Bool {
+        state.isVerified ? isCompletingSignup : state.isVerifying
+    }
+
+    private var primaryButtonAccessibilityIdentifier: String {
+        state.isVerified
+            ? KairoAccessibilityID.onboardingContinue
+            : channel.verifyButtonAccessibilityIdentifier
+    }
+
+    private var primaryButtonDisabled: Bool {
+        state.isVerified ? isCompletingSignup : !state.canVerify
+    }
+
+    private func primaryButtonAction() {
+        if state.isVerified {
+            continueAfterVerification()
+        } else {
+            verifyCode()
+        }
+    }
+
+    private func authMessage(for error: Error) -> String {
+        switch error {
+        case let networkError as NetworkError:
+            switch networkError {
+            case .api(let apiError):
+                switch apiError.code {
+                case .validationError:
+                    return apiError.fieldErrors["code"]?.first ?? apiError.message
+                case .rateLimited:
+                    return "Too many attempts. Please try again shortly."
+                case .serviceUnavailable, .internalError:
+                    return "Kairo is temporarily unavailable. Please try again."
+                case .unauthorized:
+                    return "Your signup session expired. Please start again."
+                default:
+                    return apiError.message
+                }
+            case .transport:
+                return "Kairo couldn't reach the network. Check your connection and try again."
+            case .invalidResponse:
+                return "Kairo received an unexpected response. Please try again."
+            case .invalidURL:
+                return "Kairo's API configuration is invalid."
+            case .unavailableInDemoMode:
+                return "Demo Mode keeps verification local only."
+            }
+        case let sessionError as SessionServiceError where sessionError == .missingSignupSession:
+            return "Your signup session expired. Please start again."
+        default:
+            return error.localizedDescription
+        }
     }
 }
 

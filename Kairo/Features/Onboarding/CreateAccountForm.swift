@@ -5,6 +5,7 @@ struct CreateAccountDraft: Equatable, Sendable {
     var lastName = ""
     var emailAddress = ""
     var mobileNumber = ""
+    var password = ""
 }
 
 enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable {
@@ -12,6 +13,7 @@ enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable 
     case lastName
     case emailAddress
     case mobileNumber
+    case password
 
     var id: String { rawValue }
 
@@ -24,6 +26,8 @@ enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable 
         case .emailAddress:
             .mobileNumber
         case .mobileNumber:
+            .password
+        case .password:
             nil
         }
     }
@@ -38,11 +42,16 @@ enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable 
             .lastName
         case .mobileNumber:
             .emailAddress
+        case .password:
+            .mobileNumber
         }
     }
 }
 
 enum CreateAccountValidation {
+    static let passwordMinimumLength = 12
+    static let passwordMaximumLength = 128
+
     private static let emailPattern =
         #"^[A-Z0-9a-z.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"#
     private static let emailExpression = try! NSRegularExpression(pattern: emailPattern)
@@ -76,6 +85,8 @@ enum CreateAccountValidation {
             }
 
             return number.count == 10 ? nil : "Enter a valid 10-digit Indian mobile number."
+        case .password:
+            return passwordErrorMessage(draft.password)
         }
     }
 
@@ -91,6 +102,14 @@ enum CreateAccountValidation {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    static func normalizedFullName(firstName: String, lastName: String) -> String? {
+        let fullName = [normalizedName(firstName), normalizedName(lastName)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return fullName.isEmpty ? nil : fullName
+    }
+
     static func normalizedMobileNumber(_ value: String) -> String {
         var digits = value.filter(\.isNumber)
 
@@ -101,6 +120,31 @@ enum CreateAccountValidation {
         }
 
         return String(digits.prefix(10))
+    }
+
+    static func e164PhoneNumber(_ value: String) -> String? {
+        let digits = normalizedMobileNumber(value)
+        guard digits.count == 10 else {
+            return nil
+        }
+
+        return "+91\(digits)"
+    }
+
+    static func passwordErrorMessage(_ value: String) -> String? {
+        if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Enter a password."
+        }
+
+        if value.count < passwordMinimumLength {
+            return "Use at least \(passwordMinimumLength) characters."
+        }
+
+        if value.count > passwordMaximumLength {
+            return "Use \(passwordMaximumLength) characters or fewer."
+        }
+
+        return nil
     }
 
     private static func isValidEmail(_ email: String) -> Bool {

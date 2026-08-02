@@ -30,7 +30,7 @@ struct OnboardingFlowView: View {
                     case .step(let step):
                         destinationView(for: step)
                     case .loginPlaceholder:
-                        LoginPlaceholderScreen()
+                        LoginScreenView()
                     }
                 }
         }

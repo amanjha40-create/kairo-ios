@@ -1,12 +1,13 @@
 import Foundation
 import Security
 
-enum TokenKey: String, CaseIterable, Sendable {
+nonisolated enum TokenKey: String, CaseIterable, Sendable {
     case accessToken
     case refreshToken
+    case signupSessionID
 }
 
-enum SecureStorageError: Error, Equatable, LocalizedError {
+nonisolated enum SecureStorageError: Error, Equatable, LocalizedError, Sendable {
     case unexpectedStatus(OSStatus)
     case invalidData
 
@@ -20,10 +21,18 @@ enum SecureStorageError: Error, Equatable, LocalizedError {
     }
 }
 
-protocol TokenStore: Sendable {
+nonisolated protocol TokenStore: Sendable {
     func save(_ token: String, for key: TokenKey) async throws
     func readToken(for key: TokenKey) async throws -> String?
     func deleteToken(for key: TokenKey) async throws
+}
+
+extension TokenStore {
+    func deleteAllTokens() async throws {
+        for key in TokenKey.allCases {
+            try await deleteToken(for: key)
+        }
+    }
 }
 
 actor InMemoryTokenStore: TokenStore {

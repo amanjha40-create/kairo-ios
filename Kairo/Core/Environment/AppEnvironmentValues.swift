@@ -7,6 +7,64 @@ private struct MissingNetworkClient: NetworkClient {
     }
 }
 
+private struct MissingAuthService: AuthServiceProtocol {
+    func signupStart(_ request: RegisterRequestDTO) async throws -> SignupStartResponseDTO {
+        _ = request
+        fatalError("Missing auth service injection.")
+    }
+
+    func sendEmailCode(email: String?) async throws {
+        _ = email
+        fatalError("Missing auth service injection.")
+    }
+
+    func resendEmailCode(email: String?) async throws {
+        _ = email
+        fatalError("Missing auth service injection.")
+    }
+
+    func verifyEmail(email: String?, code: String) async throws {
+        _ = (email, code)
+        fatalError("Missing auth service injection.")
+    }
+
+    func sendPhoneCode(mobileNumber: String?) async throws {
+        _ = mobileNumber
+        fatalError("Missing auth service injection.")
+    }
+
+    func resendPhoneCode(mobileNumber: String?) async throws {
+        _ = mobileNumber
+        fatalError("Missing auth service injection.")
+    }
+
+    func verifyPhone(mobileNumber: String?, code: String) async throws {
+        _ = (mobileNumber, code)
+        fatalError("Missing auth service injection.")
+    }
+
+    func completeSignup() async throws -> TokenResponseDTO {
+        fatalError("Missing auth service injection.")
+    }
+
+    func login(email: String, password: String) async throws -> TokenResponseDTO {
+        _ = (email, password)
+        fatalError("Missing auth service injection.")
+    }
+
+    func logout() async throws {
+        fatalError("Missing auth service injection.")
+    }
+
+    func currentUser() async throws -> UserPublicDTO {
+        fatalError("Missing auth service injection.")
+    }
+
+    func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
+        fatalError("Missing auth service injection.")
+    }
+}
+
 private actor MissingTokenStore: TokenStore {
     func save(_ token: String, for key: TokenKey) async throws {
         _ = (token, key)
@@ -29,7 +87,7 @@ private struct AppConfigurationKey: EnvironmentKey {
         buildConfiguration: .development,
         environment: .development,
         isDemoModeEnabled: false,
-        apiBaseURL: URL(string: "https://dev-api.kairo.invalid")!,
+        apiBaseURL: APIConfiguration.make(for: .development).baseURL,
         keychainService: "com.kairoid.Kairo.preview"
     )
 }
@@ -40,6 +98,10 @@ private struct NetworkClientKey: EnvironmentKey {
 
 private struct TokenStoreKey: EnvironmentKey {
     static let defaultValue: any TokenStore = MissingTokenStore()
+}
+
+private struct AuthServiceKey: EnvironmentKey {
+    static let defaultValue: any AuthServiceProtocol = MissingAuthService()
 }
 
 extension EnvironmentValues {
@@ -56,5 +118,10 @@ extension EnvironmentValues {
     var tokenStore: any TokenStore {
         get { self[TokenStoreKey.self] }
         set { self[TokenStoreKey.self] = newValue }
+    }
+
+    var authService: any AuthServiceProtocol {
+        get { self[AuthServiceKey.self] }
+        set { self[AuthServiceKey.self] = newValue }
     }
 }
