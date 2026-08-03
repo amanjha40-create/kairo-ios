@@ -35,9 +35,13 @@ struct CandidateTabShellView: View {
     private func destinationView(for tab: CandidateTab) -> some View {
         switch tab {
         case .home:
-            HomeOverviewScreenView(
-                state: uiTestHomeConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)
-            )
+            if let uiTestState = uiTestHomeConfiguration.state {
+                HomeOverviewScreenView(state: uiTestState)
+            } else if appConfiguration.isDemoModeEnabled {
+                HomeOverviewScreenView(state: .default(isDemoMode: true))
+            } else {
+                HomeOverviewContainerView()
+            }
         case .career:
             CareerOverviewScreenView(
                 state: uiTestCareerConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)

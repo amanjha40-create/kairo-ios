@@ -266,7 +266,7 @@ final class SessionServiceTests: XCTestCase {
     }
 
     private nonisolated static func jsonBody(from request: URLRequest) throws -> [String: Any] {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+        try requestJSONBody(from: request)
     }
 }
 

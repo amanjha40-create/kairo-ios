@@ -280,7 +280,7 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
     func signupStart(_ request: RegisterRequestDTO) async throws -> SignupStartResponseDTO {
         _ = request
         return SignupStartResponseDTO(
-            signupSessionID: "signup-session-123",
+            signupSessionId: "signup-session-123",
             emailMasked: "aa***@example.com",
             phoneMasked: "+91******3210",
             emailResendAfterSeconds: 30,

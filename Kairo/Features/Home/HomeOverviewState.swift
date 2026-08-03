@@ -12,7 +12,9 @@ struct HomeOverviewState: Equatable, Sendable {
     let phase: HomeOverviewPhase
 
     static func `default`(isDemoMode: Bool) -> HomeOverviewState {
-        populatedFixture(dataSourceLabel: isDemoMode ? "Demo data" : "Preview data")
+        isDemoMode
+            ? populatedFixture(dataSourceLabel: "Demo data")
+            : loading(header: .placeholder)
     }
 
     static func populatedFixture(dataSourceLabel: String = "Demo data") -> HomeOverviewState {
@@ -30,6 +32,7 @@ struct HomeOverviewState: Equatable, Sendable {
                     recommendation: HomeRecommendation(
                         title: "Verify current employment",
                         supportingCopy: "This can make your Trust Passport more useful to employers and institutions.",
+                        actionTitle: "Start verification",
                         destinationTab: .verify
                     ),
                     trustTasks: [
@@ -110,6 +113,7 @@ struct HomeOverviewState: Equatable, Sendable {
                     recommendation: HomeRecommendation(
                         title: "Verify your current employment",
                         supportingCopy: "This is the fastest next step to make your Trust Passport more useful.",
+                        actionTitle: "Start verification",
                         destinationTab: .verify
                     ),
                     trustTasks: [
@@ -162,6 +166,13 @@ struct HomeOverviewState: Equatable, Sendable {
         )
     }
 
+    static func loading(header: HomeHeader) -> HomeOverviewState {
+        HomeOverviewState(
+            header: header,
+            phase: .loading
+        )
+    }
+
     static func errorFixture() -> HomeOverviewState {
         HomeOverviewState(
             header: .fixture,
@@ -171,6 +182,33 @@ struct HomeOverviewState: Equatable, Sendable {
                     message: "Kairo could not prepare your trust overview preview. Try again when the next demo data set is available."
                 )
             )
+        )
+    }
+
+    static func error(
+        header: HomeHeader,
+        title: String,
+        message: String
+    ) -> HomeOverviewState {
+        HomeOverviewState(
+            header: header,
+            phase: .error(
+                HomeOverviewErrorState(
+                    title: title,
+                    message: message
+                )
+            )
+        )
+    }
+
+    static func live(
+        header: HomeHeader,
+        content: HomeOverviewContent,
+        isEmpty: Bool
+    ) -> HomeOverviewState {
+        HomeOverviewState(
+            header: header,
+            phase: isEmpty ? .empty(content) : .populated(content)
         )
     }
 }
@@ -187,6 +225,13 @@ struct HomeHeader: Equatable, Sendable {
     let firstName: String
     let supportingCopy: String
     let initials: String
+
+    static let placeholder = HomeHeader(
+        greeting: "Welcome back,",
+        firstName: "there",
+        supportingCopy: "Kairo is preparing your latest trust snapshot.",
+        initials: "KA"
+    )
 
     static let fixture = HomeHeader(
         greeting: "Good morning,",
@@ -227,6 +272,7 @@ struct HomeTrustScore: Equatable, Sendable {
 struct HomeRecommendation: Equatable, Sendable {
     let title: String
     let supportingCopy: String
+    let actionTitle: String
     let destinationTab: CandidateTab
 }
 

@@ -2,10 +2,11 @@ import SwiftUI
 
 struct HomeOverviewScreenView: View {
     let state: HomeOverviewState
+    var retryAction: (() -> Void)?
+    var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
     @Environment(\.appConfiguration) private var appConfiguration
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ZStack {
@@ -18,6 +19,7 @@ struct HomeOverviewScreenView: View {
                 .padding(.top, topContentPadding)
                 .padding(.bottom, KairoSpacing.xxLarge)
             }
+            .refreshableIfAvailable(action: refreshAction)
         }
         .background(
             LinearGradient(
@@ -46,7 +48,8 @@ struct HomeOverviewScreenView: View {
         case .error(let errorState):
             KairoErrorStateView(
                 title: errorState.title,
-                message: errorState.message
+                message: errorState.message,
+                retryAction: retryAction
             )
         case .populated(let content):
             populatedContent(content)
@@ -121,7 +124,7 @@ struct HomeOverviewScreenView: View {
         recentActivitySection(content.recentActivity)
         recentPassportViewsSection(
             content.recentPassportViews,
-            emptyMessage: "No demo Passport views yet. When organisations start reviewing your Trust Passport, you'll see a preview here."
+            emptyMessage: "No Passport views yet. When organisations start reviewing your Trust Passport, you'll see a preview here."
         )
     }
 
@@ -142,7 +145,7 @@ struct HomeOverviewScreenView: View {
         recentActivitySection(content.recentActivity)
         recentPassportViewsSection(
             content.recentPassportViews,
-            emptyMessage: "No demo Passport views yet. Once visibility insights are connected, you'll see them here."
+            emptyMessage: "No Passport views yet. Once visibility insights are available, you'll see them here."
         )
     }
 
@@ -239,7 +242,7 @@ struct HomeOverviewScreenView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HomeInlineButton(
-                title: "Start verification",
+                title: recommendation.actionTitle,
                 accessibilityIdentifier: KairoAccessibilityID.homeStartVerification,
                 action: { router.selectTab(recommendation.destinationTab) }
             )
@@ -413,7 +416,7 @@ struct HomeOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             HomeSectionHeader(
                 title: "Recent Passport views",
-                subtitle: "Demo visibility preview",
+                subtitle: "Visibility insights",
                 accessibilityIdentifier: KairoAccessibilityID.homeRecentPassportViews
             )
 
@@ -431,10 +434,23 @@ struct HomeOverviewScreenView: View {
             } else {
                 HomeCompactEmptyCard(
                     systemImage: "eye",
-                    title: "No recent demo views yet",
+                    title: "No recent Passport views yet",
                     message: emptyMessage
                 )
             }
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func refreshableIfAvailable(action: (() async -> Void)?) -> some View {
+        if let action {
+            refreshable {
+                await action()
+            }
+        } else {
+            self
         }
     }
 }

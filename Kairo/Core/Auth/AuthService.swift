@@ -34,7 +34,7 @@ actor AuthService: AuthServiceProtocol {
             path: "/auth/signup/start",
             body: request
         )
-        try await sessionService.storeSignupSessionID(response.signupSessionID)
+        try await sessionService.storeSignupSessionID(response.signupSessionId)
         return response
     }
 
@@ -228,7 +228,7 @@ actor DemoAuthService: AuthServiceProtocol {
 
     func signupStart(_ request: RegisterRequestDTO) async throws -> SignupStartResponseDTO {
         let response = SignupStartResponseDTO(
-            signupSessionID: "demo-signup-session",
+            signupSessionId: "demo-signup-session",
             emailMasked: "aa***@example.com",
             phoneMasked: "+91******3210",
             emailResendAfterSeconds: 30,
@@ -236,7 +236,7 @@ actor DemoAuthService: AuthServiceProtocol {
             expiresInSeconds: 900,
             message: "Signup session created"
         )
-        try await sessionService.storeSignupSessionID(response.signupSessionID)
+        try await sessionService.storeSignupSessionID(response.signupSessionId)
         currentOnboardingStatus = .fixture(
             currentStep: .verifyIdentity,
             nextRecommendedStep: "verify_identity",
@@ -368,7 +368,7 @@ actor UITestAuthService: AuthServiceProtocol {
         switch configuration.signupStartResult {
         case .success:
             let response = SignupStartResponseDTO(
-                signupSessionID: "ui-test-signup-session",
+                signupSessionId: "ui-test-signup-session",
                 emailMasked: "aa***@example.com",
                 phoneMasked: "+91******3210",
                 emailResendAfterSeconds: 30,
@@ -376,7 +376,7 @@ actor UITestAuthService: AuthServiceProtocol {
                 expiresInSeconds: 900,
                 message: "Signup session created"
             )
-            try await sessionService.storeSignupSessionID(response.signupSessionID)
+            try await sessionService.storeSignupSessionID(response.signupSessionId)
             _ = request
             return response
         case .conflict:

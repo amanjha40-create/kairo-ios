@@ -20,7 +20,7 @@ nonisolated struct RegisterRequestDTO: Encodable, Equatable, Sendable {
 }
 
 nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
-    let signupSessionID: String
+    let signupSessionId: String
     let emailMasked: String
     let phoneMasked: String
     let emailVerified: Bool
@@ -31,19 +31,19 @@ nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
     let message: String?
 
     private enum CodingKeys: String, CodingKey {
-        case signupSessionID
+        case signupSessionId
         case emailMasked
         case phoneMasked
         case emailVerified
         case phoneVerified
         case emailResendAfterSeconds
         case phoneResendAfterSeconds
-        case expiresInSeconds
         case message
+        case expiresInSeconds
     }
 
     nonisolated init(
-        signupSessionID: String,
+        signupSessionId: String,
         emailMasked: String,
         phoneMasked: String,
         emailVerified: Bool = false,
@@ -53,7 +53,7 @@ nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
         expiresInSeconds: Int,
         message: String? = nil
     ) {
-        self.signupSessionID = signupSessionID
+        self.signupSessionId = signupSessionId
         self.emailMasked = emailMasked
         self.phoneMasked = phoneMasked
         self.emailVerified = emailVerified
@@ -66,7 +66,7 @@ nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        signupSessionID = try container.decode(String.self, forKey: .signupSessionID)
+        signupSessionId = try container.decode(String.self, forKey: .signupSessionId)
         emailMasked = try container.decode(String.self, forKey: .emailMasked)
         phoneMasked = try container.decode(String.self, forKey: .phoneMasked)
         emailVerified = try container.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false

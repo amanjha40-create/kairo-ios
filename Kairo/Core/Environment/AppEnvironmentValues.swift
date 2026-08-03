@@ -65,6 +65,12 @@ private struct MissingAuthService: AuthServiceProtocol {
     }
 }
 
+private struct MissingHomeOverviewService: HomeOverviewServiceProtocol {
+    func loadOverview() async throws -> DashboardOverview {
+        fatalError("Missing home overview service injection.")
+    }
+}
+
 private actor MissingTokenStore: TokenStore {
     func save(_ token: String, for key: TokenKey) async throws {
         _ = (token, key)
@@ -104,6 +110,10 @@ private struct AuthServiceKey: EnvironmentKey {
     static let defaultValue: any AuthServiceProtocol = MissingAuthService()
 }
 
+private struct HomeOverviewServiceKey: EnvironmentKey {
+    static let defaultValue: any HomeOverviewServiceProtocol = MissingHomeOverviewService()
+}
+
 extension EnvironmentValues {
     var appConfiguration: AppConfiguration {
         get { self[AppConfigurationKey.self] }
@@ -123,5 +133,10 @@ extension EnvironmentValues {
     var authService: any AuthServiceProtocol {
         get { self[AuthServiceKey.self] }
         set { self[AuthServiceKey.self] = newValue }
+    }
+
+    var homeOverviewService: any HomeOverviewServiceProtocol {
+        get { self[HomeOverviewServiceKey.self] }
+        set { self[HomeOverviewServiceKey.self] = newValue }
     }
 }

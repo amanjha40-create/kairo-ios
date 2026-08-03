@@ -23,7 +23,7 @@ final class AuthServiceTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/start")
             XCTAssertEqual(request.httpMethod, "POST")
 
-            let body = try XCTUnwrap(request.httpBody)
+            let body = try requestBodyData(from: request)
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
 
             XCTAssertEqual(json["full_name"] as? String, "Aman Jha")
@@ -68,7 +68,7 @@ final class AuthServiceTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(response.signupSessionID, "signup-session-123")
+        XCTAssertEqual(response.signupSessionId, "signup-session-123")
         XCTAssertEqual(response.emailMasked, "am**@example.com")
         let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
         XCTAssertEqual(signupSessionID, "signup-session-123")
@@ -353,6 +353,6 @@ final class AuthServiceTests: XCTestCase {
     }
 
     private nonisolated static func jsonBody(from request: URLRequest) throws -> [String: Any] {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+        try requestJSONBody(from: request)
     }
 }

@@ -255,6 +255,125 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertFalse(status.isOnboardingComplete)
     }
 
+    func test_dashboardResponseDTODecodesFrozenBackendShapeAndDefaultsOptionalCollections() throws {
+        let data = Data(
+            """
+            {
+              "profile_completion": {
+                "current_step": "complete_profile",
+                "email_verified": true,
+                "phone_verified": true,
+                "passport_ready": false,
+                "completed_steps": ["verify_email", "verify_phone"],
+                "missing_requirements": ["employment", "education"],
+                "next_recommended_step": "employment",
+                "completion_percentage": 70,
+                "is_onboarding_complete": false
+              },
+              "trust_score": {
+                "overall": 78,
+                "status": "calculated",
+                "positive_contributors": [
+                  {
+                    "code": "verified_employment",
+                    "label": "Verified employment",
+                    "points": 22.5,
+                    "detail": "Your current role has been verified."
+                  }
+                ],
+                "negative_contributors": [],
+                "critical_overrides": [],
+                "verification_completeness_percentage": 72,
+                "week_change": 4
+              },
+              "verification_summary": {
+                "overall": {
+                  "total": 4,
+                  "statuses": {
+                    "verified": 2,
+                    "pending": 1,
+                    "not_verified": 1
+                  }
+                },
+                "employments": {
+                  "total": 2,
+                  "statuses": {
+                    "verified": 1,
+                    "pending": 1
+                  }
+                },
+                "educations": {
+                  "total": 1,
+                  "statuses": {
+                    "verified": 1
+                  }
+                }
+              },
+              "vault_summary": {
+                "total_items": 6,
+                "employments": 2,
+                "educations": 1,
+                "internships": 0,
+                "freelance": 0,
+                "gig_platforms": 0,
+                "portfolio": 0,
+                "certifications": 1,
+                "user_documents": 2
+              },
+              "active_passport_shares": {
+                "count": 1,
+                "items": [
+                  {
+                    "share_id": "share_123",
+                    "label": "Northstar Labs",
+                    "state": "active",
+                    "expires_at": "2026-08-10T10:00:00Z",
+                    "last_viewed_at": "2026-08-01T11:45:00Z",
+                    "created_at": "2026-07-30T08:00:00Z"
+                  }
+                ]
+              },
+              "recent_share_analytics": [
+                {
+                  "share_id": "share_123",
+                  "label": "Northstar Labs",
+                  "state": "active",
+                  "total_views": 3,
+                  "unique_views": 2,
+                  "last_viewed_at": "2026-08-01T11:45:00Z"
+                }
+              ],
+              "recent_activity": [
+                {
+                  "occurred_at": "2026-08-01T12:15:00Z",
+                  "category": "verification",
+                  "action": "awaiting_approval",
+                  "title": "Employment verification",
+                  "detail": "Northstar Labs",
+                  "subject_id": "employment_123"
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(DashboardResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.profileCompletion.currentStep, "complete_profile")
+        XCTAssertEqual(response.profileCompletionPercentage, 70)
+        XCTAssertEqual(response.trustScore.overall, 78)
+        XCTAssertEqual(response.trustScore.status, .calculated)
+        XCTAssertEqual(response.trustScore.positiveContributors.first?.code, "verified_employment")
+        XCTAssertEqual(response.verificationSummary.overall.total, 4)
+        XCTAssertEqual(response.verificationSummary.certifications, .empty)
+        XCTAssertEqual(response.vaultSummary.skills, 0)
+        XCTAssertEqual(response.vaultSummary.projects, 0)
+        XCTAssertEqual(response.activePassportShares.count, 1)
+        XCTAssertEqual(response.activePassportShares.items.first?.shareId, "share_123")
+        XCTAssertEqual(response.recentShareAnalytics.first?.totalViews, 3)
+        XCTAssertEqual(response.recentActivity.first?.category, .verification)
+    }
+
     private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

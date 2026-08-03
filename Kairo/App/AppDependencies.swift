@@ -5,6 +5,7 @@ struct AppDependencies: Sendable {
     let tokenStore: any TokenStore
     let sessionService: any SessionServiceProtocol
     let authService: any AuthServiceProtocol
+    let homeOverviewService: any HomeOverviewServiceProtocol
 
     static func make(
         configuration: AppConfiguration,
@@ -26,23 +27,30 @@ struct AppDependencies: Sendable {
             networkClient: networkClient,
             tokenStore: tokenStore
         )
+        let authService: any AuthServiceProtocol
 
         if configuration.isDemoModeEnabled {
-            return AppDependencies(
+            authService = DemoAuthService(sessionService: sessionService)
+        } else if uiTestConfiguration.isEnabled {
+            authService = UITestAuthService(sessionService: sessionService)
+        } else {
+            authService = AuthService(
+                configuration: configuration,
                 networkClient: networkClient,
-                tokenStore: tokenStore,
-                sessionService: sessionService,
-                authService: DemoAuthService(sessionService: sessionService)
+                sessionService: sessionService
             )
         }
+        let homeOverviewService = HomeOverviewService(
+            authService: authService,
+            sessionService: sessionService
+        )
 
         return AppDependencies(
             networkClient: networkClient,
             tokenStore: tokenStore,
             sessionService: sessionService,
-            authService: uiTestConfiguration.isEnabled
-                ? UITestAuthService(sessionService: sessionService)
-                : AuthService(configuration: configuration, networkClient: networkClient, sessionService: sessionService)
+            authService: authService,
+            homeOverviewService: homeOverviewService
         )
     }
 }
