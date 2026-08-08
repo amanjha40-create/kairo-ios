@@ -12,7 +12,7 @@ extension CandidateTab {
     }
 }
 
-enum KairoAccessibilityID {
+nonisolated enum KairoAccessibilityID {
     static let onboardingContinue = "onboarding.continue"
     static let onboardingBack = "onboarding.back"
     static let onboardingGetStarted = "onboarding.getStarted"
@@ -64,7 +64,11 @@ enum KairoAccessibilityID {
     static let resumeImportUnsupportedMessage = "onboarding.resumeImport.unsupported.message"
     static let manualProfilePlaceholderTitle = "onboarding.manualProfile.title"
     static let manualProfileTitle = "onboarding.manualProfile.title"
+    static let manualProfileFullName = "onboarding.manualProfile.fullName"
     static let manualProfileHeadline = "onboarding.manualProfile.headline"
+    static let manualProfileCurrentRole = "onboarding.manualProfile.currentRole"
+    static let manualProfileIndustry = "onboarding.manualProfile.industry"
+    static let manualProfileYearsOfExperience = "onboarding.manualProfile.yearsOfExperience"
     static let manualProfileCurrentCity = "onboarding.manualProfile.currentCity"
     static let manualProfileCurrentCountry = "onboarding.manualProfile.currentCountry"
     static let manualProfileBasicContinue = "onboarding.manualProfile.basic.continue"
@@ -193,12 +197,24 @@ enum KairoAccessibilityID {
         "onboarding.manualProfile.employment.type.\(index)"
     }
 
+    static func manualProfileEmploymentCountry(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.country.\(index)"
+    }
+
+    static func manualProfileEmploymentStartDay(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.startDay.\(index)"
+    }
+
     static func manualProfileEmploymentStartMonth(_ index: Int) -> String {
         "onboarding.manualProfile.employment.startMonth.\(index)"
     }
 
     static func manualProfileEmploymentStartYear(_ index: Int) -> String {
         "onboarding.manualProfile.employment.startYear.\(index)"
+    }
+
+    static func manualProfileEmploymentEndDay(_ index: Int) -> String {
+        "onboarding.manualProfile.employment.endDay.\(index)"
     }
 
     static func manualProfileEmploymentEndMonth(_ index: Int) -> String {
@@ -223,6 +239,10 @@ enum KairoAccessibilityID {
 
     static func manualProfileEducationDegree(_ index: Int) -> String {
         "onboarding.manualProfile.education.degree.\(index)"
+    }
+
+    static func manualProfileEducationLevel(_ index: Int) -> String {
+        "onboarding.manualProfile.education.level.\(index)"
     }
 
     static func manualProfileEducationFieldOfStudy(_ index: Int) -> String {

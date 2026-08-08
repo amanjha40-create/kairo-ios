@@ -1,6 +1,6 @@
 import Foundation
 
-enum ManualProfileStep: String, Equatable, Sendable {
+nonisolated enum ManualProfileStep: String, Equatable, Codable, Sendable {
     case basicProfile
     case employment
     case education
@@ -50,19 +50,48 @@ enum ManualProfileStep: String, Equatable, Sendable {
     }
 }
 
-struct ManualProfileBasicDraft: Equatable, Sendable {
+nonisolated struct ManualProfileBasicDraft: Equatable, Codable, Sendable {
+    var fullName = ""
     var professionalHeadline = ""
+    var currentRole = ""
+    var industry = ""
+    var yearsOfExperience = ""
     var currentCity = ""
     var currentCountry = ""
+
+    mutating func prefillFullNameIfNeeded(
+        backendFullName: String?,
+        signupDraftFullName: String?
+    ) {
+        guard ManualProfileNormalization.normalized(fullName).isEmpty else {
+            return
+        }
+
+        if let normalizedBackendFullName = backendFullName
+            .map(ManualProfileNormalization.normalized)?
+            .nonEmpty {
+            fullName = normalizedBackendFullName
+            return
+        }
+
+        if let normalizedSignupFullName = signupDraftFullName
+            .map(ManualProfileNormalization.normalized)?
+            .nonEmpty {
+            fullName = normalizedSignupFullName
+        }
+    }
 }
 
-struct ManualEmploymentEntry: Equatable, Identifiable, Sendable {
+nonisolated struct ManualEmploymentEntry: Equatable, Identifiable, Codable, Sendable {
     let id: Int
     var company = ""
     var jobTitle = ""
     var employmentType = ""
+    var workCountry = ""
+    var startDay = ""
     var startMonth = ""
     var startYear = ""
+    var endDay = ""
     var endMonth = ""
     var endYear = ""
     var isCurrentlyWorking = false
@@ -72,10 +101,11 @@ struct ManualEmploymentEntry: Equatable, Identifiable, Sendable {
     }
 }
 
-struct ManualEducationEntry: Equatable, Identifiable, Sendable {
+nonisolated struct ManualEducationEntry: Equatable, Identifiable, Codable, Sendable {
     let id: Int
     var institution = ""
     var degree = ""
+    var educationLevel = ""
     var fieldOfStudy = ""
     var startYear = ""
     var endYear = ""
@@ -85,7 +115,7 @@ struct ManualEducationEntry: Equatable, Identifiable, Sendable {
     }
 }
 
-struct ManualProfileFlowState: Equatable, Sendable {
+nonisolated struct ManualProfileFlowState: Equatable, Codable, Sendable {
     var step: ManualProfileStep
     var basicProfile: ManualProfileBasicDraft
     var employmentEntries: [ManualEmploymentEntry]
@@ -172,6 +202,7 @@ struct ManualProfileFlowState: Equatable, Sendable {
         mutate(&employmentEntries[index])
 
         if employmentEntries[index].isCurrentlyWorking {
+            employmentEntries[index].endDay = ""
             employmentEntries[index].endMonth = ""
             employmentEntries[index].endYear = ""
         }
@@ -198,32 +229,181 @@ struct ManualProfileFlowState: Equatable, Sendable {
 
         mutate(&educationEntries[index])
     }
+
+    mutating func reconcileBasicProfilePrefill(
+        backendFullName: String?,
+        signupDraftFullName: String?
+    ) {
+        basicProfile.prefillFullNameIfNeeded(
+            backendFullName: backendFullName,
+            signupDraftFullName: signupDraftFullName
+        )
+    }
 }
 
-enum ManualProfileBasicField: Hashable, Sendable {
+nonisolated enum ManualProfileBasicField: Hashable, Sendable {
+    case fullName
+    case professionalHeadline
+    case currentRole
+    case industry
+    case yearsOfExperience
     case currentCity
     case currentCountry
 }
 
-enum ManualEmploymentField: Hashable, Sendable {
+nonisolated enum ManualEmploymentField: Hashable, Sendable {
     case company
     case jobTitle
     case employmentType
+    case workCountry
+    case startDay
     case startMonth
     case startYear
+    case endDay
     case endMonth
     case endYear
 }
 
-enum ManualEducationField: Hashable, Sendable {
+nonisolated enum ManualEducationField: Hashable, Sendable {
     case institution
     case degree
+    case educationLevel
     case fieldOfStudy
     case startYear
     case endYear
 }
 
-enum ManualProfileValidation {
+nonisolated enum ManualProfileNormalization {
+    private nonisolated static let englishLocale = Locale(identifier: "en_US_POSIX")
+
+    private nonisolated static let countryLookup: [String: String] = {
+        var map: [String: String] = [
+            "india": "IN",
+            "bharat": "IN",
+            "usa": "US",
+            "unitedstates": "US",
+            "unitedstatesofamerica": "US",
+            "uk": "GB",
+            "unitedkingdom": "GB",
+            "uae": "AE"
+        ]
+
+        for region in Locale.Region.isoRegions {
+            let code = region.identifier
+            map[simplified(code)] = code
+            if let localizedName = englishLocale.localizedString(forRegionCode: code) {
+                map[simplified(localizedName)] = code
+            }
+        }
+
+        return map
+    }()
+
+    private nonisolated static let employmentTypeLookup: [String: String] = [
+        "fulltime": "full_time",
+        "fulltimeemployment": "full_time",
+        "parttime": "part_time",
+        "parttimeemployment": "part_time",
+        "contract": "contract",
+        "contractor": "contract",
+        "intern": "intern",
+        "internship": "intern",
+        "gig": "gig",
+        "freelance": "freelance",
+        "other": "other"
+    ]
+
+    private nonisolated static let educationLevelLookup: [String: String] = [
+        "highschool": "high_school",
+        "secondaryschool": "high_school",
+        "diploma": "diploma",
+        "bachelor": "bachelors",
+        "bachelors": "bachelors",
+        "btech": "bachelors",
+        "be": "bachelors",
+        "ba": "bachelors",
+        "bsc": "bachelors",
+        "bba": "bachelors",
+        "master": "masters",
+        "masters": "masters",
+        "mtech": "masters",
+        "me": "masters",
+        "msc": "masters",
+        "mba": "masters",
+        "doctorate": "doctorate",
+        "phd": "doctorate",
+        "certification": "certification",
+        "certificate": "certification",
+        "other": "other"
+    ]
+
+    nonisolated static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated static func normalizedCountryCode(_ value: String) -> String? {
+        let normalizedValue = simplified(value)
+        guard !normalizedValue.isEmpty else {
+            return nil
+        }
+
+        return countryLookup[normalizedValue]
+    }
+
+    nonisolated static func normalizedEmploymentType(_ value: String) -> String? {
+        let normalizedValue = simplified(value)
+        guard !normalizedValue.isEmpty else {
+            return nil
+        }
+
+        return employmentTypeLookup[normalizedValue]
+    }
+
+    nonisolated static func normalizedEducationLevel(_ value: String) -> String? {
+        let normalizedValue = simplified(value)
+        guard !normalizedValue.isEmpty else {
+            return nil
+        }
+
+        return educationLevelLookup[normalizedValue]
+    }
+
+    nonisolated static func normalizedMonthNumber(_ value: String) -> Int? {
+        let normalizedValue = simplified(value)
+        let supportedMonths: [[String]] = [
+            ["january", "jan"],
+            ["february", "feb"],
+            ["march", "mar"],
+            ["april", "apr"],
+            ["may"],
+            ["june", "jun"],
+            ["july", "jul"],
+            ["august", "aug"],
+            ["september", "sep", "sept"],
+            ["october", "oct"],
+            ["november", "nov"],
+            ["december", "dec"]
+        ]
+
+        for (index, aliases) in supportedMonths.enumerated() where aliases.contains(normalizedValue) {
+            return index + 1
+        }
+
+        return nil
+    }
+
+    private nonisolated static func simplified(_ value: String) -> String {
+        normalized(value)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: englishLocale)
+            .unicodeScalars
+            .filter(CharacterSet.alphanumerics.contains)
+            .map(String.init)
+            .joined()
+            .lowercased()
+    }
+}
+
+nonisolated enum ManualProfileValidation {
     private nonisolated static var minimumYear: Int { 1950 }
     private nonisolated static var currentYear: Int {
         Calendar(identifier: .gregorian).component(.year, from: Date())
@@ -234,10 +414,32 @@ enum ManualProfileValidation {
         in draft: ManualProfileBasicDraft
     ) -> String? {
         switch field {
+        case .fullName:
+            return ManualProfileNormalization.normalized(draft.fullName).isEmpty
+                ? "Enter your full name."
+                : nil
+        case .professionalHeadline:
+            return ManualProfileNormalization.normalized(draft.professionalHeadline).isEmpty
+                ? "Enter your professional headline."
+                : nil
+        case .currentRole:
+            return ManualProfileNormalization.normalized(draft.currentRole).isEmpty
+                ? "Enter your current role."
+                : nil
+        case .industry:
+            return ManualProfileNormalization.normalized(draft.industry).isEmpty
+                ? "Enter your industry."
+                : nil
+        case .yearsOfExperience:
+            return yearsOfExperienceValidationMessage(draft.yearsOfExperience)
         case .currentCity:
-            return normalized(draft.currentCity).isEmpty ? "Enter your current city." : nil
+            return ManualProfileNormalization.normalized(draft.currentCity).isEmpty
+                ? "Enter your current city."
+                : nil
         case .currentCountry:
-            return normalized(draft.currentCountry).isEmpty ? "Enter your current country." : nil
+            return ManualProfileNormalization.normalized(draft.currentCountry).isEmpty
+                ? "Enter your current country."
+                : nil
         }
     }
 
@@ -247,15 +449,37 @@ enum ManualProfileValidation {
     ) -> String? {
         switch field {
         case .company:
-            return normalized(entry.company).isEmpty ? "Enter the company." : nil
+            return ManualProfileNormalization.normalized(entry.company).isEmpty ? "Enter the company." : nil
         case .jobTitle:
-            return normalized(entry.jobTitle).isEmpty ? "Enter the job title." : nil
+            return ManualProfileNormalization.normalized(entry.jobTitle).isEmpty ? "Enter the job title." : nil
         case .employmentType:
-            return normalized(entry.employmentType).isEmpty ? "Enter the employment type." : nil
+            guard !ManualProfileNormalization.normalized(entry.employmentType).isEmpty else {
+                return "Enter the employment type."
+            }
+
+            return ManualProfileNormalization.normalizedEmploymentType(entry.employmentType) == nil
+                ? "Choose a supported employment type."
+                : nil
+        case .workCountry:
+            guard !ManualProfileNormalization.normalized(entry.workCountry).isEmpty else {
+                return "Enter the work country."
+            }
+
+            return ManualProfileNormalization.normalizedCountryCode(entry.workCountry) == nil
+                ? "Enter a valid country."
+                : nil
+        case .startDay:
+            return validatedDay(entry.startDay) == nil ? "Enter a valid start day." : nil
         case .startMonth:
             return validatedMonth(entry.startMonth) == nil ? "Enter a valid start month." : nil
         case .startYear:
             return yearValidationMessage(entry.startYear, emptyMessage: "Enter the start year.")
+        case .endDay:
+            guard !entry.isCurrentlyWorking else {
+                return nil
+            }
+
+            return validatedDay(entry.endDay) == nil ? "Enter a valid end day." : nil
         case .endMonth:
             guard !entry.isCurrentlyWorking else {
                 return nil
@@ -271,8 +495,15 @@ enum ManualProfileValidation {
                 return message
             }
 
-            guard let startDate = employmentDate(month: entry.startMonth, year: entry.startYear),
-                  let endDate = employmentDate(month: entry.endMonth, year: entry.endYear) else {
+            guard let startDate = employmentDate(
+                day: entry.startDay,
+                month: entry.startMonth,
+                year: entry.startYear
+            ), let endDate = employmentDate(
+                day: entry.endDay,
+                month: entry.endMonth,
+                year: entry.endYear
+            ) else {
                 return nil
             }
 
@@ -286,11 +517,21 @@ enum ManualProfileValidation {
     ) -> String? {
         switch field {
         case .institution:
-            return normalized(entry.institution).isEmpty ? "Enter the institution." : nil
+            return ManualProfileNormalization.normalized(entry.institution).isEmpty ? "Enter the institution." : nil
         case .degree:
-            return normalized(entry.degree).isEmpty ? "Enter the degree." : nil
+            return ManualProfileNormalization.normalized(entry.degree).isEmpty ? "Enter the degree." : nil
+        case .educationLevel:
+            guard !ManualProfileNormalization.normalized(entry.educationLevel).isEmpty else {
+                return "Enter the education level."
+            }
+
+            return ManualProfileNormalization.normalizedEducationLevel(entry.educationLevel) == nil
+                ? "Choose a supported education level."
+                : nil
         case .fieldOfStudy:
-            return normalized(entry.fieldOfStudy).isEmpty ? "Enter the field of study." : nil
+            return ManualProfileNormalization.normalized(entry.fieldOfStudy).isEmpty
+                ? "Enter the field of study."
+                : nil
         case .startYear:
             return yearValidationMessage(entry.startYear, emptyMessage: "Enter the start year.")
         case .endYear:
@@ -308,8 +549,15 @@ enum ManualProfileValidation {
     }
 
     nonisolated static func isBasicProfileValid(_ draft: ManualProfileBasicDraft) -> Bool {
-        basicProfileError(for: .currentCity, in: draft) == nil
-            && basicProfileError(for: .currentCountry, in: draft) == nil
+        [
+            ManualProfileBasicField.fullName,
+            .professionalHeadline,
+            .currentRole,
+            .industry,
+            .yearsOfExperience,
+            .currentCity,
+            .currentCountry
+        ].allSatisfy { basicProfileError(for: $0, in: draft) == nil }
     }
 
     nonisolated static func areEmploymentEntriesValid(_ entries: [ManualEmploymentEntry]) -> Bool {
@@ -317,13 +565,18 @@ enum ManualProfileValidation {
     }
 
     nonisolated static func isEmploymentEntryValid(_ entry: ManualEmploymentEntry) -> Bool {
-        employmentError(for: .company, in: entry) == nil
-            && employmentError(for: .jobTitle, in: entry) == nil
-            && employmentError(for: .employmentType, in: entry) == nil
-            && employmentError(for: .startMonth, in: entry) == nil
-            && employmentError(for: .startYear, in: entry) == nil
-            && employmentError(for: .endMonth, in: entry) == nil
-            && employmentError(for: .endYear, in: entry) == nil
+        [
+            ManualEmploymentField.company,
+            .jobTitle,
+            .employmentType,
+            .workCountry,
+            .startDay,
+            .startMonth,
+            .startYear,
+            .endDay,
+            .endMonth,
+            .endYear
+        ].allSatisfy { employmentError(for: $0, in: entry) == nil }
     }
 
     nonisolated static func areEducationEntriesValid(_ entries: [ManualEducationEntry]) -> Bool {
@@ -331,19 +584,41 @@ enum ManualProfileValidation {
     }
 
     nonisolated static func isEducationEntryValid(_ entry: ManualEducationEntry) -> Bool {
-        educationError(for: .institution, in: entry) == nil
-            && educationError(for: .degree, in: entry) == nil
-            && educationError(for: .fieldOfStudy, in: entry) == nil
-            && educationError(for: .startYear, in: entry) == nil
-            && educationError(for: .endYear, in: entry) == nil
+        [
+            ManualEducationField.institution,
+            .degree,
+            .educationLevel,
+            .fieldOfStudy,
+            .startYear,
+            .endYear
+        ].allSatisfy { educationError(for: $0, in: entry) == nil }
     }
 
-    nonisolated static func normalized(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    nonisolated static func normalizedYearsOfExperience(_ value: String) -> Int? {
+        let normalizedValue = ManualProfileNormalization.normalized(value)
+        guard !normalizedValue.isEmpty,
+              normalizedValue.allSatisfy(\.isNumber),
+              let years = Int(normalizedValue),
+              (0 ... 80).contains(years) else {
+            return nil
+        }
+
+        return years
+    }
+
+    private nonisolated static func yearsOfExperienceValidationMessage(_ value: String) -> String? {
+        let normalizedValue = ManualProfileNormalization.normalized(value)
+        guard !normalizedValue.isEmpty else {
+            return "Enter your years of experience."
+        }
+
+        return normalizedYearsOfExperience(normalizedValue) == nil
+            ? "Enter valid whole years of experience."
+            : nil
     }
 
     private nonisolated static func yearValidationMessage(_ value: String, emptyMessage: String) -> String? {
-        let normalizedYear = normalized(value)
+        let normalizedYear = ManualProfileNormalization.normalized(value)
         guard !normalizedYear.isEmpty else {
             return emptyMessage
         }
@@ -352,7 +627,7 @@ enum ManualProfileValidation {
     }
 
     private nonisolated static func validatedYear(_ value: String) -> Int? {
-        let normalizedYear = normalized(value)
+        let normalizedYear = ManualProfileNormalization.normalized(value)
         guard normalizedYear.count == 4,
               normalizedYear.allSatisfy(\.isNumber),
               let year = Int(normalizedYear),
@@ -364,40 +639,46 @@ enum ManualProfileValidation {
         return year
     }
 
-    private nonisolated static func validatedMonth(_ value: String) -> Int? {
-        let normalizedMonth = normalized(value).lowercased()
-        guard !normalizedMonth.isEmpty else {
+    private nonisolated static func validatedDay(_ value: String) -> Int? {
+        let normalizedDay = ManualProfileNormalization.normalized(value)
+        guard !normalizedDay.isEmpty,
+              normalizedDay.allSatisfy(\.isNumber),
+              let day = Int(normalizedDay),
+              (1 ... 31).contains(day) else {
             return nil
         }
 
-        let supportedMonths: [[String]] = [
-            ["january", "jan"],
-            ["february", "feb"],
-            ["march", "mar"],
-            ["april", "apr"],
-            ["may"],
-            ["june", "jun"],
-            ["july", "jul"],
-            ["august", "aug"],
-            ["september", "sep", "sept"],
-            ["october", "oct"],
-            ["november", "nov"],
-            ["december", "dec"]
-        ]
-
-        for (index, aliases) in supportedMonths.enumerated() where aliases.contains(normalizedMonth) {
-            return index + 1
-        }
-
-        return nil
+        return day
     }
 
-    private nonisolated static func employmentDate(month: String, year: String) -> Int? {
-        guard let validatedMonth = validatedMonth(month),
+    private nonisolated static func validatedMonth(_ value: String) -> Int? {
+        ManualProfileNormalization.normalizedMonthNumber(value)
+    }
+
+    private nonisolated static func employmentDate(
+        day: String,
+        month: String,
+        year: String
+    ) -> Date? {
+        guard let validatedDay = validatedDay(day),
+              let validatedMonth = validatedMonth(month),
               let validatedYear = validatedYear(year) else {
             return nil
         }
 
-        return validatedYear * 100 + validatedMonth
+        let components = DateComponents(
+            calendar: Calendar(identifier: .gregorian),
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: validatedYear,
+            month: validatedMonth,
+            day: validatedDay
+        )
+        return components.date
+    }
+}
+
+private extension String {
+    nonisolated var nonEmpty: String? {
+        isEmpty ? nil : self
     }
 }

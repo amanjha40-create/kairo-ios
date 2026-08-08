@@ -2,47 +2,291 @@ import SwiftUI
 
 struct ManualProfileScreenView: View {
     @Binding var state: ManualProfileFlowState
+    let createAccountDraft: CreateAccountDraft
 
+    @Environment(\.manualProfileService) private var manualProfileService
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
+
+    @State private var isSubmitting = false
+    @State private var serverErrorMessage: String?
+    @State private var profileBackendErrors: [ManualProfileBasicField: String] = [:]
+    @State private var employmentBackendErrors: [Int: [ManualEmploymentField: String]] = [:]
+    @State private var educationBackendErrors: [Int: [ManualEducationField: String]] = [:]
 
     var body: some View {
-        switch state.step {
-        case .basicProfile:
-            BasicProfileStepView(
-                draft: $state.basicProfile,
-                onContinue: {
-                    state.advance()
-                },
-                onBack: {
-                    router.goBackOnboarding(from: .resumeImportOrQuickProfile)
-                }
+        Group {
+            switch state.step {
+            case .basicProfile:
+                BasicProfileStepView(
+                    draft: $state.basicProfile,
+                    backendErrors: profileBackendErrors,
+                    serverErrorMessage: serverErrorMessage,
+                    onContinue: {
+                        clearSubmissionFeedback()
+                        state.advance()
+                    },
+                    onBack: {
+                        clearSubmissionFeedback()
+                        router.goBackOnboarding(from: .resumeImportOrQuickProfile)
+                    }
+                )
+            case .employment:
+                EmploymentStepView(
+                    state: $state,
+                    backendErrors: employmentBackendErrors,
+                    serverErrorMessage: serverErrorMessage,
+                    onContinue: {
+                        clearSubmissionFeedback()
+                        state.advance()
+                    },
+                    onBack: {
+                        clearSubmissionFeedback()
+                        state.goBack()
+                    }
+                )
+            case .education:
+                EducationStepView(
+                    state: $state,
+                    backendErrors: educationBackendErrors,
+                    serverErrorMessage: serverErrorMessage,
+                    isSubmitting: isSubmitting,
+                    onContinue: submitManualProfile,
+                    onBack: {
+                        clearSubmissionFeedback()
+                        state.goBack()
+                    }
+                )
+            }
+        }
+        .task(id: fullNamePrefillSeed) {
+            state.reconcileBasicProfilePrefill(
+                backendFullName: sessionStore.currentUser?.fullName,
+                signupDraftFullName: signupDraftFullName
             )
-        case .employment:
-            EmploymentStepView(
-                state: $state,
-                onContinue: {
-                    state.advance()
-                },
-                onBack: {
-                    state.goBack()
-                }
-            )
-        case .education:
-            EducationStepView(
-                state: $state,
-                onContinue: {
+        }
+        .onChange(of: state) { _, newValue in
+            guard shouldPersistDraft else {
+                return
+            }
+
+            ManualProfileDraftStore.save(newValue)
+        }
+    }
+
+    private var shouldPersistDraft: Bool {
+        !UITestLaunchConfiguration.current().isEnabled && !AppConfiguration.resolve().isDemoModeEnabled
+    }
+
+    private var signupDraftFullName: String? {
+        CreateAccountValidation.normalizedFullName(
+            firstName: createAccountDraft.firstName,
+            lastName: createAccountDraft.lastName
+        )
+    }
+
+    private var fullNamePrefillSeed: String {
+        [
+            sessionStore.currentUser?.fullName ?? "",
+            signupDraftFullName ?? ""
+        ].joined(separator: "|")
+    }
+
+    private func submitManualProfile() {
+        guard !isSubmitting else {
+            return
+        }
+
+        clearSubmissionFeedback()
+        isSubmitting = true
+        let submissionState = state
+
+        Task {
+            do {
+                _ = try await manualProfileService.submit(draft: submissionState)
+
+                await MainActor.run {
+                    isSubmitting = false
+                    if shouldPersistDraft {
+                        ManualProfileDraftStore.clear()
+                    }
                     router.advanceOnboarding(from: .resumeImportOrQuickProfile)
-                },
-                onBack: {
-                    state.goBack()
                 }
-            )
+            } catch let error as ManualProfileSubmissionError {
+                await MainActor.run {
+                    isSubmitting = false
+                    applySubmissionError(error)
+                }
+            } catch {
+                if requiresSessionRecovery(for: error) {
+                    await sessionStore.refreshLaunchRoute()
+                    await MainActor.run {
+                        isSubmitting = false
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    isSubmitting = false
+                    serverErrorMessage = message(for: error)
+                }
+            }
+        }
+    }
+
+    private func clearSubmissionFeedback() {
+        serverErrorMessage = nil
+        profileBackendErrors = [:]
+        employmentBackendErrors = [:]
+        educationBackendErrors = [:]
+    }
+
+    private func applySubmissionError(_ error: ManualProfileSubmissionError) {
+        switch error {
+        case .missingRequiredAccountData(let message):
+            serverErrorMessage = message
+            state.step = .basicProfile
+        case .onboardingIncomplete(let onboardingStatus):
+            serverErrorMessage = onboardingIncompleteMessage(for: onboardingStatus)
+            state.step = .basicProfile
+        case .fieldValidation(let step, let fieldErrors, let message):
+            serverErrorMessage = message
+            switch step {
+            case .basicProfile:
+                state.step = .basicProfile
+                profileBackendErrors = fieldErrors.reduce(into: [ManualProfileBasicField: String]()) { partialResult, pair in
+                    if let field = profileField(for: pair.key) {
+                        partialResult[field] = pair.value
+                    }
+                }
+            case .employment(let entryID):
+                state.step = .employment
+                employmentBackendErrors[entryID] = fieldErrors.reduce(into: [ManualEmploymentField: String]()) { partialResult, pair in
+                    if let field = employmentField(for: pair.key) {
+                        partialResult[field] = pair.value
+                    }
+                }
+            case .education(let entryID):
+                state.step = .education
+                educationBackendErrors[entryID] = fieldErrors.reduce(into: [ManualEducationField: String]()) { partialResult, pair in
+                    if let field = educationField(for: pair.key) {
+                        partialResult[field] = pair.value
+                    }
+                }
+            case .completion:
+                serverErrorMessage = message
+            }
+        }
+    }
+
+    private func onboardingIncompleteMessage(for status: OnboardingStatusResponseDTO) -> String {
+        guard !status.missingRequirements.isEmpty else {
+            return "Kairo saved your profile, but onboarding is still incomplete. Please review your details and try again."
+        }
+
+        return "Kairo still needs: \(status.missingRequirements.joined(separator: ", "))."
+    }
+
+    private func requiresSessionRecovery(for error: Error) -> Bool {
+        if let sessionError = error as? SessionServiceError, sessionError == .sessionExpired {
+            return true
+        }
+
+        if let networkError = error as? NetworkError,
+           case .api(let apiError) = networkError,
+           apiError.code == .unauthorized {
+            return true
+        }
+
+        return false
+    }
+
+    private func message(for error: Error) -> String {
+        switch error {
+        case let networkError as NetworkError:
+            switch networkError {
+            case .api(let apiError):
+                return apiError.message
+            case .transport:
+                return "Kairo couldn't reach the network. Check your connection and try again."
+            case .unavailableInDemoMode:
+                return "Demo Mode keeps Manual Profile local."
+            case .invalidResponse:
+                return "Kairo received an unexpected Manual Profile response. Please try again."
+            case .invalidURL:
+                return "Kairo's Manual Profile configuration is invalid."
+            }
+        case let sessionError as SessionServiceError:
+            return sessionError.errorDescription ?? "Kairo couldn't continue your Manual Profile."
+        default:
+            return error.localizedDescription
+        }
+    }
+
+    private func profileField(for key: String) -> ManualProfileBasicField? {
+        switch key {
+        case "full_name", "fullName", "name":
+            .fullName
+        case "headline":
+            .professionalHeadline
+        case "current_role":
+            .currentRole
+        case "industry":
+            .industry
+        case "years_of_experience":
+            .yearsOfExperience
+        case "location_city":
+            .currentCity
+        case "location_country":
+            .currentCountry
+        default:
+            nil
+        }
+    }
+
+    private func employmentField(for key: String) -> ManualEmploymentField? {
+        switch key {
+        case "employer_legal_name":
+            .company
+        case "job_title":
+            .jobTitle
+        case "employment_type":
+            .employmentType
+        case "work_location_country":
+            .workCountry
+        case "start_date":
+            .startDay
+        case "end_date":
+            .endDay
+        default:
+            nil
+        }
+    }
+
+    private func educationField(for key: String) -> ManualEducationField? {
+        switch key {
+        case "institution_name":
+            .institution
+        case "degree":
+            .degree
+        case "education_level":
+            .educationLevel
+        case "field_of_study":
+            .fieldOfStudy
+        case "start_date":
+            .startYear
+        case "end_date":
+            .endYear
+        default:
+            nil
         }
     }
 }
 
 private struct BasicProfileStepView: View {
     @Binding var draft: ManualProfileBasicDraft
+    let backendErrors: [ManualProfileBasicField: String]
+    let serverErrorMessage: String?
     let onContinue: () -> Void
     let onBack: () -> Void
 
@@ -60,8 +304,12 @@ private struct BasicProfileStepView: View {
                 .frame(maxWidth: 132)
         } content: {
             VStack(spacing: KairoSpacing.medium) {
+                if let serverErrorMessage {
+                    ManualProfileInlineMessage(message: serverErrorMessage)
+                }
+
                 KairoCard {
-                    Text("Start with the details that anchor your professional identity in Kairo.")
+                    Text("Start with the profile details Kairo needs to create a reusable Trust Passport foundation.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -70,13 +318,56 @@ private struct BasicProfileStepView: View {
                 KairoCard {
                     VStack(spacing: KairoSpacing.medium) {
                         KairoTextField(
+                            title: "Full Name",
+                            prompt: "Enter your full name",
+                            text: $draft.fullName,
+                            errorMessage: basicError(for: .fullName),
+                            accessibilityIdentifier: KairoAccessibilityID.manualProfileFullName,
+                            accessibilityLabel: "Full name",
+                            textContentType: .name,
+                            textInputAutocapitalization: .words
+                        )
+
+                        KairoTextField(
                             title: "Professional Headline",
-                            prompt: "Optional",
+                            prompt: "Describe your professional focus",
                             text: $draft.professionalHeadline,
+                            errorMessage: basicError(for: .professionalHeadline),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileHeadline,
                             accessibilityLabel: "Professional headline",
                             textContentType: .jobTitle,
                             textInputAutocapitalization: .words
+                        )
+
+                        KairoTextField(
+                            title: "Current Role",
+                            prompt: "Enter your current role",
+                            text: $draft.currentRole,
+                            errorMessage: basicError(for: .currentRole),
+                            accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentRole,
+                            accessibilityLabel: "Current role",
+                            textContentType: .jobTitle,
+                            textInputAutocapitalization: .words
+                        )
+
+                        KairoTextField(
+                            title: "Industry",
+                            prompt: "Enter your industry",
+                            text: $draft.industry,
+                            errorMessage: basicError(for: .industry),
+                            accessibilityIdentifier: KairoAccessibilityID.manualProfileIndustry,
+                            accessibilityLabel: "Industry",
+                            textInputAutocapitalization: .words
+                        )
+
+                        KairoTextField(
+                            title: "Years of Experience",
+                            prompt: "Whole years",
+                            text: $draft.yearsOfExperience,
+                            errorMessage: basicError(for: .yearsOfExperience),
+                            accessibilityIdentifier: KairoAccessibilityID.manualProfileYearsOfExperience,
+                            accessibilityLabel: "Years of experience",
+                            keyboardType: .numberPad
                         )
 
                         KairoTextField(
@@ -135,6 +426,10 @@ private struct BasicProfileStepView: View {
     }
 
     private func basicError(for field: ManualProfileBasicField) -> String? {
+        if let backendMessage = backendErrors[field] {
+            return backendMessage
+        }
+
         guard attemptedSubmission else {
             return nil
         }
@@ -154,6 +449,8 @@ private struct BasicProfileStepView: View {
 
 private struct EmploymentStepView: View {
     @Binding var state: ManualProfileFlowState
+    let backendErrors: [Int: [ManualEmploymentField: String]]
+    let serverErrorMessage: String?
     let onContinue: () -> Void
     let onBack: () -> Void
 
@@ -171,8 +468,12 @@ private struct EmploymentStepView: View {
                 .frame(maxWidth: 128)
         } content: {
             VStack(spacing: KairoSpacing.medium) {
+                if let serverErrorMessage {
+                    ManualProfileInlineMessage(message: serverErrorMessage)
+                }
+
                 KairoCard {
-                    Text("Add the roles you most want reflected in your Trust Passport. You can refine them later.")
+                    Text("Add each role with an exact country and full calendar dates so Kairo can persist it accurately.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -229,18 +530,37 @@ private struct EmploymentStepView: View {
                                 textInputAutocapitalization: .words
                             )
 
-                            ResponsiveFieldPair {
-                                KairoTextField(
+                            KairoTextField(
+                                title: "Work Country",
+                                prompt: "Where was this role based?",
+                                text: employmentBinding(for: entry.id, keyPath: \.workCountry),
+                                errorMessage: employmentError(for: .workCountry, in: entry),
+                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentCountry(index),
+                                accessibilityLabel: "Work country \(index + 1)",
+                                textInputAutocapitalization: .words
+                            )
+
+                            ManualProfileDateTriplet(
+                                title: "Start Date",
+                                dayField: KairoTextField(
+                                    title: "Start Day",
+                                    prompt: "DD",
+                                    text: employmentBinding(for: entry.id, keyPath: \.startDay),
+                                    errorMessage: employmentError(for: .startDay, in: entry),
+                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentStartDay(index),
+                                    accessibilityLabel: "Start day \(index + 1)",
+                                    keyboardType: .numberPad
+                                ),
+                                monthField: KairoTextField(
                                     title: "Start Month",
-                                    prompt: "e.g. January",
+                                    prompt: "January",
                                     text: employmentBinding(for: entry.id, keyPath: \.startMonth),
                                     errorMessage: employmentError(for: .startMonth, in: entry),
                                     accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentStartMonth(index),
                                     accessibilityLabel: "Start month \(index + 1)",
                                     textInputAutocapitalization: .words
-                                )
-                            } trailing: {
-                                KairoTextField(
+                                ),
+                                yearField: KairoTextField(
                                     title: "Start Year",
                                     prompt: "YYYY",
                                     text: employmentBinding(for: entry.id, keyPath: \.startYear),
@@ -249,7 +569,7 @@ private struct EmploymentStepView: View {
                                     accessibilityLabel: "Start year \(index + 1)",
                                     keyboardType: .numberPad
                                 )
-                            }
+                            )
 
                             Toggle(isOn: employmentToggleBinding(for: entry.id)) {
                                 Text("Currently working here")
@@ -263,18 +583,27 @@ private struct EmploymentStepView: View {
                             )
 
                             if !entry.isCurrentlyWorking {
-                                ResponsiveFieldPair {
-                                    KairoTextField(
+                                ManualProfileDateTriplet(
+                                    title: "End Date",
+                                    dayField: KairoTextField(
+                                        title: "End Day",
+                                        prompt: "DD",
+                                        text: employmentBinding(for: entry.id, keyPath: \.endDay),
+                                        errorMessage: employmentError(for: .endDay, in: entry),
+                                        accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentEndDay(index),
+                                        accessibilityLabel: "End day \(index + 1)",
+                                        keyboardType: .numberPad
+                                    ),
+                                    monthField: KairoTextField(
                                         title: "End Month",
-                                        prompt: "e.g. January",
+                                        prompt: "January",
                                         text: employmentBinding(for: entry.id, keyPath: \.endMonth),
                                         errorMessage: employmentError(for: .endMonth, in: entry),
                                         accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentEndMonth(index),
                                         accessibilityLabel: "End month \(index + 1)",
                                         textInputAutocapitalization: .words
-                                    )
-                                } trailing: {
-                                    KairoTextField(
+                                    ),
+                                    yearField: KairoTextField(
                                         title: "End Year",
                                         prompt: "YYYY",
                                         text: employmentBinding(for: entry.id, keyPath: \.endYear),
@@ -283,7 +612,7 @@ private struct EmploymentStepView: View {
                                         accessibilityLabel: "End year \(index + 1)",
                                         keyboardType: .numberPad
                                     )
-                                }
+                                )
                             }
                         }
                     }
@@ -363,6 +692,10 @@ private struct EmploymentStepView: View {
         for field: ManualEmploymentField,
         in entry: ManualEmploymentEntry
     ) -> String? {
+        if let backendMessage = backendErrors[entry.id]?[field] {
+            return backendMessage
+        }
+
         guard attemptedSubmission else {
             return nil
         }
@@ -382,6 +715,9 @@ private struct EmploymentStepView: View {
 
 private struct EducationStepView: View {
     @Binding var state: ManualProfileFlowState
+    let backendErrors: [Int: [ManualEducationField: String]]
+    let serverErrorMessage: String?
+    let isSubmitting: Bool
     let onContinue: () -> Void
     let onBack: () -> Void
 
@@ -399,8 +735,12 @@ private struct EducationStepView: View {
                 .frame(maxWidth: 124)
         } content: {
             VStack(spacing: KairoSpacing.medium) {
+                if let serverErrorMessage {
+                    ManualProfileInlineMessage(message: serverErrorMessage)
+                }
+
                 KairoCard {
-                    Text("Add the learning foundations you want associated with your professional trust.")
+                    Text("Add each credential at the right level so Kairo can classify and verify it cleanly.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -443,6 +783,16 @@ private struct EducationStepView: View {
                                 errorMessage: educationError(for: .degree, in: entry),
                                 accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationDegree(index),
                                 accessibilityLabel: "Degree \(index + 1)",
+                                textInputAutocapitalization: .words
+                            )
+
+                            KairoTextField(
+                                title: "Education Level",
+                                prompt: "Bachelor's, Master's, Diploma...",
+                                text: educationBinding(for: entry.id, keyPath: \.educationLevel),
+                                errorMessage: educationError(for: .educationLevel, in: entry),
+                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationLevel(index),
+                                accessibilityLabel: "Education level \(index + 1)",
                                 textInputAutocapitalization: .words
                             )
 
@@ -494,6 +844,7 @@ private struct EducationStepView: View {
                 HStack(spacing: KairoSpacing.small) {
                     KairoPrimaryButton(
                         title: "Continue",
+                        isLoading: isSubmitting,
                         accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationContinue,
                         action: handleContinue
                     )
@@ -508,6 +859,7 @@ private struct EducationStepView: View {
                 VStack(spacing: KairoSpacing.small) {
                     KairoPrimaryButton(
                         title: "Continue",
+                        isLoading: isSubmitting,
                         accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationContinue,
                         action: handleContinue
                     )
@@ -542,6 +894,10 @@ private struct EducationStepView: View {
         for field: ManualEducationField,
         in entry: ManualEducationEntry
     ) -> String? {
+        if let backendMessage = backendErrors[entry.id]?[field] {
+            return backendMessage
+        }
+
         guard attemptedSubmission else {
             return nil
         }
@@ -556,6 +912,19 @@ private struct EducationStepView: View {
         }
 
         onContinue()
+    }
+}
+
+private struct ManualProfileInlineMessage: View {
+    let message: String
+
+    var body: some View {
+        KairoCard {
+            Text(message)
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -581,6 +950,35 @@ private struct ManualProfileAddButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct ManualProfileDateTriplet<Day: View, Month: View, Year: View>: View {
+    let title: String
+    let dayField: Day
+    let monthField: Month
+    let yearField: Year
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            Text(title)
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: KairoSpacing.medium) {
+                    dayField
+                    monthField
+                    yearField
+                }
+
+                VStack(spacing: KairoSpacing.medium) {
+                    dayField
+                    monthField
+                    yearField
+                }
+            }
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-struct CreateAccountDraft: Equatable, Sendable {
+nonisolated struct CreateAccountDraft: Equatable, Sendable {
     var firstName = ""
     var lastName = ""
     var emailAddress = ""
@@ -8,7 +8,7 @@ struct CreateAccountDraft: Equatable, Sendable {
     var password = ""
 }
 
-enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable {
+nonisolated enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable {
     case firstName
     case lastName
     case emailAddress
@@ -48,7 +48,7 @@ enum CreateAccountField: String, CaseIterable, Hashable, Identifiable, Sendable 
     }
 }
 
-enum CreateAccountValidation {
+nonisolated enum CreateAccountValidation {
     static let passwordMinimumLength = 12
     static let passwordMaximumLength = 128
 

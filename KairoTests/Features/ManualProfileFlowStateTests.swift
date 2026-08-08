@@ -4,11 +4,31 @@ import XCTest
 final class ManualProfileFlowStateTests: XCTestCase {
     func test_basicProfileRequiresCityAndCountry() {
         let draft = ManualProfileBasicDraft(
+            fullName: "",
             professionalHeadline: "Trust Operations Specialist",
+            currentRole: "",
+            industry: "",
+            yearsOfExperience: "",
             currentCity: "",
             currentCountry: ""
         )
 
+        XCTAssertEqual(
+            ManualProfileValidation.basicProfileError(for: .fullName, in: draft),
+            "Enter your full name."
+        )
+        XCTAssertEqual(
+            ManualProfileValidation.basicProfileError(for: .currentRole, in: draft),
+            "Enter your current role."
+        )
+        XCTAssertEqual(
+            ManualProfileValidation.basicProfileError(for: .industry, in: draft),
+            "Enter your industry."
+        )
+        XCTAssertEqual(
+            ManualProfileValidation.basicProfileError(for: .yearsOfExperience, in: draft),
+            "Enter your years of experience."
+        )
         XCTAssertEqual(
             ManualProfileValidation.basicProfileError(for: .currentCity, in: draft),
             "Enter your current city."
@@ -23,7 +43,11 @@ final class ManualProfileFlowStateTests: XCTestCase {
     func test_validBasicProfileAdvancesToEmployment() {
         var state = ManualProfileFlowState()
         state.basicProfile = ManualProfileBasicDraft(
+            fullName: "Aman Jha",
             professionalHeadline: "Trust Operations Specialist",
+            currentRole: "Trust Operations Specialist",
+            industry: "Technology",
+            yearsOfExperience: "4",
             currentCity: "Bengaluru",
             currentCountry: "India"
         )
@@ -76,8 +100,11 @@ final class ManualProfileFlowStateTests: XCTestCase {
         entry.company = "Meridian Trust"
         entry.jobTitle = "Trust Operations Specialist"
         entry.employmentType = "Full-time"
+        entry.workCountry = "India"
+        entry.startDay = "1"
         entry.startMonth = "January"
         entry.startYear = "2022"
+        entry.endDay = "31"
         entry.endMonth = "March"
         entry.endYear = "2024"
 
@@ -97,8 +124,11 @@ final class ManualProfileFlowStateTests: XCTestCase {
             company: "Meridian Trust",
             jobTitle: "Trust Operations Specialist",
             employmentType: "Full-time",
+            workCountry: "India",
+            startDay: "1",
             startMonth: "January",
             startYear: "2024",
+            endDay: "31",
             endMonth: "December",
             endYear: "2023",
             isCurrentlyWorking: false
@@ -130,6 +160,8 @@ final class ManualProfileFlowStateTests: XCTestCase {
             entry.company = "Meridian Trust"
             entry.jobTitle = "Trust Operations Specialist"
             entry.employmentType = "Full-time"
+            entry.workCountry = "India"
+            entry.startDay = "1"
             entry.startMonth = "January"
             entry.startYear = "2022"
             entry.isCurrentlyWorking = true
@@ -142,11 +174,32 @@ final class ManualProfileFlowStateTests: XCTestCase {
         XCTAssertEqual(state.step, .education)
     }
 
+    func test_employmentValidationAcceptsMonthWithInvisibleSeparatorCharacters() {
+        let entry = ManualEmploymentEntry(
+            id: 0,
+            company: "Meridian Trust",
+            jobTitle: "Trust Operations Specialist",
+            employmentType: "Full-time",
+            workCountry: "India",
+            startDay: "1",
+            startMonth: "Ja\u{200B}nuary",
+            startYear: "2022",
+            endDay: "",
+            endMonth: "",
+            endYear: "",
+            isCurrentlyWorking: true
+        )
+
+        XCTAssertNil(ManualProfileValidation.employmentError(for: .startMonth, in: entry))
+        XCTAssertTrue(ManualProfileValidation.isEmploymentEntryValid(entry))
+    }
+
     func test_validEducationAllowsFinalContinue() {
         var state = ManualProfileFlowState(step: .education)
         state.updateEducation(id: 0) { entry in
             entry.institution = "Delhi Institute of Technology"
             entry.degree = "B.Tech"
+            entry.educationLevel = "Bachelor's"
             entry.fieldOfStudy = "Information Technology"
             entry.startYear = "2016"
             entry.endYear = "2020"
@@ -154,5 +207,58 @@ final class ManualProfileFlowStateTests: XCTestCase {
 
         XCTAssertTrue(state.canContinue)
         XCTAssertTrue(ManualProfileValidation.areEducationEntriesValid(state.educationEntries))
+    }
+
+    func test_reconcileBasicProfilePrefillUsesBackendNameWhenDraftEmpty() {
+        var state = ManualProfileFlowState()
+
+        state.reconcileBasicProfilePrefill(
+            backendFullName: "Aman Jha",
+            signupDraftFullName: "Ignored Signup Name"
+        )
+
+        XCTAssertEqual(state.basicProfile.fullName, "Aman Jha")
+    }
+
+    func test_reconcileBasicProfilePrefillUsesSignupNameWhenBackendMissing() {
+        var state = ManualProfileFlowState()
+
+        state.reconcileBasicProfilePrefill(
+            backendFullName: nil,
+            signupDraftFullName: "Aman Jha"
+        )
+
+        XCTAssertEqual(state.basicProfile.fullName, "Aman Jha")
+    }
+
+    func test_reconcileBasicProfilePrefillPreservesExistingDraftName() {
+        var state = ManualProfileFlowState()
+        state.basicProfile.fullName = "Local Draft Name"
+
+        state.reconcileBasicProfilePrefill(
+            backendFullName: "Backend Name",
+            signupDraftFullName: "Signup Name"
+        )
+
+        XCTAssertEqual(state.basicProfile.fullName, "Local Draft Name")
+    }
+
+    func test_manualProfileDraftCodingRoundTripPreservesFullName() throws {
+        let state = ManualProfileFlowState(
+            basicProfile: ManualProfileBasicDraft(
+                fullName: "Aman Jha",
+                professionalHeadline: "Trust Operations Specialist",
+                currentRole: "Trust Operations Specialist",
+                industry: "Technology",
+                yearsOfExperience: "4",
+                currentCity: "Bengaluru",
+                currentCountry: "India"
+            )
+        )
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(ManualProfileFlowState.self, from: data)
+
+        XCTAssertEqual(decoded.basicProfile.fullName, "Aman Jha")
     }
 }

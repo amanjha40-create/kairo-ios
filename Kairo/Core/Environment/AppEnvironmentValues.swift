@@ -77,6 +77,15 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
     }
 }
 
+private struct MissingManualProfileService: ManualProfileServiceProtocol {
+    func submit(
+        draft: ManualProfileFlowState
+    ) async throws -> ManualProfileSubmissionResult {
+        _ = draft
+        fatalError("Missing manual profile service injection.")
+    }
+}
+
 private struct MissingVerifyOverviewService: VerifyOverviewServiceProtocol {
     func loadOverview() async throws -> VerifyOverview {
         fatalError("Missing Verify overview service injection.")
@@ -145,6 +154,10 @@ private struct CareerOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any CareerOverviewServiceProtocol = MissingCareerOverviewService()
 }
 
+private struct ManualProfileServiceKey: EnvironmentKey {
+    static let defaultValue: any ManualProfileServiceProtocol = MissingManualProfileService()
+}
+
 private struct VerifyOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any VerifyOverviewServiceProtocol = MissingVerifyOverviewService()
 }
@@ -182,6 +195,11 @@ extension EnvironmentValues {
     var careerOverviewService: any CareerOverviewServiceProtocol {
         get { self[CareerOverviewServiceKey.self] }
         set { self[CareerOverviewServiceKey.self] = newValue }
+    }
+
+    var manualProfileService: any ManualProfileServiceProtocol {
+        get { self[ManualProfileServiceKey.self] }
+        set { self[ManualProfileServiceKey.self] = newValue }
     }
 
     var verifyOverviewService: any VerifyOverviewServiceProtocol {

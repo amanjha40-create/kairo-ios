@@ -112,6 +112,12 @@ final class AppSessionStore: ObservableObject {
         case .verifyIdentity:
             return .verifyIdentity
         case .completeProfile:
+            if !configuration.isDemoModeEnabled,
+               !uiTestConfiguration.isEnabled,
+               ManualProfileDraftStore.hasSavedDraft {
+                return .completeProfile(.resumeImportOrQuickProfile)
+            }
+
             return .completeProfile(.chooseStart)
         case .complete:
             return .mainTabs

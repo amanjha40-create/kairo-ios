@@ -51,6 +51,9 @@ struct UITestManualProfileConfiguration {
     ) -> ManualProfileFlowState {
         let basicProfile = ManualProfileBasicDraft(
             professionalHeadline: prefill ? "Trust Operations Specialist" : "",
+            currentRole: prefill ? "Trust Operations Specialist" : "",
+            industry: prefill ? "Technology" : "",
+            yearsOfExperience: prefill ? "4" : "",
             currentCity: prefill ? "Bengaluru" : "",
             currentCountry: prefill ? "India" : ""
         )
@@ -60,8 +63,11 @@ struct UITestManualProfileConfiguration {
             company: prefill ? "Meridian Trust" : "",
             jobTitle: prefill ? "Trust Operations Specialist" : "",
             employmentType: prefill ? "Full-time" : "",
+            workCountry: prefill ? "India" : "",
+            startDay: prefill ? "1" : "",
             startMonth: prefill ? "January" : "",
             startYear: prefill ? "2022" : "",
+            endDay: "",
             endMonth: "",
             endYear: "",
             isCurrentlyWorking: prefill
@@ -71,6 +77,7 @@ struct UITestManualProfileConfiguration {
             id: 0,
             institution: prefill ? "Delhi Institute of Technology" : "",
             degree: prefill ? "B.Tech" : "",
+            educationLevel: prefill ? "Bachelor's" : "",
             fieldOfStudy: prefill ? "Information Technology" : "",
             startYear: prefill ? "2016" : "",
             endYear: prefill ? "2020" : ""
@@ -100,12 +107,18 @@ struct UITestManualProfileConfiguration {
             case .employment:
                 state.basicProfile = ManualProfileBasicDraft(
                     professionalHeadline: "Trust Operations Specialist",
+                    currentRole: "Trust Operations Specialist",
+                    industry: "Technology",
+                    yearsOfExperience: "4",
                     currentCity: "Bengaluru",
                     currentCountry: "India"
                 )
             case .education:
                 state.basicProfile = ManualProfileBasicDraft(
                     professionalHeadline: "Trust Operations Specialist",
+                    currentRole: "Trust Operations Specialist",
+                    industry: "Technology",
+                    yearsOfExperience: "4",
                     currentCity: "Bengaluru",
                     currentCountry: "India"
                 )
@@ -113,6 +126,8 @@ struct UITestManualProfileConfiguration {
                     entry.company = "Meridian Trust"
                     entry.jobTitle = "Trust Operations Specialist"
                     entry.employmentType = "Full-time"
+                    entry.workCountry = "India"
+                    entry.startDay = "1"
                     entry.startMonth = "January"
                     entry.startYear = "2022"
                     entry.isCurrentlyWorking = true

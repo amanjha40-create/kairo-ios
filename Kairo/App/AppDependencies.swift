@@ -5,6 +5,7 @@ struct AppDependencies: Sendable {
     let tokenStore: any TokenStore
     let sessionService: any SessionServiceProtocol
     let authService: any AuthServiceProtocol
+    let manualProfileService: any ManualProfileServiceProtocol
     let homeOverviewService: any HomeOverviewServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
@@ -43,6 +44,15 @@ struct AppDependencies: Sendable {
                 sessionService: sessionService
             )
         }
+        let manualProfileService: any ManualProfileServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoManualProfileService(authService: authService)
+            } else {
+                ManualProfileService(
+                    authService: authService,
+                    sessionService: sessionService
+                )
+            }
         let homeOverviewService = HomeOverviewService(
             authService: authService,
             sessionService: sessionService
@@ -63,6 +73,7 @@ struct AppDependencies: Sendable {
             tokenStore: tokenStore,
             sessionService: sessionService,
             authService: authService,
+            manualProfileService: manualProfileService,
             homeOverviewService: homeOverviewService,
             careerOverviewService: careerOverviewService,
             verifyOverviewService: verifyOverviewService,

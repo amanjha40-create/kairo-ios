@@ -6,18 +6,28 @@ struct OnboardingFlowView: View {
     private let createAccountInitialTouchedFields: Set<CreateAccountField>
 
     init() {
+        let resolvedConfiguration = AppConfiguration.resolve()
         let createAccountConfiguration = UITestCreateAccountConfiguration.current()
         let verifyIdentityConfiguration = UITestVerifyIdentityConfiguration.current()
         let resumeImportConfiguration = UITestResumeImportConfiguration.current()
         let manualProfileConfiguration = UITestManualProfileConfiguration.current()
+        let persistedManualProfileState: ManualProfileFlowState? =
+            if resolvedConfiguration.isDemoModeEnabled || UITestLaunchConfiguration.current().isEnabled {
+                nil
+            } else {
+                ManualProfileDraftStore.load()
+            }
+        let initialManualProfileState = manualProfileConfiguration.isActive
+            ? manualProfileConfiguration.state
+            : (persistedManualProfileState ?? ManualProfileFlowState())
         _flowState = State(initialValue: OnboardingFlowState(
             createAccountDraft: createAccountConfiguration.draft,
             verifyIdentityState: verifyIdentityConfiguration.state,
-            chooseStartState: manualProfileConfiguration.isActive
+            chooseStartState: manualProfileConfiguration.isActive || persistedManualProfileState != nil
                 ? ChooseStartState(selection: .buildProfileManually)
                 : ChooseStartState(),
             resumeImportState: resumeImportConfiguration.state,
-            manualProfileState: manualProfileConfiguration.state
+            manualProfileState: initialManualProfileState
         ))
         createAccountInitialTouchedFields = createAccountConfiguration.touchedFields
     }
@@ -56,7 +66,10 @@ struct OnboardingFlowView: View {
             ChooseStartScreenView(state: $flowState.chooseStartState)
         case .resumeImportOrQuickProfile:
             if flowState.chooseStartState.selection == .buildProfileManually {
-                ManualProfileScreenView(state: $flowState.manualProfileState)
+                ManualProfileScreenView(
+                    state: $flowState.manualProfileState,
+                    createAccountDraft: flowState.createAccountDraft
+                )
             } else {
                 ResumeImportScreenView(
                     createAccountDraft: flowState.createAccountDraft,

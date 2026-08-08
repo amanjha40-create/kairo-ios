@@ -477,6 +477,69 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(emptyCertifications.items, [])
     }
 
+    func test_careerCollectionEnvelopeDecodesSparseLiveSkillAndStatusFallbacks() throws {
+        let employmentData = Data(
+            """
+            {
+              "items": [
+                {
+                  "id": "employment_sparse_1",
+                  "employer_legal_name": "First Meridian",
+                  "job_title": "Trust Operations Specialist",
+                  "employment_type": "full_time",
+                  "start_date": "2026-08-01",
+                  "end_date": null,
+                  "work_location_country": "India",
+                  "work_location_region": "Karnataka"
+                }
+              ]
+            }
+            """.utf8
+        )
+        let educationData = Data(
+            """
+            {
+              "items": [
+                {
+                  "id": "education_sparse_1",
+                  "institution_name": "Delhi Institute of Technology",
+                  "degree": "B.Tech",
+                  "field_of_study": "Computer Science",
+                  "education_level": "bachelors",
+                  "start_date": "2017-06-01",
+                  "end_date": "2021-05-01",
+                  "is_currently_studying": false
+                }
+              ]
+            }
+            """.utf8
+        )
+        let skillsData = Data(
+            """
+            [
+              {
+                "name": "Trust Operations"
+              }
+            ]
+            """.utf8
+        )
+
+        let employments = try APIJSONCoder.makeDecoder()
+            .decode(CareerCollectionEnvelopeDTO<CareerEmploymentDTO>.self, from: employmentData)
+        let educations = try APIJSONCoder.makeDecoder()
+            .decode(CareerCollectionEnvelopeDTO<CareerEducationDTO>.self, from: educationData)
+        let skills = try APIJSONCoder.makeDecoder()
+            .decode([CareerSkillDTO].self, from: skillsData)
+
+        XCTAssertEqual(employments.items.first?.verificationStatus, "draft")
+        XCTAssertEqual(employments.items.first?.companyDisplayName, "First Meridian")
+        XCTAssertEqual(educations.items.first?.verificationStatus, "draft")
+        XCTAssertEqual(educations.items.first?.institutionName, "Delhi Institute of Technology")
+        XCTAssertEqual(skills.first?.id, "Trust Operations")
+        XCTAssertEqual(skills.first?.name, "Trust Operations")
+        XCTAssertEqual(skills.first?.verificationStatus, "draft")
+    }
+
     func test_careerEducationDTODecodesFrozenBackendShape() throws {
         let data = Data(
             """

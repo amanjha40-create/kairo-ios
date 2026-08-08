@@ -229,6 +229,59 @@ final class CareerOverviewServiceTests: XCTestCase {
         XCTAssertEqual(overview.skills.count, 4)
     }
 
+    func test_loadOverviewDecodesSparseLiveCareerRecords() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("access-123", for: .accessToken)
+
+        let networkClient = URLSessionNetworkClient(
+            baseURL: APIConfiguration.baseURL(for: .staging),
+            session: makeMockedURLSession()
+        )
+        let sessionService = SessionService(
+            configuration: makeConfiguration(),
+            networkClient: networkClient,
+            tokenStore: tokenStore
+        )
+        let authService = AuthService(
+            configuration: makeConfiguration(),
+            networkClient: networkClient,
+            sessionService: sessionService
+        )
+        let service = CareerOverviewService(
+            authService: authService,
+            sessionService: sessionService
+        )
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch request.url?.absoluteString {
+            case "https://staging-api.kairoid.com/api/v1/users/me":
+                return (try Self.response(for: request, statusCode: 200), Self.userPayload)
+            case "https://staging-api.kairoid.com/api/v1/employments/":
+                return (try Self.response(for: request, statusCode: 200), Self.sparseEmploymentsPayload)
+            case "https://staging-api.kairoid.com/api/v1/educations":
+                return (try Self.response(for: request, statusCode: 200), Self.sparseEducationsPayload)
+            case "https://staging-api.kairoid.com/api/v1/certifications":
+                return (try Self.response(for: request, statusCode: 200), Self.certificationsPayload)
+            case "https://staging-api.kairoid.com/api/v1/projects":
+                return (try Self.response(for: request, statusCode: 200), Self.projectsPayload)
+            case "https://staging-api.kairoid.com/api/v1/skills":
+                return (try Self.response(for: request, statusCode: 200), Self.sparseSkillsPayload)
+            default:
+                XCTFail("Unexpected request URL: \(request.url?.absoluteString ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let overview = try await service.loadOverview()
+
+        XCTAssertEqual(overview.employments.first?.company, "First Meridian")
+        XCTAssertEqual(overview.employments.first?.verificationStatus, .notVerified)
+        XCTAssertEqual(overview.educations.first?.institution, "Delhi Institute of Technology")
+        XCTAssertEqual(overview.educations.first?.verificationStatus, .notVerified)
+        XCTAssertEqual(overview.skills.map(\.id), ["Trust Operations"])
+        XCTAssertEqual(overview.skills.map(\.name), ["Trust Operations"])
+    }
+
     private func makeConfiguration() -> AppConfiguration {
         AppConfiguration(
             buildConfiguration: .development,
@@ -311,6 +364,25 @@ final class CareerOverviewServiceTests: XCTestCase {
         """.utf8
     )
 
+    private nonisolated static let sparseEmploymentsPayload = Data(
+        """
+        {
+          "items": [
+            {
+              "id": "employment_sparse_1",
+              "employer_legal_name": "First Meridian",
+              "job_title": "Trust Operations Specialist",
+              "employment_type": "full_time",
+              "start_date": "2026-08-01",
+              "end_date": null,
+              "work_location_country": "India",
+              "work_location_region": "Karnataka"
+            }
+          ]
+        }
+        """.utf8
+    )
+
     private nonisolated static let educationsPayload = Data(
         """
         {
@@ -343,6 +415,25 @@ final class CareerOverviewServiceTests: XCTestCase {
           "total_pages": 1,
           "offset": 0,
           "limit": 20
+        }
+        """.utf8
+    )
+
+    private nonisolated static let sparseEducationsPayload = Data(
+        """
+        {
+          "items": [
+            {
+              "id": "education_sparse_1",
+              "institution_name": "Delhi Institute of Technology",
+              "degree": "B.Tech",
+              "field_of_study": "Computer Science",
+              "education_level": "bachelors",
+              "start_date": "2017-06-01",
+              "end_date": "2021-05-01",
+              "is_currently_studying": false
+            }
+          ]
         }
         """.utf8
     )
@@ -393,6 +484,16 @@ final class CareerOverviewServiceTests: XCTestCase {
             "user_id": "user_123",
             "name": "Stakeholder Communication",
             "verification_status": "verified"
+          }
+        ]
+        """.utf8
+    )
+
+    private nonisolated static let sparseSkillsPayload = Data(
+        """
+        [
+          {
+            "name": "Trust Operations"
           }
         ]
         """.utf8

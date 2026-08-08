@@ -26,7 +26,7 @@ nonisolated struct CareerCollectionEnvelopeDTO<Element: Decodable & Equatable & 
 
 nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
     let id: String
-    let employerLegalName: String
+    let employerLegalName: String?
     let employerTradeName: String?
     let jobTitle: String
     let employmentType: String?
@@ -37,7 +37,7 @@ nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
     let verificationStatus: String
 
     var companyDisplayName: String {
-        employerTradeName?.nonEmpty ?? employerLegalName
+        employerTradeName?.nonEmpty ?? employerLegalName?.nonEmpty ?? "Company not added yet"
     }
 
     var currentlyWorking: Bool {
@@ -47,21 +47,24 @@ nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         id = try container.decodeRequiredString(forKeys: ["id"], debugName: "employment id")
-        employerLegalName = try container.decodeRequiredString(
-            forKeys: ["employer_legal_name"],
-            debugName: "employment employer legal name"
+        employerLegalName = try container.decodeFirstPresentString(
+            forKeys: ["employer_legal_name", "employer_name", "company_name", "company", "organization_name"]
         )
-        employerTradeName = try container.decodeFirstPresentString(forKeys: ["employer_trade_name"])
-        jobTitle = try container.decodeRequiredString(forKeys: ["job_title"], debugName: "employment job title")
+        employerTradeName = try container.decodeFirstPresentString(
+            forKeys: ["employer_trade_name", "company_display_name", "display_name"]
+        )
+        jobTitle = try container.decodeRequiredString(
+            forKeys: ["job_title", "role_title", "title"],
+            debugName: "employment job title"
+        )
         employmentType = try container.decodeFirstPresentString(forKeys: ["employment_type"])
         startDate = try container.decodeFirstPresentDate(forKeys: ["start_date"])
         endDate = try container.decodeFirstPresentDate(forKeys: ["end_date"])
         workLocationCountry = try container.decodeFirstPresentString(forKeys: ["work_location_country"])
         workLocationRegion = try container.decodeFirstPresentString(forKeys: ["work_location_region"])
-        verificationStatus = try container.decodeRequiredString(
-            forKeys: ["verification_status"],
-            debugName: "employment verification status"
-        )
+        verificationStatus = try container.decodeFirstPresentString(
+            forKeys: ["verification_status", "status"]
+        ) ?? "draft"
     }
 }
 
@@ -81,10 +84,9 @@ nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         id = try container.decodeRequiredString(forKeys: ["id"], debugName: "education id")
-        institutionName = try container.decodeRequiredString(
-            forKeys: ["institution_name"],
-            debugName: "education institution name"
-        )
+        institutionName = try container.decodeFirstPresentString(
+            forKeys: ["institution_name", "school_name", "organization_name"]
+        ) ?? "Institution not added yet"
         degree = try container.decodeFirstPresentString(forKeys: ["degree"])
         fieldOfStudy = try container.decodeFirstPresentString(forKeys: ["field_of_study"])
         educationLevel = try container.decodeFirstPresentString(forKeys: ["education_level"])
@@ -96,10 +98,9 @@ nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
             forKeys: ["is_currently_studying"],
             defaultValue: false
         )
-        verificationStatus = try container.decodeRequiredString(
-            forKeys: ["verification_status"],
-            debugName: "education verification status"
-        )
+        verificationStatus = try container.decodeFirstPresentString(
+            forKeys: ["verification_status", "status"]
+        ) ?? "draft"
     }
 }
 
@@ -116,10 +117,9 @@ nonisolated struct CareerCertificationDTO: Decodable, Equatable, Sendable {
         title = try container.decodeRequiredString(forKeys: ["title"], debugName: "certification title")
         issuingOrganization = try container.decodeFirstPresentString(forKeys: ["issuing_organization"])
         issuedDate = try container.decodeFirstPresentDate(forKeys: ["issued_date"])
-        verificationStatus = try container.decodeRequiredString(
-            forKeys: ["verification_status"],
-            debugName: "certification verification status"
-        )
+        verificationStatus = try container.decodeFirstPresentString(
+            forKeys: ["verification_status", "status"]
+        ) ?? "draft"
     }
 }
 
@@ -144,10 +144,9 @@ nonisolated struct CareerProjectDTO: Decodable, Equatable, Sendable {
         isOngoing = try container.decodeFirstPresentBool(forKeys: ["is_ongoing"], defaultValue: false)
         projectURL = try container.decodeFirstPresentURL(forKeys: ["project_url"])
         repositoryURL = try container.decodeFirstPresentURL(forKeys: ["repository_url"])
-        verificationStatus = try container.decodeRequiredString(
-            forKeys: ["verification_status"],
-            debugName: "project verification status"
-        )
+        verificationStatus = try container.decodeFirstPresentString(
+            forKeys: ["verification_status", "status"]
+        ) ?? "draft"
     }
 }
 
@@ -158,12 +157,14 @@ nonisolated struct CareerSkillDTO: Decodable, Equatable, Sendable {
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
-        id = try container.decodeRequiredString(forKeys: ["id"], debugName: "skill id")
-        name = try container.decodeRequiredString(forKeys: ["name"], debugName: "skill name")
-        verificationStatus = try container.decodeRequiredString(
-            forKeys: ["verification_status"],
-            debugName: "skill verification status"
+        name = try container.decodeRequiredString(
+            forKeys: ["name", "skill_name", "title"],
+            debugName: "skill name"
         )
+        id = try container.decodeFirstPresentString(forKeys: ["id", "public_id"]) ?? name
+        verificationStatus = try container.decodeFirstPresentString(
+            forKeys: ["verification_status", "status"]
+        ) ?? "draft"
     }
 }
 
@@ -187,6 +188,22 @@ private struct DynamicCodingKey: CodingKey, Hashable {
 }
 
 private extension KeyedDecodingContainer where Key == DynamicCodingKey {
+    nonisolated func candidateKeys(for rawKey: String) -> [DynamicCodingKey] {
+        let camelCaseKey = rawKey
+            .split(separator: "_")
+            .enumerated()
+            .map { index, component in
+                index == 0 ? component.lowercased() : component.capitalized
+            }
+            .joined()
+
+        if camelCaseKey == rawKey {
+            return [DynamicCodingKey(rawKey)]
+        }
+
+        return [DynamicCodingKey(rawKey), DynamicCodingKey(camelCaseKey)]
+    }
+
     nonisolated func decodeRequiredString(
         forKeys keys: [String],
         debugName: String
@@ -203,11 +220,12 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
 
     nonisolated func decodeFirstPresentString(forKeys keys: [String]) throws -> String? {
         for rawKey in keys {
-            let key = DynamicCodingKey(rawKey)
-            if let value = try decodeIfPresent(String.self, forKey: key)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !value.isEmpty {
-                return value
+            for key in candidateKeys(for: rawKey) {
+                if let value = try decodeIfPresent(String.self, forKey: key)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !value.isEmpty {
+                    return value
+                }
             }
         }
 
@@ -219,21 +237,22 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
         defaultValue: Bool
     ) throws -> Bool {
         for rawKey in keys {
-            let key = DynamicCodingKey(rawKey)
-            if let value = try decodeIfPresent(Bool.self, forKey: key) {
-                return value
-            }
+            for key in candidateKeys(for: rawKey) {
+                if let value = try decodeIfPresent(Bool.self, forKey: key) {
+                    return value
+                }
 
-            if let stringValue = try decodeIfPresent(String.self, forKey: key)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased() {
-                switch stringValue {
-                case "true", "yes", "1":
-                    return true
-                case "false", "no", "0":
-                    return false
-                default:
-                    break
+                if let stringValue = try decodeIfPresent(String.self, forKey: key)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() {
+                    switch stringValue {
+                    case "true", "yes", "1":
+                        return true
+                    case "false", "no", "0":
+                        return false
+                    default:
+                        break
+                    }
                 }
             }
         }
@@ -243,9 +262,10 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
 
     nonisolated func decodeFirstPresentDate(forKeys keys: [String]) throws -> Date? {
         for rawKey in keys {
-            let key = DynamicCodingKey(rawKey)
-            if let value = try decodeIfPresent(Date.self, forKey: key) {
-                return value
+            for key in candidateKeys(for: rawKey) {
+                if let value = try decodeIfPresent(Date.self, forKey: key) {
+                    return value
+                }
             }
         }
 
@@ -254,16 +274,17 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
 
     nonisolated func decodeFirstPresentURL(forKeys keys: [String]) throws -> URL? {
         for rawKey in keys {
-            let key = DynamicCodingKey(rawKey)
-            if let value = try decodeIfPresent(URL.self, forKey: key) {
-                return value
-            }
+            for key in candidateKeys(for: rawKey) {
+                if let value = try decodeIfPresent(URL.self, forKey: key) {
+                    return value
+                }
 
-            if let stringValue = try decodeIfPresent(String.self, forKey: key)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               let value = URL(string: stringValue),
-               !stringValue.isEmpty {
-                return value
+                if let stringValue = try decodeIfPresent(String.self, forKey: key)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   let value = URL(string: stringValue),
+                   !stringValue.isEmpty {
+                    return value
+                }
             }
         }
 
