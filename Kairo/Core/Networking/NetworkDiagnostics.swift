@@ -2,6 +2,8 @@ import Foundation
 
 #if DEBUG
 enum NetworkDiagnostics {
+    private nonisolated static let verifyDiagnosticsURL = URL(fileURLWithPath: "/tmp/kairo-verify-diagnostics.log")
+
     nonisolated static func logRequest(
         method: String,
         url: URL,
@@ -60,6 +62,84 @@ enum NetworkDiagnostics {
         print(
             "[CareerDiagnostics] request_failure path=\(path) type=\(String(reflecting: type(of: error))) domain=\(nsError.domain) code=\(nsError.code)"
         )
+    }
+
+    nonisolated static func logVerifyResponseShape(path: String, data: Data) {
+        guard let rootObject = try? JSONSerialization.jsonObject(with: data) else {
+            recordVerify("[VerifyDiagnostics] shape path=\(path) top_level=unreadable_json")
+            return
+        }
+
+        if let items = rootObject as? [[String: Any]] {
+            recordVerify("[VerifyDiagnostics] shape path=\(path) top_level=array item_count=\(items.count)")
+            if let first = items.first {
+                printVerifyRequestShape(item: first)
+            }
+            return
+        }
+
+        guard let root = rootObject as? [String: Any] else {
+            recordVerify("[VerifyDiagnostics] shape path=\(path) top_level=\(kindDescription(for: rootObject))")
+            return
+        }
+
+        let rootKeys = root.keys.sorted().joined(separator: ",")
+        recordVerify("[VerifyDiagnostics] shape path=\(path) top_level=object keys=\(rootKeys)")
+
+        if let items = root["items"] as? [[String: Any]] {
+            let paginationKeys = root.keys
+                .filter { $0 != "items" }
+                .sorted()
+                .joined(separator: ",")
+            recordVerify("[VerifyDiagnostics] page_wrapper item_count=\(items.count) pagination_keys=\(paginationKeys)")
+            if let first = items.first {
+                printVerifyRequestShape(item: first)
+            }
+            return
+        }
+
+        recordVerify("[VerifyDiagnostics] shape path=\(path) wrapper_without_items kind=object")
+    }
+
+    nonisolated static func logVerifyDecodeFailure(
+        path: String,
+        primaryError: Error,
+        envelopeError: Error?
+    ) {
+        let primarySummary = decodingSummary(primaryError)
+        let envelopeSummary = envelopeError.map(decodingSummary)
+        if let envelopeSummary {
+            recordVerify("[VerifyDiagnostics] decode_failure path=\(path) primary={\(primarySummary)} envelope={\(envelopeSummary)}")
+        } else {
+            recordVerify("[VerifyDiagnostics] decode_failure path=\(path) primary={\(primarySummary)}")
+        }
+    }
+
+    nonisolated static func logVerifyListItemSkipped(index: Int, error: Error) {
+        recordVerify("[VerifyDiagnostics] skipped_item index=\(index) error={\(decodingSummary(error))}")
+    }
+
+    nonisolated static func logVerifyListItemRoutingFields(index: Int, item: Any) {
+        guard let object = item as? [String: Any] else {
+            recordVerify("[VerifyDiagnostics] routing_fields index=\(index) kind=\(kindDescription(for: item))")
+            return
+        }
+
+        let fieldSummary = [
+            summarizeVerifyStringField(named: "public_id", in: object),
+            summarizeVerifyStringField(named: "trust_invitation_public_id", in: object),
+            summarizeVerifyStringField(named: "organization_public_id", in: object),
+            summarizeVerifyStringField(named: "request_type", in: object),
+            summarizeVerifyStringField(named: "status", in: object)
+        ].joined(separator: " ")
+        recordVerify("[VerifyDiagnostics] routing_fields index=\(index) \(fieldSummary)")
+
+        if let trustContext = object["trust_context"] as? [String: Any] {
+            let keys = trustContext.keys.sorted().joined(separator: ",")
+            recordVerify("[VerifyDiagnostics] nested trust_context keys=\(keys)")
+        } else {
+            recordVerify("[VerifyDiagnostics] nested trust_context=\(kindDescription(for: object["trust_context"]))")
+        }
     }
 
     nonisolated static func logPassportResponseShape(path: String, data: Data) {
@@ -219,6 +299,116 @@ enum NetworkDiagnostics {
         default:
             return String(reflecting: type(of: value))
         }
+    }
+
+    private nonisolated static func printVerifyRequestShape(item: [String: Any]) {
+        let itemKeys = item.keys.sorted()
+        recordVerify("[VerifyDiagnostics] request_item keys=\(itemKeys.joined(separator: ","))")
+
+        let typeSummary = itemKeys.map { key in
+            "\(key):\(kindDescription(for: item[key]))"
+        }.joined(separator: ",")
+        recordVerify("[VerifyDiagnostics] request_item value_types=\(typeSummary)")
+
+        let nullKeys = item
+            .compactMap { $0.value is NSNull ? $0.key : nil }
+            .sorted()
+            .joined(separator: ",")
+        recordVerify("[VerifyDiagnostics] request_item null_keys=\(nullKeys.isEmpty ? "-" : nullKeys)")
+
+        printVerifyNestedShape(name: "organization_summary", value: item["organization_summary"])
+        printVerifyNestedShape(name: "verification_target", value: item["verification_target"])
+        printVerifyNestedShape(name: "employment_claim", value: item["employment_claim"])
+        printVerifyNestedShape(name: "education_claim", value: item["education_claim"])
+        printVerifyNestedShape(name: "evidence_summary", value: item["evidence_summary"])
+
+        if let status = item["status"] as? String {
+            recordVerify("[VerifyDiagnostics] request_item status=\(status)")
+        }
+        if let requestType = item["request_type"] as? String {
+            recordVerify("[VerifyDiagnostics] request_item request_type=\(requestType)")
+        }
+        if let priority = item["priority"] as? String {
+            recordVerify("[VerifyDiagnostics] request_item priority=\(priority)")
+        }
+    }
+
+    private nonisolated static func printVerifyNestedShape(name: String, value: Any?) {
+        guard let value else {
+            recordVerify("[VerifyDiagnostics] nested \(name)=missing")
+            return
+        }
+
+        if value is NSNull {
+            recordVerify("[VerifyDiagnostics] nested \(name)=null")
+            return
+        }
+
+        guard let object = value as? [String: Any] else {
+            recordVerify("[VerifyDiagnostics] nested \(name)=\(kindDescription(for: value))")
+            return
+        }
+
+        let keys = object.keys.sorted().joined(separator: ",")
+        let types = object.keys.sorted().map { key in
+            "\(key):\(kindDescription(for: object[key]))"
+        }.joined(separator: ",")
+        let nullKeys = object
+            .compactMap { $0.value is NSNull ? $0.key : nil }
+            .sorted()
+            .joined(separator: ",")
+        recordVerify("[VerifyDiagnostics] nested \(name) keys=\(keys)")
+        recordVerify("[VerifyDiagnostics] nested \(name) value_types=\(types)")
+        recordVerify("[VerifyDiagnostics] nested \(name) null_keys=\(nullKeys.isEmpty ? "-" : nullKeys)")
+    }
+
+    private nonisolated static func summarizeVerifyStringField(
+        named key: String,
+        in object: [String: Any]
+    ) -> String {
+        guard let value = object[key] else {
+            return "\(key)=missing"
+        }
+
+        if value is NSNull {
+            return "\(key)=null"
+        }
+
+        guard let stringValue = value as? String else {
+            return "\(key)=\(kindDescription(for: value))"
+        }
+
+        let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(key)=string(len:\(stringValue.count),trimmed_len:\(trimmed.count),nonempty:\(!trimmed.isEmpty))"
+    }
+
+    private nonisolated static func recordVerify(_ message: String) {
+        print(message)
+
+        let line = message + "\n"
+        guard let data = line.data(using: .utf8) else {
+            return
+        }
+
+        if FileManager.default.fileExists(atPath: verifyDiagnosticsURL.path) {
+            if let handle = try? FileHandle(forWritingTo: verifyDiagnosticsURL) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            }
+            return
+        }
+
+        try? data.write(to: verifyDiagnosticsURL, options: .atomic)
+    }
+
+    private nonisolated static func decodingSummary(_ error: Error) -> String {
+        if let decodingError = error as? DecodingError {
+            return decodingErrorSummary(decodingError)
+        }
+
+        let nsError = error as NSError
+        return "kind=nonDecoding type=\(String(reflecting: type(of: error))) domain=\(nsError.domain) code=\(nsError.code)"
     }
 
     private nonisolated static func decodingErrorSummary(_ error: DecodingError) -> String {

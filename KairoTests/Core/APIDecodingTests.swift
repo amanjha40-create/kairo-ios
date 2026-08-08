@@ -835,6 +835,222 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(response.verificationSummary.projects.total, 0)
     }
 
+    func test_verificationRequestDTODecodesCandidateListShape() throws {
+        let data = Data(
+            """
+            {
+              "public_id": "request_1",
+              "employment_id": "employment_1",
+              "subject_name": "Aman Jha",
+              "subject_email": "aman@example.com",
+              "target_organization_name": "BrightPath Technologies",
+              "target_organization_email": "hr@brightpath.example.com",
+              "request_type": "employment",
+              "status": "pending_subject_acceptance",
+              "priority": "high",
+              "due_date": "2026-08-12",
+              "created_at": "2026-08-08T08:00:00Z",
+              "updated_at": "2026-08-08T09:00:00Z",
+              "candidate_response": null,
+              "candidate_response_submitted_at": null,
+              "accepted_at": null,
+              "consented_fields": ["employment_dates"],
+              "consented_evidence_scope": ["employment_letter"],
+              "organization_summary": {
+                "public_id": "org_1",
+                "name": "BrightPath Technologies"
+              },
+              "verification_target": {
+                "organization_name": "BrightPath Technologies",
+                "organization_email": "hr@brightpath.example.com"
+              },
+              "employment_claim": {
+                "employer_name": "BrightPath Technologies",
+                "role": "Product Operations Manager",
+                "start_date": "2025-01-01",
+                "end_date": null,
+                "employment_type": "full_time",
+                "work_location_country": "India",
+                "work_location_region": "Karnataka"
+              },
+              "evidence_summary": {
+                "total_items": 1,
+                "document_items": 1,
+                "field_keys": ["employment_letter"]
+              }
+            }
+            """.utf8
+        )
+
+        let request = try APIJSONCoder.makeDecoder().decode(VerificationRequestResponseDTO.self, from: data)
+
+        XCTAssertEqual(request.publicID, "request_1")
+        XCTAssertEqual(request.requestType, "employment")
+        XCTAssertEqual(request.status, "pending_subject_acceptance")
+        XCTAssertEqual(request.priority, "high")
+        XCTAssertEqual(request.organizationSummary?.name, "BrightPath Technologies")
+        XCTAssertEqual(request.employmentClaim?.role, "Product Operations Manager")
+        XCTAssertEqual(request.evidenceSummary.fieldKeys, ["employment_letter"])
+    }
+
+    func test_verificationRequestTimelineDTODecodesFrozenBackendShape() throws {
+        let data = Data(
+            """
+            {
+              "verification_request_public_id": "request_1",
+              "items": [
+                {
+                  "public_id": "timeline_1",
+                  "event_type": "verification_requested",
+                  "event_source": "organization",
+                  "previous_status": null,
+                  "new_status": "pending_subject_acceptance",
+                  "metadata": {},
+                  "created_at": "2026-08-08T08:00:00Z"
+                }
+              ],
+              "total": 1,
+              "page": 1,
+              "page_size": 50,
+              "total_pages": 1,
+              "offset": 0,
+              "limit": 50
+            }
+            """.utf8
+        )
+
+        let timeline = try APIJSONCoder.makeDecoder().decode(VerificationRequestTimelineResponseDTO.self, from: data)
+
+        XCTAssertEqual(timeline.verificationRequestPublicID, "request_1")
+        XCTAssertEqual(timeline.items.count, 1)
+        XCTAssertEqual(timeline.items.first?.eventType, "verification_requested")
+        XCTAssertEqual(timeline.items.first?.newStatus, "pending_subject_acceptance")
+        XCTAssertEqual(timeline.total, 1)
+    }
+
+    func test_verificationRequestResponseDTODecodesSparseLegacyRequestWithoutRoutingID() throws {
+        let data = Data(
+            """
+            {
+              "public_id": "   ",
+              "trust_invitation_public_id": " ",
+              "subject_name": "Legacy Candidate",
+              "request_type": "education",
+              "status": "pending_subject_submission",
+              "priority": "normal",
+              "created_at": "2026-08-08T08:00:00Z",
+              "updated_at": "2026-08-08T09:00:00Z",
+              "consented_fields": [],
+              "consented_evidence_scope": [],
+              "evidence_summary": {
+                "total_items": 0,
+                "document_items": 0,
+                "field_keys": []
+              }
+            }
+            """.utf8
+        )
+
+        let request = try APIJSONCoder.makeDecoder().decode(VerificationRequestResponseDTO.self, from: data)
+
+        XCTAssertNil(request.publicID)
+        XCTAssertNil(request.trustInvitationPublicID)
+        XCTAssertNil(request.routingID)
+        XCTAssertEqual(request.requestType, "education")
+        XCTAssertEqual(request.status, "pending_subject_submission")
+    }
+
+    func test_verificationRequestResponseDTODecodesWhenPublicIDIsMissing() throws {
+        let data = Data(
+            """
+            {
+              "subject_name": "Legacy Candidate",
+              "request_type": "education",
+              "status": "pending_subject_submission",
+              "priority": "normal",
+              "created_at": "2026-08-08T08:00:00Z",
+              "updated_at": "2026-08-08T09:00:00Z",
+              "consented_fields": [],
+              "consented_evidence_scope": [],
+              "evidence_summary": {
+                "total_items": 0,
+                "document_items": 0,
+                "field_keys": []
+              }
+            }
+            """.utf8
+        )
+
+        let request = try APIJSONCoder.makeDecoder().decode(VerificationRequestResponseDTO.self, from: data)
+
+        XCTAssertNil(request.publicID)
+        XCTAssertNil(request.trustInvitationPublicID)
+        XCTAssertNil(request.routingID)
+        XCTAssertNil(request.organizationSummary)
+        XCTAssertNil(request.verificationTarget)
+    }
+
+    func test_verificationRequestResponseDTODecodesWhenPublicIDIsNull() throws {
+        let data = Data(
+            """
+            {
+              "public_id": null,
+              "trust_invitation_public_id": null,
+              "subject_name": "Legacy Candidate",
+              "request_type": "education",
+              "status": "pending_subject_submission",
+              "priority": "normal",
+              "created_at": "2026-08-08T08:00:00Z",
+              "updated_at": "2026-08-08T09:00:00Z",
+              "consented_fields": [],
+              "consented_evidence_scope": [],
+              "evidence_summary": {
+                "total_items": 0,
+                "document_items": 0,
+                "field_keys": []
+              }
+            }
+            """.utf8
+        )
+
+        let request = try APIJSONCoder.makeDecoder().decode(VerificationRequestResponseDTO.self, from: data)
+
+        XCTAssertNil(request.publicID)
+        XCTAssertNil(request.trustInvitationPublicID)
+        XCTAssertNil(request.routingID)
+    }
+
+    func test_verificationRequestResponseDTOFallsBackToTrustInvitationPublicID() throws {
+        let data = Data(
+            """
+            {
+              "public_id": "   ",
+              "trust_invitation_public_id": "invite_123",
+              "subject_name": "Legacy Candidate",
+              "request_type": "education",
+              "status": "pending_subject_submission",
+              "priority": "normal",
+              "created_at": "2026-08-08T08:00:00Z",
+              "updated_at": "2026-08-08T09:00:00Z",
+              "consented_fields": [],
+              "consented_evidence_scope": [],
+              "evidence_summary": {
+                "total_items": 0,
+                "document_items": 0,
+                "field_keys": []
+              }
+            }
+            """.utf8
+        )
+
+        let request = try APIJSONCoder.makeDecoder().decode(VerificationRequestResponseDTO.self, from: data)
+
+        XCTAssertNil(request.publicID)
+        XCTAssertEqual(request.trustInvitationPublicID, "invite_123")
+        XCTAssertEqual(request.routingID, "invite_123")
+        XCTAssertEqual(request.requestType, "education")
+    }
+
     private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

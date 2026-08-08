@@ -27,7 +27,9 @@ struct VerifyOverviewState: Equatable, Sendable {
                         supportingCopy: "Confirm your current role to strengthen your Trust Passport.",
                         trustImpact: "High trust impact",
                         estimatedCompletionTime: "About 5 minutes",
-                        statusTitle: "Ready to start"
+                        statusTitle: "Ready to start",
+                        actionTitle: "Start verification",
+                        action: .startVerification(.employment)
                     ),
                     requests: [
                         VerifyRequest(
@@ -36,11 +38,21 @@ struct VerifyOverviewState: Equatable, Sendable {
                             organization: "BrightPath Technologies",
                             requester: "Kairo candidate trust team",
                             requestedItem: "Current role and employment dates",
-                            status: .awaitingApproval,
+                            status: .pendingSubjectAcceptance,
                             dateLabel: "Requested 1 Aug 2026",
                             timelineSummary: "Request opened today",
                             requiredAction: "Review and approve the employment request",
-                            supportingNote: "Your approval allows Kairo to begin the local verification preview."
+                            supportingNote: "Your approval allows Kairo to begin the local verification preview.",
+                            evidenceRequirement: "No evidence has been requested in this fixture yet.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-employment-created",
+                                    title: "Employment verification opened",
+                                    source: "Kairo candidate trust team",
+                                    dateLabel: "1 Aug 2026"
+                                )
+                            ],
+                            availableActions: [.accept]
                         ),
                         VerifyRequest(
                             id: "education-welingkar-pending",
@@ -52,7 +64,17 @@ struct VerifyOverviewState: Equatable, Sendable {
                             dateLabel: "Updated 31 Jul 2026",
                             timelineSummary: "Additional details requested yesterday",
                             requiredAction: "Provide clarification about your qualification record",
-                            supportingNote: "This fixture preview does not send any information to an institution."
+                            supportingNote: "This fixture preview does not send any information to an institution.",
+                            evidenceRequirement: "Clarify the qualification details requested in this fixture.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-education-requested",
+                                    title: "Additional information requested",
+                                    source: "Kairo education trust team",
+                                    dateLabel: "31 Jul 2026"
+                                )
+                            ],
+                            availableActions: [.submitInformation]
                         ),
                         VerifyRequest(
                             id: "employment-northstar",
@@ -60,11 +82,21 @@ struct VerifyOverviewState: Equatable, Sendable {
                             organization: "Northstar Labs",
                             requester: "Kairo candidate trust team",
                             requestedItem: "Previous role confirmation",
-                            status: .submitted,
+                            status: .inProgress,
                             dateLabel: "Updated 30 Jul 2026",
                             timelineSummary: "Submitted 2 days ago",
                             requiredAction: "Waiting for employer review",
-                            supportingNote: "Kairo will surface the next step when this verification changes."
+                            supportingNote: "Kairo will surface the next step when this verification changes.",
+                            evidenceRequirement: "Employment evidence was already submitted in this fixture.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-employment-submitted",
+                                    title: "Verification submitted",
+                                    source: "You",
+                                    dateLabel: "30 Jul 2026"
+                                )
+                            ],
+                            availableActions: []
                         ),
                         VerifyRequest(
                             id: "education-welingkar-review",
@@ -72,11 +104,21 @@ struct VerifyOverviewState: Equatable, Sendable {
                             organization: "Welingkar Institute of Management",
                             requester: "Kairo education trust team",
                             requestedItem: "MBA degree confirmation",
-                            status: .underReview,
+                            status: .pendingAdminReview,
                             dateLabel: "Updated 31 Jul 2026",
                             timelineSummary: "Under review since yesterday",
                             requiredAction: "No action needed right now",
-                            supportingNote: "This fixture state represents an institution reviewing your record."
+                            supportingNote: "This fixture state represents an institution reviewing your record.",
+                            evidenceRequirement: "Academic evidence is already attached in this fixture.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-education-review",
+                                    title: "Submitted for review",
+                                    source: "You",
+                                    dateLabel: "31 Jul 2026"
+                                )
+                            ],
+                            availableActions: []
                         ),
                         VerifyRequest(
                             id: "completed-employment-brightpath",
@@ -88,7 +130,17 @@ struct VerifyOverviewState: Equatable, Sendable {
                             dateLabel: "Completed 28 Jul 2026",
                             timelineSummary: "Employment verified",
                             requiredAction: "No action needed",
-                            supportingNote: "This verification already strengthens your Trust Passport."
+                            supportingNote: "This verification already strengthens your Trust Passport.",
+                            evidenceRequirement: "Verification is complete.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-employment-verified",
+                                    title: "Employment verified",
+                                    source: "BrightPath Technologies",
+                                    dateLabel: "28 Jul 2026"
+                                )
+                            ],
+                            availableActions: []
                         ),
                         VerifyRequest(
                             id: "completed-identity-aarav",
@@ -100,7 +152,17 @@ struct VerifyOverviewState: Equatable, Sendable {
                             dateLabel: "Completed 1 Aug 2026",
                             timelineSummary: "Identity verified today",
                             requiredAction: "No action needed",
-                            supportingNote: "Identity verification is already part of your Trust Passport foundation."
+                            supportingNote: "Identity verification is already part of your Trust Passport foundation.",
+                            evidenceRequirement: "Verification is complete.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-identity-verified",
+                                    title: "Identity verified",
+                                    source: "Kairo identity trust team",
+                                    dateLabel: "1 Aug 2026"
+                                )
+                            ],
+                            availableActions: []
                         ),
                         VerifyRequest(
                             id: "completed-email-aarav",
@@ -112,24 +174,43 @@ struct VerifyOverviewState: Equatable, Sendable {
                             dateLabel: "Completed 1 Aug 2026",
                             timelineSummary: "Email verified today",
                             requiredAction: "No action needed",
-                            supportingNote: "Email verification is already active in your Trust Passport."
+                            supportingNote: "Email verification is already active in your Trust Passport.",
+                            evidenceRequirement: "Verification is complete.",
+                            timeline: [
+                                VerifyTimelineEvent(
+                                    id: "fixture-email-verified",
+                                    title: "Email ownership verified",
+                                    source: "Kairo identity trust team",
+                                    dateLabel: "1 Aug 2026"
+                                )
+                            ],
+                            availableActions: []
                         )
                     ],
                     suggestions: [
                         VerifySuggestion(
-                            type: .education,
+                            id: "education",
+                            kind: .education,
                             title: "Verify your highest education",
-                            valueStatement: "Add stronger academic trust to your Passport."
+                            valueStatement: "Add stronger academic trust to your Passport.",
+                            actionTitle: "Start",
+                            action: .startVerification(.education)
                         ),
                         VerifySuggestion(
-                            type: .certification,
+                            id: "certification",
+                            kind: .certification,
                             title: "Verify a professional certification",
-                            valueStatement: "Show specialised expertise with a trusted credential."
+                            valueStatement: "Show specialised expertise with a trusted credential.",
+                            actionTitle: "Start",
+                            action: .startVerification(.certification)
                         ),
                         VerifySuggestion(
-                            type: .project,
+                            id: "project",
+                            kind: .project,
                             title: "Add and verify a recent project",
-                            valueStatement: "Turn practical work into a reusable signal of trust."
+                            valueStatement: "Turn practical work into a reusable signal of trust.",
+                            actionTitle: "Start",
+                            action: .startVerification(.project)
                         )
                     ]
                 )
@@ -144,7 +225,11 @@ struct VerifyOverviewState: Equatable, Sendable {
                 VerifyOverviewEmptyContent(
                     dataSourceLabel: dataSourceLabel,
                     title: "No verifications yet.",
-                    message: "Start with one important part of your career and build trust from there."
+                    message: "Start with one important part of your career and build trust from there.",
+                    primaryActionTitle: "Start your first verification",
+                    primaryAction: .startVerification(.employment),
+                    secondaryActionTitle: "View Trust Passport",
+                    secondaryAction: .viewTrustPassport
                 )
             )
         )
@@ -157,15 +242,45 @@ struct VerifyOverviewState: Equatable, Sendable {
         )
     }
 
-    static func errorFixture() -> VerifyOverviewState {
+    static func loading(header: VerifyHeader = .live) -> VerifyOverviewState {
         VerifyOverviewState(
+            header: header,
+            phase: .loading
+        )
+    }
+
+    static func errorFixture() -> VerifyOverviewState {
+        error(
             header: .fixture,
+            title: "Verify overview unavailable",
+            message: "Kairo could not prepare your Trust Center preview. Try again when local fixture data is available."
+        )
+    }
+
+    static func error(
+        header: VerifyHeader = .live,
+        title: String,
+        message: String
+    ) -> VerifyOverviewState {
+        VerifyOverviewState(
+            header: header,
             phase: .error(
                 VerifyOverviewErrorState(
-                    title: "Verify overview unavailable",
-                    message: "Kairo could not prepare your Trust Center preview. Try again when local fixture data is available."
+                    title: title,
+                    message: message
                 )
             )
+        )
+    }
+
+    static func live(
+        header: VerifyHeader = .live,
+        content: VerifyOverviewContent,
+        isEmpty: Bool
+    ) -> VerifyOverviewState {
+        VerifyOverviewState(
+            header: header,
+            phase: isEmpty ? .empty(content.emptyContent) : .populated(content)
         )
     }
 
@@ -191,9 +306,11 @@ enum VerifyOverviewPhase: Equatable, Sendable {
 struct VerifyHeader: Equatable, Sendable {
     let supportingLine: String
 
-    static let fixture = VerifyHeader(
+    nonisolated static let live = VerifyHeader(
         supportingLine: "Every completed verification makes your professional trust more reusable."
     )
+
+    nonisolated static let fixture = live
 }
 
 enum VerifyOverviewSection: String, CaseIterable, Equatable, Sendable {
@@ -224,60 +341,221 @@ struct VerifyStatusStyle: Equatable, Sendable {
     let tone: VerifyStatusTone
 }
 
-enum VerifyVerificationStatus: String, CaseIterable, Equatable, Sendable {
-    case awaitingApproval
+enum VerifyVerificationStatus: Equatable, Sendable {
+    case draft
+    case pendingSubjectAcceptance
+    case accepted
+    case pendingSubjectSubmission
+    case pendingAdminReview
+    case awaitingSubjectCorrections
+    case pendingAdminReReview
+    case approvedForOrganizationVerification
+    case pendingOrganizationResolution
+    case pendingOrganizationAcceptance
+    case inProgress
     case awaitingInformation
-    case submitted
-    case underReview
     case verified
     case rejected
+    case cancelled
     case expired
+    case unknown(String)
 
     static let displayOrder: [VerifyVerificationStatus] = [
-        .awaitingApproval,
+        .draft,
+        .pendingSubjectAcceptance,
+        .accepted,
+        .pendingSubjectSubmission,
         .awaitingInformation,
-        .submitted,
-        .underReview,
+        .awaitingSubjectCorrections,
+        .pendingAdminReview,
+        .pendingAdminReReview,
+        .approvedForOrganizationVerification,
+        .pendingOrganizationResolution,
+        .pendingOrganizationAcceptance,
+        .inProgress,
         .verified,
         .rejected,
+        .cancelled,
         .expired
     ]
 
+    init(rawBackendValue: String) {
+        switch rawBackendValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() {
+        case "draft":
+            self = .draft
+        case "pending_subject_acceptance":
+            self = .pendingSubjectAcceptance
+        case "accepted":
+            self = .accepted
+        case "pending_subject_submission":
+            self = .pendingSubjectSubmission
+        case "pending_admin_review":
+            self = .pendingAdminReview
+        case "awaiting_subject_corrections":
+            self = .awaitingSubjectCorrections
+        case "pending_admin_re_review":
+            self = .pendingAdminReReview
+        case "approved_for_organization_verification":
+            self = .approvedForOrganizationVerification
+        case "pending_organization_resolution":
+            self = .pendingOrganizationResolution
+        case "pending_organization_acceptance":
+            self = .pendingOrganizationAcceptance
+        case "in_progress":
+            self = .inProgress
+        case "awaiting_information":
+            self = .awaitingInformation
+        case "verified":
+            self = .verified
+        case "rejected":
+            self = .rejected
+        case "cancelled":
+            self = .cancelled
+        case "expired":
+            self = .expired
+        default:
+            self = .unknown(rawBackendValue)
+        }
+    }
+
+    var rawBackendValue: String {
+        switch self {
+        case .draft:
+            "draft"
+        case .pendingSubjectAcceptance:
+            "pending_subject_acceptance"
+        case .accepted:
+            "accepted"
+        case .pendingSubjectSubmission:
+            "pending_subject_submission"
+        case .pendingAdminReview:
+            "pending_admin_review"
+        case .awaitingSubjectCorrections:
+            "awaiting_subject_corrections"
+        case .pendingAdminReReview:
+            "pending_admin_re_review"
+        case .approvedForOrganizationVerification:
+            "approved_for_organization_verification"
+        case .pendingOrganizationResolution:
+            "pending_organization_resolution"
+        case .pendingOrganizationAcceptance:
+            "pending_organization_acceptance"
+        case .inProgress:
+            "in_progress"
+        case .awaitingInformation:
+            "awaiting_information"
+        case .verified:
+            "verified"
+        case .rejected:
+            "rejected"
+        case .cancelled:
+            "cancelled"
+        case .expired:
+            "expired"
+        case .unknown(let rawValue):
+            rawValue
+        }
+    }
+
     var group: VerifyRequestGroup {
         switch self {
-        case .awaitingApproval, .awaitingInformation:
+        case .draft,
+             .pendingSubjectAcceptance,
+             .accepted,
+             .pendingSubjectSubmission,
+             .awaitingSubjectCorrections,
+             .awaitingInformation:
             .pending
-        case .submitted, .underReview:
+        case .pendingAdminReview,
+             .pendingAdminReReview,
+             .approvedForOrganizationVerification,
+             .pendingOrganizationResolution,
+             .pendingOrganizationAcceptance,
+             .inProgress,
+             .unknown:
             .inProgress
-        case .verified, .rejected, .expired:
+        case .verified,
+             .rejected,
+             .cancelled,
+             .expired:
             .completed
         }
     }
 
     var style: VerifyStatusStyle {
         switch self {
-        case .awaitingApproval:
+        case .draft:
+            VerifyStatusStyle(
+                title: "Draft",
+                symbol: "square.and.pencil",
+                tone: .neutral
+            )
+        case .pendingSubjectAcceptance:
             VerifyStatusStyle(
                 title: "Awaiting your approval",
                 symbol: "checkmark.circle",
+                tone: .accent
+            )
+        case .accepted:
+            VerifyStatusStyle(
+                title: "Accepted",
+                symbol: "checkmark.circle.fill",
+                tone: .accent
+            )
+        case .pendingSubjectSubmission:
+            VerifyStatusStyle(
+                title: "Awaiting your submission",
+                symbol: "paperplane",
+                tone: .accent
+            )
+        case .pendingAdminReview:
+            VerifyStatusStyle(
+                title: "Under admin review",
+                symbol: "hourglass",
+                tone: .warning
+            )
+        case .awaitingSubjectCorrections:
+            VerifyStatusStyle(
+                title: "Corrections requested",
+                symbol: "arrow.uturn.backward.circle",
+                tone: .warning
+            )
+        case .pendingAdminReReview:
+            VerifyStatusStyle(
+                title: "Under re-review",
+                symbol: "arrow.clockwise.circle",
+                tone: .warning
+            )
+        case .approvedForOrganizationVerification:
+            VerifyStatusStyle(
+                title: "Approved for verification",
+                symbol: "checkmark.shield",
+                tone: .accent
+            )
+        case .pendingOrganizationResolution:
+            VerifyStatusStyle(
+                title: "Pending organization resolution",
+                symbol: "building.2",
+                tone: .warning
+            )
+        case .pendingOrganizationAcceptance:
+            VerifyStatusStyle(
+                title: "Pending organization acceptance",
+                symbol: "building.columns",
+                tone: .warning
+            )
+        case .inProgress:
+            VerifyStatusStyle(
+                title: "In progress",
+                symbol: "clock.arrow.circlepath",
                 tone: .accent
             )
         case .awaitingInformation:
             VerifyStatusStyle(
                 title: "Additional information requested",
                 symbol: "text.badge.plus",
-                tone: .warning
-            )
-        case .submitted:
-            VerifyStatusStyle(
-                title: "Submitted",
-                symbol: "paperplane",
-                tone: .accent
-            )
-        case .underReview:
-            VerifyStatusStyle(
-                title: "Under review",
-                symbol: "hourglass",
                 tone: .warning
             )
         case .verified:
@@ -292,23 +570,62 @@ enum VerifyVerificationStatus: String, CaseIterable, Equatable, Sendable {
                 symbol: "xmark.octagon",
                 tone: .danger
             )
+        case .cancelled:
+            VerifyStatusStyle(
+                title: "Cancelled",
+                symbol: "nosign",
+                tone: .neutral
+            )
         case .expired:
             VerifyStatusStyle(
                 title: "Expired",
                 symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90",
                 tone: .neutral
             )
+        case .unknown:
+            VerifyStatusStyle(
+                title: "Status unavailable",
+                symbol: "questionmark.circle",
+                tone: .neutral
+            )
         }
     }
 
     var rank: Int {
-        Self.displayOrder.firstIndex(of: self) ?? 0
+        Self.displayOrder.firstIndex(of: self) ?? Self.displayOrder.count
     }
 }
 
 enum VerifyRequestActionTransition: Equatable, Sendable {
     case accept
     case decline
+}
+
+enum VerifyCallToAction: Equatable, Sendable {
+    case startVerification(VerifyVerificationKind)
+    case openRequest(String)
+    case openCareer
+    case viewTrustPassport
+}
+
+enum VerifyRequestAction: Equatable, Hashable, Sendable {
+    case accept
+    case submitInformation
+    case submitForReview
+    case resubmitForReview
+
+    var buttonTitle: String {
+        switch self {
+        case .accept:
+            "Accept request"
+        case .submitInformation:
+            "Provide information"
+        case .submitForReview:
+            "Submit for review"
+        case .resubmitForReview:
+            "Resubmit for review"
+        }
+    }
 }
 
 struct VerifyOverviewContent: Equatable, Sendable {
@@ -337,6 +654,18 @@ struct VerifyOverviewContent: Equatable, Sendable {
 
     var completedRequests: [VerifyRequest] {
         requests(in: .completed)
+    }
+
+    var emptyContent: VerifyOverviewEmptyContent {
+        VerifyOverviewEmptyContent(
+            dataSourceLabel: dataSourceLabel,
+            title: "No verification requests yet.",
+            message: "Kairo will show real employment and education verification requests here as they are created for your records.",
+            primaryActionTitle: "Continue profile",
+            primaryAction: .openCareer,
+            secondaryActionTitle: "View Trust Passport",
+            secondaryAction: .viewTrustPassport
+        )
     }
 
     func request(id: String) -> VerifyRequest? {
@@ -385,10 +714,13 @@ struct VerifyPriorityAction: Equatable, Sendable {
     let trustImpact: String
     let estimatedCompletionTime: String
     let statusTitle: String
+    let actionTitle: String?
+    let action: VerifyCallToAction?
 }
 
 struct VerifyRequest: Equatable, Identifiable, Sendable {
     let id: String
+    let routeRequestID: String?
     let type: String
     let organization: String
     let requester: String
@@ -398,25 +730,72 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
     let timelineSummary: String
     let requiredAction: String
     let supportingNote: String
+    let evidenceRequirement: String
+    let timeline: [VerifyTimelineEvent]
+    let availableActions: [VerifyRequestAction]
+
+    init(
+        id: String,
+        routeRequestID: String? = nil,
+        type: String,
+        organization: String,
+        requester: String,
+        requestedItem: String,
+        status: VerifyVerificationStatus,
+        dateLabel: String,
+        timelineSummary: String,
+        requiredAction: String,
+        supportingNote: String,
+        evidenceRequirement: String,
+        timeline: [VerifyTimelineEvent],
+        availableActions: [VerifyRequestAction]
+    ) {
+        self.id = id
+        self.routeRequestID = routeRequestID
+        self.type = type
+        self.organization = organization
+        self.requester = requester
+        self.requestedItem = requestedItem
+        self.status = status
+        self.dateLabel = dateLabel
+        self.timelineSummary = timelineSummary
+        self.requiredAction = requiredAction
+        self.supportingNote = supportingNote
+        self.evidenceRequirement = evidenceRequirement
+        self.timeline = timeline
+        self.availableActions = availableActions
+    }
 
     func acceptedPreview() -> VerifyRequest {
         VerifyRequest(
             id: id,
+            routeRequestID: routeRequestID,
             type: type,
             organization: organization,
             requester: requester,
             requestedItem: requestedItem,
-            status: .submitted,
+            status: .pendingAdminReview,
             dateLabel: "Updated just now",
             timelineSummary: "Approved and submitted locally",
             requiredAction: "Waiting for review",
-            supportingNote: "This local preview confirms the next step without sending any data."
+            supportingNote: "This local preview confirms the next step without sending any data.",
+            evidenceRequirement: evidenceRequirement,
+            timeline: timeline + [
+                VerifyTimelineEvent(
+                    id: "\(id)-accepted-preview",
+                    title: "Accepted locally",
+                    source: "You",
+                    dateLabel: "Just now"
+                )
+            ],
+            availableActions: []
         )
     }
 
     func declinedPreview() -> VerifyRequest {
         VerifyRequest(
             id: id,
+            routeRequestID: routeRequestID,
             type: type,
             organization: organization,
             requester: requester,
@@ -425,17 +804,37 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
             dateLabel: "Updated just now",
             timelineSummary: "Declined locally",
             requiredAction: "No further action",
-            supportingNote: "This local preview records the decline only for the current session."
+            supportingNote: "This local preview records the decline only for the current session.",
+            evidenceRequirement: evidenceRequirement,
+            timeline: timeline + [
+                VerifyTimelineEvent(
+                    id: "\(id)-declined-preview",
+                    title: "Declined locally",
+                    source: "You",
+                    dateLabel: "Just now"
+                )
+            ],
+            availableActions: []
         )
     }
 }
 
+struct VerifyTimelineEvent: Equatable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let source: String
+    let dateLabel: String
+}
+
 struct VerifySuggestion: Equatable, Identifiable, Sendable {
-    let type: VerifyVerificationKind
+    let id: String
+    let kind: VerifyVerificationKind?
     let title: String
     let valueStatement: String
-
-    var id: String { type.rawValue }
+    let actionTitle: String?
+    let action: VerifyCallToAction?
+    var isEnabled: Bool = true
+    var availabilityNote: String?
 }
 
 enum VerifyVerificationKind: String, CaseIterable, Identifiable, Equatable, Sendable {
@@ -490,6 +889,10 @@ struct VerifyOverviewEmptyContent: Equatable, Sendable {
     let dataSourceLabel: String
     let title: String
     let message: String
+    let primaryActionTitle: String?
+    let primaryAction: VerifyCallToAction?
+    let secondaryActionTitle: String?
+    let secondaryAction: VerifyCallToAction?
 }
 
 struct VerifyOverviewErrorState: Equatable, Sendable {
@@ -530,21 +933,6 @@ struct VerifyStartVerificationSheetState: Equatable, Sendable {
         selectedType != nil
     }
 
-    var selectedFieldRows: [VerifyDraftFieldRow] {
-        switch selectedType {
-        case .employment:
-            employment.fieldRows
-        case .education:
-            education.fieldRows
-        case .certification:
-            certification.fieldRows
-        case .project:
-            project.fieldRows
-        case nil:
-            []
-        }
-    }
-
     mutating func select(_ type: VerifyVerificationKind) {
         selectedType = type
         phase = .form
@@ -557,9 +945,26 @@ struct VerifyStartVerificationSheetState: Equatable, Sendable {
 
         phase = .confirmation(selectedType)
     }
+
+    var selectedFieldRows: [VerifyFieldRow] {
+        guard let selectedType else {
+            return []
+        }
+
+        switch selectedType {
+        case .employment:
+            return employment.fieldRows
+        case .education:
+            return education.fieldRows
+        case .certification:
+            return certification.fieldRows
+        case .project:
+            return project.fieldRows
+        }
+    }
 }
 
-struct VerifyDraftFieldRow: Equatable, Identifiable, Sendable {
+struct VerifyFieldRow: Equatable, Identifiable, Sendable {
     let title: String
     let value: String
 
@@ -574,17 +979,17 @@ struct VerifyEmploymentDraft: Equatable, Sendable {
 
     static let fixture = VerifyEmploymentDraft(
         organization: "BrightPath Technologies",
-        role: "Product Operations Manager",
-        startDate: "Jan 2024",
+        role: "People Operations Manager",
+        startDate: "Apr 2024",
         endDate: "Current role"
     )
 
-    var fieldRows: [VerifyDraftFieldRow] {
+    var fieldRows: [VerifyFieldRow] {
         [
-            VerifyDraftFieldRow(title: "Organisation", value: organization),
-            VerifyDraftFieldRow(title: "Role", value: role),
-            VerifyDraftFieldRow(title: "Start date", value: startDate),
-            VerifyDraftFieldRow(title: "End date", value: endDate)
+            VerifyFieldRow(title: "Organisation", value: organization),
+            VerifyFieldRow(title: "Role", value: role),
+            VerifyFieldRow(title: "Start date", value: startDate),
+            VerifyFieldRow(title: "End date / current role", value: endDate)
         ]
     }
 }
@@ -600,11 +1005,11 @@ struct VerifyEducationDraft: Equatable, Sendable {
         graduationYear: "2021"
     )
 
-    var fieldRows: [VerifyDraftFieldRow] {
+    var fieldRows: [VerifyFieldRow] {
         [
-            VerifyDraftFieldRow(title: "Institution", value: institution),
-            VerifyDraftFieldRow(title: "Qualification", value: qualification),
-            VerifyDraftFieldRow(title: "Graduation year", value: graduationYear)
+            VerifyFieldRow(title: "Institution", value: institution),
+            VerifyFieldRow(title: "Qualification", value: qualification),
+            VerifyFieldRow(title: "Graduation year", value: graduationYear)
         ]
     }
 }
@@ -615,16 +1020,16 @@ struct VerifyCertificationDraft: Equatable, Sendable {
     var issueDate: String
 
     static let fixture = VerifyCertificationDraft(
-        issuer: "Scrum Alliance",
-        certificationName: "Certified Scrum Product Owner",
-        issueDate: "Mar 2025"
+        issuer: "SHRM",
+        certificationName: "Certified Professional",
+        issueDate: "Jun 2025"
     )
 
-    var fieldRows: [VerifyDraftFieldRow] {
+    var fieldRows: [VerifyFieldRow] {
         [
-            VerifyDraftFieldRow(title: "Issuer", value: issuer),
-            VerifyDraftFieldRow(title: "Certification name", value: certificationName),
-            VerifyDraftFieldRow(title: "Issue date", value: issueDate)
+            VerifyFieldRow(title: "Issuer", value: issuer),
+            VerifyFieldRow(title: "Certification name", value: certificationName),
+            VerifyFieldRow(title: "Issue date", value: issueDate)
         ]
     }
 }
@@ -635,16 +1040,16 @@ struct VerifyProjectDraft: Equatable, Sendable {
     var evidenceNote: String
 
     static let fixture = VerifyProjectDraft(
-        projectName: "Trust Operations Workflow Redesign",
+        projectName: "Candidate Trust Rollout",
         role: "Project Lead",
-        evidenceNote: "Portfolio link and summary note will connect in a later milestone."
+        evidenceNote: "Portfolio evidence will be connected later."
     )
 
-    var fieldRows: [VerifyDraftFieldRow] {
+    var fieldRows: [VerifyFieldRow] {
         [
-            VerifyDraftFieldRow(title: "Project name", value: projectName),
-            VerifyDraftFieldRow(title: "Role", value: role),
-            VerifyDraftFieldRow(title: "Evidence note", value: evidenceNote)
+            VerifyFieldRow(title: "Project name", value: projectName),
+            VerifyFieldRow(title: "Role", value: role),
+            VerifyFieldRow(title: "Evidence note", value: evidenceNote)
         ]
     }
 }

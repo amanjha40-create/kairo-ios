@@ -1,14 +1,41 @@
 import SwiftUI
 
-struct VerifyOverviewScreenView: View {
-    @EnvironmentObject private var router: AppRouter
-    @State private var currentState: VerifyOverviewState
-    @State private var presentedSheet: VerifyPresentedSheet?
-    @State private var startVerificationState: VerifyStartVerificationSheetState
+struct VerifyOverviewFixtureHostView: View {
+    @State private var state: VerifyOverviewState
 
     init(state: VerifyOverviewState) {
-        _currentState = State(initialValue: state)
-        _startVerificationState = State(initialValue: VerifyStartVerificationSheetState())
+        _state = State(initialValue: state)
+    }
+
+    var body: some View {
+        VerifyOverviewScreenView(state: $state)
+    }
+}
+
+struct VerifyOverviewScreenView: View {
+    @EnvironmentObject private var router: AppRouter
+
+    @Binding private var state: VerifyOverviewState
+    private let retryAction: (() -> Void)?
+    private let refreshAction: (() async -> Void)?
+    private let requestActionHandler: VerifyRequestActionHandler?
+
+    @State private var presentedSheet: VerifyPresentedSheet?
+    @State private var startVerificationState = VerifyStartVerificationSheetState()
+    @State private var provideInformationText = ""
+    @State private var actionError: VerifyActionError?
+    @State private var actionInFlight: VerifyActionExecution?
+
+    init(
+        state: Binding<VerifyOverviewState>,
+        retryAction: (() -> Void)? = nil,
+        refreshAction: (() async -> Void)? = nil,
+        requestActionHandler: VerifyRequestActionHandler? = nil
+    ) {
+        _state = state
+        self.retryAction = retryAction
+        self.refreshAction = refreshAction
+        self.requestActionHandler = requestActionHandler
     }
 
     var body: some View {
@@ -20,10 +47,18 @@ struct VerifyOverviewScreenView: View {
             supportLine
             phaseContent
         }
+        .refreshableIfAvailable(action: refreshAction)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.verifyScreen)
         .sheet(item: $presentedSheet) { destination in
             sheetDestination(for: destination)
+        }
+        .alert(item: $actionError) { error in
+            Alert(
+                title: Text(error.title),
+                message: Text(error.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 
@@ -33,7 +68,7 @@ struct VerifyOverviewScreenView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(KairoColors.accent)
 
-            Text(currentState.header.supportingLine)
+            Text(state.header.supportingLine)
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -48,16 +83,17 @@ struct VerifyOverviewScreenView: View {
 
     @ViewBuilder
     private var phaseContent: some View {
-        switch currentState.phase {
+        switch state.phase {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your Trust Center",
-                message: "Kairo is assembling your next verification priorities."
+                message: "Kairo is assembling your latest verification requests."
             )
         case .error(let errorState):
             KairoErrorStateView(
                 title: errorState.title,
-                message: errorState.message
+                message: errorState.message,
+                retryAction: retryAction
             )
         case .empty(let content):
             emptyStateView(content)
@@ -95,27 +131,35 @@ struct VerifyOverviewScreenView: View {
             )
             .accessibilityIdentifier(KairoAccessibilityID.verifyEmptyState)
 
-            KairoCard {
-                Text("Suggested first step")
-                    .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.textPrimary)
+            if content.primaryAction != nil || content.secondaryAction != nil {
+                KairoCard {
+                    Text("Suggested next step")
+                        .font(KairoTypography.headline)
+                        .foregroundStyle(KairoColors.textPrimary)
 
-                Text("Verify your current employment to start turning your professional history into reusable trust.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text("Prepare the part of your profile you want Kairo to verify next, then come back here as live verification requests become available.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                KairoPrimaryButton(
-                    title: "Start your first verification",
-                    accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
-                    action: { openStartVerification(preselected: .employment) }
-                )
+                    if let title = content.primaryActionTitle,
+                       let action = content.primaryAction {
+                        KairoPrimaryButton(
+                            title: title,
+                            accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
+                            action: { handle(callToAction: action) }
+                        )
+                    }
 
-                KairoSecondaryButton(
-                    title: "View Trust Passport",
-                    accessibilityIdentifier: KairoAccessibilityID.verifyViewTrustPassport,
-                    action: { router.selectTab(.passport) }
-                )
+                    if let title = content.secondaryActionTitle,
+                       let action = content.secondaryAction {
+                        KairoSecondaryButton(
+                            title: title,
+                            accessibilityIdentifier: KairoAccessibilityID.verifyViewTrustPassport,
+                            action: { handle(callToAction: action) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -153,11 +197,14 @@ struct VerifyOverviewScreenView: View {
                 }
             }
 
-            KairoPrimaryButton(
-                title: "Start verification",
-                accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
-                action: { openStartVerification(preselected: .employment) }
-            )
+            if let title = action.actionTitle,
+               let callToAction = action.action {
+                KairoPrimaryButton(
+                    title: title,
+                    accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
+                    action: { handle(callToAction: callToAction) }
+                )
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.verifyPriorityRecommendation)
@@ -232,31 +279,39 @@ struct VerifyOverviewScreenView: View {
                 accessibilityIdentifier: KairoAccessibilityID.verifyCompletedSection
             )
 
-            KairoCard {
-                ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
-                    if index > 0 {
-                        Divider()
-                    }
-
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            Text(request.type)
-                                .font(KairoTypography.headline)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                            Text(request.organization)
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text(request.dateLabel)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.textSecondary)
+            if requests.isEmpty {
+                KairoCard {
+                    Text("No completed verifications yet.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                }
+            } else {
+                KairoCard {
+                    ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
+                        if index > 0 {
+                            Divider()
                         }
 
-                        Spacer(minLength: KairoSpacing.small)
+                        HStack(alignment: .top, spacing: KairoSpacing.medium) {
+                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                Text(request.type)
+                                    .font(KairoTypography.headline)
+                                    .foregroundStyle(KairoColors.textPrimary)
 
-                        VerifyStatusBadge(status: request.status)
+                                Text(request.organization)
+                                    .font(KairoTypography.body)
+                                    .foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Text(request.dateLabel)
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.textSecondary)
+                            }
+
+                            Spacer(minLength: KairoSpacing.small)
+
+                            VerifyStatusBadge(status: request.status)
+                        }
                     }
                 }
             }
@@ -270,50 +325,72 @@ struct VerifyOverviewScreenView: View {
                 accessibilityIdentifier: KairoAccessibilityID.verifySuggestedNextSection
             )
 
-            KairoCard {
-                ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                    if index > 0 {
-                        Divider()
-                    }
-
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                                .fill(KairoColors.surfaceMuted)
-
-                            Image(systemName: suggestion.type.systemImage)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(KairoColors.accent)
-                        }
-                        .frame(width: 40, height: 40)
-
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            Text(suggestion.title)
-                                .font(KairoTypography.headline)
-                                .foregroundStyle(KairoColors.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text(suggestion.valueStatement)
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
+            if suggestions.isEmpty {
+                KairoCard {
+                    Text("Kairo will suggest more verification opportunities here as live verification coverage expands.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                KairoCard {
+                    ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                        if index > 0 {
+                            Divider()
                         }
 
-                        Spacer(minLength: KairoSpacing.small)
-                    }
+                        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                            HStack(alignment: .top, spacing: KairoSpacing.medium) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
+                                        .fill(KairoColors.surfaceMuted)
 
-                    VerifyInlineButton(
-                        title: "Start",
-                        accessibilityIdentifier: KairoAccessibilityID.verifySuggestedAction(suggestion.type.rawValue),
-                        action: { openStartVerification(preselected: suggestion.type) }
-                    )
+                                    Image(systemName: suggestion.kind?.systemImage ?? "sparkles")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(KairoColors.accent)
+                                }
+                                .frame(width: 40, height: 40)
+
+                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                    Text(suggestion.title)
+                                        .font(KairoTypography.headline)
+                                        .foregroundStyle(KairoColors.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    Text(suggestion.valueStatement)
+                                        .font(KairoTypography.body)
+                                        .foregroundStyle(KairoColors.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Spacer(minLength: KairoSpacing.small)
+                            }
+
+                            if let actionTitle = suggestion.actionTitle,
+                               let action = suggestion.action {
+                                VerifyInlineButton(
+                                    title: actionTitle,
+                                    accessibilityIdentifier: suggestion.kind.map { KairoAccessibilityID.verifySuggestedAction($0.rawValue) },
+                                    action: { handle(callToAction: action) }
+                                )
+                                .disabled(!suggestion.isEnabled)
+                            }
+
+                            if let availabilityNote = suggestion.availabilityNote {
+                                Text(availabilityNote)
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     private var dataSourceLabel: String? {
-        switch currentState.phase {
+        switch state.phase {
         case .populated(let content):
             content.dataSourceLabel
         case .empty(let content):
@@ -324,7 +401,7 @@ struct VerifyOverviewScreenView: View {
     }
 
     private var activeContent: VerifyOverviewContent? {
-        guard case .populated(let content) = currentState.phase else {
+        guard case .populated(let content) = state.phase else {
             return nil
         }
 
@@ -335,19 +412,85 @@ struct VerifyOverviewScreenView: View {
         activeContent?.request(id: id)
     }
 
+    private func handle(callToAction: VerifyCallToAction) {
+        switch callToAction {
+        case .startVerification(let kind):
+            openStartVerification(preselected: kind)
+        case .openRequest(let requestID):
+            presentedSheet = .requestDetail(requestID)
+        case .openCareer:
+            router.selectTab(.career)
+        case .viewTrustPassport:
+            router.selectTab(.passport)
+        }
+    }
+
     private func openStartVerification(preselected: VerifyVerificationKind?) {
         startVerificationState = VerifyStartVerificationSheetState(selectedType: preselected)
         presentedSheet = .startVerification
     }
 
-    private func acceptRequest(_ requestID: String) {
-        currentState = currentState.applying(.accept, to: requestID)
-        presentedSheet = nil
+    private func performRequestAction(
+        _ action: VerifyRequestAction,
+        requestID: String,
+        response: String? = nil
+    ) {
+        if let requestActionHandler {
+            guard let routeRequestID = request(for: requestID)?.routeRequestID else {
+                actionError = VerifyActionError(
+                    title: "Action unavailable",
+                    message: "This verification request is missing the live routing details needed to send an update."
+                )
+                return
+            }
+
+            actionInFlight = VerifyActionExecution(requestID: requestID, action: action)
+            Task {
+                do {
+                    try await requestActionHandler(routeRequestID, action, response)
+                    await MainActor.run {
+                        actionInFlight = nil
+                        provideInformationText = ""
+                        presentedSheet = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        actionInFlight = nil
+                        actionError = VerifyActionError(
+                            title: "Action unavailable",
+                            message: userFacingMessage(for: error)
+                        )
+                    }
+                }
+            }
+            return
+        }
+
+        switch action {
+        case .accept:
+            state = state.applying(.accept, to: requestID)
+            presentedSheet = nil
+        case .submitInformation:
+            presentedSheet = .provideInformation(requestID)
+        case .submitForReview, .resubmitForReview:
+            actionError = VerifyActionError(
+                title: "Local preview only",
+                message: "This fixture session only supports accept and provide-information previews."
+            )
+        }
     }
 
-    private func declineRequest(_ requestID: String) {
-        currentState = currentState.applying(.decline, to: requestID)
-        presentedSheet = nil
+    private func userFacingMessage(for error: Error) -> String {
+        if let sessionError = error as? SessionServiceError,
+           sessionError == .sessionExpired {
+            return sessionError.localizedDescription
+        }
+
+        if let networkError = error as? NetworkError {
+            return networkError.localizedDescription
+        }
+
+        return error.localizedDescription
     }
 
     @ViewBuilder
@@ -357,29 +500,67 @@ struct VerifyOverviewScreenView: View {
             if let request = request(for: requestID) {
                 VerifyRequestDetailSheet(
                     request: request,
-                    onAccept: { acceptRequest(requestID) },
-                    onProvideInformation: {
-                        presentedSheet = .provideInformation(requestID)
-                    },
+                    isLive: requestActionHandler != nil,
+                    actionInFlight: actionInFlight,
+                    onAccept: { performRequestAction(.accept, requestID: requestID) },
+                    onProvideInformation: { presentedSheet = .provideInformation(requestID) },
+                    onSubmitForReview: { performRequestAction(.submitForReview, requestID: requestID) },
+                    onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) },
                     onDecline: { declineRequest(requestID) }
                 )
             } else {
                 VerifySimpleSheet(
                     title: "Request unavailable",
-                    message: "The selected request is no longer available in this local session."
+                    message: "The selected request is no longer available in this session."
                 )
             }
         case .provideInformation(let requestID):
-            VerifySimpleSheet(
-                title: "Provide information",
-                message: "This local placeholder confirms where Kairo will request extra evidence or clarification for \(request(for: requestID)?.organization ?? "this verification") in a later milestone."
-            )
+            if requestActionHandler == nil {
+                VerifySimpleSheet(
+                    title: "Provide information",
+                    message: "This local placeholder confirms where Kairo will request extra evidence or clarification for \(request(for: requestID)?.organization ?? "this verification") in a later milestone."
+                )
+            } else {
+                VerifyProvideInformationSheet(
+                    organization: request(for: requestID)?.organization ?? "this verification",
+                    text: $provideInformationText,
+                    isSubmitting: actionInFlight == VerifyActionExecution(
+                        requestID: requestID,
+                        action: .submitInformation
+                    ),
+                    onSubmit: {
+                        performRequestAction(
+                            .submitInformation,
+                            requestID: requestID,
+                            response: provideInformationText
+                        )
+                    }
+                )
+            }
         case .startVerification:
             VerifyStartVerificationSheet(
                 state: $startVerificationState
             )
         }
     }
+
+    private func declineRequest(_ requestID: String) {
+        state = state.applying(.decline, to: requestID)
+        presentedSheet = nil
+    }
+}
+
+typealias VerifyRequestActionHandler = @Sendable (_ requestID: String, _ action: VerifyRequestAction, _ response: String?) async throws -> Void
+
+private struct VerifyActionExecution: Equatable {
+    let requestID: String
+    let action: VerifyRequestAction
+}
+
+private struct VerifyActionError: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private enum VerifyPresentedSheet: Identifiable {
@@ -522,8 +703,12 @@ private struct VerifyInlineButton: View {
 
 private struct VerifyRequestDetailSheet: View {
     let request: VerifyRequest
+    let isLive: Bool
+    let actionInFlight: VerifyActionExecution?
     let onAccept: () -> Void
     let onProvideInformation: () -> Void
+    let onSubmitForReview: () -> Void
+    let onResubmitForReview: () -> Void
     let onDecline: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -553,30 +738,40 @@ private struct VerifyRequestDetailSheet: View {
                         detailRow(title: "Current status", value: request.status.style.title)
                         detailRow(title: "Timeline", value: request.timelineSummary)
                         detailRow(title: "Required action", value: request.requiredAction)
+                        detailRow(title: "Evidence requirements", value: request.evidenceRequirement)
                         detailRow(title: "Supporting note", value: request.supportingNote)
                     }
 
-                    VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                        KairoPrimaryButton(
-                            title: "Accept request",
-                            accessibilityIdentifier: KairoAccessibilityID.verifyAcceptRequest,
-                            action: {
-                                onAccept()
-                                dismiss()
+                    if !request.timeline.isEmpty {
+                        KairoCard {
+                            VerifySectionEyebrow(title: "Timeline")
+
+                            ForEach(Array(request.timeline.enumerated()), id: \.element.id) { index, event in
+                                if index > 0 {
+                                    Divider()
+                                }
+
+                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                    Text(event.title)
+                                        .font(KairoTypography.headline)
+                                        .foregroundStyle(KairoColors.textPrimary)
+
+                                    Text(event.source)
+                                        .font(KairoTypography.body)
+                                        .foregroundStyle(KairoColors.textSecondary)
+
+                                    Text(event.dateLabel)
+                                        .font(KairoTypography.footnote)
+                                        .foregroundStyle(KairoColors.textSecondary)
+                                }
                             }
-                        )
+                        }
+                    }
 
-                        KairoSecondaryButton(
-                            title: "Provide information",
-                            accessibilityIdentifier: KairoAccessibilityID.verifyProvideInformation,
-                            action: { onProvideInformation() }
-                        )
-
-                        KairoSecondaryButton(
-                            title: "Decline request",
-                            accessibilityIdentifier: KairoAccessibilityID.verifyDeclineRequest,
-                            action: { showsDeclineConfirmation = true }
-                        )
+                    if !request.availableActions.isEmpty || !isLive {
+                        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                            actionButtons
+                        }
                     }
                 }
                 .padding(.horizontal, KairoSpacing.large)
@@ -604,6 +799,66 @@ private struct VerifyRequestDetailSheet: View {
         .presentationDetents([.large])
     }
 
+    @ViewBuilder
+    private var actionButtons: some View {
+        if request.availableActions.contains(.accept) {
+            KairoPrimaryButton(
+                title: "Accept request",
+                accessibilityIdentifier: KairoAccessibilityID.verifyAcceptRequest,
+                action: {
+                    onAccept()
+                    if isLive {
+                        dismiss()
+                    }
+                }
+            )
+            .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .accept))
+        }
+
+        if request.availableActions.contains(.submitInformation) {
+            KairoSecondaryButton(
+                title: "Provide information",
+                accessibilityIdentifier: KairoAccessibilityID.verifyProvideInformation,
+                action: { onProvideInformation() }
+            )
+            .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .submitInformation))
+        }
+
+        if request.availableActions.contains(.submitForReview) {
+            KairoPrimaryButton(
+                title: "Submit for review",
+                action: {
+                    onSubmitForReview()
+                    if isLive {
+                        dismiss()
+                    }
+                }
+            )
+            .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .submitForReview))
+        }
+
+        if request.availableActions.contains(.resubmitForReview) {
+            KairoPrimaryButton(
+                title: "Resubmit for review",
+                action: {
+                    onResubmitForReview()
+                    if isLive {
+                        dismiss()
+                    }
+                }
+            )
+            .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .resubmitForReview))
+        }
+
+        if !isLive {
+            KairoSecondaryButton(
+                title: "Decline request",
+                accessibilityIdentifier: KairoAccessibilityID.verifyDeclineRequest,
+                action: { showsDeclineConfirmation = true }
+            )
+        }
+    }
+
     private func detailRow(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             Text(title)
@@ -615,6 +870,76 @@ private struct VerifyRequestDetailSheet: View {
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+private struct VerifyProvideInformationSheet: View {
+    let organization: String
+    @Binding var text: String
+    let isSubmitting: Bool
+    let onSubmit: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                KairoCard {
+                    Text("Provide information")
+                        .font(KairoTypography.title2)
+                        .foregroundStyle(KairoColors.textPrimary)
+
+                    Text("Share the clarification Kairo requested for \(organization).")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                KairoCard {
+                    Text("Response")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+
+                    TextEditor(text: $text)
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .frame(minHeight: 160)
+                        .scrollContentBackground(.hidden)
+                        .padding(KairoSpacing.small)
+                        .background(
+                            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                                .fill(KairoColors.surfaceMuted)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                                .stroke(KairoColors.border, lineWidth: 1)
+                        )
+                }
+
+                KairoPrimaryButton(
+                    title: isSubmitting ? "Submitting..." : "Submit information",
+                    action: onSubmit
+                )
+                .disabled(trimmedText.isEmpty || isSubmitting)
+
+                KairoSecondaryButton(
+                    title: "Cancel",
+                    action: { dismiss() }
+                )
+                .disabled(isSubmitting)
+            }
+            .padding(.horizontal, KairoSpacing.large)
+            .padding(.vertical, KairoSpacing.xLarge)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Provide information")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -893,5 +1218,18 @@ private struct VerifySimpleSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func refreshableIfAvailable(action: (() async -> Void)?) -> some View {
+        if let action {
+            refreshable {
+                await action()
+            }
+        } else {
+            self
+        }
     }
 }

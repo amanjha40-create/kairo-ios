@@ -7,6 +7,7 @@ struct AppDependencies: Sendable {
     let authService: any AuthServiceProtocol
     let homeOverviewService: any HomeOverviewServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
+    let verifyOverviewService: any VerifyOverviewServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
 
     static func make(
@@ -50,6 +51,9 @@ struct AppDependencies: Sendable {
             authService: authService,
             sessionService: sessionService
         )
+        let verifyOverviewService = VerifyOverviewService(
+            sessionService: sessionService
+        )
         let passportOverviewService = PassportOverviewService(
             sessionService: sessionService
         )
@@ -61,6 +65,7 @@ struct AppDependencies: Sendable {
             authService: authService,
             homeOverviewService: homeOverviewService,
             careerOverviewService: careerOverviewService,
+            verifyOverviewService: verifyOverviewService,
             passportOverviewService: passportOverviewService
         )
     }

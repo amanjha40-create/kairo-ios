@@ -51,9 +51,13 @@ struct CandidateTabShellView: View {
                 CareerOverviewContainerView()
             }
         case .verify:
-            VerifyOverviewScreenView(
-                state: uiTestVerifyConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)
-            )
+            if let uiTestState = uiTestVerifyConfiguration.state {
+                VerifyOverviewFixtureHostView(state: uiTestState)
+            } else if appConfiguration.isDemoModeEnabled {
+                VerifyOverviewFixtureHostView(state: .default(isDemoMode: true))
+            } else {
+                VerifyOverviewContainerView()
+            }
         case .passport:
             if let uiTestState = uiTestPassportConfiguration.state {
                 PassportOverviewScreenView(state: uiTestState)

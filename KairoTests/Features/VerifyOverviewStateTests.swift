@@ -63,15 +63,24 @@ final class VerifyOverviewStateTests: XCTestCase {
 
     func test_statusDisplayOrderRemainsStable() {
         XCTAssertEqual(VerifyVerificationStatus.displayOrder, [
-            .awaitingApproval,
+            .draft,
+            .pendingSubjectAcceptance,
+            .accepted,
+            .pendingSubjectSubmission,
             .awaitingInformation,
-            .submitted,
-            .underReview,
+            .awaitingSubjectCorrections,
+            .pendingAdminReview,
+            .pendingAdminReReview,
+            .approvedForOrganizationVerification,
+            .pendingOrganizationResolution,
+            .pendingOrganizationAcceptance,
+            .inProgress,
             .verified,
             .rejected,
+            .cancelled,
             .expired
         ])
-        XCTAssertTrue(VerifyVerificationStatus.awaitingApproval.rank < VerifyVerificationStatus.verified.rank)
+        XCTAssertTrue(VerifyVerificationStatus.pendingSubjectAcceptance.rank < VerifyVerificationStatus.verified.rank)
     }
 
     func test_requestActionTransitionsUpdateLocalFixtureState() {
@@ -89,7 +98,7 @@ final class VerifyOverviewStateTests: XCTestCase {
 
         XCTAssertEqual(
             acceptedContent.request(id: "employment-brightpath")?.status,
-            .submitted
+            .pendingAdminReview
         )
         XCTAssertEqual(
             declinedContent.request(id: "education-welingkar-pending")?.status,

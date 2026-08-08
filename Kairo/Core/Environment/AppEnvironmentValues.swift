@@ -77,6 +77,21 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
     }
 }
 
+private struct MissingVerifyOverviewService: VerifyOverviewServiceProtocol {
+    func loadOverview() async throws -> VerifyOverview {
+        fatalError("Missing Verify overview service injection.")
+    }
+
+    func performAction(
+        requestID: String,
+        action: VerifyRequestAction,
+        response: String?
+    ) async throws {
+        _ = (requestID, action, response)
+        fatalError("Missing Verify overview service injection.")
+    }
+}
+
 private struct MissingPassportOverviewService: PassportOverviewServiceProtocol {
     func loadOverview() async throws -> PassportOverview {
         fatalError("Missing Passport overview service injection.")
@@ -130,6 +145,10 @@ private struct CareerOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any CareerOverviewServiceProtocol = MissingCareerOverviewService()
 }
 
+private struct VerifyOverviewServiceKey: EnvironmentKey {
+    static let defaultValue: any VerifyOverviewServiceProtocol = MissingVerifyOverviewService()
+}
+
 private struct PassportOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any PassportOverviewServiceProtocol = MissingPassportOverviewService()
 }
@@ -163,6 +182,11 @@ extension EnvironmentValues {
     var careerOverviewService: any CareerOverviewServiceProtocol {
         get { self[CareerOverviewServiceKey.self] }
         set { self[CareerOverviewServiceKey.self] = newValue }
+    }
+
+    var verifyOverviewService: any VerifyOverviewServiceProtocol {
+        get { self[VerifyOverviewServiceKey.self] }
+        set { self[VerifyOverviewServiceKey.self] = newValue }
     }
 
     var passportOverviewService: any PassportOverviewServiceProtocol {
