@@ -1,22 +1,22 @@
 import Foundation
 
-enum CareerOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
+nonisolated enum CareerOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
     case populated
     case empty
     case loading
     case error
 }
 
-struct CareerOverviewState: Equatable, Sendable {
+nonisolated struct CareerOverviewState: Equatable, Sendable {
     let summary: CareerProfessionalSummary
     let dataSourceLabel: String
     let phase: CareerOverviewPhase
 
-    static func `default`(isDemoMode: Bool) -> CareerOverviewState {
+    nonisolated static func `default`(isDemoMode: Bool) -> CareerOverviewState {
         populatedFixture(dataSourceLabel: isDemoMode ? "Demo data" : "Preview data")
     }
 
-    static func populatedFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
+    nonisolated static func populatedFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
         CareerOverviewState(
             summary: .fixture,
             dataSourceLabel: dataSourceLabel,
@@ -101,7 +101,7 @@ struct CareerOverviewState: Equatable, Sendable {
         )
     }
 
-    static func emptyFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
+    nonisolated static func emptyFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
         CareerOverviewState(
             summary: .emptyFixture,
             dataSourceLabel: dataSourceLabel,
@@ -117,7 +117,7 @@ struct CareerOverviewState: Equatable, Sendable {
         )
     }
 
-    static func loadingFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
+    nonisolated static func loadingFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
         CareerOverviewState(
             summary: .fixture,
             dataSourceLabel: dataSourceLabel,
@@ -125,7 +125,7 @@ struct CareerOverviewState: Equatable, Sendable {
         )
     }
 
-    static func errorFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
+    nonisolated static func errorFixture(dataSourceLabel: String = "Demo data") -> CareerOverviewState {
         CareerOverviewState(
             summary: .fixture,
             dataSourceLabel: dataSourceLabel,
@@ -137,16 +137,58 @@ struct CareerOverviewState: Equatable, Sendable {
             )
         )
     }
+
+    nonisolated static func loading(
+        summary: CareerProfessionalSummary,
+        dataSourceLabel: String = "Live data"
+    ) -> CareerOverviewState {
+        CareerOverviewState(
+            summary: summary,
+            dataSourceLabel: dataSourceLabel,
+            phase: .loading
+        )
+    }
+
+    nonisolated static func error(
+        summary: CareerProfessionalSummary,
+        title: String,
+        message: String,
+        dataSourceLabel: String = "Live data"
+    ) -> CareerOverviewState {
+        CareerOverviewState(
+            summary: summary,
+            dataSourceLabel: dataSourceLabel,
+            phase: .error(
+                CareerOverviewErrorState(
+                    title: title,
+                    message: message
+                )
+            )
+        )
+    }
+
+    nonisolated static func live(
+        summary: CareerProfessionalSummary,
+        dataSourceLabel: String,
+        content: CareerOverviewContent,
+        isEmpty: Bool
+    ) -> CareerOverviewState {
+        CareerOverviewState(
+            summary: summary,
+            dataSourceLabel: dataSourceLabel,
+            phase: isEmpty ? .empty(content) : .populated(content)
+        )
+    }
 }
 
-enum CareerOverviewPhase: Equatable, Sendable {
+nonisolated enum CareerOverviewPhase: Equatable, Sendable {
     case loading
     case populated(CareerOverviewContent)
     case empty(CareerOverviewContent)
     case error(CareerOverviewErrorState)
 }
 
-enum CareerOverviewSection: String, CaseIterable, Equatable, Sendable {
+nonisolated enum CareerOverviewSection: String, CaseIterable, Equatable, Sendable {
     case professionalSummary
     case employment
     case education
@@ -172,19 +214,19 @@ enum CareerOverviewSection: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-enum CareerVerificationTone: Equatable, Sendable {
+nonisolated enum CareerVerificationTone: Equatable, Sendable {
     case success
     case pending
     case neutral
 }
 
-struct CareerVerificationBadgeStyle: Equatable, Sendable {
+nonisolated struct CareerVerificationBadgeStyle: Equatable, Sendable {
     let title: String
     let symbol: String
     let tone: CareerVerificationTone
 }
 
-enum CareerVerificationStatus: String, CaseIterable, Equatable, Sendable {
+nonisolated enum CareerVerificationStatus: String, CaseIterable, Equatable, Sendable {
     case verified
     case pendingVerification
     case notVerified
@@ -217,7 +259,7 @@ enum CareerVerificationStatus: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-struct CareerProfessionalSummary: Equatable, Sendable {
+nonisolated struct CareerProfessionalSummary: Equatable, Sendable {
     let initials: String
     let name: String
     let professionalHeadline: String
@@ -225,7 +267,7 @@ struct CareerProfessionalSummary: Equatable, Sendable {
     let currentLocation: String
     let trustPassportStatus: String
 
-    static let fixture = CareerProfessionalSummary(
+    nonisolated static let fixture = CareerProfessionalSummary(
         initials: "AA",
         name: "Aarav Anand",
         professionalHeadline: "Trust & Operations Associate",
@@ -234,7 +276,7 @@ struct CareerProfessionalSummary: Equatable, Sendable {
         trustPassportStatus: "Active"
     )
 
-    static let emptyFixture = CareerProfessionalSummary(
+    nonisolated static let emptyFixture = CareerProfessionalSummary(
         initials: "AA",
         name: "Aarav Anand",
         professionalHeadline: "Start shaping your verified professional history",
@@ -242,9 +284,18 @@ struct CareerProfessionalSummary: Equatable, Sendable {
         currentLocation: "Bengaluru, India",
         trustPassportStatus: "Ready"
     )
+
+    nonisolated static let placeholder = CareerProfessionalSummary(
+        initials: "KA",
+        name: "Kairo member",
+        professionalHeadline: "Preparing your professional history",
+        currentCompany: "Current company not added yet",
+        currentLocation: "Current location not added yet",
+        trustPassportStatus: "Preparing"
+    )
 }
 
-struct CareerOverviewContent: Equatable, Sendable {
+nonisolated struct CareerOverviewContent: Equatable, Sendable {
     let employment: [CareerEmploymentItem]
     let education: [CareerEducationItem]
     let certifications: [CareerCertificationItem]
@@ -278,7 +329,7 @@ struct CareerOverviewContent: Equatable, Sendable {
     }
 }
 
-struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
+nonisolated struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
     let company: String
     let role: String
     let dateRange: String
@@ -287,7 +338,7 @@ struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
     var id: String { "\(company)-\(role)" }
 }
 
-struct CareerEducationItem: Equatable, Identifiable, Sendable {
+nonisolated struct CareerEducationItem: Equatable, Identifiable, Sendable {
     let institution: String
     let degree: String
     let dateRange: String
@@ -296,7 +347,7 @@ struct CareerEducationItem: Equatable, Identifiable, Sendable {
     var id: String { "\(institution)-\(degree)" }
 }
 
-struct CareerCertificationItem: Equatable, Identifiable, Sendable {
+nonisolated struct CareerCertificationItem: Equatable, Identifiable, Sendable {
     let title: String
     let issuer: String
     let issueDate: String
@@ -305,7 +356,7 @@ struct CareerCertificationItem: Equatable, Identifiable, Sendable {
     var id: String { "\(title)-\(issuer)" }
 }
 
-struct CareerProjectItem: Equatable, Identifiable, Sendable {
+nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
     let title: String
     let role: String
     let duration: String
@@ -315,7 +366,7 @@ struct CareerProjectItem: Equatable, Identifiable, Sendable {
     var id: String { "\(title)-\(role)" }
 }
 
-struct CareerOverviewErrorState: Equatable, Sendable {
+nonisolated struct CareerOverviewErrorState: Equatable, Sendable {
     let title: String
     let message: String
 }

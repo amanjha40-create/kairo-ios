@@ -51,6 +51,7 @@ struct KairoApp: App {
                 .environment(\.tokenStore, dependencies.tokenStore)
                 .environment(\.authService, dependencies.authService)
                 .environment(\.homeOverviewService, dependencies.homeOverviewService)
+                .environment(\.careerOverviewService, dependencies.careerOverviewService)
         }
     }
 }

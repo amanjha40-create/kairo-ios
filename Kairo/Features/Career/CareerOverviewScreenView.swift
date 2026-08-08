@@ -2,22 +2,50 @@ import SwiftUI
 
 struct CareerOverviewScreenView: View {
     let state: CareerOverviewState
+    var retryAction: (() -> Void)?
+    var refreshAction: (() async -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var placeholderDestination: CareerPlaceholderDestination?
 
     var body: some View {
-        KairoScreenContainer(
-            title: "Career",
-            subtitle: "Build and manage your professional history.",
-            titleAccessibilityIdentifier: CandidateTab.career.titleAccessibilityIdentifier
-        ) {
-            summarySection
-            phaseContent
+        ZStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    titleSection
+                    summarySection
+                    phaseContent
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .refreshableIfAvailable(action: refreshAction)
         }
+        .background(
+            LinearGradient(
+                colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
         .accessibilityIdentifier(KairoAccessibilityID.careerScreen)
         .sheet(item: $placeholderDestination) { destination in
             CareerPlaceholderSheet(destination: destination)
+        }
+    }
+
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            Text("Career")
+                .font(KairoTypography.largeTitle)
+                .foregroundStyle(KairoColors.textPrimary)
+                .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
+
+            Text("Build and manage your professional history.")
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
         }
     }
 
@@ -136,7 +164,8 @@ struct CareerOverviewScreenView: View {
         case .error(let errorState):
             KairoErrorStateView(
                 title: errorState.title,
-                message: errorState.message
+                message: errorState.message,
+                retryAction: retryAction
             )
         case .populated(let content):
             populatedContent(content)
@@ -248,18 +277,22 @@ struct CareerOverviewScreenView: View {
                 action: { placeholderDestination = .addCertification }
             )
 
-            ForEach(items) { item in
-                KairoCard {
-                    careerItemHeader(
-                        title: item.title,
-                        subtitle: item.issuer,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No certifications added yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        careerItemHeader(
+                            title: item.title,
+                            subtitle: item.issuer,
+                            status: item.verificationStatus
+                        )
 
-                    careerMetadataValue(
-                        title: "Issue date",
-                        value: item.issueDate
-                    )
+                        careerMetadataValue(
+                            title: "Issue date",
+                            value: item.issueDate
+                        )
+                    }
                 }
             }
         }
@@ -275,25 +308,29 @@ struct CareerOverviewScreenView: View {
                 action: { placeholderDestination = .addProject }
             )
 
-            ForEach(items) { item in
-                KairoCard {
-                    careerItemHeader(
-                        title: item.title,
-                        subtitle: item.role,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No projects added yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        careerItemHeader(
+                            title: item.title,
+                            subtitle: item.role,
+                            status: item.verificationStatus
+                        )
 
-                    careerMetadataValue(
-                        title: "Duration",
-                        value: item.duration
-                    )
+                        careerMetadataValue(
+                            title: "Duration",
+                            value: item.duration
+                        )
 
-                    Button(item.portfolioLinkTitle) {
-                        placeholderDestination = .portfolioLink(item.title)
+                        Button(item.portfolioLinkTitle) {
+                            placeholderDestination = .portfolioLink(item.title)
+                        }
+                        .buttonStyle(.plain)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.brandPrimary)
                     }
-                    .buttonStyle(.plain)
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.brandPrimary)
                 }
             }
         }
@@ -314,7 +351,7 @@ struct CareerOverviewScreenView: View {
                     alignment: .leading,
                     spacing: KairoSpacing.small
                 ) {
-                    ForEach(skills, id: \.self) { skill in
+                    ForEach(Array(skills.enumerated()), id: \.offset) { _, skill in
                         Text(skill)
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textPrimary)
@@ -391,6 +428,28 @@ struct CareerOverviewScreenView: View {
                 .buttonStyle(.plain)
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.danger.opacity(0.9))
+        }
+    }
+
+    private func emptySectionCard(message: String) -> some View {
+        KairoCard {
+            Text(message)
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func refreshableIfAvailable(action: (() async -> Void)?) -> some View {
+        if let action {
+            refreshable {
+                await action()
+            }
+        } else {
+            self
         }
     }
 }

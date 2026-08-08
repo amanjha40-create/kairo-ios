@@ -71,6 +71,12 @@ private struct MissingHomeOverviewService: HomeOverviewServiceProtocol {
     }
 }
 
+private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
+    func loadOverview() async throws -> CareerOverview {
+        fatalError("Missing career overview service injection.")
+    }
+}
+
 private actor MissingTokenStore: TokenStore {
     func save(_ token: String, for key: TokenKey) async throws {
         _ = (token, key)
@@ -114,6 +120,10 @@ private struct HomeOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any HomeOverviewServiceProtocol = MissingHomeOverviewService()
 }
 
+private struct CareerOverviewServiceKey: EnvironmentKey {
+    static let defaultValue: any CareerOverviewServiceProtocol = MissingCareerOverviewService()
+}
+
 extension EnvironmentValues {
     var appConfiguration: AppConfiguration {
         get { self[AppConfigurationKey.self] }
@@ -138,5 +148,10 @@ extension EnvironmentValues {
     var homeOverviewService: any HomeOverviewServiceProtocol {
         get { self[HomeOverviewServiceKey.self] }
         set { self[HomeOverviewServiceKey.self] = newValue }
+    }
+
+    var careerOverviewService: any CareerOverviewServiceProtocol {
+        get { self[CareerOverviewServiceKey.self] }
+        set { self[CareerOverviewServiceKey.self] = newValue }
     }
 }

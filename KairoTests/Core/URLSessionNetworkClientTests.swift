@@ -24,4 +24,17 @@ final class URLSessionNetworkClientTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
         XCTAssertEqual(request.httpBody, Data("payload".utf8))
     }
+
+    func test_makeURLRequestPreservesExplicitTrailingSlash() throws {
+        let client = URLSessionNetworkClient(
+            baseURL: URL(string: "https://example.com/api/v1")!,
+            session: .shared
+        )
+
+        let request = try client.makeURLRequest(
+            for: NetworkRequest(path: "/employments/")
+        )
+
+        XCTAssertEqual(request.url?.absoluteString, "https://example.com/api/v1/employments/")
+    }
 }

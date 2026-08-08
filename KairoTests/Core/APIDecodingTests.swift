@@ -374,6 +374,173 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(response.recentActivity.first?.category, .verification)
     }
 
+    func test_careerEmploymentDTODecodesFrozenBackendShape() throws {
+        let data = Data(
+            """
+            {
+              "items": [
+                {
+                  "id": "employment_1",
+                  "subject_full_name": "Aarav Mehta",
+                  "subject_email": "aarav@example.com",
+                  "employer_legal_name": "Northline Career Services",
+                  "employer_trade_name": null,
+                  "job_title": "Trust & Operations Associate",
+                  "employment_type": "full_time",
+                  "start_date": "2024-01-01",
+                  "end_date": null,
+                  "work_location_country": "India",
+                  "work_location_region": "Karnataka",
+                  "verification_method": "document",
+                  "verification_status": "approved",
+                  "submitted_at": "2026-07-31T09:00:00Z",
+                  "reviewed_at": null,
+                  "assigned_reviewer_user_id": null,
+                  "assigned_at": null,
+                  "created_at": "2026-07-31T08:00:00Z",
+                  "updated_at": "2026-07-31T08:30:00Z"
+                }
+              ],
+              "total": 1,
+              "page": 1,
+              "page_size": 20,
+              "total_pages": 1,
+              "offset": 0,
+              "limit": 20
+            }
+            """.utf8
+        )
+
+        let page = try APIJSONCoder.makeDecoder().decode(
+            CareerCollectionEnvelopeDTO<CareerEmploymentDTO>.self,
+            from: data
+        )
+        let employment = try XCTUnwrap(page.items.first)
+
+        XCTAssertEqual(employment.id, "employment_1")
+        XCTAssertEqual(employment.employerLegalName, "Northline Career Services")
+        XCTAssertNil(employment.employerTradeName)
+        XCTAssertEqual(employment.companyDisplayName, "Northline Career Services")
+        XCTAssertEqual(employment.jobTitle, "Trust & Operations Associate")
+        XCTAssertEqual(employment.employmentType, "full_time")
+        XCTAssertEqual(employment.startDate, makeUTCDate(year: 2024, month: 1, day: 1))
+        XCTAssertNil(employment.endDate)
+        XCTAssertTrue(employment.currentlyWorking)
+        XCTAssertEqual(employment.verificationStatus, "approved")
+    }
+
+    func test_careerCollectionEnvelopeDecodesArrayAndEmptyPageShapes() throws {
+        let skillsData = Data(
+            """
+            [
+              {
+                "id": "skill_1",
+                "user_id": "user_123",
+                "name": "Trust Operations",
+                "verification_status": "verified"
+              },
+              {
+                "id": "skill_2",
+                "user_id": "user_123",
+                "name": "Employment Verification",
+                "verification_status": "pending_verification"
+              }
+            ]
+            """.utf8
+        )
+        let data = Data(
+            """
+            {
+              "items": [],
+              "total": 0,
+              "page": 1,
+              "page_size": 20,
+              "total_pages": 0,
+              "offset": 0,
+              "limit": 20
+            }
+            """.utf8
+        )
+
+        let skills = try APIJSONCoder.makeDecoder()
+            .decode([CareerSkillDTO].self, from: skillsData)
+        let emptyCertifications = try APIJSONCoder.makeDecoder()
+            .decode(CareerCollectionEnvelopeDTO<CareerCertificationDTO>.self, from: data)
+
+        XCTAssertEqual(skills.count, 2)
+        XCTAssertEqual(skills.first?.id, "skill_1")
+        XCTAssertEqual(skills.first?.name, "Trust Operations")
+        XCTAssertEqual(skills.first?.verificationStatus, "verified")
+        XCTAssertEqual(skills.last?.id, "skill_2")
+        XCTAssertEqual(skills.last?.name, "Employment Verification")
+        XCTAssertEqual(skills.last?.verificationStatus, "pending_verification")
+        XCTAssertEqual(emptyCertifications.items, [])
+    }
+
+    func test_careerEducationDTODecodesFrozenBackendShape() throws {
+        let data = Data(
+            """
+            {
+              "items": [
+                {
+                  "id": "education_1",
+                  "user_id": "user_123",
+                  "institution_name": "Christ University",
+                  "degree": "BBA",
+                  "field_of_study": "Human Resources & Operations",
+                  "education_level": "bachelors",
+                  "grade": null,
+                  "start_date": "2016-06-01",
+                  "start_date_precision": "month",
+                  "end_date": "2019-05-01",
+                  "end_date_precision": "month",
+                  "is_currently_studying": false,
+                  "verification_status": "verified",
+                  "submitted_at": null,
+                  "reviewed_at": null,
+                  "reviewed_by_user_id": null,
+                  "reviewer_note": null,
+                  "created_at": "2026-07-31T08:00:00Z",
+                  "updated_at": "2026-07-31T08:30:00Z"
+                }
+              ],
+              "total": 1,
+              "page": 1,
+              "page_size": 20,
+              "total_pages": 1,
+              "offset": 0,
+              "limit": 20
+            }
+            """.utf8
+        )
+
+        let page = try APIJSONCoder.makeDecoder().decode(
+            CareerCollectionEnvelopeDTO<CareerEducationDTO>.self,
+            from: data
+        )
+        let education = try XCTUnwrap(page.items.first)
+
+        XCTAssertEqual(education.id, "education_1")
+        XCTAssertEqual(education.institutionName, "Christ University")
+        XCTAssertEqual(education.degree, "BBA")
+        XCTAssertEqual(education.fieldOfStudy, "Human Resources & Operations")
+        XCTAssertEqual(education.educationLevel, "bachelors")
+        XCTAssertEqual(education.startDate, makeUTCDate(year: 2016, month: 6, day: 1))
+        XCTAssertEqual(education.startDatePrecision, "month")
+        XCTAssertEqual(education.endDate, makeUTCDate(year: 2019, month: 5, day: 1))
+        XCTAssertEqual(education.endDatePrecision, "month")
+        XCTAssertFalse(education.isCurrentlyStudying)
+        XCTAssertEqual(education.verificationStatus, "verified")
+    }
+
+    func test_emptyProjectsArrayDecodesSuccessfully() throws {
+        let data = Data("[]".utf8)
+
+        let projects = try APIJSONCoder.makeDecoder().decode([CareerProjectDTO].self, from: data)
+
+        XCTAssertEqual(projects, [])
+    }
+
     private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)
