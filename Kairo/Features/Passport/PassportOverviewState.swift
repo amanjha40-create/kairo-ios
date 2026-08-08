@@ -21,12 +21,14 @@ struct PassportOverviewState: Equatable, Sendable {
             phase: .populated(
                 PassportOverviewContent(
                     dataSourceLabel: dataSourceLabel,
-                    trustScore: PassportTrustScore(
-                        value: 72,
-                        status: "Building strong trust",
-                        progress: 0.72,
-                        supportingCopy: "Your Trust Passport grows stronger as more of your professional history is verified.",
-                        isFixture: true
+                    trustScore: .available(
+                        PassportTrustScore(
+                            value: 72,
+                            status: "Building strong trust",
+                            progress: 0.72,
+                            supportingCopy: "Your Trust Passport grows stronger as more of your professional history is verified.",
+                            isFixture: true
+                        )
                     ),
                     strengthSummary: [
                         PassportStrengthItem(title: "Identity", value: "Verified", status: .verified),
@@ -81,13 +83,13 @@ struct PassportOverviewState: Equatable, Sendable {
                             portfolioLinkTitle: "Portfolio link placeholder"
                         )
                     ],
-                    timeline: [
+                    timeline: .available([
                         PassportTimelineEvent(title: "Identity verified", dateLabel: "1 Aug 2026"),
                         PassportTimelineEvent(title: "Email verified", dateLabel: "1 Aug 2026"),
                         PassportTimelineEvent(title: "Mobile verified", dateLabel: "1 Aug 2026"),
                         PassportTimelineEvent(title: "Employment verified", dateLabel: "30 Jul 2026"),
                         PassportTimelineEvent(title: "Trust Passport created", dateLabel: "29 Jul 2026")
-                    ]
+                    ])
                 )
             )
         )
@@ -123,6 +125,48 @@ struct PassportOverviewState: Equatable, Sendable {
                 )
             )
         )
+    }
+
+    static func loading(header: PassportHeader) -> PassportOverviewState {
+        PassportOverviewState(header: header, phase: .loading)
+    }
+
+    static func error(
+        header: PassportHeader,
+        title: String,
+        message: String
+    ) -> PassportOverviewState {
+        PassportOverviewState(
+            header: header,
+            phase: .error(
+                PassportOverviewErrorState(
+                    title: title,
+                    message: message
+                )
+            )
+        )
+    }
+
+    static func live(
+        header: PassportHeader,
+        dataSourceLabel: String,
+        content: PassportOverviewContent,
+        isEmpty: Bool
+    ) -> PassportOverviewState {
+        if isEmpty {
+            return PassportOverviewState(
+                header: header,
+                phase: .empty(
+                    PassportOverviewEmptyContent(
+                        dataSourceLabel: dataSourceLabel,
+                        title: "Your Trust Passport is taking shape.",
+                        message: "Add and verify your professional history to build a Passport you can reuse throughout your career."
+                    )
+                )
+            )
+        }
+
+        return PassportOverviewState(header: header, phase: .populated(content))
     }
 }
 
@@ -188,6 +232,7 @@ struct PassportHeader: Equatable, Sendable {
     let location: String
     let status: PassportVerificationStatus
     let identityTreatment: String
+    let avatarURL: URL?
 
     static let fixture = PassportHeader(
         initials: "AM",
@@ -195,20 +240,21 @@ struct PassportHeader: Equatable, Sendable {
         professionalHeadline: "Product Operations Manager",
         location: "Bengaluru, India",
         status: .active,
-        identityTreatment: "Reusable professional identity"
+        identityTreatment: "Reusable professional identity",
+        avatarURL: nil
     )
 }
 
 struct PassportOverviewContent: Equatable, Sendable {
     let dataSourceLabel: String
-    let trustScore: PassportTrustScore
+    let trustScore: PassportTrustScoreContent
     let strengthSummary: [PassportStrengthItem]
     let identity: PassportIdentityDetails
     let employment: [PassportEmploymentRecord]
     let education: [PassportEducationRecord]
     let certifications: [PassportCertificationRecord]
     let projects: [PassportProjectRecord]
-    let timeline: [PassportTimelineEvent]
+    let timeline: PassportTimelineContent
 
     var visibleSections: [PassportOverviewSection] {
         [
@@ -231,12 +277,22 @@ struct PassportOverviewEmptyContent: Equatable, Sendable {
     let message: String
 }
 
+enum PassportTrustScoreContent: Equatable, Sendable {
+    case available(PassportTrustScore)
+    case unavailable(PassportTrustScoreUnavailableState)
+}
+
 struct PassportTrustScore: Equatable, Sendable {
     let value: Int
     let status: String
     let progress: Double
     let supportingCopy: String
     let isFixture: Bool
+}
+
+struct PassportTrustScoreUnavailableState: Equatable, Sendable {
+    let title: String
+    let message: String
 }
 
 struct PassportStrengthItem: Equatable, Identifiable, Sendable {
@@ -303,11 +359,21 @@ struct PassportProjectRecord: Equatable, Identifiable, Sendable {
     var id: String { "\(title)-\(role)" }
 }
 
+enum PassportTimelineContent: Equatable, Sendable {
+    case available([PassportTimelineEvent])
+    case unavailable(PassportUnavailableSectionState)
+}
+
 struct PassportTimelineEvent: Equatable, Identifiable, Sendable {
     let title: String
     let dateLabel: String
 
     var id: String { "\(title)-\(dateLabel)" }
+}
+
+struct PassportUnavailableSectionState: Equatable, Sendable {
+    let title: String
+    let message: String
 }
 
 struct PassportOverviewErrorState: Equatable, Sendable {

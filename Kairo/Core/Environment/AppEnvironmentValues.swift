@@ -77,6 +77,12 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
     }
 }
 
+private struct MissingPassportOverviewService: PassportOverviewServiceProtocol {
+    func loadOverview() async throws -> PassportOverview {
+        fatalError("Missing Passport overview service injection.")
+    }
+}
+
 private actor MissingTokenStore: TokenStore {
     func save(_ token: String, for key: TokenKey) async throws {
         _ = (token, key)
@@ -124,6 +130,10 @@ private struct CareerOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any CareerOverviewServiceProtocol = MissingCareerOverviewService()
 }
 
+private struct PassportOverviewServiceKey: EnvironmentKey {
+    static let defaultValue: any PassportOverviewServiceProtocol = MissingPassportOverviewService()
+}
+
 extension EnvironmentValues {
     var appConfiguration: AppConfiguration {
         get { self[AppConfigurationKey.self] }
@@ -153,5 +163,10 @@ extension EnvironmentValues {
     var careerOverviewService: any CareerOverviewServiceProtocol {
         get { self[CareerOverviewServiceKey.self] }
         set { self[CareerOverviewServiceKey.self] = newValue }
+    }
+
+    var passportOverviewService: any PassportOverviewServiceProtocol {
+        get { self[PassportOverviewServiceKey.self] }
+        set { self[PassportOverviewServiceKey.self] = newValue }
     }
 }

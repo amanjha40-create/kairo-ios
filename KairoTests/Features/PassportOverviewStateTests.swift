@@ -10,14 +10,22 @@ final class PassportOverviewStateTests: XCTestCase {
             return XCTFail("Expected populated state")
         }
 
+        guard case .available(let trustScore) = content.trustScore else {
+            return XCTFail("Expected available fixture trust score")
+        }
+
+        guard case .available(let timeline) = content.timeline else {
+            return XCTFail("Expected available fixture timeline")
+        }
+
         XCTAssertEqual(state.header.name, "Aarav Mehta")
-        XCTAssertEqual(content.trustScore.value, 72)
+        XCTAssertEqual(trustScore.value, 72)
         XCTAssertEqual(content.strengthSummary.count, 7)
         XCTAssertEqual(content.employment.count, 2)
         XCTAssertEqual(content.education.count, 1)
         XCTAssertEqual(content.certifications.count, 1)
         XCTAssertEqual(content.projects.count, 1)
-        XCTAssertEqual(content.timeline.count, 5)
+        XCTAssertEqual(timeline.count, 5)
         XCTAssertEqual(content.visibleSections, [
             .trustScore,
             .passportStrength,
@@ -89,9 +97,13 @@ final class PassportOverviewStateTests: XCTestCase {
             return XCTFail("Expected populated state")
         }
 
-        XCTAssertTrue(content.trustScore.isFixture)
-        XCTAssertEqual(content.trustScore.progress, 0.72)
-        XCTAssertEqual(content.trustScore.status, "Building strong trust")
+        guard case .available(let trustScore) = content.trustScore else {
+            return XCTFail("Expected available fixture trust score")
+        }
+
+        XCTAssertTrue(trustScore.isFixture)
+        XCTAssertEqual(trustScore.progress, 0.72)
+        XCTAssertEqual(trustScore.status, "Building strong trust")
     }
 
     func test_strengthSummaryCapturesExpectedTrustFoundation() {
@@ -110,5 +122,58 @@ final class PassportOverviewStateTests: XCTestCase {
         ])
         XCTAssertEqual(content.strengthSummary.first?.status, .verified)
         XCTAssertEqual(content.strengthSummary.last?.status, .complete)
+    }
+
+    func test_liveStateSupportsHonestUnavailableTrustScoreAndTimeline() {
+        let state = PassportOverviewState.live(
+            header: .fixture,
+            dataSourceLabel: "Live data",
+            content: PassportOverviewContent(
+                dataSourceLabel: "Live data",
+                trustScore: .unavailable(
+                    PassportTrustScoreUnavailableState(
+                        title: "Consent required",
+                        message: "Kairo needs your consent before it can calculate and share your Trust Score."
+                    )
+                ),
+                strengthSummary: [],
+                identity: .fixture,
+                employment: [
+                    PassportEmploymentRecord(
+                        company: "Kairo",
+                        role: "Lead",
+                        dateRange: "Jan 2026 – Present",
+                        verificationStatus: .verified,
+                        evidenceSummary: "1 supporting document on file."
+                    )
+                ],
+                education: [],
+                certifications: [],
+                projects: [],
+                timeline: .unavailable(
+                    PassportUnavailableSectionState(
+                        title: "Trust timeline not available yet",
+                        message: "No unified owner Passport timeline is available."
+                    )
+                )
+            ),
+            isEmpty: false
+        )
+
+        guard case .populated(let content) = state.phase else {
+            return XCTFail("Expected populated state")
+        }
+
+        guard case .unavailable(let trustScore) = content.trustScore else {
+            return XCTFail("Expected unavailable live trust score")
+        }
+
+        guard case .unavailable(let timeline) = content.timeline else {
+            return XCTFail("Expected unavailable timeline state")
+        }
+
+        XCTAssertEqual(trustScore.title, "Consent required")
+        XCTAssertTrue(trustScore.message.contains("consent"))
+        XCTAssertTrue(timeline.message.contains("timeline"))
     }
 }

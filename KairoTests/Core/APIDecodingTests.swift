@@ -541,6 +541,300 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(projects, [])
     }
 
+    func test_ownerPassportResponseDTODecodesFrozenBackendShapeWithLegitimateEmptySections() throws {
+        let data = Data(
+            """
+            {
+              "profile": {
+                "id": "user_123",
+                "email": "aarav@example.com",
+                "full_name": "Aarav Mehta",
+                "profile_slug": "aarav-mehta",
+                "phone": "+919876543210",
+                "current_role": "Trust Operations Lead",
+                "location": "Bengaluru, India",
+                "location_city": "Bengaluru",
+                "location_country": "India",
+                "headline": "Trust Operations Lead",
+                "avatar_url": "https://cdn.example.com/avatar.png",
+                "role": "user",
+                "is_active": true,
+                "phone_verified_at": "2026-08-01T10:15:30Z",
+                "email_verified_at": "2026-08-01T10:14:10Z",
+                "employment_onboarding_completed_at": "2026-08-01T10:20:00Z",
+                "languages": [],
+                "professional_links": [],
+                "profile_completion_percentage": 100,
+                "created_at": "2026-07-30T08:00:00Z"
+              },
+              "trust_score": {
+                "overall": 81,
+                "breakdown": {
+                  "identity": 1.0,
+                  "employment": 0.75,
+                  "education": 0.5
+                },
+                "domain_details": {
+                  "employment": {
+                    "score": 61.0,
+                    "verification_points": 70.0,
+                    "fraud_deduction": 9.0,
+                    "weight": 0.35,
+                    "positive_contributors": [],
+                    "negative_contributors": []
+                  }
+                },
+                "status": "calculated",
+                "positive_contributors": [],
+                "negative_contributors": [],
+                "critical_overrides": [],
+                "manual_review_reason": null,
+                "score_version": "v1",
+                "last_calculated_at": "2026-08-02T07:00:00Z",
+                "verification_completeness_percentage": 68,
+                "week_change": 4
+              },
+              "vault": {
+                "employments": [
+                  {
+                    "id": "employment_1",
+                    "employer_legal_name": "Northline Career Services",
+                    "job_title": "Trust Operations Associate",
+                    "start_date": "2024-01-01",
+                    "end_date": null,
+                    "verification_status": "verified",
+                    "verification_method": "document_review",
+                    "documents": [
+                      {
+                        "id": "document_1",
+                        "document_type": "employment_letter",
+                        "original_filename": "employment-letter.pdf",
+                        "byte_size": 152000,
+                        "verification_status": "verified"
+                      }
+                    ]
+                  }
+                ],
+                "educations": [
+                  {
+                    "id": "education_1",
+                    "institution_name": "Christ University",
+                    "degree": "BBA",
+                    "field_of_study": "Human Resources & Operations",
+                    "education_level": "bachelors",
+                    "grade": null,
+                    "start_date": "2016-06-01",
+                    "start_date_precision": "month",
+                    "end_date": "2019-05-01",
+                    "end_date_precision": "month",
+                    "is_currently_studying": false,
+                    "verification_status": "verified"
+                  }
+                ],
+                "internships": [],
+                "freelance": [],
+                "gig_platforms": [],
+                "portfolio": [],
+                "certifications": [],
+                "skills": [
+                  {
+                    "name": "Trust Operations",
+                    "verification_status": "verified"
+                  }
+                ],
+                "projects": [],
+                "user_documents": []
+              },
+              "passport_metadata": {
+                "owner_user_id": "user_123",
+                "profile_slug": "aarav-mehta",
+                "is_email_verified": true,
+                "is_onboarding_complete": true,
+                "created_at": "2026-07-30T08:00:00Z",
+                "updated_at": "2026-08-02T07:00:00Z",
+                "employment_onboarding_completed_at": "2026-08-01T10:20:00Z"
+              },
+              "sharing_summary": {
+                "total_links": 0,
+                "active_links": 0,
+                "revoked_links": 0,
+                "expired_links": 0,
+                "total_views": 0,
+                "unique_views": 0,
+                "latest_share_created_at": null,
+                "last_viewed_at": null
+              },
+              "verification_summary": {
+                "overall": { "total": 2, "statuses": { "verified": 2 } },
+                "employments": { "total": 1, "statuses": { "verified": 1 } },
+                "educations": { "total": 1, "statuses": { "verified": 1 } },
+                "internships": { "total": 0, "statuses": {} },
+                "freelance": { "total": 0, "statuses": {} },
+                "gig_platforms": { "total": 0, "statuses": {} },
+                "portfolio": { "total": 0, "statuses": {} },
+                "certifications": { "total": 0, "statuses": {} },
+                "skills": { "total": 1, "statuses": { "verified": 1 } },
+                "projects": { "total": 0, "statuses": {} },
+                "user_documents": { "total": 0, "statuses": {} }
+              }
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(OwnerPassportResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.profile.email, "aarav@example.com")
+        XCTAssertEqual(response.trustScore.overall, 81)
+        XCTAssertEqual(response.trustScore.status, .calculated)
+        XCTAssertEqual(response.vault.employments.first?.employerLegalName, "Northline Career Services")
+        XCTAssertEqual(response.vault.educations.first?.startDatePrecision, "month")
+        XCTAssertEqual(response.vault.certifications, [])
+        XCTAssertEqual(response.vault.projects, [])
+        XCTAssertEqual(response.vault.skills.first?.name, "Trust Operations")
+        XCTAssertTrue(response.passportMetadata.isOnboardingComplete)
+        XCTAssertEqual(response.sharingSummary.totalLinks, 0)
+        XCTAssertEqual(response.verificationSummary.certifications.total, 0)
+        XCTAssertEqual(response.verificationSummary.projects.total, 0)
+    }
+
+    func test_ownerPassportResponseDTODecodesSparseLiveShapedPayload() throws {
+        let data = Data(
+            """
+            {
+              "profile": {
+                "id": "user_sparse_123",
+                "email": "candidate@example.com",
+                "full_name": "Candidate Example",
+                "profile_slug": "candidate-example",
+                "phone": "+919876543210",
+                "current_role": null,
+                "industry": null,
+                "years_of_experience": null,
+                "location": "Mumbai, Maharashtra, India",
+                "location_city": null,
+                "location_region": null,
+                "location_country": null,
+                "headline": "Corporate development professional",
+                "bio": null,
+                "date_of_birth": null,
+                "avatar_url": null,
+                "role": "user",
+                "is_active": true,
+                "phone_verified_at": "2026-08-01T10:15:30Z",
+                "email_verified_at": "2026-08-01T10:14:10Z",
+                "employment_onboarding_completed_at": "2026-08-01T10:20:00Z",
+                "languages": [],
+                "professional_links": [],
+                "profile_completion_percentage": 100,
+                "created_at": "2026-07-30T08:00:00Z"
+              },
+              "trust_score": {
+                "status": "incomplete_verification",
+                "positive_contributors": [],
+                "negative_contributors": [],
+                "critical_overrides": [],
+                "manual_review_reason": null,
+                "score_version": "v1",
+                "last_calculated_at": null,
+                "verification_completeness_percentage": 30,
+                "week_change": 0
+              },
+              "vault": {
+                "employments": [
+                  {
+                    "id": "employment_sparse_1",
+                    "employer_legal_name": "Example Capital",
+                    "job_title": "Analyst",
+                    "start_date": null,
+                    "end_date": null,
+                    "verification_status": "pending_verification",
+                    "verification_method": "document_review",
+                    "documents": []
+                  }
+                ],
+                "educations": [
+                  {
+                    "id": "education_sparse_1",
+                    "institution_name": "Example University",
+                    "degree": "BBA",
+                    "field_of_study": null,
+                    "education_level": null,
+                    "grade": null,
+                    "start_date": null,
+                    "start_date_precision": null,
+                    "end_date": null,
+                    "end_date_precision": null,
+                    "is_currently_studying": false,
+                    "verification_status": "verified"
+                  }
+                ],
+                "internships": [],
+                "freelance": [],
+                "gig_platforms": [],
+                "portfolio": [],
+                "certifications": [],
+                "skills": [
+                  {
+                    "name": "Financial Analysis",
+                    "verification_status": "verified"
+                  }
+                ],
+                "projects": [],
+                "user_documents": []
+              },
+              "passport_metadata": {
+                "owner_user_id": "user_sparse_123",
+                "profile_slug": "candidate-example",
+                "is_email_verified": true,
+                "is_onboarding_complete": true,
+                "created_at": "2026-07-30T08:00:00Z",
+                "updated_at": "2026-08-02T07:00:00Z",
+                "employment_onboarding_completed_at": "2026-08-01T10:20:00Z"
+              },
+              "sharing_summary": {
+                "total_links": 0,
+                "active_links": 0,
+                "revoked_links": 0,
+                "expired_links": 0,
+                "total_views": 0,
+                "unique_views": 0,
+                "latest_share_created_at": null,
+                "last_viewed_at": null
+              },
+              "verification_summary": {
+                "overall": { "total": 2, "statuses": { "verified": 1, "pending_verification": 1 } },
+                "employments": { "total": 1, "statuses": { "pending_verification": 1 } },
+                "educations": { "total": 1, "statuses": { "verified": 1 } },
+                "internships": { "total": 0, "statuses": {} },
+                "freelance": { "total": 0, "statuses": {} },
+                "gig_platforms": { "total": 0, "statuses": {} },
+                "portfolio": { "total": 0, "statuses": {} },
+                "certifications": { "total": 0, "statuses": {} },
+                "skills": { "total": 1, "statuses": { "verified": 1 } },
+                "projects": { "total": 0, "statuses": {} },
+                "user_documents": { "total": 0, "statuses": {} }
+              }
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(OwnerPassportResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.profile.currentRole, nil)
+        XCTAssertEqual(response.profile.avatarURL, nil)
+        XCTAssertNil(response.trustScore.overall)
+        XCTAssertEqual(response.trustScore.status, .incompleteVerification)
+        XCTAssertEqual(response.vault.employments.first?.startDate, nil)
+        XCTAssertEqual(response.vault.educations.first?.fieldOfStudy, nil)
+        XCTAssertEqual(response.vault.certifications, [])
+        XCTAssertEqual(response.vault.projects, [])
+        XCTAssertEqual(response.vault.userDocuments, [])
+        XCTAssertEqual(response.passportMetadata.ownerUserId, "user_sparse_123")
+        XCTAssertNil(response.sharingSummary.latestShareCreatedAt)
+        XCTAssertNil(response.sharingSummary.lastViewedAt)
+        XCTAssertEqual(response.verificationSummary.projects.total, 0)
+    }
+
     private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

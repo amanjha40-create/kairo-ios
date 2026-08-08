@@ -2,17 +2,20 @@ import SwiftUI
 
 struct PassportOverviewScreenView: View {
     let state: PassportOverviewState
+    var retryAction: (() -> Void)?
+    var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
     @State private var modalDestination: PassportModalDestination?
 
     var body: some View {
         screenContent
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.passportScreen)
-        .sheet(item: $modalDestination) { destination in
-            PassportPlaceholderSheet(destination: destination)
-        }
+            .refreshableIfAvailable(action: refreshAction)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(KairoAccessibilityID.passportScreen)
+            .sheet(item: $modalDestination) { destination in
+                PassportPlaceholderSheet(destination: destination)
+            }
     }
 
     @ViewBuilder
@@ -78,7 +81,35 @@ struct PassportOverviewScreenView: View {
         .accessibilityIdentifier(KairoAccessibilityID.passportHeader)
     }
 
+    @ViewBuilder
     private var profilePlaceholder: some View {
+        if let avatarURL = state.header.avatarURL {
+            AsyncImage(url: avatarURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    profileMonogram
+                }
+            }
+            .frame(width: 68, height: 68)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(KairoColors.border, lineWidth: 1)
+            )
+            .accessibilityElement()
+            .accessibilityLabel("Profile image for \(state.header.name)")
+        } else {
+            profileMonogram
+                .accessibilityElement()
+                .accessibilityLabel("Profile placeholder for \(state.header.name)")
+        }
+    }
+
+    private var profileMonogram: some View {
         ZStack {
             Circle()
                 .fill(KairoColors.surfaceMuted)
@@ -92,8 +123,6 @@ struct PassportOverviewScreenView: View {
             Circle()
                 .stroke(KairoColors.border, lineWidth: 1)
         )
-        .accessibilityElement()
-        .accessibilityLabel("Profile placeholder for \(state.header.name)")
     }
 
     private var headerCopy: some View {
@@ -130,7 +159,8 @@ struct PassportOverviewScreenView: View {
         case .error(let errorState):
             KairoErrorStateView(
                 title: errorState.title,
-                message: errorState.message
+                message: errorState.message,
+                retryAction: retryAction
             )
         case .empty:
             EmptyView()
@@ -182,7 +212,7 @@ struct PassportOverviewScreenView: View {
         }
     }
 
-    private func trustScoreCard(_ trustScore: PassportTrustScore, dataSourceLabel: String) -> some View {
+    private func trustScoreCard(_ trustScoreContent: PassportTrustScoreContent, dataSourceLabel: String) -> some View {
         KairoCard {
             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                 HStack(alignment: .center, spacing: KairoSpacing.small) {
@@ -195,26 +225,41 @@ struct PassportOverviewScreenView: View {
                     PassportDataSourceBadge(title: dataSourceLabel)
                 }
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: KairoSpacing.large) {
-                        trustScoreValue(trustScore)
-                        trustScoreNarrative(trustScore)
+                switch trustScoreContent {
+                case .available(let trustScore):
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: KairoSpacing.large) {
+                            trustScoreValue(trustScore)
+                            trustScoreNarrative(trustScore.supportingCopy)
+                        }
+
+                        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                            trustScoreValue(trustScore)
+                            trustScoreNarrative(trustScore.supportingCopy)
+                        }
                     }
 
-                    VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                        trustScoreValue(trustScore)
-                        trustScoreNarrative(trustScore)
+                    ProgressView(value: trustScore.progress)
+                        .tint(KairoColors.brandPrimary)
+                        .progressViewStyle(.linear)
+
+                    if trustScore.isFixture {
+                        Text("Fixture/demo score")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
                     }
-                }
+                case .unavailable(let unavailableState):
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: KairoSpacing.large) {
+                            trustScoreUnavailableValue(unavailableState)
+                            trustScoreNarrative(unavailableState.message)
+                        }
 
-                ProgressView(value: trustScore.progress)
-                    .tint(KairoColors.brandPrimary)
-                    .progressViewStyle(.linear)
-
-                if trustScore.isFixture {
-                    Text("Fixture/demo score")
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
+                        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                            trustScoreUnavailableValue(unavailableState)
+                            trustScoreNarrative(unavailableState.message)
+                        }
+                    }
                 }
 
                 PassportInlineButton(
@@ -242,8 +287,23 @@ struct PassportOverviewScreenView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func trustScoreNarrative(_ trustScore: PassportTrustScore) -> some View {
-        Text(trustScore.supportingCopy)
+    private func trustScoreUnavailableValue(_ unavailableState: PassportTrustScoreUnavailableState) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+            Text("No score yet")
+                .font(KairoTypography.title)
+                .foregroundStyle(KairoColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(unavailableState.title)
+                .font(KairoTypography.headline)
+                .foregroundStyle(KairoColors.accent)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func trustScoreNarrative(_ supportingCopy: String) -> some View {
+        Text(supportingCopy)
             .font(KairoTypography.body)
             .foregroundStyle(KairoColors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -293,8 +353,8 @@ struct PassportOverviewScreenView: View {
 
             KairoCard {
                 identityRow(title: "Full name", value: identity.fullName)
-                identityRow(title: "Verified email", value: identity.emailAddress)
-                identityRow(title: "Verified mobile", value: identity.mobileNumber)
+                identityRow(title: "Email", value: identity.emailAddress)
+                identityRow(title: "Mobile", value: identity.mobileNumber)
                 identityRow(title: "Identity status", value: identity.status.style.title)
                 identityRow(title: "Last verified", value: identity.lastVerifiedDate)
             }
@@ -366,16 +426,20 @@ struct PassportOverviewScreenView: View {
             title: "Certifications",
             accessibilityIdentifier: KairoAccessibilityID.passportCertificationsSection
         ) {
-            ForEach(items) { item in
-                KairoCard {
-                    passportRecordHeader(
-                        title: item.title,
-                        subtitle: item.issuer,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No certifications in your Trust Passport yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        passportRecordHeader(
+                            title: item.title,
+                            subtitle: item.issuer,
+                            status: item.verificationStatus
+                        )
 
-                    passportRecordMeta(title: "Issue date", value: item.issueDate)
-                    passportRecordMeta(title: "Evidence", value: item.evidenceSummary)
+                        passportRecordMeta(title: "Issue date", value: item.issueDate)
+                        passportRecordMeta(title: "Evidence", value: item.evidenceSummary)
+                    }
                 }
             }
         }
@@ -386,59 +450,77 @@ struct PassportOverviewScreenView: View {
             title: "Projects & Portfolio",
             accessibilityIdentifier: KairoAccessibilityID.passportProjectsSection
         ) {
-            ForEach(items) { item in
-                KairoCard {
-                    Text(item.title)
-                        .font(KairoTypography.title2)
-                        .foregroundStyle(KairoColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+            if items.isEmpty {
+                emptySectionCard(message: "No projects in your Trust Passport yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        Text(item.title)
+                            .font(KairoTypography.title2)
+                            .foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    passportRecordMeta(title: "Role", value: item.role)
-                    passportRecordMeta(title: "Date", value: item.date)
-                    passportRecordMeta(title: "Evidence", value: item.evidenceStatus)
-                    passportRecordMeta(title: "Portfolio", value: item.portfolioLinkTitle)
+                        passportRecordMeta(title: "Role", value: item.role)
+                        passportRecordMeta(title: "Date", value: item.date)
+                        passportRecordMeta(title: "Evidence", value: item.evidenceStatus)
+                        passportRecordMeta(title: "Portfolio", value: item.portfolioLinkTitle)
+                    }
                 }
             }
         }
     }
 
-    private func trustTimelineSection(_ items: [PassportTimelineEvent]) -> some View {
+    private func trustTimelineSection(_ timeline: PassportTimelineContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             PassportSectionTitle(
                 title: "Trust timeline",
                 accessibilityIdentifier: KairoAccessibilityID.passportTimelineSection
             )
 
-            KairoCard {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        VStack(spacing: 0) {
-                            Circle()
-                                .fill(KairoColors.accent)
-                                .frame(width: 8, height: 8)
+            switch timeline {
+            case .available(let items):
+                KairoCard {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .top, spacing: KairoSpacing.medium) {
+                            VStack(spacing: 0) {
+                                Circle()
+                                    .fill(KairoColors.accent)
+                                    .frame(width: 8, height: 8)
 
-                            if index < items.count - 1 {
-                                Rectangle()
-                                    .fill(KairoColors.border)
-                                    .frame(width: 1)
-                                    .padding(.vertical, KairoSpacing.xxSmall)
+                                if index < items.count - 1 {
+                                    Rectangle()
+                                        .fill(KairoColors.border)
+                                        .frame(width: 1)
+                                        .padding(.vertical, KairoSpacing.xxSmall)
+                                }
                             }
+                            .frame(width: 12, alignment: .top)
+
+                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                Text(item.title)
+                                    .font(KairoTypography.bodyStrong)
+                                    .foregroundStyle(KairoColors.textPrimary)
+
+                                Text(item.dateLabel)
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.textSecondary)
+                            }
+
+                            Spacer(minLength: 0)
                         }
-                        .frame(width: 12, alignment: .top)
-
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            Text(item.title)
-                                .font(KairoTypography.bodyStrong)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                            Text(item.dateLabel)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.textSecondary)
-                        }
-
-                        Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            case .unavailable(let unavailableState):
+                KairoCard {
+                    Text(unavailableState.title)
+                        .font(KairoTypography.bodyStrong)
+                        .foregroundStyle(KairoColors.textPrimary)
+
+                    Text(unavailableState.message)
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -523,6 +605,28 @@ struct PassportOverviewScreenView: View {
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func emptySectionCard(message: String) -> some View {
+        KairoCard {
+            Text(message)
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func refreshableIfAvailable(action: (() async -> Void)?) -> some View {
+        if let action {
+            refreshable {
+                await action()
+            }
+        } else {
+            self
         }
     }
 }
@@ -651,7 +755,7 @@ private enum PassportModalDestination: Identifiable {
     var message: String {
         switch self {
         case .scoreDetails:
-            "Trust Score calculation and score history will be connected in a later milestone. This fixture shows how your Passport can grow stronger over time."
+            "Trust Score calculation and score history will be connected in a later milestone. This screen currently preserves the approved local placeholder experience."
         case .employmentDetails(let company):
             "Detailed verification evidence for \(company) will be connected in a later milestone."
         case .sharePassport:
