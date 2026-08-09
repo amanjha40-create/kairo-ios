@@ -138,6 +138,47 @@ final class ManualProfileMapperTests: XCTestCase {
         }
     }
 
+    func test_makeSubmissionPayloadsSkipsPersistedImportedRecords() throws {
+        var draft = makeDraft()
+        draft.employmentEntries = [
+            ManualEmploymentEntry(
+                id: 0,
+                isPersisted: true,
+                company: "Northstar Analytics Private Limited",
+                jobTitle: "Product Operations Manager",
+                employmentType: "Other",
+                workCountry: "",
+                startDay: "",
+                startMonth: "",
+                startYear: "",
+                endDay: "",
+                endMonth: "",
+                endYear: "",
+                isCurrentlyWorking: true
+            )
+        ]
+        draft.educationEntries = [
+            ManualEducationEntry(
+                id: 0,
+                isPersisted: true,
+                institution: "Riverdale Institute of Technology",
+                degree: "Bachelor of Technology (B.Tech)",
+                educationLevel: "Bachelor's",
+                fieldOfStudy: "Information Technology",
+                startYear: "",
+                endYear: ""
+            )
+        ]
+
+        let payloads = try ManualProfileMapper.makeSubmissionPayloads(
+            draft: draft,
+            currentUser: makeUser(fullName: "Resume QA")
+        )
+
+        XCTAssertEqual(payloads.employments, [])
+        XCTAssertEqual(payloads.educations, [])
+    }
+
     private func makeDraft() -> ManualProfileFlowState {
         var draft = ManualProfileFlowState()
         draft.basicProfile = ManualProfileBasicDraft(

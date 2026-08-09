@@ -174,6 +174,32 @@ final class ManualProfileFlowStateTests: XCTestCase {
         XCTAssertEqual(state.step, .education)
     }
 
+    func test_persistedEmploymentEntriesCanContinueWithoutReentry() {
+        let state = ManualProfileFlowState(
+            step: .employment,
+            employmentEntries: [
+                ManualEmploymentEntry(
+                    id: 0,
+                    isPersisted: true,
+                    company: "Northstar Analytics Private Limited",
+                    jobTitle: "Product Operations Manager",
+                    employmentType: "Other",
+                    workCountry: "",
+                    startDay: "",
+                    startMonth: "",
+                    startYear: "",
+                    endDay: "",
+                    endMonth: "",
+                    endYear: "",
+                    isCurrentlyWorking: true
+                )
+            ]
+        )
+
+        XCTAssertTrue(state.canContinue)
+        XCTAssertTrue(ManualProfileValidation.areEmploymentEntriesValid(state.employmentEntries))
+    }
+
     func test_employmentValidationAcceptsMonthWithInvisibleSeparatorCharacters() {
         let entry = ManualEmploymentEntry(
             id: 0,
@@ -204,6 +230,27 @@ final class ManualProfileFlowStateTests: XCTestCase {
             entry.startYear = "2016"
             entry.endYear = "2020"
         }
+
+        XCTAssertTrue(state.canContinue)
+        XCTAssertTrue(ManualProfileValidation.areEducationEntriesValid(state.educationEntries))
+    }
+
+    func test_persistedEducationEntriesCanContinueWithoutReentry() {
+        let state = ManualProfileFlowState(
+            step: .education,
+            educationEntries: [
+                ManualEducationEntry(
+                    id: 0,
+                    isPersisted: true,
+                    institution: "Riverdale Institute of Technology",
+                    degree: "Bachelor of Technology (B.Tech)",
+                    educationLevel: "Bachelor's",
+                    fieldOfStudy: "Information Technology",
+                    startYear: "",
+                    endYear: ""
+                )
+            ]
+        )
 
         XCTAssertTrue(state.canContinue)
         XCTAssertTrue(ManualProfileValidation.areEducationEntriesValid(state.educationEntries))
@@ -260,5 +307,36 @@ final class ManualProfileFlowStateTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ManualProfileFlowState.self, from: data)
 
         XCTAssertEqual(decoded.basicProfile.fullName, "Aman Jha")
+    }
+
+    func test_completedResumeImportHandoffSwitchesBranchAndClearsResumeImportState() {
+        var onboardingState = OnboardingFlowState(
+            chooseStartState: ChooseStartState(selection: .importResume),
+            resumeImportState: ResumeImportState(
+                phase: .readyForReview,
+                selectedFile: try? ResumeImportFile.make(
+                    from: URL(fileURLWithPath: "resume.pdf"),
+                    fileSizeOverride: 240_000
+                ),
+                restorationAttempted: true
+            )
+        )
+        let manualProfileState = ManualProfileFlowState(
+            basicProfile: ManualProfileBasicDraft(
+                fullName: "Resume QA",
+                professionalHeadline: "Product Operations Manager",
+                currentRole: "",
+                industry: "",
+                yearsOfExperience: "",
+                currentCity: "Bengaluru",
+                currentCountry: "India"
+            )
+        )
+
+        onboardingState.applyCompletedResumeImportHandoff(manualProfileState: manualProfileState)
+
+        XCTAssertEqual(onboardingState.chooseStartState.selection, .buildProfileManually)
+        XCTAssertEqual(onboardingState.manualProfileState, manualProfileState)
+        XCTAssertEqual(onboardingState.resumeImportState, ResumeImportState())
     }
 }

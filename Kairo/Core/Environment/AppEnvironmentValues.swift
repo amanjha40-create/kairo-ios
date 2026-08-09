@@ -78,11 +78,94 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
 }
 
 private struct MissingManualProfileService: ManualProfileServiceProtocol {
+    func prepareRemainingProfileDraft(signupDraftFullName: String?) async throws -> ManualProfileFlowState {
+        _ = signupDraftFullName
+        fatalError("Missing manual profile service injection.")
+    }
+
     func submit(
         draft: ManualProfileFlowState
     ) async throws -> ManualProfileSubmissionResult {
         _ = draft
         fatalError("Missing manual profile service injection.")
+    }
+}
+
+private struct MissingResumeImportService: ResumeImportServiceProtocol {
+    func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
+        _ = pickedURL
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func cleanupSelection(at temporaryFileURL: URL) {
+        _ = temporaryFileURL
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func restoreLatestWorkflow() async throws -> ResumeImportWorkflowSnapshot? {
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord {
+        _ = selection
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func startProcessing(resumeID: String) async throws -> ResumeProcessJob {
+        _ = resumeID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func processingStatus(resumeID: String) async throws -> ResumeProcessJob {
+        _ = resumeID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func loadOrCreateReviewSession(resumeID: String) async throws -> ResumeReviewSession {
+        _ = resumeID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
+        _ = reviewID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func updateReviewItem(
+        reviewID: String,
+        itemID: String,
+        payload: ResumeReviewItemUpdateRequestDTO
+    ) async throws -> ResumeReviewSession {
+        _ = (reviewID, itemID, payload)
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func validateReview(reviewID: String, expectedVersion: Int) async throws -> ResumeReviewPlan {
+        _ = (reviewID, expectedVersion)
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func importReview(
+        reviewID: String,
+        expectedVersion: Int,
+        idempotencyKey: String
+    ) async throws -> ResumeImportBatch {
+        _ = (reviewID, expectedVersion, idempotencyKey)
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func latestImportStatus(reviewID: String) async throws -> ResumeImportBatch {
+        _ = reviewID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func reconcileImportRecovery(reviewID: String) async throws -> ResumeImportRecoveryState {
+        _ = reviewID
+        fatalError("Missing Resume Import service injection.")
+    }
+
+    func completeOnboardingIfNeeded() async throws -> ResumeImportCompletionResult {
+        fatalError("Missing Resume Import service injection.")
     }
 }
 
@@ -158,6 +241,10 @@ private struct ManualProfileServiceKey: EnvironmentKey {
     static let defaultValue: any ManualProfileServiceProtocol = MissingManualProfileService()
 }
 
+private struct ResumeImportServiceKey: EnvironmentKey {
+    static let defaultValue: any ResumeImportServiceProtocol = MissingResumeImportService()
+}
+
 private struct VerifyOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any VerifyOverviewServiceProtocol = MissingVerifyOverviewService()
 }
@@ -200,6 +287,11 @@ extension EnvironmentValues {
     var manualProfileService: any ManualProfileServiceProtocol {
         get { self[ManualProfileServiceKey.self] }
         set { self[ManualProfileServiceKey.self] = newValue }
+    }
+
+    var resumeImportService: any ResumeImportServiceProtocol {
+        get { self[ResumeImportServiceKey.self] }
+        set { self[ResumeImportServiceKey.self] = newValue }
     }
 
     var verifyOverviewService: any VerifyOverviewServiceProtocol {

@@ -49,7 +49,7 @@ struct UITestResumeImportConfiguration {
     private static func errorMessage(for phase: ResumeImportPhase) -> String? {
         switch phase {
         case .unsupportedFile:
-            "Choose a PDF, DOC, or DOCX resume to continue."
+            "Choose a PDF or DOCX file."
         case .failed:
             "Kairo couldn't finish this local demo import. Retry to keep reviewing from the same resume, or choose another file."
         default:

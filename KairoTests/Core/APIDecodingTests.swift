@@ -1114,6 +1114,226 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(request.requestType, "education")
     }
 
+    func test_resumeUploadIntentDTODecodesFrozenBackendShape() throws {
+        let data = Data(
+            """
+            {
+              "resume_id": "resume_123",
+              "upload_url": "https://uploads.example.com/candidate/resume_123?signature=redacted",
+              "expires_in": 900,
+              "object_key": "candidate/resume_123"
+            }
+            """.utf8
+        )
+
+        let dto = try APIJSONCoder.makeDecoder().decode(ResumeUploadIntentDTO.self, from: data)
+
+        XCTAssertEqual(dto.resumeID, "resume_123")
+        XCTAssertEqual(dto.uploadURL.host(), "uploads.example.com")
+        XCTAssertEqual(dto.expiresIn, 900)
+        XCTAssertEqual(dto.objectKey, "candidate/resume_123")
+    }
+
+    func test_resumeUploadIntentDTOToleratesMissingObjectKey() throws {
+        let data = Data(
+            """
+            {
+              "resume_id": "resume_123",
+              "upload_url": "https://uploads.example.com/candidate/resume_123?signature=redacted",
+              "expires_in": 900
+            }
+            """.utf8
+        )
+
+        let dto = try APIJSONCoder.makeDecoder().decode(ResumeUploadIntentDTO.self, from: data)
+
+        XCTAssertEqual(dto.resumeID, "resume_123")
+        XCTAssertEqual(dto.uploadURL.host(), "uploads.example.com")
+        XCTAssertEqual(dto.expiresIn, 900)
+        XCTAssertEqual(dto.objectKey, "")
+    }
+
+    func test_resumeReviewSessionDTODecodesVersionedReviewItems() throws {
+        let data = Data(
+            """
+            {
+              "id": "review_123",
+              "resume_id": "resume_123",
+              "parsed_result_id": "parsed_123",
+              "status": "reviewing",
+              "schema_version": "resume_review_v1",
+              "version": 4,
+              "items": [
+                {
+                  "id": "item_profile",
+                  "claim_type": "profile",
+                  "source_claim_id": "claim_profile",
+                  "original_payload": {
+                    "full_name": "Aman Jha",
+                    "email": "aman@example.com"
+                  },
+                  "edited_payload": {
+                    "full_name": "Aman Jha",
+                    "email": "aman@example.com"
+                  },
+                  "selected": true,
+                  "review_status": "draft",
+                  "duplicate_status": "no_match",
+                  "duplicate_candidates": [],
+                  "conflict_warnings": [],
+                  "import_action": "create_new",
+                  "target_record_id": null,
+                  "imported_record_type": null,
+                  "imported_record_id": null,
+                  "source_reference": "page_1",
+                  "confidence": 0.98,
+                  "version": 2
+                }
+              ],
+              "created_at": "2026-08-08T10:00:10Z",
+              "updated_at": "2026-08-08T10:00:20Z"
+            }
+            """.utf8
+        )
+
+        let session = try APIJSONCoder.makeDecoder().decode(ResumeReviewSessionDTO.self, from: data)
+
+        XCTAssertEqual(session.id, "review_123")
+        XCTAssertEqual(session.version, 4)
+        XCTAssertEqual(session.items.count, 1)
+        XCTAssertEqual(session.items.first?.claimType, "profile")
+        XCTAssertEqual(session.items.first?.version, 2)
+        XCTAssertEqual(session.items.first?.editedPayload["full_name"], .string("Aman Jha"))
+    }
+
+    func test_resumeReviewSessionDTODoesNotRequireDeprecatedTopLevelReviewFields() throws {
+        let data = Data(
+            """
+            {
+              "id": "review_123",
+              "resume_id": "resume_123",
+              "parsed_result_id": "parsed_123",
+              "status": "reviewing",
+              "schema_version": "resume_review_v1",
+              "version": 4,
+              "items": [],
+              "created_at": "2026-08-08T10:00:10Z",
+              "updated_at": "2026-08-08T10:00:20Z"
+            }
+            """.utf8
+        )
+
+        let session = try APIJSONCoder.makeDecoder().decode(ResumeReviewSessionDTO.self, from: data)
+
+        XCTAssertEqual(session.id, "review_123")
+        XCTAssertEqual(session.items, [])
+    }
+
+    func test_resumeImportBatchDTODecodesEntitySummariesAndResults() throws {
+        let data = Data(
+            """
+            {
+              "id": "batch_123",
+              "review_session_id": "review_123",
+              "status": "completed",
+              "total_count": 3,
+              "imported_count": 2,
+              "linked_count": 0,
+              "skipped_count": 1,
+              "failed_count": 0,
+              "blocked_count": 0,
+              "incomplete_count": 0,
+              "entity_counts": {
+                "employment": {
+                  "detected": 1,
+                  "imported": 1,
+                  "incomplete": 0,
+                  "failed": 0
+                },
+                "education": {
+                  "detected": 1,
+                  "imported": 1,
+                  "incomplete": 0,
+                  "failed": 0
+                }
+              },
+              "results": [
+                {
+                  "review_item_id": "item_employment",
+                  "outcome": "imported",
+                  "record_type": "employment",
+                  "record_id": "employment_123",
+                  "sanitized_error_code": null,
+                  "warnings": []
+                }
+              ],
+              "created_at": "2026-08-08T10:01:00Z",
+              "updated_at": "2026-08-08T10:01:30Z"
+            }
+            """.utf8
+        )
+
+        let batch = try APIJSONCoder.makeDecoder().decode(ResumeImportBatchDTO.self, from: data)
+
+        XCTAssertEqual(batch.id, "batch_123")
+        XCTAssertEqual(batch.status, "completed")
+        XCTAssertEqual(batch.entityCounts["employment"]?.imported, 1)
+        XCTAssertEqual(batch.results.first?.reviewItemID, "item_employment")
+        XCTAssertEqual(batch.results.first?.recordID, "employment_123")
+    }
+
+    func test_resumeImportBatchDTODecodesPartiallyCompletedStatusAndEntityCounts() throws {
+        let data = Data(
+            """
+            {
+              "id": "batch_456",
+              "review_session_id": "review_123",
+              "status": "partially_completed",
+              "total_count": 3,
+              "imported_count": 1,
+              "linked_count": 0,
+              "skipped_count": 0,
+              "failed_count": 0,
+              "blocked_count": 0,
+              "incomplete_count": 2,
+              "entity_counts": {
+                "employment": {
+                  "detected": 1,
+                  "imported": 1,
+                  "incomplete": 0,
+                  "failed": 0
+                },
+                "project": {
+                  "detected": 2,
+                  "imported": 0,
+                  "incomplete": 2,
+                  "failed": 0
+                }
+              },
+              "results": [
+                {
+                  "review_item_id": "item_project",
+                  "outcome": "incomplete",
+                  "record_type": "project",
+                  "record_id": null,
+                  "sanitized_error_code": "unsupported_import_target",
+                  "warnings": ["Manual review required"]
+                }
+              ],
+              "created_at": "2026-08-08T10:01:00Z",
+              "updated_at": "2026-08-08T10:01:30Z"
+            }
+            """.utf8
+        )
+
+        let batch = try APIJSONCoder.makeDecoder().decode(ResumeImportBatchDTO.self, from: data)
+
+        XCTAssertEqual(batch.status, "partially_completed")
+        XCTAssertEqual(batch.entityCounts["project"]?.detected, 2)
+        XCTAssertEqual(batch.entityCounts["project"]?.incomplete, 2)
+        XCTAssertEqual(batch.results.first?.sanitizedErrorCode, "unsupported_import_target")
+    }
+
     private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

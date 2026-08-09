@@ -6,6 +6,7 @@ struct AppDependencies: Sendable {
     let sessionService: any SessionServiceProtocol
     let authService: any AuthServiceProtocol
     let manualProfileService: any ManualProfileServiceProtocol
+    let resumeImportService: any ResumeImportServiceProtocol
     let homeOverviewService: any HomeOverviewServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
@@ -53,6 +54,16 @@ struct AppDependencies: Sendable {
                     sessionService: sessionService
                 )
             }
+        let resumeImportService: any ResumeImportServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoResumeImportService()
+            } else {
+                ResumeImportService(
+                    sessionService: sessionService,
+                    authService: authService,
+                    consentVersion: configuration.currentResumeImportConsentVersion
+                )
+            }
         let homeOverviewService = HomeOverviewService(
             authService: authService,
             sessionService: sessionService
@@ -74,6 +85,7 @@ struct AppDependencies: Sendable {
             sessionService: sessionService,
             authService: authService,
             manualProfileService: manualProfileService,
+            resumeImportService: resumeImportService,
             homeOverviewService: homeOverviewService,
             careerOverviewService: careerOverviewService,
             verifyOverviewService: verifyOverviewService,

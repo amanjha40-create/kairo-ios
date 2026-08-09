@@ -17,6 +17,8 @@ final class AppSessionStore: ObservableObject {
     private let router: AppRouter
     private let authService: any AuthServiceProtocol
     private let sessionService: any SessionServiceProtocol
+    private let manualProfileService: any ManualProfileServiceProtocol
+    private let resumeImportService: any ResumeImportServiceProtocol
     private var hasBootstrapped = false
 
     init(
@@ -24,13 +26,17 @@ final class AppSessionStore: ObservableObject {
         uiTestConfiguration: UITestLaunchConfiguration,
         router: AppRouter,
         authService: any AuthServiceProtocol,
-        sessionService: any SessionServiceProtocol
+        sessionService: any SessionServiceProtocol,
+        manualProfileService: any ManualProfileServiceProtocol,
+        resumeImportService: any ResumeImportServiceProtocol
     ) {
         self.configuration = configuration
         self.uiTestConfiguration = uiTestConfiguration
         self.router = router
         self.authService = authService
         self.sessionService = sessionService
+        self.manualProfileService = manualProfileService
+        self.resumeImportService = resumeImportService
     }
 
     func bootstrapIfNeeded() async {
@@ -118,9 +124,51 @@ final class AppSessionStore: ObservableObject {
                 return .completeProfile(.resumeImportOrQuickProfile)
             }
 
+            if !configuration.isDemoModeEnabled,
+               !uiTestConfiguration.isEnabled,
+               let restoredDraft = await restoredRemainingProfileDraftIfAvailable() {
+                ManualProfileDraftStore.save(restoredDraft)
+                return .completeProfile(.resumeImportOrQuickProfile)
+            }
+
             return .completeProfile(.chooseStart)
         case .complete:
             return .mainTabs
+        }
+    }
+
+    private func restoredRemainingProfileDraftIfAvailable() async -> ManualProfileFlowState? {
+        do {
+            guard let snapshot = try await resumeImportService.restoreLatestWorkflow(),
+                  let reviewSession = snapshot.reviewSession
+            else {
+                return nil
+            }
+
+            let recovery = try await resumeImportService.reconcileImportRecovery(
+                reviewID: reviewSession.id
+            )
+
+            guard recovery.disposition == .importCompleted else {
+                return nil
+            }
+
+            guard let completionResult = recovery.completionResult else {
+                return nil
+            }
+
+            let onboardingStatus = completionResult.onboardingStatus
+            guard !onboardingStatus.isOnboardingComplete,
+                  onboardingStatus.resolvedCurrentStep == .completeProfile
+            else {
+                return nil
+            }
+
+            return try await manualProfileService.prepareRemainingProfileDraft(
+                signupDraftFullName: nil
+            )
+        } catch {
+            return nil
         }
     }
 

@@ -25,6 +25,7 @@ nonisolated enum ManualProfileMappingError: Error, Equatable, Sendable {
 
 nonisolated enum ManualProfileMapper {
     private nonisolated static let calendar = Calendar(identifier: .gregorian)
+    private nonisolated static let englishLocale = Locale(identifier: "en_US_POSIX")
     private nonisolated static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -33,6 +34,45 @@ nonisolated enum ManualProfileMapper {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    nonisolated static func makeRemainingProfileDraft(
+        currentUser: AppUser,
+        signupDraftFullName: String?,
+        employments: [CareerEmploymentDTO],
+        educations: [CareerEducationDTO]
+    ) -> ManualProfileFlowState {
+        let locationParts = fallbackLocationParts(from: currentUser.location)
+        let basicProfile = ManualProfileBasicDraft(
+            fullName: ManualProfileNormalization.normalized(currentUser.fullName ?? "").nonEmpty
+                ?? ManualProfileNormalization.normalized(signupDraftFullName ?? ""),
+            professionalHeadline: ManualProfileNormalization.normalized(currentUser.headline ?? ""),
+            currentRole: ManualProfileNormalization.normalized(currentUser.currentRole ?? ""),
+            industry: ManualProfileNormalization.normalized(currentUser.industry ?? ""),
+            yearsOfExperience: currentUser.yearsOfExperience.map(String.init) ?? "",
+            currentCity: ManualProfileNormalization.normalized(
+                currentUser.locationCity ?? locationParts.city ?? ""
+            ),
+            currentCountry: ManualProfileNormalization.normalized(
+                displayCountry(currentUser.locationCountry) ?? locationParts.country ?? ""
+            )
+        )
+
+        let employmentEntries = employments.enumerated().map { index, employment in
+            manualEmploymentEntry(from: employment, id: index)
+        }
+        let educationEntries = educations.enumerated().map { index, education in
+            manualEducationEntry(from: education, id: index)
+        }
+
+        return ManualProfileFlowState(
+            step: .basicProfile,
+            basicProfile: basicProfile,
+            employmentEntries: employmentEntries,
+            educationEntries: educationEntries,
+            nextEmploymentID: employmentEntries.count,
+            nextEducationID: educationEntries.count
+        )
+    }
 
     nonisolated static func makeSubmissionPayloads(
         draft: ManualProfileFlowState,
@@ -75,8 +115,12 @@ nonisolated enum ManualProfileMapper {
             headline: ManualProfileNormalization.normalized(draft.basicProfile.professionalHeadline)
         )
 
-        let employments = try draft.employmentEntries.map { entry in
-            try ManualProfileSubmissionPayloads.EmploymentItem(
+        let employments: [ManualProfileSubmissionPayloads.EmploymentItem] = try draft.employmentEntries.compactMap { entry in
+            guard !entry.isPersisted else {
+                return nil
+            }
+
+            return try ManualProfileSubmissionPayloads.EmploymentItem(
                 entryID: entry.id,
                 request: mapEmploymentRequest(
                     entry: entry,
@@ -86,8 +130,12 @@ nonisolated enum ManualProfileMapper {
             )
         }
 
-        let educations = try draft.educationEntries.map { entry in
-            try ManualProfileSubmissionPayloads.EducationItem(
+        let educations: [ManualProfileSubmissionPayloads.EducationItem] = try draft.educationEntries.compactMap { entry in
+            guard !entry.isPersisted else {
+                return nil
+            }
+
+            return try ManualProfileSubmissionPayloads.EducationItem(
                 entryID: entry.id,
                 request: mapEducationRequest(entry: entry)
             )
@@ -254,6 +302,118 @@ nonisolated enum ManualProfileMapper {
             endDatePrecision: "year",
             isCurrentlyStudying: false
         )
+    }
+
+    private nonisolated static func manualEmploymentEntry(
+        from dto: CareerEmploymentDTO,
+        id: Int
+    ) -> ManualEmploymentEntry {
+        var entry = ManualEmploymentEntry.blank(id: id)
+        entry.isPersisted = true
+        entry.company = ManualProfileNormalization.normalized(
+            dto.employerLegalName ?? dto.companyDisplayName
+        )
+        entry.jobTitle = ManualProfileNormalization.normalized(dto.jobTitle)
+        entry.employmentType = displayEmploymentType(dto.employmentType)
+        entry.workCountry = displayCountry(dto.workLocationCountry) ?? ""
+        if let startDate = dto.startDate {
+            entry.startDay = calendar.component(.day, from: startDate).description
+            entry.startMonth = monthName(from: startDate)
+            entry.startYear = calendar.component(.year, from: startDate).description
+        }
+        if let endDate = dto.endDate {
+            entry.endDay = calendar.component(.day, from: endDate).description
+            entry.endMonth = monthName(from: endDate)
+            entry.endYear = calendar.component(.year, from: endDate).description
+            entry.isCurrentlyWorking = false
+        } else {
+            entry.isCurrentlyWorking = true
+        }
+        return entry
+    }
+
+    private nonisolated static func manualEducationEntry(
+        from dto: CareerEducationDTO,
+        id: Int
+    ) -> ManualEducationEntry {
+        var entry = ManualEducationEntry.blank(id: id)
+        entry.isPersisted = true
+        entry.institution = ManualProfileNormalization.normalized(dto.institutionName)
+        entry.degree = ManualProfileNormalization.normalized(dto.degree ?? "")
+        entry.educationLevel = displayEducationLevel(dto.educationLevel)
+        entry.fieldOfStudy = ManualProfileNormalization.normalized(dto.fieldOfStudy ?? "")
+        if let startDate = dto.startDate {
+            entry.startYear = calendar.component(.year, from: startDate).description
+        }
+        if let endDate = dto.endDate {
+            entry.endYear = calendar.component(.year, from: endDate).description
+        }
+        return entry
+    }
+
+    private nonisolated static func monthName(from date: Date) -> String {
+        date.formatted(.dateTime.month(.wide).locale(englishLocale))
+    }
+
+    private nonisolated static func displayEmploymentType(_ rawValue: String?) -> String {
+        switch rawValue?.lowercased() {
+        case "full_time": "Full-time"
+        case "part_time": "Part-time"
+        case "contract": "Contract"
+        case "intern": "Internship"
+        case "gig": "Gig"
+        case "freelance": "Freelance"
+        case "other": "Other"
+        default: rawValue ?? ""
+        }
+    }
+
+    private nonisolated static func displayEducationLevel(_ rawValue: String?) -> String {
+        switch rawValue?.lowercased() {
+        case "high_school": "High School"
+        case "diploma": "Diploma"
+        case "bachelors": "Bachelor's"
+        case "masters": "Master's"
+        case "doctorate": "Doctorate"
+        case "certification": "Certification"
+        case "other": "Other"
+        default: rawValue ?? ""
+        }
+    }
+
+    private nonisolated static func displayCountry(_ rawValue: String?) -> String? {
+        guard let normalized = ManualProfileNormalization.normalized(rawValue ?? "").nonEmpty else {
+            return nil
+        }
+
+        if normalized.count == 2,
+           let localizedName = englishLocale.localizedString(
+                forRegionCode: normalized.uppercased()
+           )?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !localizedName.isEmpty {
+            return localizedName
+        }
+
+        return normalized
+    }
+
+    private nonisolated static func fallbackLocationParts(
+        from rawLocation: String?
+    ) -> (city: String?, country: String?) {
+        guard let location = ManualProfileNormalization.normalized(rawLocation ?? "").nonEmpty else {
+            return (nil, nil)
+        }
+
+        let components = location
+            .split(separator: ",")
+            .map { ManualProfileNormalization.normalized(String($0)) }
+            .filter { !$0.isEmpty }
+
+        guard let first = components.first, let last = components.last else {
+            return (nil, nil)
+        }
+
+        return (first, last)
     }
 
     private nonisolated static func employmentDate(

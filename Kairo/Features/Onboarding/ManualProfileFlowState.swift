@@ -84,6 +84,7 @@ nonisolated struct ManualProfileBasicDraft: Equatable, Codable, Sendable {
 
 nonisolated struct ManualEmploymentEntry: Equatable, Identifiable, Codable, Sendable {
     let id: Int
+    var isPersisted = false
     var company = ""
     var jobTitle = ""
     var employmentType = ""
@@ -103,6 +104,7 @@ nonisolated struct ManualEmploymentEntry: Equatable, Identifiable, Codable, Send
 
 nonisolated struct ManualEducationEntry: Equatable, Identifiable, Codable, Sendable {
     let id: Int
+    var isPersisted = false
     var institution = ""
     var degree = ""
     var educationLevel = ""
@@ -447,6 +449,10 @@ nonisolated enum ManualProfileValidation {
         for field: ManualEmploymentField,
         in entry: ManualEmploymentEntry
     ) -> String? {
+        guard !entry.isPersisted else {
+            return nil
+        }
+
         switch field {
         case .company:
             return ManualProfileNormalization.normalized(entry.company).isEmpty ? "Enter the company." : nil
@@ -515,6 +521,10 @@ nonisolated enum ManualProfileValidation {
         for field: ManualEducationField,
         in entry: ManualEducationEntry
     ) -> String? {
+        guard !entry.isPersisted else {
+            return nil
+        }
+
         switch field {
         case .institution:
             return ManualProfileNormalization.normalized(entry.institution).isEmpty ? "Enter the institution." : nil

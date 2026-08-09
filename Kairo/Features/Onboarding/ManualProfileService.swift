@@ -1,6 +1,7 @@
 import Foundation
 
 protocol ManualProfileServiceProtocol: Sendable {
+    func prepareRemainingProfileDraft(signupDraftFullName: String?) async throws -> ManualProfileFlowState
     func submit(draft: ManualProfileFlowState) async throws -> ManualProfileSubmissionResult
 }
 
@@ -37,6 +38,21 @@ actor ManualProfileService: ManualProfileServiceProtocol {
     ) {
         self.authService = authService
         self.sessionService = sessionService
+    }
+
+    func prepareRemainingProfileDraft(
+        signupDraftFullName: String?
+    ) async throws -> ManualProfileFlowState {
+        let currentUser = try await authService.currentUser().asDomainModel()
+        let employments = try await loadEmployments()
+        let educations = try await loadEducations()
+
+        return ManualProfileMapper.makeRemainingProfileDraft(
+            currentUser: currentUser,
+            signupDraftFullName: signupDraftFullName,
+            employments: employments,
+            educations: educations
+        )
     }
 
     func submit(
@@ -320,6 +336,17 @@ actor DemoManualProfileService: ManualProfileServiceProtocol {
 
     init(authService: any AuthServiceProtocol) {
         self.authService = authService
+    }
+
+    func prepareRemainingProfileDraft(
+        signupDraftFullName: String?
+    ) async throws -> ManualProfileFlowState {
+        ManualProfileMapper.makeRemainingProfileDraft(
+            currentUser: try await authService.currentUser().asDomainModel(),
+            signupDraftFullName: signupDraftFullName,
+            employments: [],
+            educations: []
+        )
     }
 
     func submit(

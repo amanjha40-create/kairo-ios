@@ -20,6 +20,14 @@ struct OnboardingFlowState: Equatable, Sendable {
         self.resumeImportState = resumeImportState
         self.manualProfileState = manualProfileState
     }
+
+    mutating func applyCompletedResumeImportHandoff(
+        manualProfileState: ManualProfileFlowState
+    ) {
+        chooseStartState.select(.buildProfileManually)
+        resumeImportState = ResumeImportState()
+        self.manualProfileState = manualProfileState
+    }
 }
 
 enum VerifyIdentityPhase: String, Equatable, Sendable {

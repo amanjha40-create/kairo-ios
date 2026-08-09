@@ -35,6 +35,7 @@ struct UITestLaunchConfiguration {
 
 enum AppBuildConfiguration: String, CaseIterable, Sendable {
     case development = "Development"
+    case staging = "Staging"
     case demo = "Demo"
     case production = "Production"
 
@@ -42,6 +43,8 @@ enum AppBuildConfiguration: String, CaseIterable, Sendable {
         switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "development":
             self = .development
+        case "staging":
+            self = .staging
         case "demo":
             self = .demo
         case "production":
@@ -49,6 +52,21 @@ enum AppBuildConfiguration: String, CaseIterable, Sendable {
         default:
             self = .development
         }
+    }
+
+    var defaultEnvironment: AppEnvironment {
+        switch self {
+        case .development, .demo:
+            .development
+        case .staging:
+            .staging
+        case .production:
+            .production
+        }
+    }
+
+    var isDemoModeEnabledByDefault: Bool {
+        self == .demo
     }
 }
 
@@ -88,12 +106,18 @@ struct AppConfiguration: Equatable, Sendable {
 
     static let environmentVariable = "KAIRO_APP_ENVIRONMENT"
     static let demoModeVariable = "KAIRO_DEMO_MODE"
+    static let buildConfigurationVariable = "KAIRO_BUILD_CONFIGURATION"
+    nonisolated static let resumeImportConsentVersion = "resume_processing_v1"
 
     let buildConfiguration: AppBuildConfiguration
     let environment: AppEnvironment
     let isDemoModeEnabled: Bool
     let apiBaseURL: URL
     let keychainService: String
+
+    var currentResumeImportConsentVersion: String {
+        Self.resumeImportConsentVersion
+    }
 
     static func resolve(
         bundleValues: [String: Any] = Bundle.main.infoDictionary ?? [:],
@@ -102,7 +126,7 @@ struct AppConfiguration: Equatable, Sendable {
     ) -> AppConfiguration {
         let buildConfiguration: AppBuildConfiguration
 
-        if let override = environmentVariables[InfoPlistKey.buildConfiguration] {
+        if let override = environmentVariables[buildConfigurationVariable] {
             buildConfiguration = AppBuildConfiguration(rawValue: override)
         } else if let defaultBuildConfiguration {
             buildConfiguration = defaultBuildConfiguration
@@ -112,8 +136,9 @@ struct AppConfiguration: Equatable, Sendable {
             )
         }
 
-        let defaultEnvironment = AppEnvironment(
-            rawValue: bundleValues[InfoPlistKey.environment] as? String
+        let embeddedEnvironment = resolveEmbeddedEnvironment(
+            bundleValue: bundleValues[InfoPlistKey.environment] as? String,
+            buildConfiguration: buildConfiguration
         )
 
         let environment: AppEnvironment
@@ -121,7 +146,7 @@ struct AppConfiguration: Equatable, Sendable {
         if let rawEnvironment = environmentVariables[environmentVariable] {
             environment = AppEnvironment(rawValue: rawEnvironment)
         } else {
-            environment = defaultEnvironment
+            environment = embeddedEnvironment
         }
 
         let isDemoModeEnabled = resolveDemoMode(
@@ -152,7 +177,27 @@ struct AppConfiguration: Equatable, Sendable {
             return parsed
         }
 
-        return buildConfiguration == .demo
+        return buildConfiguration.isDemoModeEnabledByDefault
+    }
+
+    private static func resolveEmbeddedEnvironment(
+        bundleValue: String?,
+        buildConfiguration: AppBuildConfiguration
+    ) -> AppEnvironment {
+        guard let bundleValue else {
+            return buildConfiguration.defaultEnvironment
+        }
+
+        switch bundleValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "development", "dev":
+            return .development
+        case "staging", "stage":
+            return .staging
+        case "production", "prod":
+            return .production
+        default:
+            return buildConfiguration.defaultEnvironment
+        }
     }
 
     private static func parseBool(_ rawValue: String) -> Bool? {

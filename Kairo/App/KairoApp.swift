@@ -32,7 +32,9 @@ struct KairoApp: App {
             uiTestConfiguration: uiTestConfiguration,
             router: router,
             authService: dependencies.authService,
-            sessionService: dependencies.sessionService
+            sessionService: dependencies.sessionService,
+            manualProfileService: dependencies.manualProfileService,
+            resumeImportService: dependencies.resumeImportService
         ))
         self.configuration = configuration
         self.dependencies = dependencies
@@ -51,6 +53,7 @@ struct KairoApp: App {
                 .environment(\.tokenStore, dependencies.tokenStore)
                 .environment(\.authService, dependencies.authService)
                 .environment(\.manualProfileService, dependencies.manualProfileService)
+                .environment(\.resumeImportService, dependencies.resumeImportService)
                 .environment(\.homeOverviewService, dependencies.homeOverviewService)
                 .environment(\.careerOverviewService, dependencies.careerOverviewService)
                 .environment(\.verifyOverviewService, dependencies.verifyOverviewService)

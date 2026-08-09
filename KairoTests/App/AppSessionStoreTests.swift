@@ -3,6 +3,16 @@ import XCTest
 
 @MainActor
 final class AppSessionStoreTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        ManualProfileDraftStore.clear()
+    }
+
+    override func tearDown() {
+        ManualProfileDraftStore.clear()
+        super.tearDown()
+    }
+
     func test_bootstrapRoutesSignedOutWhenNoStoredSessionExists() async {
         let router = AppRouter()
         let authService = StubAuthService(
@@ -25,7 +35,9 @@ final class AppSessionStoreTests: XCTestCase {
             uiTestConfiguration: .disabled,
             router: router,
             authService: authService,
-            sessionService: sessionService
+            sessionService: sessionService,
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
@@ -53,7 +65,9 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: false,
                 hasRefreshToken: false,
                 signupSessionID: "signup-session-123"
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
@@ -81,7 +95,9 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: true,
                 hasRefreshToken: true,
                 signupSessionID: nil
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
@@ -112,13 +128,133 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: true,
                 hasRefreshToken: true,
                 signupSessionID: nil
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
 
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath.last, .step(.chooseStart))
+    }
+
+    func test_bootstrapRoutesToManualProfileAfterCompletedResumeImport() async {
+        let router = AppRouter()
+        let preparedDraft = ManualProfileFlowState(
+            basicProfile: ManualProfileBasicDraft(
+                fullName: "Aarav Mehta",
+                professionalHeadline: "Product Operations Manager",
+                currentRole: "",
+                industry: "",
+                yearsOfExperience: "",
+                currentCity: "Bengaluru",
+                currentCountry: "India"
+            )
+        )
+        let manualProfileService = StubManualProfileService(preparedDraft: preparedDraft)
+        let resumeImportService = StubResumeImportService(
+            workflowSnapshot: ResumeImportWorkflowSnapshot(
+                resume: ResumeRecord(
+                    id: "resume_123",
+                    originalFilename: "Kairo_Synthetic_Resume_QA.pdf",
+                    contentType: "application/pdf",
+                    fileSizeBytes: 3_072,
+                    uploadStatus: .uploaded,
+                    processingStatus: .needsReview,
+                    createdAt: Date(timeIntervalSince1970: 1_786_000_000),
+                    updatedAt: Date(timeIntervalSince1970: 1_786_000_100)
+                ),
+                reviewSession: ResumeReviewSession(
+                    id: "review_123",
+                    resumeID: "resume_123",
+                    parsedResultID: "parsed_123",
+                    status: .imported,
+                    schemaVersion: "resume_review.v1",
+                    version: 3,
+                    items: [],
+                    createdAt: Date(timeIntervalSince1970: 1_786_000_000),
+                    updatedAt: Date(timeIntervalSince1970: 1_786_000_100)
+                ),
+                importBatch: nil
+            ),
+            recoveryState: ResumeImportRecoveryState(
+                reviewSession: ResumeReviewSession(
+                    id: "review_123",
+                    resumeID: "resume_123",
+                    parsedResultID: "parsed_123",
+                    status: .imported,
+                    schemaVersion: "resume_review.v1",
+                    version: 3,
+                    items: [],
+                    createdAt: Date(timeIntervalSince1970: 1_786_000_000),
+                    updatedAt: Date(timeIntervalSince1970: 1_786_000_100)
+                ),
+                importBatch: ResumeImportBatch(
+                    id: "batch_123",
+                    reviewSessionID: "review_123",
+                    status: "completed",
+                    totalCount: 12,
+                    importedCount: 12,
+                    linkedCount: 0,
+                    skippedCount: 0,
+                    failedCount: 0,
+                    blockedCount: 0,
+                    incompleteCount: 5,
+                    entityCounts: [:],
+                    results: [],
+                    createdAt: Date(timeIntervalSince1970: 1_786_000_000),
+                    updatedAt: Date(timeIntervalSince1970: 1_786_000_100)
+                ),
+                completionResult: ResumeImportCompletionResult(
+                    user: UserPublicDTO.fixture.asDomainModel(),
+                    onboardingStatus: .fixture(
+                        currentStep: .completeProfile,
+                        completedSteps: ["verify_email", "verify_phone", "resume_import"],
+                        missingRequirements: ["current_role", "industry", "years_of_experience"],
+                        nextRecommendedStep: "complete_profile",
+                        completionPercentage: 88,
+                        isOnboardingComplete: false
+                    )
+                ),
+                disposition: .importCompleted
+            )
+        )
+
+        let store = AppSessionStore(
+            configuration: makeConfiguration(),
+            uiTestConfiguration: .disabled,
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(
+                    currentStep: .completeProfile,
+                    completedSteps: ["verify_email", "verify_phone"],
+                    missingRequirements: ["current_role", "industry", "years_of_experience"],
+                    nextRecommendedStep: "complete_profile",
+                    completionPercentage: 75
+                )
+            ),
+            sessionService: StubSessionService(
+                hasAccessToken: true,
+                hasRefreshToken: true,
+                signupSessionID: nil
+            ),
+            manualProfileService: manualProfileService,
+            resumeImportService: resumeImportService
+        )
+
+        await store.refreshLaunchRoute()
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath.last, .step(.resumeImportOrQuickProfile))
+        XCTAssertEqual(ManualProfileDraftStore.load(), preparedDraft)
+        let prepareDraftCallCount = await manualProfileService.prepareDraftCallCount
+        XCTAssertEqual(prepareDraftCallCount, 1)
+        let restoreWorkflowCallCount = await resumeImportService.restoreWorkflowCallCount
+        let reconcileCallCount = await resumeImportService.reconcileCallCount
+        XCTAssertEqual(restoreWorkflowCallCount, 1)
+        XCTAssertEqual(reconcileCallCount, 1)
     }
 
     func test_signOutReturnsToOnboarding() async {
@@ -142,7 +278,9 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: true,
                 hasRefreshToken: true,
                 signupSessionID: nil
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.signOut()
@@ -171,7 +309,9 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: true,
                 hasRefreshToken: true,
                 signupSessionID: nil
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
@@ -204,7 +344,9 @@ final class AppSessionStoreTests: XCTestCase {
                 hasAccessToken: true,
                 hasRefreshToken: true,
                 signupSessionID: nil
-            )
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
         )
 
         await store.refreshLaunchRoute()
@@ -326,6 +468,121 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
 
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
         onboardingStatus
+    }
+}
+
+private actor StubManualProfileService: ManualProfileServiceProtocol {
+    private let preparedDraftValue: ManualProfileFlowState
+    private(set) var prepareDraftCallCount = 0
+
+    init(preparedDraft: ManualProfileFlowState = ManualProfileFlowState()) {
+        self.preparedDraftValue = preparedDraft
+    }
+
+    func prepareRemainingProfileDraft(signupDraftFullName: String?) async throws -> ManualProfileFlowState {
+        _ = signupDraftFullName
+        prepareDraftCallCount += 1
+        return preparedDraftValue
+    }
+
+    func submit(draft: ManualProfileFlowState) async throws -> ManualProfileSubmissionResult {
+        _ = draft
+        fatalError("submit(draft:) should not be called in AppSessionStoreTests")
+    }
+}
+
+private actor StubResumeImportService: ResumeImportServiceProtocol {
+    let workflowSnapshot: ResumeImportWorkflowSnapshot?
+    let recoveryState: ResumeImportRecoveryState?
+    private(set) var restoreWorkflowCallCount = 0
+    private(set) var reconcileCallCount = 0
+
+    init(
+        workflowSnapshot: ResumeImportWorkflowSnapshot? = nil,
+        recoveryState: ResumeImportRecoveryState? = nil
+    ) {
+        self.workflowSnapshot = workflowSnapshot
+        self.recoveryState = recoveryState
+    }
+
+    func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
+        _ = pickedURL
+        fatalError("prepareSelection(from:) should not be called in AppSessionStoreTests")
+    }
+
+    func cleanupSelection(at temporaryFileURL: URL) {
+        _ = temporaryFileURL
+    }
+
+    func restoreLatestWorkflow() async throws -> ResumeImportWorkflowSnapshot? {
+        restoreWorkflowCallCount += 1
+        return workflowSnapshot
+    }
+
+    func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord {
+        _ = selection
+        fatalError("upload(selection:) should not be called in AppSessionStoreTests")
+    }
+
+    func startProcessing(resumeID: String) async throws -> ResumeProcessJob {
+        _ = resumeID
+        fatalError("startProcessing(resumeID:) should not be called in AppSessionStoreTests")
+    }
+
+    func processingStatus(resumeID: String) async throws -> ResumeProcessJob {
+        _ = resumeID
+        fatalError("processingStatus(resumeID:) should not be called in AppSessionStoreTests")
+    }
+
+    func loadOrCreateReviewSession(resumeID: String) async throws -> ResumeReviewSession {
+        _ = resumeID
+        fatalError("loadOrCreateReviewSession(resumeID:) should not be called in AppSessionStoreTests")
+    }
+
+    func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
+        _ = reviewID
+        fatalError("refreshReviewSession(reviewID:) should not be called in AppSessionStoreTests")
+    }
+
+    func updateReviewItem(
+        reviewID: String,
+        itemID: String,
+        payload: ResumeReviewItemUpdateRequestDTO
+    ) async throws -> ResumeReviewSession {
+        _ = (reviewID, itemID, payload)
+        fatalError("updateReviewItem(...) should not be called in AppSessionStoreTests")
+    }
+
+    func validateReview(reviewID: String, expectedVersion: Int) async throws -> ResumeReviewPlan {
+        _ = (reviewID, expectedVersion)
+        fatalError("validateReview(reviewID:expectedVersion:) should not be called in AppSessionStoreTests")
+    }
+
+    func importReview(
+        reviewID: String,
+        expectedVersion: Int,
+        idempotencyKey: String
+    ) async throws -> ResumeImportBatch {
+        _ = (reviewID, expectedVersion, idempotencyKey)
+        fatalError("importReview(...) should not be called in AppSessionStoreTests")
+    }
+
+    func latestImportStatus(reviewID: String) async throws -> ResumeImportBatch {
+        _ = reviewID
+        fatalError("latestImportStatus(reviewID:) should not be called in AppSessionStoreTests")
+    }
+
+    func reconcileImportRecovery(reviewID: String) async throws -> ResumeImportRecoveryState {
+        _ = reviewID
+        reconcileCallCount += 1
+        guard let recoveryState else {
+            fatalError("reconcileImportRecovery(reviewID:) was not stubbed")
+        }
+        return recoveryState
+    }
+
+    func completeOnboardingIfNeeded() async throws -> ResumeImportCompletionResult {
+        fatalError("completeOnboardingIfNeeded() should not be called in AppSessionStoreTests")
     }
 }
 

@@ -242,6 +242,50 @@ final class ManualProfileServiceTests: XCTestCase {
         )
     }
 
+    func test_prepareRemainingProfileDraftPrefillsImportedProfileAndRecords() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/users/me"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeImportedCurrentUserPayload)
+            case ("GET", "/api/v1/employments"):
+                return (try Self.response(for: request, statusCode: 200), Self.importedEmploymentsPayload)
+            case ("GET", "/api/v1/educations"):
+                return (try Self.response(for: request, statusCode: 200), Self.importedEducationsPayload)
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let draft = try await service.prepareRemainingProfileDraft(signupDraftFullName: "Ignored Signup Name")
+
+        XCTAssertEqual(draft.step, .basicProfile)
+        XCTAssertEqual(draft.basicProfile.fullName, "Resume QA")
+        XCTAssertEqual(draft.basicProfile.professionalHeadline, "Product Operations Manager")
+        XCTAssertEqual(draft.basicProfile.currentRole, "")
+        XCTAssertEqual(draft.basicProfile.industry, "")
+        XCTAssertEqual(draft.basicProfile.yearsOfExperience, "")
+        XCTAssertEqual(draft.basicProfile.currentCity, "Bengaluru")
+        XCTAssertEqual(draft.basicProfile.currentCountry, "India")
+
+        XCTAssertEqual(draft.employmentEntries.count, 2)
+        XCTAssertEqual(draft.employmentEntries[0].company, "Northstar Analytics Private Limited")
+        XCTAssertEqual(draft.employmentEntries[0].jobTitle, "Product Operations Manager")
+        XCTAssertTrue(draft.employmentEntries[0].isCurrentlyWorking)
+        XCTAssertEqual(draft.employmentEntries[1].company, "BluePeak Technologies Private Limited")
+        XCTAssertEqual(draft.employmentEntries[1].endYear, "2021")
+
+        XCTAssertEqual(draft.educationEntries.count, 1)
+        XCTAssertEqual(draft.educationEntries[0].institution, "Riverdale Institute of Technology")
+        XCTAssertEqual(draft.educationEntries[0].degree, "Bachelor of Technology (B.Tech)")
+        XCTAssertEqual(draft.educationEntries[0].educationLevel, "Bachelor's")
+        XCTAssertEqual(draft.educationEntries[0].fieldOfStudy, "Information Technology")
+        XCTAssertEqual(draft.educationEntries[0].startYear, "2015")
+        XCTAssertEqual(draft.educationEntries[0].endYear, "2019")
+    }
+
     private func makeService() async throws -> ManualProfileService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
@@ -448,6 +492,82 @@ final class ManualProfileServiceTests: XCTestCase {
               "end_date": null,
               "work_location_country": "IN",
               "work_location_region": null,
+              "verification_status": "draft"
+            }
+          ]
+        }
+        """.utf8
+    )
+
+    private nonisolated static let resumeImportedCurrentUserPayload = Data(
+        """
+        {
+          "id": "user_resumeqa",
+          "email": "resumeqa@kairoid.com",
+          "full_name": "Resume QA",
+          "profile_slug": "resume-qa",
+          "phone": "+919876543210",
+          "current_role": null,
+          "industry": null,
+          "years_of_experience": null,
+          "location": "Bengaluru, Karnataka, India",
+          "location_city": null,
+          "location_country": "IN",
+          "headline": "Product Operations Manager",
+          "role": "user",
+          "is_active": true,
+          "phone_verified_at": "2026-08-08T08:00:00Z",
+          "email_verified_at": "2026-08-08T08:00:00Z",
+          "profile_completion_percentage": 85,
+          "created_at": "2026-08-01T08:00:00Z"
+        }
+        """.utf8
+    )
+
+    private nonisolated static let importedEmploymentsPayload = Data(
+        """
+        {
+          "items": [
+            {
+              "id": "employment_1",
+              "employer_legal_name": "Northstar Analytics Private Limited",
+              "job_title": "Product Operations Manager",
+              "employment_type": "full_time",
+              "start_date": "2022-01-01",
+              "end_date": null,
+              "work_location_country": "IN",
+              "verification_status": "draft"
+            },
+            {
+              "id": "employment_2",
+              "employer_legal_name": "BluePeak Technologies Private Limited",
+              "job_title": "Business Analyst",
+              "employment_type": "full_time",
+              "start_date": "2019-06-01",
+              "end_date": "2021-12-31",
+              "work_location_country": "IN",
+              "verification_status": "draft"
+            }
+          ]
+        }
+        """.utf8
+    )
+
+    private nonisolated static let importedEducationsPayload = Data(
+        """
+        {
+          "items": [
+            {
+              "id": "education_1",
+              "institution_name": "Riverdale Institute of Technology",
+              "degree": "Bachelor of Technology (B.Tech)",
+              "field_of_study": "Information Technology",
+              "education_level": "bachelors",
+              "start_date": "2015-01-01",
+              "start_date_precision": "year",
+              "end_date": "2019-01-01",
+              "end_date_precision": "year",
+              "is_currently_studying": false,
               "verification_status": "draft"
             }
           ]
