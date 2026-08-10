@@ -255,6 +255,91 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertFalse(status.isOnboardingComplete)
     }
 
+    func test_accountSettingsResponseDTODecodesCandidateSettingsShape() throws {
+        let data = Data(
+            """
+            {
+              "profile": {
+                "id": "user_123",
+                "email": "aman@kairoid.com",
+                "full_name": "Aman Jha",
+                "profile_slug": "aman-jha",
+                "phone": "+919876543210",
+                "current_role": "Product Operations Manager",
+                "industry": "Technology",
+                "years_of_experience": 7,
+                "location": "Bengaluru, Karnataka, India",
+                "location_city": "Bengaluru",
+                "location_region": "Karnataka",
+                "location_country": "India",
+                "headline": "Product Operations Manager",
+                "role": "user",
+                "is_active": true,
+                "email_verified_at": "2026-08-09T08:30:00Z",
+                "phone_verified_at": null,
+                "profile_completion_percentage": 85,
+                "created_at": "2026-08-09T08:00:00Z"
+              },
+              "trust_score_consent": {
+                "status": "granted",
+                "version": "resume_processing_v1",
+                "consented_at": "2026-08-09T08:31:00Z"
+              },
+              "notification_preferences": [
+                {
+                  "public_id": "notif_1",
+                  "user_id": "user_123",
+                  "event_type": "verification_updates",
+                  "enabled": true,
+                  "preferred_channels": ["email"],
+                  "quiet_hours": {
+                    "start": "22:00",
+                    "end": "07:00"
+                  },
+                  "metadata": {
+                    "source": "staging"
+                  },
+                  "created_at": "2026-08-09T08:32:00Z",
+                  "updated_at": "2026-08-09T08:33:00Z"
+                }
+              ],
+              "app_version": "2026.08.09",
+              "api_version": "v1",
+              "trust_score_version": "ts_2026_08"
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(AccountSettingsResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.profile.fullName, "Aman Jha")
+        XCTAssertEqual(response.trustScoreConsent.status, "granted")
+        XCTAssertEqual(response.notificationPreferences.count, 1)
+        XCTAssertEqual(response.notificationPreferences.first?.quietHours["start"], "22:00")
+        XCTAssertEqual(response.notificationPreferences.first?.metadata["source"], "staging")
+        XCTAssertEqual(response.appVersion, "2026.08.09")
+        XCTAssertEqual(response.apiVersion, "v1")
+        XCTAssertEqual(response.trustScoreVersion, "ts_2026_08")
+    }
+
+    func test_accountSessionResponseDTODefaultsCurrentToFalseWhenOmitted() throws {
+        let data = Data(
+            """
+            {
+              "id": "session_other",
+              "created_at": "2026-08-08T08:00:00Z",
+              "expires_at": "2026-08-15T08:00:00Z",
+              "last_active_at": "2026-08-09T20:45:00Z"
+            }
+            """.utf8
+        )
+
+        let response = try APIJSONCoder.makeDecoder().decode(AccountSessionResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.id, "session_other")
+        XCTAssertFalse(response.current)
+    }
+
     func test_dashboardResponseDTODecodesFrozenBackendShapeAndDefaultsOptionalCollections() throws {
         let data = Data(
             """

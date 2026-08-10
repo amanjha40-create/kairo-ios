@@ -115,6 +115,26 @@ struct AppConfiguration: Equatable, Sendable {
     let apiBaseURL: URL
     let keychainService: String
 
+    var supportEmailAddress: String {
+        "support@kairoid.com"
+    }
+
+    var helpCenterURL: URL? {
+        nil
+    }
+
+    var termsOfServiceURL: URL? {
+        nil
+    }
+
+    var privacyPolicyURL: URL? {
+        nil
+    }
+
+    var cookiePolicyURL: URL? {
+        nil
+    }
+
     var currentResumeImportConsentVersion: String {
         Self.resumeImportConsentVersion
     }

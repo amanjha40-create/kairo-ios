@@ -1,13 +1,33 @@
 import SwiftUI
 
 struct MoreOverviewScreenView: View {
+    @Environment(\.appConfiguration) private var appConfiguration
+    @Environment(\.moreOverviewService) private var moreOverviewService
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
-    @State private var currentState: MoreOverviewState
-    @State private var presentedModal: MorePresentedModal?
 
-    init(state: MoreOverviewState) {
-        _currentState = State(initialValue: state)
+    @Binding private var state: MoreOverviewState
+    private let isLiveMode: Bool
+    private let retryAction: (() -> Void)?
+    private let reloadAction: (() async -> Void)?
+
+    @State private var presentedModal: MorePresentedModal?
+    @State private var notificationsErrorMessage: String?
+    @State private var actionStatusMessage: String?
+    @State private var mutatingNotificationIDs: Set<String> = []
+    @State private var isSigningOut = false
+
+    init(
+        state: Binding<MoreOverviewState>,
+        isLiveMode: Bool,
+        retryAction: (() -> Void)? = nil,
+        reloadAction: (() async -> Void)? = nil
+    ) {
+        _state = state
+        self.isLiveMode = isLiveMode
+        self.retryAction = retryAction
+        self.reloadAction = reloadAction
     }
 
     var body: some View {
@@ -17,6 +37,9 @@ struct MoreOverviewScreenView: View {
             titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
         ) {
             accountSummaryCard
+            if let actionStatusMessage {
+                successCard(message: actionStatusMessage)
+            }
             phaseContent
         }
         .accessibilityElement(children: .contain)
@@ -26,6 +49,16 @@ struct MoreOverviewScreenView: View {
         }
     }
 
+    private var destinations: MoreExternalDestinations {
+        MoreExternalDestinations(
+            supportEmailAddress: appConfiguration.supportEmailAddress,
+            helpCenterURL: appConfiguration.helpCenterURL,
+            termsOfServiceURL: appConfiguration.termsOfServiceURL,
+            privacyPolicyURL: appConfiguration.privacyPolicyURL,
+            cookiePolicyURL: appConfiguration.cookiePolicyURL
+        )
+    }
+
     private var accountSummaryCard: some View {
         KairoCard {
             ViewThatFits(in: .horizontal) {
@@ -33,7 +66,7 @@ struct MoreOverviewScreenView: View {
                     profilePlaceholder
                     accountCopy
                     Spacer(minLength: KairoSpacing.small)
-                    MoreStatusBadge(title: currentState.accountSummary.trustPassportStatus)
+                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
                 }
 
                 VStack(alignment: .leading, spacing: KairoSpacing.medium) {
@@ -42,11 +75,11 @@ struct MoreOverviewScreenView: View {
                         accountCopy
                     }
 
-                    MoreStatusBadge(title: currentState.accountSummary.trustPassportStatus)
+                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
                 }
             }
 
-            Text(currentState.accountSummary.supportingCopy)
+            Text(state.accountSummary.supportingCopy)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -66,7 +99,7 @@ struct MoreOverviewScreenView: View {
             Circle()
                 .fill(KairoColors.surfaceMuted)
 
-            Text(currentState.accountSummary.initials)
+            Text(state.accountSummary.initials)
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
         }
@@ -76,17 +109,17 @@ struct MoreOverviewScreenView: View {
                 .stroke(KairoColors.border, lineWidth: 1)
         )
         .accessibilityElement()
-        .accessibilityLabel("Profile photo placeholder for \(currentState.accountSummary.name)")
+        .accessibilityLabel("Profile placeholder for \(state.accountSummary.name)")
     }
 
     private var accountCopy: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-            Text(currentState.accountSummary.name)
+            Text(state.accountSummary.name)
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(currentState.accountSummary.emailAddress)
+            Text(state.accountSummary.emailAddress)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -100,16 +133,17 @@ struct MoreOverviewScreenView: View {
 
     @ViewBuilder
     private var phaseContent: some View {
-        switch currentState.phase {
+        switch state.phase {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your account hub",
-                message: "Kairo is assembling your local settings, support, and legal preview."
+                message: "Kairo is loading your live account settings."
             )
         case .error(let errorState):
             KairoErrorStateView(
                 title: errorState.title,
-                message: errorState.message
+                message: errorState.message,
+                retryAction: retryAction
             )
         case .populated(let content):
             populatedContent(content)
@@ -124,7 +158,7 @@ struct MoreOverviewScreenView: View {
                 rows: content.accountRows,
                 action: handleAccountRow
             )
-            preferencesSection
+            preferencesSection(content)
             buttonSection(
                 title: MoreOverviewSection.privacyData.title,
                 sectionAccessibilityIdentifier: KairoAccessibilityID.morePrivacyDataSection,
@@ -142,7 +176,7 @@ struct MoreOverviewScreenView: View {
         }
     }
 
-    private var preferencesSection: some View {
+    private func preferencesSection(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(
                 title: MoreOverviewSection.preferences.title,
@@ -151,48 +185,42 @@ struct MoreOverviewScreenView: View {
 
             KairoCard {
                 MorePreferenceGroup(title: "Notifications", systemImage: "bell.badge") {
-                    VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                        Toggle(
-                            isOn: Binding(
-                                get: { currentState.preferences.notifications.verificationUpdates },
-                                set: { currentState.setNotification(.verificationUpdates, isEnabled: $0) }
-                            )
-                        ) {
-                            MoreToggleLabel(
-                                title: MoreNotificationPreference.verificationUpdates.title,
-                                subtitle: MoreNotificationPreference.verificationUpdates.subtitle
-                            )
-                        }
-                        .tint(KairoColors.brandPrimary)
-                        .accessibilityIdentifier(KairoAccessibilityID.moreNotificationsVerificationUpdates)
+                    if content.notificationPreferences.isEmpty {
+                        KairoEmptyStateView(
+                            title: "No notification preferences available",
+                            message: "Kairo did not return any candidate notification preferences for this account.",
+                            systemImage: "bell.slash"
+                        )
+                    } else {
+                        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                            ForEach(content.notificationPreferences) { preference in
+                                Toggle(
+                                    isOn: Binding(
+                                        get: { preferenceState(for: preference.id)?.isEnabled ?? preference.isEnabled },
+                                        set: { handleNotificationToggle(id: preference.id, isEnabled: $0) }
+                                    )
+                                ) {
+                                    MoreToggleLabel(
+                                        title: preference.title,
+                                        subtitle: preference.subtitle
+                                    )
+                                }
+                                .tint(KairoColors.brandPrimary)
+                                .disabled(mutatingNotificationIDs.contains(preference.id))
+                                .accessibilityIdentifier(accessibilityIdentifier(for: preference))
 
-                        Toggle(
-                            isOn: Binding(
-                                get: { currentState.preferences.notifications.passportViews },
-                                set: { currentState.setNotification(.passportViews, isEnabled: $0) }
-                            )
-                        ) {
-                            MoreToggleLabel(
-                                title: MoreNotificationPreference.passportViews.title,
-                                subtitle: MoreNotificationPreference.passportViews.subtitle
-                            )
-                        }
-                        .tint(KairoColors.brandPrimary)
-                        .accessibilityIdentifier(KairoAccessibilityID.moreNotificationsPassportViews)
+                                if preference.id != content.notificationPreferences.last?.id {
+                                    Divider()
+                                }
+                            }
 
-                        Toggle(
-                            isOn: Binding(
-                                get: { currentState.preferences.notifications.productUpdates },
-                                set: { currentState.setNotification(.productUpdates, isEnabled: $0) }
-                            )
-                        ) {
-                            MoreToggleLabel(
-                                title: MoreNotificationPreference.productUpdates.title,
-                                subtitle: MoreNotificationPreference.productUpdates.subtitle
-                            )
+                            if let notificationsErrorMessage {
+                                Text(notificationsErrorMessage)
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.danger)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
-                        .tint(KairoColors.brandPrimary)
-                        .accessibilityIdentifier(KairoAccessibilityID.moreNotificationsProductUpdates)
                     }
                 }
 
@@ -200,7 +228,7 @@ struct MoreOverviewScreenView: View {
 
                 MorePreferenceGroup(title: "Appearance", systemImage: "circle.lefthalf.filled") {
                     VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                        Text("Set a local-only appearance preference for this session.")
+                        Text("Appearance remains a local preference on this device.")
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -227,7 +255,7 @@ struct MoreOverviewScreenView: View {
                 MoreStaticRow(
                     title: "Language",
                     subtitle: "English is the only available language in this milestone.",
-                    value: currentState.preferences.language,
+                    value: state.preferences.language,
                     systemImage: "globe"
                 )
 
@@ -237,11 +265,17 @@ struct MoreOverviewScreenView: View {
                     item: MoreRowItem(
                         id: "accessibility",
                         title: "Accessibility",
-                        subtitle: "Reduce Motion, Larger Text, and VoiceOver guidance.",
+                        subtitle: "VoiceOver, Dynamic Type, Dark Mode, and Reduce Motion guidance.",
                         systemImage: "figure.wave"
                     ),
                     action: {
-                        presentedModal = .detail(.accessibility)
+                        presentedModal = .information(
+                            MoreInformationSheetModel(
+                                title: "Accessibility",
+                                subtitle: "Helpful guidance for your device settings.",
+                                primaryMessage: "Kairo already respects your iPhone's VoiceOver, Dynamic Type, Dark Mode, and Reduce Motion settings. Larger Text and Reduce Motion can be adjusted in the iOS Settings app."
+                            )
+                        )
                     }
                 )
             }
@@ -249,10 +283,10 @@ struct MoreOverviewScreenView: View {
     }
 
     private func appearanceButton(_ appearance: MoreAppearanceOption) -> some View {
-        let isSelected = currentState.preferences.appearance == appearance
+        let isSelected = state.preferences.appearance == appearance
 
         return Button {
-            currentState.selectAppearance(appearance)
+            state.selectAppearance(appearance)
         } label: {
             VStack(alignment: .center, spacing: KairoSpacing.xxSmall) {
                 Text(appearance.title)
@@ -334,10 +368,21 @@ struct MoreOverviewScreenView: View {
 
                 MoreStaticRow(
                     title: "App version",
-                    subtitle: "Read-only app build information.",
+                    subtitle: "Read-only build information from this app bundle.",
                     value: content.appVersion,
                     systemImage: "number"
                 )
+
+                if appConfiguration.environment != .production {
+                    Divider()
+
+                    MoreStaticRow(
+                        title: "Environment",
+                        subtitle: "Internal QA build marker.",
+                        value: appConfiguration.environment.displayName,
+                        systemImage: "circle.hexagongrid"
+                    )
+                }
             }
         }
     }
@@ -349,13 +394,16 @@ struct MoreOverviewScreenView: View {
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                Text("Return to the local sign-in placeholder without changing any backend session or account data.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    isLiveMode
+                        ? "Securely sign out of Kairo on this device. Kairo will revoke the stored refresh session when the backend accepts the logout request."
+                        : "Return to the local sign-in preview without contacting the backend."
+                )
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
                 Button {
-                    currentState.presentConfirmation(.signOut)
                     presentedModal = .confirmation(.signOut)
                 } label: {
                     HStack(spacing: KairoSpacing.small) {
@@ -378,6 +426,7 @@ struct MoreOverviewScreenView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .disabled(isSigningOut)
                 .accessibilityIdentifier(KairoAccessibilityID.moreSignOut)
             }
         }
@@ -386,23 +435,37 @@ struct MoreOverviewScreenView: View {
     @ViewBuilder
     private func modalView(for modal: MorePresentedModal) -> some View {
         switch modal {
-        case .detail(let destination):
-            MoreDetailSheetView(destination: destination)
+        case .profile:
+            if case .populated(let content) = state.phase {
+                MoreProfileSheetView(
+                    initialDraft: MoreProfileDraft(user: content.user),
+                    user: content.user,
+                    onSave: saveProfile
+                )
+            }
+        case .password:
+            MoreChangePasswordSheetView(onSubmit: changePassword)
+        case .sessions:
+            MoreSessionsSheetView()
+        case .consent:
+            if case .populated(let content) = state.phase {
+                MoreConsentManagementSheetView(
+                    consent: content.trustScoreConsent,
+                    onWithdraw: withdrawConsent
+                )
+            }
+        case .information(let model):
+            MoreInformationSheetView(model: model)
         case .confirmation(let confirmation):
             MoreConfirmationSheetView(
                 confirmation: confirmation,
                 onCancel: {
-                    currentState.dismissConfirmation()
                     presentedModal = nil
                 },
                 onConfirm: {
-                    currentState.confirmPendingAction()
                     presentedModal = nil
-
-                    if confirmation == .signOut {
-                        Task {
-                            await sessionStore.signOut()
-                        }
+                    Task {
+                        await confirm(confirmation)
                     }
                 }
             )
@@ -412,13 +475,19 @@ struct MoreOverviewScreenView: View {
     private func handleAccountRow(_ row: MoreRowItem) {
         switch row.id {
         case "personalInformation":
-            presentedModal = .detail(.personalInformation)
+            presentedModal = .profile
         case "loginSecurity":
-            presentedModal = .detail(.loginSecurity)
+            presentedModal = .password
         case "connectedAccounts":
-            presentedModal = .detail(.connectedAccounts)
+            presentedModal = .information(
+                MoreInformationSheetModel(
+                    title: "Connected accounts",
+                    subtitle: "Connected-account controls",
+                    primaryMessage: "Connected accounts are not supported by the candidate backend yet. Kairo does not currently offer social sign-in or account linking from this screen."
+                )
+            )
         case "sessionsDevices":
-            presentedModal = .detail(.sessionsDevices)
+            presentedModal = .sessions
         default:
             break
         }
@@ -427,14 +496,18 @@ struct MoreOverviewScreenView: View {
     private func handlePrivacyRow(_ row: MoreRowItem) {
         switch row.id {
         case "privacySettings":
-            presentedModal = .detail(.privacySettings)
+            presentedModal = .information(
+                MoreInformationSheetModel(
+                    title: "Privacy settings",
+                    subtitle: "Privacy controls",
+                    primaryMessage: "The candidate backend does not currently expose additional account-level privacy settings beyond trust-score consent. Kairo will add truthful controls here when those routes exist."
+                )
+            )
         case "manageConsent":
-            presentedModal = .detail(.manageConsent)
+            presentedModal = .consent
         case "downloadMyData":
-            currentState.presentConfirmation(.downloadMyData)
             presentedModal = .confirmation(.downloadMyData)
         case "deleteAccount":
-            currentState.presentConfirmation(.deleteAccount)
             presentedModal = .confirmation(.deleteAccount)
         default:
             break
@@ -444,13 +517,41 @@ struct MoreOverviewScreenView: View {
     private func handleSupportRow(_ row: MoreRowItem) {
         switch row.id {
         case "helpCentre":
-            presentedModal = .detail(.helpCentre)
+            if let helpCenterURL = appConfiguration.helpCenterURL {
+                openExternal(
+                    helpCenterURL,
+                    fallback: MoreInformationSheetModel(
+                        title: "Help centre unavailable",
+                        subtitle: "Help & support",
+                        primaryMessage: "Kairo couldn't open the configured Help centre on this device.",
+                        supportEmailAddress: appConfiguration.supportEmailAddress
+                    )
+                )
+            } else {
+                presentedModal = .information(
+                    MoreInformationSheetModel(
+                        title: "Help centre unavailable",
+                        subtitle: "Help & support",
+                        primaryMessage: "A Help centre destination is not configured for this build yet. Contact support directly if you need help.",
+                        supportEmailAddress: appConfiguration.supportEmailAddress
+                    )
+                )
+            }
         case "contactSupport":
-            presentedModal = .detail(.contactSupport)
+            openSupportEmail(
+                subject: "Kairo Support Request",
+                fallbackTitle: "Contact support"
+            )
         case "reportProblem":
-            presentedModal = .detail(.reportProblem)
+            openSupportEmail(
+                subject: "Kairo Problem Report",
+                fallbackTitle: "Report a problem"
+            )
         case "giveFeedback":
-            presentedModal = .detail(.giveFeedback)
+            openSupportEmail(
+                subject: "Kairo Product Feedback",
+                fallbackTitle: "Give feedback"
+            )
         default:
             break
         }
@@ -459,18 +560,247 @@ struct MoreOverviewScreenView: View {
     private func handleAboutRow(_ row: MoreRowItem) {
         switch row.id {
         case "aboutKairo":
-            presentedModal = .detail(.aboutKairo)
+            if case .populated(let content) = state.phase {
+                presentedModal = .information(
+                    MoreInformationSheetModel(
+                        title: "About Kairo",
+                        subtitle: "Why portable professional trust matters.",
+                        primaryMessage: "Kairo is building portable professional trust so your verified identity, roles, and achievements can move with you.",
+                        metadataRows: [
+                            MoreMetadataRow(title: "App version", value: content.appVersion),
+                            MoreMetadataRow(title: "Backend app version", value: content.backendAppVersion),
+                            MoreMetadataRow(title: "API version", value: content.apiVersion),
+                            MoreMetadataRow(title: "Trust Score version", value: content.trustScoreVersion)
+                        ]
+                    )
+                )
+            }
         case "termsOfService":
-            presentedModal = .detail(.termsOfService)
+            handleLegalDestination(
+                appConfiguration.termsOfServiceURL,
+                title: "Terms of Service"
+            )
         case "privacyPolicy":
-            presentedModal = .detail(.privacyPolicy)
+            handleLegalDestination(
+                appConfiguration.privacyPolicyURL,
+                title: "Privacy Policy"
+            )
         case "cookiePolicy":
-            presentedModal = .detail(.cookiePolicy)
+            handleLegalDestination(
+                appConfiguration.cookiePolicyURL,
+                title: "Cookie Policy"
+            )
         case "openSourceLicences":
-            presentedModal = .detail(.openSourceLicences)
+            presentedModal = .information(
+                MoreInformationSheetModel(
+                    title: "Open-source licences",
+                    subtitle: "Package acknowledgements",
+                    primaryMessage: "A browsable open-source licence screen is not bundled yet in this build. Kairo should add that before release."
+                )
+            )
         default:
             break
         }
+    }
+
+    private func handleLegalDestination(_ destinationURL: URL?, title: String) {
+        guard let destinationURL else {
+            presentedModal = .information(
+                MoreInformationSheetModel(
+                    title: title,
+                    subtitle: "Legal document",
+                    primaryMessage: "This build does not yet contain a configured destination for \(title)."
+                )
+            )
+            return
+        }
+
+        openExternal(
+            destinationURL,
+            fallback: MoreInformationSheetModel(
+                title: title,
+                subtitle: "Legal document",
+                primaryMessage: "Kairo couldn't open the configured \(title) destination on this device."
+            )
+        )
+    }
+
+    private func openSupportEmail(subject: String, fallbackTitle: String) {
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
+        let value = "mailto:\(appConfiguration.supportEmailAddress)?subject=\(encodedSubject)"
+
+        guard let url = URL(string: value) else {
+            presentedModal = .information(
+                MoreInformationSheetModel(
+                    title: fallbackTitle,
+                    subtitle: "Support email",
+                    primaryMessage: "Kairo couldn't prepare the support email destination.",
+                    supportEmailAddress: appConfiguration.supportEmailAddress
+                )
+            )
+            return
+        }
+
+        openExternal(
+            url,
+            fallback: MoreInformationSheetModel(
+                title: fallbackTitle,
+                subtitle: "Support email",
+                primaryMessage: "This device couldn't open a mail draft automatically.",
+                supportEmailAddress: appConfiguration.supportEmailAddress
+            )
+        )
+    }
+
+    private func openExternal(
+        _ url: URL,
+        fallback: MoreInformationSheetModel
+    ) {
+        openURL(url) { accepted in
+            if !accepted {
+                presentedModal = .information(fallback)
+            }
+        }
+    }
+
+    private func saveProfile(_ draft: MoreProfileDraft) async throws -> String {
+        let overview = try await moreOverviewService.updateProfile(draft)
+        await MainActor.run {
+            sessionStore.replaceCurrentUser(overview.user)
+            state.apply(overview: overview, destinations: destinations)
+            actionStatusMessage = "Your profile settings were updated."
+        }
+        return "Saved"
+    }
+
+    private func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> String {
+        let message = try await moreOverviewService.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            confirmPassword: confirmPassword
+        )
+        await MainActor.run {
+            actionStatusMessage = message
+        }
+        return message
+    }
+
+    private func withdrawConsent() async throws -> String {
+        let overview = try await moreOverviewService.withdrawTrustScoreConsent()
+        await MainActor.run {
+            sessionStore.replaceCurrentUser(overview.user)
+            state.apply(overview: overview, destinations: destinations)
+            actionStatusMessage = "Trust Score consent was updated."
+        }
+        return "Trust Score consent was updated."
+    }
+
+    private func handleNotificationToggle(id: String, isEnabled: Bool) {
+        notificationsErrorMessage = nil
+        let previousPreferences = state.preferences.notifications
+        state.setNotification(id: id, isEnabled: isEnabled)
+
+        guard isLiveMode else {
+            return
+        }
+
+        mutatingNotificationIDs.insert(id)
+
+        Task {
+            do {
+                let overview = try await moreOverviewService.updateNotificationPreference(
+                    id: id,
+                    enabled: isEnabled,
+                    existingPreferences: previousPreferences
+                )
+                await MainActor.run {
+                    sessionStore.replaceCurrentUser(overview.user)
+                    state.apply(overview: overview, destinations: destinations)
+                    mutatingNotificationIDs.remove(id)
+                    actionStatusMessage = "Notification preferences updated."
+                }
+            } catch {
+                await MainActor.run {
+                    state.replaceNotificationPreferences(previousPreferences)
+                    mutatingNotificationIDs.remove(id)
+                    notificationsErrorMessage = message(for: error)
+                }
+            }
+        }
+    }
+
+    private func confirm(_ confirmation: MorePendingConfirmation) async {
+        switch confirmation {
+        case .downloadMyData:
+            await MainActor.run {
+                presentedModal = .information(
+                    MoreInformationSheetModel(
+                        title: "Download my data",
+                        subtitle: "Backend gap",
+                        primaryMessage: "The candidate backend does not currently support a self-service data export route."
+                    )
+                )
+            }
+        case .deleteAccount:
+            await MainActor.run {
+                presentedModal = .information(
+                    MoreInformationSheetModel(
+                        title: "Delete account",
+                        subtitle: "Backend gap",
+                        primaryMessage: "The candidate backend does not currently support self-service account deletion or deactivation."
+                    )
+                )
+            }
+        case .signOut:
+            await MainActor.run {
+                isSigningOut = true
+            }
+            await sessionStore.signOut()
+            await MainActor.run {
+                isSigningOut = false
+            }
+        case .withdrawConsent, .revokeSession:
+            break
+        }
+    }
+
+    private func message(for error: Error) -> String {
+        switch error {
+        case let networkError as NetworkError:
+            switch networkError {
+            case .api(let apiError):
+                return apiError.message
+            case .transport:
+                return "Kairo couldn't reach the network. Check your connection and try again."
+            case .invalidResponse:
+                return "Kairo received an unexpected response. Please try again."
+            case .invalidURL:
+                return "Kairo's settings configuration is invalid."
+            case .unavailableInDemoMode:
+                return "Demo Mode keeps account settings local."
+            }
+        case let sessionError as SessionServiceError:
+            return sessionError.errorDescription ?? "Kairo couldn't complete this account action."
+        default:
+            return error.localizedDescription
+        }
+    }
+
+    private func successCard(message: String) -> some View {
+        KairoCard {
+            Text(message)
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.success)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func preferenceState(for id: String) -> MoreNotificationPreferenceItem? {
+        state.preferences.notifications.first(where: { $0.id == id })
     }
 
     private func accessibilityIdentifier(for appearance: MoreAppearanceOption) -> String {
@@ -481,6 +811,19 @@ struct MoreOverviewScreenView: View {
             KairoAccessibilityID.moreAppearanceLight
         case .dark:
             KairoAccessibilityID.moreAppearanceDark
+        }
+    }
+
+    private func accessibilityIdentifier(for preference: MoreNotificationPreferenceItem) -> String {
+        switch preference.eventType.lowercased() {
+        case "verification_updates", "verification_update", "verification_status":
+            return KairoAccessibilityID.moreNotificationsVerificationUpdates
+        case "passport_views", "passport_view", "passport_shares":
+            return KairoAccessibilityID.moreNotificationsPassportViews
+        case "product_updates", "product_update", "marketing_updates":
+            return KairoAccessibilityID.moreNotificationsProductUpdates
+        default:
+            return "candidate.more.notifications.\(preference.id)"
         }
     }
 
@@ -503,108 +846,44 @@ struct MoreOverviewScreenView: View {
 }
 
 private enum MorePresentedModal: Identifiable {
-    case detail(MoreDetailDestination)
+    case profile
+    case password
+    case sessions
+    case consent
+    case information(MoreInformationSheetModel)
     case confirmation(MorePendingConfirmation)
 
     var id: String {
         switch self {
-        case .detail(let destination):
-            "detail.\(destination.id)"
+        case .profile:
+            "profile"
+        case .password:
+            "password"
+        case .sessions:
+            "sessions"
+        case .consent:
+            "consent"
+        case .information(let model):
+            "info.\(model.id)"
         case .confirmation(let confirmation):
             "confirmation.\(confirmation.id)"
         }
     }
 }
 
-private enum MoreDetailDestination: String, Identifiable, Equatable {
-    case personalInformation
-    case loginSecurity
-    case connectedAccounts
-    case sessionsDevices
-    case accessibility
-    case privacySettings
-    case manageConsent
-    case helpCentre
-    case contactSupport
-    case reportProblem
-    case giveFeedback
-    case aboutKairo
-    case termsOfService
-    case privacyPolicy
-    case cookiePolicy
-    case openSourceLicences
+private struct MoreInformationSheetModel: Identifiable {
+    let id = UUID().uuidString
+    let title: String
+    let subtitle: String
+    let primaryMessage: String
+    var supportEmailAddress: String? = nil
+    var metadataRows: [MoreMetadataRow] = []
+}
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .personalInformation:
-            "Personal information"
-        case .loginSecurity:
-            "Login & security"
-        case .connectedAccounts:
-            "Connected accounts"
-        case .sessionsDevices:
-            "Sessions & devices"
-        case .accessibility:
-            "Accessibility"
-        case .privacySettings:
-            "Privacy settings"
-        case .manageConsent:
-            "Manage consent"
-        case .helpCentre:
-            "Help centre"
-        case .contactSupport:
-            "Contact support"
-        case .reportProblem:
-            "Report a problem"
-        case .giveFeedback:
-            "Give feedback"
-        case .aboutKairo:
-            "About Kairo"
-        case .termsOfService:
-            "Terms of Service"
-        case .privacyPolicy:
-            "Privacy Policy"
-        case .cookiePolicy:
-            "Cookie Policy"
-        case .openSourceLicences:
-            "Open-source licences"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .personalInformation:
-            "Review your account basics."
-        case .loginSecurity:
-            "Future sign-in protection controls."
-        case .connectedAccounts:
-            "Future account-linking controls."
-        case .sessionsDevices:
-            "Future device and session visibility."
-        case .accessibility:
-            "Helpful guidance for your device settings."
-        case .privacySettings:
-            "How Kairo will handle professional trust sharing."
-        case .manageConsent:
-            "Future controls for who can verify or view your history."
-        case .helpCentre:
-            "Support guidance and common questions."
-        case .contactSupport:
-            "Reach the Kairo team."
-        case .reportProblem:
-            "A future structured issue report."
-        case .giveFeedback:
-            "Share product feedback and ideas."
-        case .aboutKairo:
-            "Why portable professional trust matters."
-        case .termsOfService, .privacyPolicy, .cookiePolicy:
-            "Local placeholder legal content."
-        case .openSourceLicences:
-            "Future licence disclosures."
-        }
-    }
+private struct MoreMetadataRow: Identifiable {
+    let id = UUID().uuidString
+    let title: String
+    let value: String
 }
 
 private struct MoreSectionTitle: View {
@@ -746,49 +1025,496 @@ private struct MoreStaticRow: View {
     }
 }
 
-private struct MoreDetailSheetView: View {
-    let destination: MoreDetailDestination
+private struct MoreProfileSheetView: View {
+    let initialDraft: MoreProfileDraft
+    let user: AppUser
+    let onSave: (MoreProfileDraft) async throws -> String
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: ProfileField?
+
+    @State private var draft: MoreProfileDraft
+    @State private var isSaving = false
+    @State private var serverErrorMessage: String?
+    @State private var fieldErrors: [ProfileField: String] = [:]
+
+    init(
+        initialDraft: MoreProfileDraft,
+        user: AppUser,
+        onSave: @escaping (MoreProfileDraft) async throws -> String
+    ) {
+        self.initialDraft = initialDraft
+        self.user = user
+        self.onSave = onSave
+        _draft = State(initialValue: initialDraft)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
                     KairoCard {
-                        Text(primaryMessage)
-                            .font(KairoTypography.body)
-                            .foregroundStyle(KairoColors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        MoreStaticRow(
+                            title: "Email",
+                            subtitle: verificationMessage(isVerified: user.emailVerifiedAt != nil),
+                            value: user.email,
+                            systemImage: "envelope"
+                        )
+
+                        Divider()
+
+                        MoreStaticRow(
+                            title: "Mobile",
+                            subtitle: verificationMessage(isVerified: user.phoneVerifiedAt != nil),
+                            value: user.phone ?? "Not added",
+                            systemImage: "phone"
+                        )
                     }
 
-                    if let secondaryCardTitle {
-                        KairoCard {
-                            Text(secondaryCardTitle)
-                                .font(KairoTypography.headline)
-                                .foregroundStyle(KairoColors.textPrimary)
+                    KairoCard {
+                        VStack(spacing: KairoSpacing.medium) {
+                            KairoTextField(
+                                title: "Full Name",
+                                prompt: "Enter your full name",
+                                text: $draft.fullName,
+                                errorMessage: fieldErrors[.fullName],
+                                textContentType: .name,
+                                focus: $focusedField,
+                                focusedField: .fullName,
+                                onSubmit: { focusedField = .headline }
+                            )
 
-                            Text(secondaryMessage)
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            KairoTextField(
+                                title: "Professional Headline",
+                                prompt: "Enter a headline",
+                                text: $draft.professionalHeadline,
+                                errorMessage: fieldErrors[.headline],
+                                textInputAutocapitalization: .words,
+                                focus: $focusedField,
+                                focusedField: .headline,
+                                onSubmit: { focusedField = .currentRole }
+                            )
+
+                            KairoTextField(
+                                title: "Current Role",
+                                prompt: "Enter your current role",
+                                text: $draft.currentRole,
+                                errorMessage: fieldErrors[.currentRole],
+                                textInputAutocapitalization: .words,
+                                focus: $focusedField,
+                                focusedField: .currentRole,
+                                onSubmit: { focusedField = .industry }
+                            )
+
+                            KairoTextField(
+                                title: "Industry",
+                                prompt: "Enter your industry",
+                                text: $draft.industry,
+                                errorMessage: fieldErrors[.industry],
+                                textInputAutocapitalization: .words,
+                                focus: $focusedField,
+                                focusedField: .industry,
+                                onSubmit: { focusedField = .yearsOfExperience }
+                            )
+
+                            KairoTextField(
+                                title: "Years of Experience",
+                                prompt: "Enter whole years",
+                                text: $draft.yearsOfExperience,
+                                errorMessage: fieldErrors[.yearsOfExperience],
+                                keyboardType: .numberPad,
+                                focus: $focusedField,
+                                focusedField: .yearsOfExperience,
+                                onSubmit: { focusedField = .currentCity }
+                            )
+
+                            KairoTextField(
+                                title: "Current City",
+                                prompt: "Enter your city",
+                                text: $draft.currentCity,
+                                errorMessage: fieldErrors[.currentCity],
+                                textInputAutocapitalization: .words,
+                                focus: $focusedField,
+                                focusedField: .currentCity,
+                                onSubmit: { focusedField = .currentCountry }
+                            )
+
+                            KairoTextField(
+                                title: "Current Country",
+                                prompt: "Enter your country",
+                                text: $draft.currentCountry,
+                                errorMessage: fieldErrors[.currentCountry],
+                                textInputAutocapitalization: .words,
+                                submitLabel: .done,
+                                focus: $focusedField,
+                                focusedField: .currentCountry,
+                                onSubmit: submit
+                            )
                         }
                     }
 
-                    if destination == .contactSupport {
+                    if let serverErrorMessage {
+                        Text(serverErrorMessage)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: KairoSpacing.medium) {
+                        KairoPrimaryButton(
+                            title: "Save changes",
+                            isLoading: isSaving,
+                            action: submit
+                        )
+                        .disabled(isSaving)
+
+                        KairoSecondaryButton(title: "Cancel") {
+                            dismiss()
+                        }
+                        .disabled(isSaving)
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(
+                LinearGradient(
+                    colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Personal information")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func submit() {
+        fieldErrors = validate(draft)
+        serverErrorMessage = nil
+
+        guard fieldErrors.isEmpty, !isSaving else {
+            return
+        }
+
+        isSaving = true
+        let submissionDraft = draft
+
+        Task {
+            do {
+                _ = try await onSave(submissionDraft)
+                await MainActor.run {
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    apply(error)
+                }
+            }
+        }
+    }
+
+    private func validate(_ draft: MoreProfileDraft) -> [ProfileField: String] {
+        var errors: [ProfileField: String] = [:]
+
+        if ManualProfileNormalization.normalized(draft.fullName).isEmpty {
+            errors[.fullName] = "Enter your full name."
+        }
+
+        let yearsValue = ManualProfileNormalization.normalized(draft.yearsOfExperience)
+        if !yearsValue.isEmpty,
+           ManualProfileValidation.normalizedYearsOfExperience(yearsValue) == nil {
+            errors[.yearsOfExperience] = "Enter valid whole years of experience."
+        }
+
+        return errors
+    }
+
+    private func apply(_ error: Error) {
+        switch error {
+        case let networkError as NetworkError:
+            if case .api(let apiError) = networkError {
+                fieldErrors = [
+                    .fullName: apiError.fieldErrors["full_name"]?.first,
+                    .headline: apiError.fieldErrors["headline"]?.first,
+                    .currentRole: apiError.fieldErrors["current_role"]?.first,
+                    .industry: apiError.fieldErrors["industry"]?.first,
+                    .yearsOfExperience: apiError.fieldErrors["years_of_experience"]?.first,
+                    .currentCity: apiError.fieldErrors["location_city"]?.first,
+                    .currentCountry: apiError.fieldErrors["location_country"]?.first
+                ].compactMapValues { $0 }
+                serverErrorMessage = apiError.message
+                return
+            }
+            serverErrorMessage = error.localizedDescription
+        default:
+            serverErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func verificationMessage(isVerified: Bool) -> String {
+        isVerified ? "Verified on your account" : "Not verified on your account"
+    }
+
+    private enum ProfileField: Hashable {
+        case fullName
+        case headline
+        case currentRole
+        case industry
+        case yearsOfExperience
+        case currentCity
+        case currentCountry
+    }
+}
+
+private struct MoreChangePasswordSheetView: View {
+    let onSubmit: (String, String, String) async throws -> String
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: PasswordField?
+
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var isSubmitting = false
+    @State private var fieldErrors: [PasswordField: String] = [:]
+    @State private var serverErrorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoCard {
+                        VStack(spacing: KairoSpacing.medium) {
+                            KairoTextField(
+                                title: "Current Password",
+                                prompt: "Enter your current password",
+                                text: $currentPassword,
+                                errorMessage: fieldErrors[.currentPassword],
+                                textContentType: .password,
+                                textInputAutocapitalization: .never,
+                                isSecure: true,
+                                submitLabel: .next,
+                                focus: $focusedField,
+                                focusedField: .currentPassword,
+                                onSubmit: { focusedField = .newPassword }
+                            )
+
+                            KairoTextField(
+                                title: "New Password",
+                                prompt: "Enter a new password",
+                                text: $newPassword,
+                                errorMessage: fieldErrors[.newPassword],
+                                textContentType: .newPassword,
+                                textInputAutocapitalization: .never,
+                                isSecure: true,
+                                submitLabel: .next,
+                                focus: $focusedField,
+                                focusedField: .newPassword,
+                                onSubmit: { focusedField = .confirmPassword }
+                            )
+
+                            KairoTextField(
+                                title: "Confirm Password",
+                                prompt: "Re-enter your new password",
+                                text: $confirmPassword,
+                                errorMessage: fieldErrors[.confirmPassword],
+                                textContentType: .newPassword,
+                                textInputAutocapitalization: .never,
+                                isSecure: true,
+                                submitLabel: .done,
+                                focus: $focusedField,
+                                focusedField: .confirmPassword,
+                                onSubmit: submit
+                            )
+                        }
+                    }
+
+                    if let serverErrorMessage {
+                        Text(serverErrorMessage)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: KairoSpacing.medium) {
+                        KairoPrimaryButton(
+                            title: "Change password",
+                            isLoading: isSubmitting,
+                            action: submit
+                        )
+                        .disabled(isSubmitting)
+
+                        KairoSecondaryButton(title: "Cancel") {
+                            dismiss()
+                        }
+                        .disabled(isSubmitting)
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(
+                LinearGradient(
+                    colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Login & security")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func submit() {
+        fieldErrors = validate()
+        serverErrorMessage = nil
+
+        guard fieldErrors.isEmpty, !isSubmitting else {
+            return
+        }
+
+        isSubmitting = true
+        let currentPassword = currentPassword
+        let newPassword = newPassword
+        let confirmPassword = confirmPassword
+
+        Task {
+            do {
+                _ = try await onSubmit(currentPassword, newPassword, confirmPassword)
+                await MainActor.run {
+                    isSubmitting = false
+                    self.currentPassword = ""
+                    self.newPassword = ""
+                    self.confirmPassword = ""
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    apply(error)
+                }
+            }
+        }
+    }
+
+    private func validate() -> [PasswordField: String] {
+        var errors: [PasswordField: String] = [:]
+
+        if currentPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors[.currentPassword] = "Enter your current password."
+        }
+
+        if newPassword.count < 12 {
+            errors[.newPassword] = "Use at least 12 characters."
+        }
+
+        if confirmPassword != newPassword {
+            errors[.confirmPassword] = "Passwords do not match."
+        }
+
+        return errors
+    }
+
+    private func apply(_ error: Error) {
+        switch error {
+        case let networkError as NetworkError:
+            if case .api(let apiError) = networkError {
+                fieldErrors = [
+                    .currentPassword: apiError.fieldErrors["current_password"]?.first,
+                    .newPassword: apiError.fieldErrors["new_password"]?.first,
+                    .confirmPassword: apiError.fieldErrors["confirm_password"]?.first
+                ].compactMapValues { $0 }
+                serverErrorMessage = apiError.message
+                return
+            }
+            serverErrorMessage = error.localizedDescription
+        default:
+            serverErrorMessage = error.localizedDescription
+        }
+    }
+
+    private enum PasswordField: Hashable {
+        case currentPassword
+        case newPassword
+        case confirmPassword
+    }
+}
+
+private struct MoreSessionsSheetView: View {
+    @Environment(\.moreOverviewService) private var moreOverviewService
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var sessions: [MoreSessionRecord] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var revokingIDs: Set<String> = []
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    if isLoading {
+                        KairoLoadingStateView(
+                            title: "Loading sessions",
+                            message: "Kairo is preparing your active account sessions."
+                        )
+                    } else if let errorMessage {
+                        KairoErrorStateView(
+                            title: "Sessions unavailable",
+                            message: errorMessage,
+                            retryAction: load
+                        )
+                    } else if sessions.isEmpty {
+                        KairoEmptyStateView(
+                            title: "No sessions returned",
+                            message: "Kairo did not return any active sessions for this account.",
+                            systemImage: "desktopcomputer.trianglebadge.exclamationmark"
+                        )
+                    } else {
                         KairoCard {
-                            Text("Support inbox")
-                                .font(KairoTypography.headline)
-                                .foregroundStyle(KairoColors.textPrimary)
+                            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                                ForEach(sessions) { session in
+                                    VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                                        HStack(alignment: .center, spacing: KairoSpacing.small) {
+                                            Text(session.isCurrent ? "Current session" : "Active session")
+                                                .font(KairoTypography.headline)
+                                                .foregroundStyle(KairoColors.textPrimary)
 
-                            Text("contact@kairoid.com")
-                                .font(KairoTypography.title2)
-                                .foregroundStyle(KairoColors.brandPrimary)
+                                            if session.isCurrent {
+                                                MoreStatusBadge(title: "Current")
+                                            }
+                                        }
 
-                            Text("Support submissions are not connected in this milestone. Use this address as the future support contact point.")
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                                        Text("Last active \(relativeDate(session.lastActiveAt))")
+                                            .font(KairoTypography.body)
+                                            .foregroundStyle(KairoColors.textSecondary)
+
+                                        Text("Created \(absoluteDate(session.createdAt)) • Expires \(absoluteDate(session.expiresAt))")
+                                            .font(KairoTypography.footnote)
+                                            .foregroundStyle(KairoColors.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+
+                                        if !session.isCurrent {
+                                            KairoSecondaryButton(
+                                                title: revokingIDs.contains(session.id) ? "Revoking…" : "Revoke session",
+                                                action: {
+                                                    revoke(session)
+                                                }
+                                            )
+                                            .disabled(revokingIDs.contains(session.id))
+                                        }
+                                    }
+
+                                    if session.id != sessions.last?.id {
+                                        Divider()
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -803,7 +1529,7 @@ private struct MoreDetailSheetView: View {
                 )
                 .ignoresSafeArea()
             )
-            .navigationTitle(destination.title)
+            .navigationTitle("Sessions & devices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -812,73 +1538,279 @@ private struct MoreDetailSheetView: View {
                     }
                 }
             }
+            .task {
+                load()
+            }
         }
     }
 
-    private var primaryMessage: String {
-        switch destination {
-        case .personalInformation:
-            "Personal-information editing will arrive in a later milestone. For now, this sheet confirms where your account basics will be managed."
-        case .loginSecurity:
-            "Password changes, stronger authentication, and account-protection controls are intentionally deferred until backend integration is available."
-        case .connectedAccounts:
-            "Connected-account management is intentionally deferred. Social sign-in and account linking are not active in this milestone."
-        case .sessionsDevices:
-            "Session visibility and device management will be connected later. This build does not expose live session or device data."
-        case .accessibility:
-            "Kairo already respects your iPhone's VoiceOver, Dynamic Type, Dark Mode, and Reduce Motion settings. Larger Text and Reduce Motion can be adjusted in the iOS Settings app."
-        case .privacySettings:
-            "Privacy settings will become the place where you decide how your Trust Passport is shared with organisations and verifiers."
-        case .manageConsent:
-            "Consent controls will later let you review and adjust which organisations can access your professional trust information."
-        case .helpCentre:
-            "The Help centre will grow into a searchable support library for using your Trust Passport with confidence."
-        case .contactSupport:
-            "Use the support inbox below when the full support workflow is connected in a later milestone."
-        case .reportProblem:
-            "This local placeholder marks the future problem-reporting flow. No issue submission happens in this build."
-        case .giveFeedback:
-            "This local placeholder marks the future feedback flow. No feedback submission happens in this build."
-        case .aboutKairo:
-            "Kairo is building portable professional trust so your verified identity, roles, and achievements can move with you."
-        case .termsOfService:
-            "Terms of Service content is intentionally local-only in this milestone. Remote legal content is not yet connected."
-        case .privacyPolicy:
-            "Privacy Policy content is intentionally local-only in this milestone. Remote legal content is not yet connected."
-        case .cookiePolicy:
-            "Cookie Policy content is intentionally local-only in this milestone. Remote legal content is not yet connected."
-        case .openSourceLicences:
-            "Open-source licence disclosures will appear here in a later milestone when the app is ready to present them cleanly."
+    private func load() {
+        guard !isLoading || (sessions.isEmpty && errorMessage == nil) else {
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let loadedSessions = try await moreOverviewService.loadSessions()
+                await MainActor.run {
+                    isLoading = false
+                    sessions = loadedSessions.sorted { lhs, rhs in
+                        if lhs.isCurrent != rhs.isCurrent {
+                            return lhs.isCurrent && !rhs.isCurrent
+                        }
+                        return lhs.lastActiveAt > rhs.lastActiveAt
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                }
+            }
         }
     }
 
-    private var secondaryCardTitle: String? {
-        switch destination {
-        case .reportProblem:
-            "Placeholder form"
-        case .giveFeedback:
-            "Placeholder form"
-        case .accessibility:
-            "What Kairo already supports"
-        case .aboutKairo:
-            "Kairo direction"
-        default:
-            nil
+    private func revoke(_ session: MoreSessionRecord) {
+        revokingIDs.insert(session.id)
+
+        Task {
+            do {
+                try await moreOverviewService.revokeSession(id: session.id)
+                let refreshed = try await moreOverviewService.loadSessions()
+                await MainActor.run {
+                    revokingIDs.remove(session.id)
+                    sessions = refreshed.sorted { lhs, rhs in
+                        if lhs.isCurrent != rhs.isCurrent {
+                            return lhs.isCurrent && !rhs.isCurrent
+                        }
+                        return lhs.lastActiveAt > rhs.lastActiveAt
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    revokingIDs.remove(session.id)
+                    errorMessage = error.localizedDescription
+                }
+            }
         }
     }
 
-    private var secondaryMessage: String {
-        switch destination {
-        case .reportProblem:
-            "A future form will collect issue details, screenshots, and context before sending anything to Kairo support."
-        case .giveFeedback:
-            "A future form will collect product ideas and qualitative feedback without leaving the app."
-        case .accessibility:
-            "VoiceOver labels, Dynamic Type, Dark Mode, landscape layouts, and Reduce Motion support are already built into the current Kairo candidate experience."
-        case .aboutKairo:
-            "Trust should not be trapped in a single employer or platform. Kairo is designed so verified professional history becomes reusable, portable, and owned by the candidate."
-        default:
-            ""
+    private func absoluteDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private func relativeDate(_ date: Date) -> String {
+        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+    }
+}
+
+private struct MoreConsentManagementSheetView: View {
+    let consent: MoreTrustScoreConsent
+    let onWithdraw: () async throws -> String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isSubmitting = false
+    @State private var serverErrorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoCard {
+                        MoreStaticRow(
+                            title: "Trust Score consent",
+                            subtitle: "Current backend consent status.",
+                            value: prettified(consent.status),
+                            systemImage: "checkmark.shield"
+                        )
+
+                        if let version = consent.version {
+                            Divider()
+                            MoreStaticRow(
+                                title: "Consent version",
+                                subtitle: "Version recorded by the backend.",
+                                value: version,
+                                systemImage: "number"
+                            )
+                        }
+
+                        if let consentedAt = consent.consentedAt {
+                            Divider()
+                            MoreStaticRow(
+                                title: "Consented at",
+                                subtitle: "When Kairo recorded your consent.",
+                                value: absoluteDate(consentedAt),
+                                systemImage: "calendar"
+                            )
+                        }
+                    }
+
+                    if let serverErrorMessage {
+                        Text(serverErrorMessage)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if canWithdraw {
+                        KairoPrimaryButton(
+                            title: "Withdraw consent",
+                            isLoading: isSubmitting,
+                            action: withdraw
+                        )
+                        .disabled(isSubmitting)
+                    } else {
+                        KairoCard {
+                            Text("No additional consent action is available for the current backend state.")
+                                .font(KairoTypography.body)
+                                .foregroundStyle(KairoColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    KairoSecondaryButton(title: "Done") {
+                        dismiss()
+                    }
+                    .disabled(isSubmitting)
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(
+                LinearGradient(
+                    colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Manage consent")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var canWithdraw: Bool {
+        let normalized = consent.status.lowercased()
+        return normalized == "active" || normalized == "granted" || normalized == "consented"
+    }
+
+    private func withdraw() {
+        guard !isSubmitting else {
+            return
+        }
+
+        serverErrorMessage = nil
+        isSubmitting = true
+
+        Task {
+            do {
+                _ = try await onWithdraw()
+                await MainActor.run {
+                    isSubmitting = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    serverErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func absoluteDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private func prettified(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { word in
+                let lower = word.lowercased()
+                return lower.prefix(1).uppercased() + lower.dropFirst()
+            }
+            .joined(separator: " ")
+    }
+}
+
+private struct MoreInformationSheetView: View {
+    let model: MoreInformationSheetModel
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoCard {
+                        Text(model.primaryMessage)
+                            .font(KairoTypography.body)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let supportEmailAddress = model.supportEmailAddress {
+                        KairoCard {
+                            Text("Support email")
+                                .font(KairoTypography.headline)
+                                .foregroundStyle(KairoColors.textPrimary)
+
+                            Text(supportEmailAddress)
+                                .font(KairoTypography.title2)
+                                .foregroundStyle(KairoColors.brandPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if !model.metadataRows.isEmpty {
+                        KairoCard {
+                            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                                ForEach(Array(model.metadataRows.enumerated()), id: \.element.id) { index, row in
+                                    if index > 0 {
+                                        Divider()
+                                    }
+
+                                    MoreStaticRow(
+                                        title: row.title,
+                                        subtitle: "Read-only",
+                                        value: row.value,
+                                        systemImage: "number"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(
+                LinearGradient(
+                    colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle(model.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -894,7 +1826,7 @@ private struct MoreConfirmationSheetView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
                 KairoCard {
-                    Text(confirmation.message)
+                    Text(message)
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -910,7 +1842,7 @@ private struct MoreConfirmationSheetView: View {
                         dismiss()
                         onConfirm()
                     } label: {
-                        Text(confirmation.confirmTitle)
+                        Text(confirmTitle)
                             .font(KairoTypography.headline)
                             .foregroundStyle(confirmation == .signOut ? KairoColors.danger : KairoColors.brandPrimary)
                             .frame(maxWidth: .infinity)
@@ -937,13 +1869,67 @@ private struct MoreConfirmationSheetView: View {
                 )
                 .ignoresSafeArea()
             )
-            .navigationTitle(confirmation.title)
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .accessibilityIdentifier(
-                confirmation == .signOut
-                    ? KairoAccessibilityID.moreSignOutConfirmation
-                    : KairoAccessibilityID.moreDeleteAccountConfirmation
-            )
+            .accessibilityIdentifier(confirmationAccessibilityIdentifier)
+        }
+    }
+
+    private var confirmationAccessibilityIdentifier: String {
+        switch confirmation {
+        case .downloadMyData:
+            KairoAccessibilityID.moreDownloadMyDataConfirmation
+        case .deleteAccount:
+            KairoAccessibilityID.moreDeleteAccountConfirmation
+        case .signOut:
+            KairoAccessibilityID.moreSignOutConfirmation
+        case .withdrawConsent:
+            "candidate.more.withdrawConsent.confirmation"
+        case .revokeSession:
+            "candidate.more.revokeSession.confirmation"
+        }
+    }
+
+    private var title: String {
+        switch confirmation {
+        case .downloadMyData:
+            "Download my data"
+        case .deleteAccount:
+            "Delete account"
+        case .signOut:
+            "Sign Out"
+        case .withdrawConsent:
+            "Withdraw consent"
+        case .revokeSession:
+            "Revoke session"
+        }
+    }
+
+    private var message: String {
+        switch confirmation {
+        case .downloadMyData:
+            "Data export is not supported by the candidate backend yet. Kairo won't generate or send an export file from this build."
+        case .deleteAccount:
+            "Self-service account deletion is not supported by the candidate backend yet. No account or Trust Passport data will be deleted from this build."
+        case .signOut:
+            "Kairo will clear your local authenticated state on this device and attempt backend logout before returning you to the unauthenticated flow."
+        case .withdrawConsent:
+            "Kairo will update your Trust Score consent using the backend's current account-settings contract."
+        case .revokeSession:
+            "Kairo will revoke this account session."
+        }
+    }
+
+    private var confirmTitle: String {
+        switch confirmation {
+        case .downloadMyData, .deleteAccount:
+            "Understood"
+        case .signOut:
+            "Sign Out"
+        case .withdrawConsent:
+            "Withdraw"
+        case .revokeSession:
+            "Revoke"
         }
     }
 }

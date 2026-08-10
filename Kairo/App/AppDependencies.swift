@@ -11,6 +11,7 @@ struct AppDependencies: Sendable {
     let careerOverviewService: any CareerOverviewServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
+    let moreOverviewService: any MoreOverviewServiceProtocol
 
     static func make(
         configuration: AppConfiguration,
@@ -78,6 +79,10 @@ struct AppDependencies: Sendable {
         let passportOverviewService = PassportOverviewService(
             sessionService: sessionService
         )
+        let moreOverviewService = MoreOverviewService(
+            sessionService: sessionService,
+            bundleAppVersion: bundleAppVersion()
+        )
 
         return AppDependencies(
             networkClient: networkClient,
@@ -89,7 +94,15 @@ struct AppDependencies: Sendable {
             homeOverviewService: homeOverviewService,
             careerOverviewService: careerOverviewService,
             verifyOverviewService: verifyOverviewService,
-            passportOverviewService: passportOverviewService
+            passportOverviewService: passportOverviewService,
+            moreOverviewService: moreOverviewService
         )
+    }
+
+    private static func bundleAppVersion(bundle: Bundle = .main) -> String {
+        let info = bundle.infoDictionary ?? [:]
+        let shortVersion = info["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let buildNumber = info["CFBundleVersion"] as? String ?? "1"
+        return "\(shortVersion) (\(buildNumber))"
     }
 }

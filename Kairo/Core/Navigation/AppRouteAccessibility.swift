@@ -165,6 +165,7 @@ nonisolated enum KairoAccessibilityID {
     static let moreAppearanceLight = "candidate.more.appearance.light"
     static let moreAppearanceDark = "candidate.more.appearance.dark"
     static let moreContactSupport = "candidate.more.contactSupport"
+    static let moreDownloadMyDataConfirmation = "candidate.more.downloadMyData.confirmation"
     static let moreDeleteAccount = "candidate.more.deleteAccount"
     static let moreDeleteAccountConfirmation = "candidate.more.deleteAccount.confirmation"
     static let moreTermsOfService = "candidate.more.terms"

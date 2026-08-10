@@ -67,9 +67,13 @@ struct CandidateTabShellView: View {
                 PassportOverviewContainerView()
             }
         case .more:
-            MoreOverviewScreenView(
-                state: uiTestMoreConfiguration.state ?? .default(isDemoMode: appConfiguration.isDemoModeEnabled)
-            )
+            if let uiTestState = uiTestMoreConfiguration.state {
+                MoreOverviewFixtureHostView(state: uiTestState)
+            } else if appConfiguration.isDemoModeEnabled {
+                MoreOverviewFixtureHostView(state: .default(isDemoMode: true))
+            } else {
+                MoreOverviewContainerView()
+            }
         }
     }
 }

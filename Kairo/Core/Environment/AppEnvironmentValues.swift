@@ -190,6 +190,48 @@ private struct MissingPassportOverviewService: PassportOverviewServiceProtocol {
     }
 }
 
+private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
+    func loadOverview() async throws -> MoreOverview {
+        fatalError("Missing More overview service injection.")
+    }
+
+    func updateProfile(_ draft: MoreProfileDraft) async throws -> MoreOverview {
+        _ = draft
+        fatalError("Missing More overview service injection.")
+    }
+
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> String {
+        _ = (currentPassword, newPassword, confirmPassword)
+        fatalError("Missing More overview service injection.")
+    }
+
+    func loadSessions() async throws -> [MoreSessionRecord] {
+        fatalError("Missing More overview service injection.")
+    }
+
+    func revokeSession(id: String) async throws {
+        _ = id
+        fatalError("Missing More overview service injection.")
+    }
+
+    func updateNotificationPreference(
+        id: String,
+        enabled: Bool,
+        existingPreferences: [MoreNotificationPreferenceItem]
+    ) async throws -> MoreOverview {
+        _ = (id, enabled, existingPreferences)
+        fatalError("Missing More overview service injection.")
+    }
+
+    func withdrawTrustScoreConsent() async throws -> MoreOverview {
+        fatalError("Missing More overview service injection.")
+    }
+}
+
 private actor MissingTokenStore: TokenStore {
     func save(_ token: String, for key: TokenKey) async throws {
         _ = (token, key)
@@ -253,6 +295,10 @@ private struct PassportOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any PassportOverviewServiceProtocol = MissingPassportOverviewService()
 }
 
+private struct MoreOverviewServiceKey: EnvironmentKey {
+    static let defaultValue: any MoreOverviewServiceProtocol = MissingMoreOverviewService()
+}
+
 extension EnvironmentValues {
     var appConfiguration: AppConfiguration {
         get { self[AppConfigurationKey.self] }
@@ -302,5 +348,10 @@ extension EnvironmentValues {
     var passportOverviewService: any PassportOverviewServiceProtocol {
         get { self[PassportOverviewServiceKey.self] }
         set { self[PassportOverviewServiceKey.self] = newValue }
+    }
+
+    var moreOverviewService: any MoreOverviewServiceProtocol {
+        get { self[MoreOverviewServiceKey.self] }
+        set { self[MoreOverviewServiceKey.self] = newValue }
     }
 }

@@ -75,6 +75,10 @@ final class AppSessionStore: ObservableObject {
         await refreshLaunchRoute()
     }
 
+    func replaceCurrentUser(_ user: AppUser?) {
+        currentUser = user
+    }
+
     func signOut() async {
         launchPhase = .bootstrapping
 
