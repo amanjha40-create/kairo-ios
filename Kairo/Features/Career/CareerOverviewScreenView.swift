@@ -4,8 +4,22 @@ struct CareerOverviewScreenView: View {
     let state: CareerOverviewState
     var retryAction: (() -> Void)?
     var refreshAction: (() async -> Void)?
+    var addEmploymentAction: (() -> Void)?
+    var editEmploymentAction: ((CareerEmploymentItem) -> Void)?
+    var deleteEmploymentAction: ((CareerEmploymentItem) -> Void)?
+    var addEducationAction: (() -> Void)?
+    var editEducationAction: ((CareerEducationItem) -> Void)?
+    var deleteEducationAction: ((CareerEducationItem) -> Void)?
+    var addCertificationAction: (() -> Void)?
+    var editCertificationAction: ((CareerCertificationItem) -> Void)?
+    var deleteCertificationAction: ((CareerCertificationItem) -> Void)?
+    var addProjectAction: (() -> Void)?
+    var editProjectAction: ((CareerProjectItem) -> Void)?
+    var deleteProjectAction: ((CareerProjectItem) -> Void)?
+    var addSkillAction: (() -> Void)?
+    var editSkillAction: ((CareerSkillItem) -> Void)?
+    var deleteSkillAction: ((CareerSkillItem) -> Void)?
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var placeholderDestination: CareerPlaceholderDestination?
 
     var body: some View {
@@ -63,9 +77,7 @@ struct CareerOverviewScreenView: View {
                 KairoSecondaryButton(
                     title: "Edit Profile",
                     accessibilityIdentifier: KairoAccessibilityID.careerEditProfileButton,
-                    action: {
-                        placeholderDestination = .editProfile
-                    }
+                    action: { placeholderDestination = .editProfile }
                 )
             }
         }
@@ -188,18 +200,52 @@ struct CareerOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             KairoEmptyStateView(
                 title: "Your professional timeline starts here",
-                message: "Add your first employment, education, certification, or project to begin shaping your verified career history.",
+                message: "Add your first employment, education, certification, project, or skill to begin shaping your verified career history.",
                 systemImage: "briefcase"
             )
             .accessibilityIdentifier(KairoAccessibilityID.careerEmptyState)
 
-            KairoSecondaryButton(
-                title: "Add Employment",
-                accessibilityIdentifier: KairoAccessibilityID.careerAddEmploymentButton,
-                action: {
-                    placeholderDestination = .addEmployment
+            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                if let addEmploymentAction {
+                    KairoSecondaryButton(
+                        title: "Add Employment",
+                        accessibilityIdentifier: KairoAccessibilityID.careerAddEmploymentButton,
+                        action: addEmploymentAction
+                    )
                 }
-            )
+
+                if let addEducationAction {
+                    KairoSecondaryButton(
+                        title: "Add Education",
+                        accessibilityIdentifier: KairoAccessibilityID.careerAddEducationButton,
+                        action: addEducationAction
+                    )
+                }
+
+                if let addCertificationAction {
+                    KairoSecondaryButton(
+                        title: "Add Certification",
+                        accessibilityIdentifier: KairoAccessibilityID.careerAddCertificationButton,
+                        action: addCertificationAction
+                    )
+                }
+
+                if let addProjectAction {
+                    KairoSecondaryButton(
+                        title: "Add Project",
+                        accessibilityIdentifier: KairoAccessibilityID.careerAddProjectButton,
+                        action: addProjectAction
+                    )
+                }
+
+                if let addSkillAction {
+                    KairoSecondaryButton(
+                        title: "Add Skill",
+                        accessibilityIdentifier: KairoAccessibilityID.careerAddSkillButton,
+                        action: addSkillAction
+                    )
+                }
+            }
         }
     }
 
@@ -208,28 +254,34 @@ struct CareerOverviewScreenView: View {
             CareerSectionHeader(
                 title: CareerOverviewSection.employment.title,
                 accessibilityIdentifier: KairoAccessibilityID.careerEmploymentSection,
-                actionTitle: "Add Employment",
+                actionTitle: addEmploymentAction == nil ? nil : "Add Employment",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddEmploymentButton,
-                action: { placeholderDestination = .addEmployment }
+                action: addEmploymentAction
             )
 
-            ForEach(items) { item in
-                KairoCard {
-                    careerItemHeader(
-                        title: item.company,
-                        subtitle: item.role,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No employment records added yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        careerItemHeader(
+                            title: item.company,
+                            subtitle: item.role,
+                            status: item.verificationStatus
+                        )
 
-                    careerMetadataValue(
-                        title: "Employment dates",
-                        value: item.dateRange
-                    )
+                        careerMetadataValue(
+                            title: "Employment dates",
+                            value: item.dateRange
+                        )
 
-                    careerCardActions(
-                        editAction: { placeholderDestination = .editEmployment(item.company) },
-                        deleteAction: { placeholderDestination = .deleteEmployment(item.company) }
-                    )
+                        careerCardActions(
+                            editAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentEditButton(item.routeID),
+                            editAction: item.allowsEdit ? { editEmploymentAction?(item) } : nil,
+                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentDeleteButton(item.routeID),
+                            deleteAction: item.allowsDelete ? { deleteEmploymentAction?(item) } : nil
+                        )
+                    }
                 }
             }
         }
@@ -240,28 +292,34 @@ struct CareerOverviewScreenView: View {
             CareerSectionHeader(
                 title: CareerOverviewSection.education.title,
                 accessibilityIdentifier: KairoAccessibilityID.careerEducationSection,
-                actionTitle: "Add Education",
+                actionTitle: addEducationAction == nil ? nil : "Add Education",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddEducationButton,
-                action: { placeholderDestination = .addEducation }
+                action: addEducationAction
             )
 
-            ForEach(items) { item in
-                KairoCard {
-                    careerItemHeader(
-                        title: item.institution,
-                        subtitle: item.degree,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No education records added yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        careerItemHeader(
+                            title: item.institution,
+                            subtitle: item.degree,
+                            status: item.verificationStatus
+                        )
 
-                    careerMetadataValue(
-                        title: "Dates",
-                        value: item.dateRange
-                    )
+                        careerMetadataValue(
+                            title: "Dates",
+                            value: item.dateRange
+                        )
 
-                    careerCardActions(
-                        editAction: { placeholderDestination = .editEducation(item.institution) },
-                        deleteAction: { placeholderDestination = .deleteEducation(item.institution) }
-                    )
+                        careerCardActions(
+                            editAccessibilityIdentifier: KairoAccessibilityID.careerEducationEditButton(item.routeID),
+                            editAction: { editEducationAction?(item) },
+                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerEducationDeleteButton(item.routeID),
+                            deleteAction: { deleteEducationAction?(item) }
+                        )
+                    }
                 }
             }
         }
@@ -272,9 +330,9 @@ struct CareerOverviewScreenView: View {
             CareerSectionHeader(
                 title: CareerOverviewSection.certifications.title,
                 accessibilityIdentifier: KairoAccessibilityID.careerCertificationsSection,
-                actionTitle: "Add Certification",
+                actionTitle: addCertificationAction == nil ? nil : "Add Certification",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddCertificationButton,
-                action: { placeholderDestination = .addCertification }
+                action: addCertificationAction
             )
 
             if items.isEmpty {
@@ -292,6 +350,13 @@ struct CareerOverviewScreenView: View {
                             title: "Issue date",
                             value: item.issueDate
                         )
+
+                        careerCardActions(
+                            editAccessibilityIdentifier: KairoAccessibilityID.careerCertificationEditButton(item.routeID),
+                            editAction: { editCertificationAction?(item) },
+                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerCertificationDeleteButton(item.routeID),
+                            deleteAction: { deleteCertificationAction?(item) }
+                        )
                     }
                 }
             }
@@ -303,9 +368,9 @@ struct CareerOverviewScreenView: View {
             CareerSectionHeader(
                 title: CareerOverviewSection.projects.title,
                 accessibilityIdentifier: KairoAccessibilityID.careerProjectsSection,
-                actionTitle: "Add Project",
+                actionTitle: addProjectAction == nil ? nil : "Add Project",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddProjectButton,
-                action: { placeholderDestination = .addProject }
+                action: addProjectAction
             )
 
             if items.isEmpty {
@@ -324,48 +389,64 @@ struct CareerOverviewScreenView: View {
                             value: item.duration
                         )
 
-                        Button(item.portfolioLinkTitle) {
-                            placeholderDestination = .portfolioLink(item.title)
+                        if !item.portfolioLinkTitle.isEmpty {
+                            careerMetadataValue(
+                                title: "Project URL",
+                                value: item.portfolioLinkTitle
+                            )
                         }
-                        .buttonStyle(.plain)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.brandPrimary)
+
+                        careerCardActions(
+                            editAccessibilityIdentifier: KairoAccessibilityID.careerProjectEditButton(item.routeID),
+                            editAction: { editProjectAction?(item) },
+                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerProjectDeleteButton(item.routeID),
+                            deleteAction: { deleteProjectAction?(item) }
+                        )
                     }
                 }
             }
         }
     }
 
-    private func skillsSection(_ skills: [String]) -> some View {
+    private func skillsSection(_ skills: [CareerSkillItem]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            CareerSectionTitle(
+            CareerSectionHeader(
                 title: CareerOverviewSection.skills.title,
-                accessibilityIdentifier: KairoAccessibilityID.careerSkillsSection
+                accessibilityIdentifier: KairoAccessibilityID.careerSkillsSection,
+                actionTitle: addSkillAction == nil ? nil : "Add Skill",
+                actionAccessibilityIdentifier: KairoAccessibilityID.careerAddSkillButton,
+                action: addSkillAction
             )
 
-            KairoCard {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 160 : 110), spacing: KairoSpacing.small)
-                    ],
-                    alignment: .leading,
-                    spacing: KairoSpacing.small
-                ) {
-                    ForEach(Array(skills.enumerated()), id: \.offset) { _, skill in
-                        Text(skill)
-                            .font(KairoTypography.footnote)
-                            .foregroundStyle(KairoColors.textPrimary)
-                            .padding(.horizontal, KairoSpacing.medium)
-                            .padding(.vertical, KairoSpacing.small)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                Capsule()
-                                    .fill(KairoColors.surfaceMuted.opacity(0.8))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(KairoColors.border, lineWidth: 1)
-                            )
+            if skills.isEmpty {
+                emptySectionCard(message: "No skills added yet.")
+            } else {
+                KairoCard {
+                    VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                        ForEach(Array(skills.enumerated()), id: \.element.routeID) { index, skill in
+                            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                                    Text(skill.name)
+                                        .font(KairoTypography.bodyStrong)
+                                        .foregroundStyle(KairoColors.textPrimary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    CareerVerificationBadge(status: skill.verificationStatus)
+                                }
+
+                                careerCardActions(
+                                    editAccessibilityIdentifier: KairoAccessibilityID.careerSkillEditButton(skill.routeID),
+                                    editAction: { editSkillAction?(skill) },
+                                    deleteAccessibilityIdentifier: KairoAccessibilityID.careerSkillDeleteButton(skill.routeID),
+                                    deleteAction: { deleteSkillAction?(skill) }
+                                )
+                            }
+
+                            if index < skills.count - 1 {
+                                Divider()
+                            }
+                        }
                     }
                 }
             }
@@ -414,20 +495,31 @@ struct CareerOverviewScreenView: View {
         }
     }
 
+    @ViewBuilder
     private func careerCardActions(
-        editAction: @escaping () -> Void,
-        deleteAction: @escaping () -> Void
+        editAccessibilityIdentifier: String?,
+        editAction: (() -> Void)?,
+        deleteAccessibilityIdentifier: String?,
+        deleteAction: (() -> Void)?
     ) -> some View {
-        HStack(spacing: KairoSpacing.large) {
-            Button("Edit", action: editAction)
-                .buttonStyle(.plain)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.brandPrimary)
+        if editAction != nil || deleteAction != nil {
+            HStack(spacing: KairoSpacing.large) {
+                if let editAction {
+                    Button("Edit", action: editAction)
+                        .buttonStyle(.plain)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.brandPrimary)
+                        .accessibilityIdentifier(editAccessibilityIdentifier ?? "career.edit")
+                }
 
-            Button("Delete", action: deleteAction)
-                .buttonStyle(.plain)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.danger.opacity(0.9))
+                if let deleteAction {
+                    Button("Delete", action: deleteAction)
+                        .buttonStyle(.plain)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.danger.opacity(0.9))
+                        .accessibilityIdentifier(deleteAccessibilityIdentifier ?? "career.delete")
+                }
+            }
         }
     }
 
@@ -469,9 +561,9 @@ private struct CareerSectionTitle: View {
 private struct CareerSectionHeader: View {
     let title: String
     let accessibilityIdentifier: String
-    let actionTitle: String
+    let actionTitle: String?
     let actionAccessibilityIdentifier: String
-    let action: () -> Void
+    let action: (() -> Void)?
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -483,11 +575,13 @@ private struct CareerSectionHeader: View {
 
                 Spacer(minLength: KairoSpacing.medium)
 
-                CareerSectionInlineAction(
-                    title: actionTitle,
-                    accessibilityIdentifier: actionAccessibilityIdentifier,
-                    action: action
-                )
+                if let actionTitle, let action {
+                    CareerSectionInlineAction(
+                        title: actionTitle,
+                        accessibilityIdentifier: actionAccessibilityIdentifier,
+                        action: action
+                    )
+                }
             }
 
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
@@ -496,11 +590,13 @@ private struct CareerSectionHeader: View {
                     accessibilityIdentifier: accessibilityIdentifier
                 )
 
-                CareerSectionInlineAction(
-                    title: actionTitle,
-                    accessibilityIdentifier: actionAccessibilityIdentifier,
-                    action: action
-                )
+                if let actionTitle, let action {
+                    CareerSectionInlineAction(
+                        title: actionTitle,
+                        accessibilityIdentifier: actionAccessibilityIdentifier,
+                        action: action
+                    )
+                }
             }
         }
     }
@@ -643,90 +739,10 @@ private struct CareerPillBadge: View {
 
 private enum CareerPlaceholderDestination: Identifiable {
     case editProfile
-    case addEmployment
-    case editEmployment(String)
-    case deleteEmployment(String)
-    case addEducation
-    case editEducation(String)
-    case deleteEducation(String)
-    case addCertification
-    case addProject
-    case portfolioLink(String)
 
-    var id: String {
-        switch self {
-        case .editProfile:
-            "career.editProfile"
-        case .addEmployment:
-            "career.addEmployment"
-        case .editEmployment(let value):
-            "career.editEmployment.\(value)"
-        case .deleteEmployment(let value):
-            "career.deleteEmployment.\(value)"
-        case .addEducation:
-            "career.addEducation"
-        case .editEducation(let value):
-            "career.editEducation.\(value)"
-        case .deleteEducation(let value):
-            "career.deleteEducation.\(value)"
-        case .addCertification:
-            "career.addCertification"
-        case .addProject:
-            "career.addProject"
-        case .portfolioLink(let value):
-            "career.portfolioLink.\(value)"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .editProfile:
-            "Edit Profile"
-        case .addEmployment:
-            "Add Employment"
-        case .editEmployment:
-            "Edit Employment"
-        case .deleteEmployment:
-            "Delete Employment"
-        case .addEducation:
-            "Add Education"
-        case .editEducation:
-            "Edit Education"
-        case .deleteEducation:
-            "Delete Education"
-        case .addCertification:
-            "Add Certification"
-        case .addProject:
-            "Add Project"
-        case .portfolioLink:
-            "Portfolio Link"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .editProfile:
-            "Profile editing will be connected in a later milestone."
-        case .addEmployment:
-            "Employment creation will be connected in a later milestone."
-        case .editEmployment(let company):
-            "Editing for \(company) will be connected in a later milestone."
-        case .deleteEmployment(let company):
-            "Delete controls for \(company) will be connected in a later milestone."
-        case .addEducation:
-            "Education creation will be connected in a later milestone."
-        case .editEducation(let institution):
-            "Editing for \(institution) will be connected in a later milestone."
-        case .deleteEducation(let institution):
-            "Delete controls for \(institution) will be connected in a later milestone."
-        case .addCertification:
-            "Certification creation will be connected in a later milestone."
-        case .addProject:
-            "Project creation will be connected in a later milestone."
-        case .portfolioLink(let project):
-            "Portfolio links for \(project) will be connected in a later milestone."
-        }
-    }
+    var id: String { "career.editProfile" }
+    var title: String { "Edit Profile" }
+    var message: String { "Profile editing will be connected in a later milestone." }
 }
 
 private struct CareerPlaceholderSheet: View {
@@ -757,13 +773,6 @@ private struct CareerPlaceholderSheet: View {
                     title: "Done",
                     action: { dismiss() }
                 )
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
             }
         }
     }

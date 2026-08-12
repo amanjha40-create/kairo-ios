@@ -78,7 +78,8 @@ final class CareerOverviewServiceTests: XCTestCase {
         XCTAssertEqual(overview.employments.first?.company, "Northline Career Services")
         XCTAssertTrue(overview.employments.first?.currentlyWorking ?? false)
         XCTAssertEqual(overview.educations.first?.institution, "Christ University")
-        XCTAssertEqual(overview.educations.first?.startYear, 2016)
+        XCTAssertEqual(overview.educations.first?.startDate, Self.utcDate(year: 2016, month: 6, day: 1))
+        XCTAssertEqual(overview.educations.first?.startDatePrecision, "month")
         XCTAssertTrue(overview.certifications.isEmpty)
         XCTAssertTrue(overview.projects.isEmpty)
         XCTAssertEqual(
@@ -510,5 +511,17 @@ private actor FailureGate {
 
         hasFailed = true
         return true
+    }
+}
+
+private extension CareerOverviewServiceTests {
+    nonisolated static func utcDate(year: Int, month: Int, day: Int) -> Date {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = year
+        components.month = month
+        components.day = day
+        return components.date ?? Date(timeIntervalSince1970: 0)
     }
 }

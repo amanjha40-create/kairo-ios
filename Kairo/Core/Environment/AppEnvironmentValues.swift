@@ -75,6 +75,101 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
     func loadOverview() async throws -> CareerOverview {
         fatalError("Missing career overview service injection.")
     }
+
+    func loadEmployment(id: String) async throws -> CareerEmploymentRecord {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func loadEducation(id: String) async throws -> CareerEducationRecord {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func loadCertification(id: String) async throws -> CareerCertificationRecord {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func loadProject(id: String) async throws -> CareerProjectRecord {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func updateEmployment(id: String, request: CareerEmploymentUpdateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
+    func deleteEmployment(id: String) async throws -> CareerOverview {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func createEducation(_ request: CareerEducationCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func updateEducation(id: String, request: CareerEducationUpdateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
+    func deleteEducation(id: String) async throws -> CareerOverview {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func createCertification(_ request: CareerCertificationCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func updateCertification(id: String, request: CareerCertificationUpdateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
+    func deleteCertification(id: String) async throws -> CareerOverview {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func createProject(_ request: CareerProjectCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func updateProject(id: String, request: CareerProjectUpdateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
+    func deleteProject(id: String) async throws -> CareerOverview {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
+    func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func replaceSkill(id: String, with request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
+    func deleteSkill(id: String) async throws -> CareerOverview {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
 }
 
 private struct MissingManualProfileService: ManualProfileServiceProtocol {

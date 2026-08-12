@@ -9,13 +9,21 @@ final class CareerOverviewMapperTests: XCTestCase {
             employments: [
                 CareerEmploymentRecord(
                     id: "employment_1",
+                    subjectFullName: "Aarav Mehta",
+                    subjectEmail: "aarav@example.com",
                     company: "Northline Career Services",
+                    employerLegalName: "Northline Career Services",
+                    employerTradeName: nil,
                     role: "Trust & Operations Associate",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2024, month: 1, day: 1),
                     endDate: nil,
                     currentlyWorking: true,
-                    verificationStatus: .verified
+                    workLocationCountry: "India",
+                    workLocationRegion: "Karnataka",
+                    verificationMethod: "document",
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "approved"
                 )
             ],
             educations: [
@@ -24,9 +32,15 @@ final class CareerOverviewMapperTests: XCTestCase {
                     institution: "Christ University",
                     degree: "BBA",
                     fieldOfStudy: "Human Resources & Operations",
-                    startYear: 2016,
-                    endYear: 2019,
-                    verificationStatus: .pending
+                    educationLevel: "bachelors",
+                    grade: nil,
+                    startDate: makeUTCTimestamp(year: 2016, month: 6, day: 1),
+                    startDatePrecision: "year",
+                    endDate: makeUTCTimestamp(year: 2019, month: 4, day: 1),
+                    endDatePrecision: "year",
+                    isCurrentlyStudying: false,
+                    verificationStatus: .pending,
+                    rawVerificationStatus: "pending"
                 )
             ],
             certifications: [
@@ -35,7 +49,15 @@ final class CareerOverviewMapperTests: XCTestCase {
                     title: "People Operations Foundations",
                     issuer: "Northline Academy",
                     issueDate: makeUTCTimestamp(year: 2025, month: 3, day: 1),
-                    verificationStatus: .notVerified
+                    expiryDate: nil,
+                    doesNotExpire: false,
+                    credentialID: nil,
+                    credentialURL: nil,
+                    originalFilename: nil,
+                    contentType: nil,
+                    byteSize: nil,
+                    verificationStatus: .notVerified,
+                    rawVerificationStatus: "draft"
                 )
             ],
             projects: [
@@ -43,15 +65,30 @@ final class CareerOverviewMapperTests: XCTestCase {
                     id: "project_1",
                     title: "Career Trust Onboarding Pilot",
                     role: "Program Lead",
+                    description: "Career onboarding pilot",
                     startDate: makeUTCTimestamp(year: 2025, month: 1, day: 1),
                     endDate: makeUTCTimestamp(year: 2025, month: 6, day: 1),
-                    portfolioURL: URL(string: "https://portfolio.example.com/projects/1"),
-                    verificationStatus: .verified
+                    isOngoing: false,
+                    projectURL: URL(string: "https://portfolio.example.com/projects/1"),
+                    repositoryURL: nil,
+                    organizationName: "Kairo",
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "approved"
                 )
             ],
             skills: [
-                CareerSkillRecord(id: "skill_1", name: "Trust Operations"),
-                CareerSkillRecord(id: "skill_2", name: "Employment Verification")
+                CareerSkillRecord(
+                    id: "skill_1",
+                    name: "Trust Operations",
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "verified"
+                ),
+                CareerSkillRecord(
+                    id: "skill_2",
+                    name: "Employment Verification",
+                    verificationStatus: .pending,
+                    rawVerificationStatus: "pending_verification"
+                )
             ]
         )
 
@@ -66,13 +103,22 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(state.summary.name, "Aarav Mehta")
         XCTAssertEqual(state.summary.currentCompany, "Northline Career Services")
         XCTAssertEqual(state.summary.trustPassportStatus, "Active")
+        XCTAssertEqual(content.employment.first?.routeID, "employment_1")
         XCTAssertEqual(content.employment.first?.dateRange, "Jan 2024 – Present")
+        XCTAssertFalse(content.employment.first?.allowsEdit ?? true)
+        XCTAssertFalse(content.employment.first?.allowsDelete ?? true)
+        XCTAssertEqual(content.education.first?.routeID, "education_1")
         XCTAssertEqual(content.education.first?.degree, "BBA in Human Resources & Operations")
+        XCTAssertEqual(content.education.first?.dateRange, "2016 – 2019")
         XCTAssertEqual(content.education.first?.verificationStatus, .pendingVerification)
+        XCTAssertEqual(content.certifications.first?.routeID, "certification_1")
         XCTAssertEqual(content.certifications.first?.issueDate, "Mar 2025")
+        XCTAssertEqual(content.projects.first?.routeID, "project_1")
         XCTAssertEqual(content.projects.first?.portfolioLinkTitle, "portfolio.example.com")
         XCTAssertEqual(content.projects.first?.verificationStatus, .verified)
-        XCTAssertEqual(content.skills, ["Trust Operations", "Employment Verification"])
+        XCTAssertEqual(content.skills.map(\.routeID), ["skill_1", "skill_2"])
+        XCTAssertEqual(content.skills.map(\.name), ["Trust Operations", "Employment Verification"])
+        XCTAssertEqual(content.skills.map(\.verificationStatus), [.verified, .pendingVerification])
         XCTAssertEqual(
             content.visibleSections,
             [.professionalSummary, .employment, .education, .certifications, .projects, .skills]
@@ -107,33 +153,57 @@ final class CareerOverviewMapperTests: XCTestCase {
             employments: [
                 CareerEmploymentRecord(
                     id: "employment_older_current",
+                    subjectFullName: nil,
+                    subjectEmail: nil,
                     company: "Northline Career Services",
+                    employerLegalName: "Northline Career Services",
+                    employerTradeName: nil,
                     role: "Operations Associate",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2023, month: 1, day: 1),
                     endDate: nil,
                     currentlyWorking: true,
-                    verificationStatus: .pending
+                    workLocationCountry: nil,
+                    workLocationRegion: nil,
+                    verificationMethod: nil,
+                    verificationStatus: .pending,
+                    rawVerificationStatus: "pending"
                 ),
                 CareerEmploymentRecord(
                     id: "employment_finished",
+                    subjectFullName: nil,
+                    subjectEmail: nil,
                     company: "BrightPath Technologies",
+                    employerLegalName: "BrightPath Technologies",
+                    employerTradeName: nil,
                     role: "Candidate Success Specialist",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2021, month: 8, day: 1),
                     endDate: makeUTCTimestamp(year: 2022, month: 12, day: 1),
                     currentlyWorking: false,
-                    verificationStatus: .verified
+                    workLocationCountry: nil,
+                    workLocationRegion: nil,
+                    verificationMethod: nil,
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "approved"
                 ),
                 CareerEmploymentRecord(
                     id: "employment_newer_current",
+                    subjectFullName: nil,
+                    subjectEmail: nil,
                     company: "Kairo Labs",
+                    employerLegalName: "Kairo Labs",
+                    employerTradeName: nil,
                     role: "Trust Program Lead",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2024, month: 6, day: 1),
                     endDate: nil,
                     currentlyWorking: true,
-                    verificationStatus: .verified
+                    workLocationCountry: nil,
+                    workLocationRegion: nil,
+                    verificationMethod: nil,
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "approved"
                 )
             ],
             educations: [],
@@ -153,23 +223,39 @@ final class CareerOverviewMapperTests: XCTestCase {
             employments: [
                 CareerEmploymentRecord(
                     id: "employment_older",
+                    subjectFullName: nil,
+                    subjectEmail: nil,
                     company: "Northline Career Services",
+                    employerLegalName: "Northline Career Services",
+                    employerTradeName: nil,
                     role: "Operations Associate",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2020, month: 1, day: 1),
                     endDate: makeUTCTimestamp(year: 2022, month: 1, day: 1),
                     currentlyWorking: false,
-                    verificationStatus: .pending
+                    workLocationCountry: nil,
+                    workLocationRegion: nil,
+                    verificationMethod: nil,
+                    verificationStatus: .pending,
+                    rawVerificationStatus: "pending"
                 ),
                 CareerEmploymentRecord(
                     id: "employment_newer",
+                    subjectFullName: nil,
+                    subjectEmail: nil,
                     company: "Kairo Labs",
+                    employerLegalName: "Kairo Labs",
+                    employerTradeName: nil,
                     role: "Trust Program Lead",
                     employmentType: "full_time",
                     startDate: makeUTCTimestamp(year: 2023, month: 6, day: 1),
                     endDate: makeUTCTimestamp(year: 2024, month: 5, day: 1),
                     currentlyWorking: false,
-                    verificationStatus: .verified
+                    workLocationCountry: nil,
+                    workLocationRegion: nil,
+                    verificationMethod: nil,
+                    verificationStatus: .verified,
+                    rawVerificationStatus: "approved"
                 )
             ],
             educations: [],

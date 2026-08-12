@@ -7,7 +7,7 @@ enum CareerOverviewMapper {
             education: overview.educations.map(makeEducationItem),
             certifications: overview.certifications.map(makeCertificationItem),
             projects: overview.projects.map(makeProjectItem),
-            skills: overview.skills.map(\.name)
+            skills: overview.skills.map(makeSkillItem)
         )
 
         return .live(
@@ -87,6 +87,7 @@ enum CareerOverviewMapper {
 
     private nonisolated static func makeEmploymentItem(_ record: CareerEmploymentRecord) -> CareerEmploymentItem {
         CareerEmploymentItem(
+            routeID: record.id,
             company: record.company,
             role: record.role,
             dateRange: dateRange(
@@ -94,7 +95,9 @@ enum CareerOverviewMapper {
                 endDate: record.endDate,
                 isCurrent: record.currentlyWorking
             ),
-            verificationStatus: verificationStatus(from: record.verificationStatus)
+            verificationStatus: verificationStatus(from: record.verificationStatus),
+            allowsEdit: record.allowsCandidateEditing,
+            allowsDelete: record.allowsCandidateDeletion
         )
     }
 
@@ -108,15 +111,23 @@ enum CareerOverviewMapper {
         }.joined(separator: " in ")
 
         return CareerEducationItem(
+            routeID: record.id,
             institution: record.institution,
             degree: degreeLine.isEmpty ? record.degree : degreeLine,
-            dateRange: yearRange(startYear: record.startYear, endYear: record.endYear),
+            dateRange: educationDateRange(
+                startDate: record.startDate,
+                startPrecision: record.startDatePrecision,
+                endDate: record.endDate,
+                endPrecision: record.endDatePrecision,
+                isCurrent: record.isCurrentlyStudying
+            ),
             verificationStatus: verificationStatus(from: record.verificationStatus)
         )
     }
 
     private nonisolated static func makeCertificationItem(_ record: CareerCertificationRecord) -> CareerCertificationItem {
         CareerCertificationItem(
+            routeID: record.id,
             title: record.title,
             issuer: record.issuer,
             issueDate: monthYear(record.issueDate) ?? "Issue date unavailable",
@@ -126,11 +137,24 @@ enum CareerOverviewMapper {
 
     private nonisolated static func makeProjectItem(_ record: CareerProjectRecord) -> CareerProjectItem {
         CareerProjectItem(
+            routeID: record.id,
             title: record.title,
             role: record.role,
-            duration: dateRange(startDate: record.startDate, endDate: record.endDate, isCurrent: false),
+            duration: dateRange(
+                startDate: record.startDate,
+                endDate: record.endDate,
+                isCurrent: record.isOngoing
+            ),
             portfolioLinkTitle: portfolioLinkTitle(for: record.portfolioURL),
             verificationStatus: record.verificationStatus.map(verificationStatus(from:))
+        )
+    }
+
+    private nonisolated static func makeSkillItem(_ record: CareerSkillRecord) -> CareerSkillItem {
+        CareerSkillItem(
+            routeID: record.id,
+            name: record.name,
+            verificationStatus: verificationStatus(from: record.verificationStatus)
         )
     }
 
@@ -234,6 +258,33 @@ enum CareerOverviewMapper {
         return "\(start) – \(end)"
     }
 
+    private nonisolated static func educationDateRange(
+        startDate: Date?,
+        startPrecision: String?,
+        endDate: Date?,
+        endPrecision: String?,
+        isCurrent: Bool
+    ) -> String {
+        let start = formattedEducationDate(startDate, precision: startPrecision) ?? "Start date unavailable"
+        let end = isCurrent ? "Present" : (formattedEducationDate(endDate, precision: endPrecision) ?? "Present")
+        return "\(start) – \(end)"
+    }
+
+    private nonisolated static func formattedEducationDate(_ date: Date?, precision: String?) -> String? {
+        guard let date else {
+            return nil
+        }
+
+        switch CareerDatePrecisionOption(rawValue: precision) {
+        case .day:
+            return dayMonthYearFormatter.string(from: date)
+        case .month:
+            return monthYearFormatter.string(from: date)
+        case .year:
+            return yearFormatter.string(from: date)
+        }
+    }
+
     private nonisolated static func portfolioLinkTitle(for url: URL?) -> String {
         if let host = url?.host, !host.isEmpty {
             return host
@@ -247,6 +298,22 @@ enum CareerOverviewMapper {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "MMM yyyy"
+        return formatter
+    }()
+
+    private nonisolated static let dayMonthYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter
+    }()
+
+    private nonisolated static let yearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy"
         return formatter
     }()
 }

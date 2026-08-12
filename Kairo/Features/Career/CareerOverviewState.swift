@@ -24,32 +24,43 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                 CareerOverviewContent(
                     employment: [
                         CareerEmploymentItem(
+                            routeID: "fixture_employment_1",
                             company: "Northline Career Services",
                             role: "Trust & Operations Associate",
                             dateRange: "Jan 2024 - Present",
-                            verificationStatus: .verified
+                            verificationStatus: .verified,
+                            allowsEdit: true,
+                            allowsDelete: false
                         ),
                         CareerEmploymentItem(
+                            routeID: "fixture_employment_2",
                             company: "BrightPath Technologies",
                             role: "Candidate Success Specialist",
                             dateRange: "Aug 2021 - Dec 2023",
-                            verificationStatus: .pendingVerification
+                            verificationStatus: .pendingVerification,
+                            allowsEdit: true,
+                            allowsDelete: false
                         ),
                         CareerEmploymentItem(
+                            routeID: "fixture_employment_3",
                             company: "Horizon Works",
                             role: "Operations Analyst",
                             dateRange: "Jul 2019 - Jul 2021",
-                            verificationStatus: .notVerified
+                            verificationStatus: .notVerified,
+                            allowsEdit: true,
+                            allowsDelete: true
                         )
                     ],
                     education: [
                         CareerEducationItem(
+                            routeID: "fixture_education_1",
                             institution: "Christ University",
                             degree: "BBA, Human Resources & Operations",
                             dateRange: "2016 - 2019",
                             verificationStatus: .verified
                         ),
                         CareerEducationItem(
+                            routeID: "fixture_education_2",
                             institution: "St. Xavier's College",
                             degree: "Certificate in Business Communication",
                             dateRange: "2018",
@@ -58,12 +69,14 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                     ],
                     certifications: [
                         CareerCertificationItem(
+                            routeID: "fixture_certification_1",
                             title: "People Operations Foundations",
                             issuer: "Northline Academy",
                             issueDate: "Mar 2025",
                             verificationStatus: .verified
                         ),
                         CareerCertificationItem(
+                            routeID: "fixture_certification_2",
                             title: "Candidate Experience Design",
                             issuer: "BrightPath Learning",
                             issueDate: "Nov 2023",
@@ -72,6 +85,7 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                     ],
                     projects: [
                         CareerProjectItem(
+                            routeID: "fixture_project_1",
                             title: "Career Trust Onboarding Pilot",
                             role: "Program Lead",
                             duration: "6 months",
@@ -79,6 +93,7 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                             verificationStatus: .verified
                         ),
                         CareerProjectItem(
+                            routeID: "fixture_project_2",
                             title: "University Hiring Readiness Workshop",
                             role: "Facilitator",
                             duration: "3 months",
@@ -87,14 +102,46 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                         )
                     ],
                     skills: [
-                        "Candidate Operations",
-                        "Employment Verification",
-                        "Process Design",
-                        "Stakeholder Communication",
-                        "University Outreach",
-                        "Project Coordination",
-                        "Trust Operations",
-                        "People Experience"
+                        CareerSkillItem(
+                            routeID: "fixture_skill_1",
+                            name: "Candidate Operations",
+                            verificationStatus: .verified
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_2",
+                            name: "Employment Verification",
+                            verificationStatus: .verified
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_3",
+                            name: "Process Design",
+                            verificationStatus: .verified
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_4",
+                            name: "Stakeholder Communication",
+                            verificationStatus: .verified
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_5",
+                            name: "University Outreach",
+                            verificationStatus: .pendingVerification
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_6",
+                            name: "Project Coordination",
+                            verificationStatus: .pendingVerification
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_7",
+                            name: "Trust Operations",
+                            verificationStatus: .notVerified
+                        ),
+                        CareerSkillItem(
+                            routeID: "fixture_skill_8",
+                            name: "People Experience",
+                            verificationStatus: .notVerified
+                        )
                     ]
                 )
             )
@@ -300,7 +347,7 @@ nonisolated struct CareerOverviewContent: Equatable, Sendable {
     let education: [CareerEducationItem]
     let certifications: [CareerCertificationItem]
     let projects: [CareerProjectItem]
-    let skills: [String]
+    let skills: [CareerSkillItem]
 
     var visibleSections: [CareerOverviewSection] {
         var sections: [CareerOverviewSection] = [.professionalSummary]
@@ -330,40 +377,54 @@ nonisolated struct CareerOverviewContent: Equatable, Sendable {
 }
 
 nonisolated struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
+    let routeID: String
     let company: String
     let role: String
     let dateRange: String
     let verificationStatus: CareerVerificationStatus
+    let allowsEdit: Bool
+    let allowsDelete: Bool
 
-    var id: String { "\(company)-\(role)" }
+    var id: String { routeID }
 }
 
 nonisolated struct CareerEducationItem: Equatable, Identifiable, Sendable {
+    let routeID: String
     let institution: String
     let degree: String
     let dateRange: String
     let verificationStatus: CareerVerificationStatus
 
-    var id: String { "\(institution)-\(degree)" }
+    var id: String { routeID }
 }
 
 nonisolated struct CareerCertificationItem: Equatable, Identifiable, Sendable {
+    let routeID: String
     let title: String
     let issuer: String
     let issueDate: String
     let verificationStatus: CareerVerificationStatus
 
-    var id: String { "\(title)-\(issuer)" }
+    var id: String { routeID }
 }
 
 nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
+    let routeID: String
     let title: String
     let role: String
     let duration: String
     let portfolioLinkTitle: String
     let verificationStatus: CareerVerificationStatus?
 
-    var id: String { "\(title)-\(role)" }
+    var id: String { routeID }
+}
+
+nonisolated struct CareerSkillItem: Equatable, Identifiable, Sendable {
+    let routeID: String
+    let name: String
+    let verificationStatus: CareerVerificationStatus
+
+    var id: String { routeID }
 }
 
 nonisolated struct CareerOverviewErrorState: Equatable, Sendable {

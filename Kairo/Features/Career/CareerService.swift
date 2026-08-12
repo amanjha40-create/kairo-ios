@@ -2,6 +2,25 @@ import Foundation
 
 protocol CareerOverviewServiceProtocol: Sendable {
     func loadOverview() async throws -> CareerOverview
+    func loadEmployment(id: String) async throws -> CareerEmploymentRecord
+    func loadEducation(id: String) async throws -> CareerEducationRecord
+    func loadCertification(id: String) async throws -> CareerCertificationRecord
+    func loadProject(id: String) async throws -> CareerProjectRecord
+    func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview
+    func updateEmployment(id: String, request: CareerEmploymentUpdateRequestDTO) async throws -> CareerOverview
+    func deleteEmployment(id: String) async throws -> CareerOverview
+    func createEducation(_ request: CareerEducationCreateRequestDTO) async throws -> CareerOverview
+    func updateEducation(id: String, request: CareerEducationUpdateRequestDTO) async throws -> CareerOverview
+    func deleteEducation(id: String) async throws -> CareerOverview
+    func createCertification(_ request: CareerCertificationCreateRequestDTO) async throws -> CareerOverview
+    func updateCertification(id: String, request: CareerCertificationUpdateRequestDTO) async throws -> CareerOverview
+    func deleteCertification(id: String) async throws -> CareerOverview
+    func createProject(_ request: CareerProjectCreateRequestDTO) async throws -> CareerOverview
+    func updateProject(id: String, request: CareerProjectUpdateRequestDTO) async throws -> CareerOverview
+    func deleteProject(id: String) async throws -> CareerOverview
+    func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview
+    func replaceSkill(id: String, with request: CareerSkillCreateRequestDTO) async throws -> CareerOverview
+    func deleteSkill(id: String) async throws -> CareerOverview
 }
 
 actor CareerOverviewService: CareerOverviewServiceProtocol {
@@ -50,6 +69,171 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
         )
     }
 
+    func loadEmployment(id: String) async throws -> CareerEmploymentRecord {
+        try await loadRecord(
+            path: "/employments/\(id)",
+            as: CareerEmploymentDTO.self,
+            transform: CareerEmploymentRecord.init(dto:)
+        )
+    }
+
+    func loadEducation(id: String) async throws -> CareerEducationRecord {
+        try await loadRecord(
+            path: "/educations/\(id)",
+            as: CareerEducationDTO.self,
+            transform: CareerEducationRecord.init(dto:)
+        )
+    }
+
+    func loadCertification(id: String) async throws -> CareerCertificationRecord {
+        try await loadRecord(
+            path: "/certifications/\(id)",
+            as: CareerCertificationDTO.self,
+            transform: CareerCertificationRecord.init(dto:)
+        )
+    }
+
+    func loadProject(id: String) async throws -> CareerProjectRecord {
+        try await loadRecord(
+            path: "/projects/\(id)",
+            as: CareerProjectDTO.self,
+            transform: CareerProjectRecord.init(dto:)
+        )
+    }
+
+    func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(
+            path: "/employments/",
+            method: .post,
+            body: request,
+            responseType: CareerEmploymentDTO.self
+        )
+    }
+
+    func updateEmployment(
+        id: String,
+        request: CareerEmploymentUpdateRequestDTO
+    ) async throws -> CareerOverview {
+        try await mutate(
+            path: "/employments/\(id)",
+            method: .patch,
+            body: request,
+            responseType: CareerEmploymentDTO.self
+        )
+    }
+
+    func deleteEmployment(id: String) async throws -> CareerOverview {
+        try await deleteAndReload(path: "/employments/\(id)")
+    }
+
+    func createEducation(_ request: CareerEducationCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(
+            path: "/educations",
+            method: .post,
+            body: request,
+            responseType: CareerEducationDTO.self
+        )
+    }
+
+    func updateEducation(
+        id: String,
+        request: CareerEducationUpdateRequestDTO
+    ) async throws -> CareerOverview {
+        try await mutate(
+            path: "/educations/\(id)",
+            method: .patch,
+            body: request,
+            responseType: CareerEducationDTO.self
+        )
+    }
+
+    func deleteEducation(id: String) async throws -> CareerOverview {
+        try await deleteAndReload(path: "/educations/\(id)")
+    }
+
+    func createCertification(_ request: CareerCertificationCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(
+            path: "/certifications",
+            method: .post,
+            body: request,
+            responseType: CareerCertificationDTO.self
+        )
+    }
+
+    func updateCertification(
+        id: String,
+        request: CareerCertificationUpdateRequestDTO
+    ) async throws -> CareerOverview {
+        try await mutate(
+            path: "/certifications/\(id)",
+            method: .patch,
+            body: request,
+            responseType: CareerCertificationDTO.self
+        )
+    }
+
+    func deleteCertification(id: String) async throws -> CareerOverview {
+        try await deleteAndReload(path: "/certifications/\(id)")
+    }
+
+    func createProject(_ request: CareerProjectCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(
+            path: "/projects",
+            method: .post,
+            body: request,
+            responseType: CareerProjectDTO.self
+        )
+    }
+
+    func updateProject(
+        id: String,
+        request: CareerProjectUpdateRequestDTO
+    ) async throws -> CareerOverview {
+        try await mutate(
+            path: "/projects/\(id)",
+            method: .patch,
+            body: request,
+            responseType: CareerProjectDTO.self
+        )
+    }
+
+    func deleteProject(id: String) async throws -> CareerOverview {
+        try await deleteAndReload(path: "/projects/\(id)")
+    }
+
+    func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(
+            path: "/skills",
+            method: .post,
+            body: request,
+            responseType: CareerSkillDTO.self
+        )
+    }
+
+    func replaceSkill(
+        id: String,
+        with request: CareerSkillCreateRequestDTO
+    ) async throws -> CareerOverview {
+        _ = try await sendJSONRequest(
+            path: "/skills",
+            method: .post,
+            body: request,
+            responseType: CareerSkillDTO.self
+        )
+        _ = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: "/skills/\(id)",
+                method: .delete,
+                headers: ["Accept": "application/json"]
+            )
+        )
+        return try await loadOverview()
+    }
+
+    func deleteSkill(id: String) async throws -> CareerOverview {
+        try await deleteAndReload(path: "/skills/\(id)")
+    }
+
     private func captureResult<Value: Sendable>(
         _ operation: @escaping @Sendable () async throws -> Value
     ) async -> Result<Value, Error> {
@@ -69,6 +253,20 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             #endif
             throw error
         }
+    }
+
+    private func loadRecord<DTO: Decodable, Domain>(
+        path: String,
+        as responseType: DTO.Type,
+        transform: (DTO) -> Domain
+    ) async throws -> Domain {
+        let data = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: path,
+                headers: ["Accept": "application/json"]
+            )
+        )
+        return transform(try decoder.decode(responseType, from: data))
     }
 
     private func loadCollection<Element: Decodable & Equatable & Sendable>(
@@ -125,4 +323,52 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             }
         }
     }
+
+    private func mutate<Body: Encodable, Response: Decodable>(
+        path: String,
+        method: HTTPMethod,
+        body: Body,
+        responseType: Response.Type
+    ) async throws -> CareerOverview {
+        _ = try await sendJSONRequest(
+            path: path,
+            method: method,
+            body: body,
+            responseType: responseType
+        )
+        return try await loadOverview()
+    }
+
+    private func deleteAndReload(path: String) async throws -> CareerOverview {
+        _ = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: path,
+                method: .delete,
+                headers: ["Accept": "application/json"]
+            )
+        )
+        return try await loadOverview()
+    }
+
+    private func sendJSONRequest<Body: Encodable, Response: Decodable>(
+        path: String,
+        method: HTTPMethod,
+        body: Body,
+        responseType: Response.Type
+    ) async throws -> Response {
+        let data = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: path,
+                method: method,
+                headers: [
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                ],
+                body: try APIJSONCoder.makeEncoder().encode(body)
+            )
+        )
+        return try decoder.decode(responseType, from: data)
+    }
+
+    private let decoder = APIJSONCoder.makeDecoder()
 }

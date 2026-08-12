@@ -119,6 +119,16 @@ nonisolated enum KairoAccessibilityID {
     static let careerAddEducationButton = "candidate.career.education.add"
     static let careerAddCertificationButton = "candidate.career.certifications.add"
     static let careerAddProjectButton = "candidate.career.projects.add"
+    static let careerAddSkillButton = "candidate.career.skills.add"
+    static let careerMutationSave = "candidate.career.mutation.save"
+    static let careerMutationCancel = "candidate.career.mutation.cancel"
+    static let careerMutationDelete = "candidate.career.mutation.delete"
+    static let careerMutationError = "candidate.career.mutation.error"
+    static let careerEmploymentDeleteConfirmation = "candidate.career.employment.delete.confirmation"
+    static let careerEducationDeleteConfirmation = "candidate.career.education.delete.confirmation"
+    static let careerCertificationDeleteConfirmation = "candidate.career.certification.delete.confirmation"
+    static let careerProjectDeleteConfirmation = "candidate.career.project.delete.confirmation"
+    static let careerSkillDeleteConfirmation = "candidate.career.skill.delete.confirmation"
     static let passportScreen = "candidate.passport.screen"
     static let passportHeader = "candidate.passport.header"
     static let passportTrustScoreCard = "candidate.passport.trustScore"
@@ -260,5 +270,49 @@ nonisolated enum KairoAccessibilityID {
 
     static func manualProfileEducationDelete(_ index: Int) -> String {
         "onboarding.manualProfile.education.delete.\(index)"
+    }
+
+    static func careerEmploymentEditButton(_ id: String) -> String {
+        "candidate.career.employment.edit.\(id)"
+    }
+
+    static func careerEmploymentDeleteButton(_ id: String) -> String {
+        "candidate.career.employment.delete.\(id)"
+    }
+
+    static func careerEducationEditButton(_ id: String) -> String {
+        "candidate.career.education.edit.\(id)"
+    }
+
+    static func careerEducationDeleteButton(_ id: String) -> String {
+        "candidate.career.education.delete.\(id)"
+    }
+
+    static func careerCertificationEditButton(_ id: String) -> String {
+        "candidate.career.certification.edit.\(id)"
+    }
+
+    static func careerCertificationDeleteButton(_ id: String) -> String {
+        "candidate.career.certification.delete.\(id)"
+    }
+
+    static func careerProjectEditButton(_ id: String) -> String {
+        "candidate.career.project.edit.\(id)"
+    }
+
+    static func careerProjectDeleteButton(_ id: String) -> String {
+        "candidate.career.project.delete.\(id)"
+    }
+
+    static func careerSkillEditButton(_ id: String) -> String {
+        "candidate.career.skill.edit.\(id)"
+    }
+
+    static func careerSkillDeleteButton(_ id: String) -> String {
+        "candidate.career.skill.delete.\(id)"
+    }
+
+    static func careerMutationField(_ type: String, _ field: String) -> String {
+        "candidate.career.\(type).field.\(field)"
     }
 }
