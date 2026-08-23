@@ -7,14 +7,13 @@ struct ChooseStartScreenView: View {
 
     var body: some View {
         OnboardingScreenLayout(
-            layoutMode: .choice,
-            eyebrow: nil,
+            layoutMode: .form,
+            eyebrow: "Choose your starting point",
             title: "How would you like to begin?",
             subtitle: "Choose how you'd like to begin building your Trust Passport.",
             titleAccessibilityIdentifier: OnboardingStep.chooseStart.titleAccessibilityIdentifier
         ) {
-            ChooseStartHero()
-                .frame(maxWidth: 72)
+            EmptyView()
         } content: {
             VStack(spacing: KairoSpacing.small) {
                 ForEach(ChooseStartOption.allCases) { option in
@@ -76,23 +75,14 @@ private struct ChooseStartOptionCard: View {
         }
     }
 
-    private var accentColor: Color {
-        switch option {
-        case .importResume:
-            KairoColors.brandPrimary
-        case .buildProfileManually:
-            KairoColors.textPrimary
-        }
-    }
-
     private var backgroundColor: Color {
         switch (option, isSelected) {
         case (.importResume, true):
-            KairoColors.brandPrimary.opacity(0.1)
+            KairoColors.brandPrimary.opacity(0.08)
         case (.buildProfileManually, true):
             KairoColors.surfaceMuted
         case (.importResume, false):
-            KairoColors.brandPrimary.opacity(0.04)
+            KairoColors.surface
         case (.buildProfileManually, false):
             KairoColors.surface
         }
@@ -115,7 +105,7 @@ private struct ChooseStartOptionCard: View {
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                             .multilineTextAlignment(.leading)
-                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer(minLength: KairoSpacing.small)
@@ -123,8 +113,8 @@ private struct ChooseStartOptionCard: View {
                     selectionBadge
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(backgroundColor)
             .overlay(
@@ -135,7 +125,6 @@ private struct ChooseStartOptionCard: View {
                     )
             )
             .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
-            .kairoShadow(KairoShadow.card)
             .contentShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -173,127 +162,5 @@ private struct ChooseStartOptionCard: View {
                     .padding(.top, 2)
             }
         }
-    }
-}
-
-private struct ChooseStartHero: View {
-    var body: some View {
-        HStack(spacing: KairoSpacing.small) {
-            branchBadge(
-                systemImage: ChooseStartOption.importResume.systemImage,
-                tint: KairoColors.brandPrimary
-            )
-
-            passportMarker
-
-            branchBadge(
-                systemImage: ChooseStartOption.buildProfileManually.systemImage,
-                tint: KairoColors.textPrimary
-            )
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func branchBadge(systemImage: String, tint: Color) -> some View {
-        RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-            .fill(tint.opacity(0.1))
-            .frame(width: 22, height: 22)
-            .overlay(
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(tint)
-            )
-    }
-
-    private var passportMarker: some View {
-        RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-            .fill(KairoColors.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                    .stroke(KairoColors.border, lineWidth: 1)
-            )
-            .frame(width: 28, height: 18)
-            .overlay(
-                Capsule()
-                    .fill(KairoColors.brandPrimary.opacity(0.16))
-                    .frame(width: 16, height: 6)
-            )
-            .kairoShadow(KairoShadow.card)
-    }
-}
-
-struct ChooseStartDestinationPlaceholderScreen: View {
-    let selection: ChooseStartOption?
-
-    @EnvironmentObject private var router: AppRouter
-
-    private var resolvedSelection: ChooseStartOption {
-        selection ?? .importResume
-    }
-
-    var body: some View {
-        OnboardingScreenLayout(
-            eyebrow: "Coming Next",
-            title: resolvedSelection.placeholderTitle,
-            subtitle: resolvedSelection.placeholderSubtitle,
-            titleAccessibilityIdentifier: resolvedSelection.placeholderTitleAccessibilityIdentifier
-        ) {
-            ChooseStartDestinationHero(option: resolvedSelection)
-                .frame(maxWidth: 152)
-        } content: {
-            KairoCard {
-                Text(resolvedSelection.placeholderMessage)
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } actions: {
-            OnboardingActionGroup(
-                primaryTitle: "Continue",
-                primaryAccessibilityIdentifier: KairoAccessibilityID.onboardingContinue,
-                primaryAction: { router.advanceOnboarding(from: .resumeImportOrQuickProfile) },
-                secondaryTitle: "Back",
-                secondaryAccessibilityIdentifier: KairoAccessibilityID.onboardingBack,
-                secondaryAction: { router.goBackOnboarding(from: .resumeImportOrQuickProfile) }
-            )
-        }
-    }
-}
-
-private struct ChooseStartDestinationHero: View {
-    let option: ChooseStartOption
-
-    private var tint: Color {
-        option == .importResume ? KairoColors.brandPrimary : KairoColors.textPrimary
-    }
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-            .fill(KairoColors.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                    .stroke(KairoColors.border, lineWidth: 1)
-            )
-            .kairoShadow(KairoShadow.card)
-            .overlay(
-                VStack(spacing: KairoSpacing.medium) {
-                    Circle()
-                        .fill(tint.opacity(0.12))
-                        .frame(width: 64, height: 64)
-                        .overlay(
-                            Image(systemName: option.systemImage)
-                                .font(.system(size: 26, weight: .semibold, design: .rounded))
-                                .foregroundStyle(tint)
-                        )
-
-                    Capsule()
-                        .fill(KairoColors.surfaceMuted)
-                        .frame(width: 84, height: 10)
-                }
-                .padding(KairoSpacing.large)
-            )
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1.04, contentMode: .fit)
-            .accessibilityHidden(true)
     }
 }

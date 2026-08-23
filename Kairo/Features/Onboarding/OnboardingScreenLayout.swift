@@ -24,6 +24,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
     let title: String
     let subtitle: String
     let titleAccessibilityIdentifier: String
+    let topPaddingAdjustment: CGFloat
     @ViewBuilder private let hero: Hero
     @ViewBuilder private let content: Content
     @ViewBuilder private let actions: Actions
@@ -34,6 +35,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
         title: String,
         subtitle: String,
         titleAccessibilityIdentifier: String,
+        topPaddingAdjustment: CGFloat = 0,
         @ViewBuilder hero: () -> Hero,
         @ViewBuilder content: () -> Content,
         @ViewBuilder actions: () -> Actions
@@ -43,6 +45,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.titleAccessibilityIdentifier = titleAccessibilityIdentifier
+        self.topPaddingAdjustment = topPaddingAdjustment
         self.hero = hero()
         self.content = content()
         self.actions = actions()
@@ -51,7 +54,10 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let isLandscape = geometry.size.width > geometry.size.height
-            let topPadding = geometry.safeAreaInsets.top + topPadding(for: layoutMode)
+            let topPadding = max(
+                geometry.safeAreaInsets.top + topPadding(for: layoutMode) + topPaddingAdjustment,
+                geometry.safeAreaInsets.top
+            )
             let scrollingContentBottomPadding = layoutMode.pinsActionsToBottom
                 ? KairoSpacing.large + actionBarHeight
                 : max(geometry.safeAreaInsets.bottom + KairoSpacing.large, KairoSpacing.xxLarge)

@@ -2,33 +2,27 @@ import XCTest
 @testable import Kairo
 
 final class PassportCreatedStateTests: XCTestCase {
-    func test_completedStateProvidesExpectedSummaryRows() {
-        let state = PassportCreatedState.completed
-
-        XCTAssertEqual(state.summaryRows.map(\.title), [
-            "Identity",
-            "Email",
-            "Mobile",
-            "Profile",
-            "Trust Passport"
-        ])
-        XCTAssertEqual(state.summaryRows.map(\.status), [
-            .verified,
-            .verified,
-            .verified,
-            .created,
-            .active
-        ])
-    }
-
-    func test_completedStateUsesTrustScorePlaceholderMessage() {
+    func test_completedStateUsesApprovedCompactContentAndRoutesDirectlyHome() {
         let state = PassportCreatedState.completed
 
         XCTAssertEqual(
-            state.trustScoreMessage,
-            "Trust Score will appear after your first professional verification."
+            state.subtitle,
+            "Identity and contact verification are complete."
         )
-        XCTAssertEqual(state.reviewDestination, .passport)
+        XCTAssertEqual(
+            state.title,
+            "Your Trust Passport is ready."
+        )
+        XCTAssertEqual(
+            state.supportingCopy,
+            "Continue to Home and start building your professional record."
+        )
+        XCTAssertEqual(
+            state.primaryActionTitle,
+            "Continue to Home"
+        )
+        XCTAssertEqual(state.secondaryActionTitle, "")
+        XCTAssertNil(state.reviewDestination)
     }
 
     func test_onboardingFlowStateExposesSharedPassportCreatedStateAcrossBranches() {

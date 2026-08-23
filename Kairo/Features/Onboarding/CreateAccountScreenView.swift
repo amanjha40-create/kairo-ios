@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct CreateAccountScreenView: View {
-    private let indianMobileGuidance = "For this MVP, enter a 10-digit Indian mobile number."
-
     @Binding var draft: CreateAccountDraft
     let onContinue: (() -> Void)?
 
@@ -29,169 +27,41 @@ struct CreateAccountScreenView: View {
     var body: some View {
         OnboardingScreenLayout(
             layoutMode: .form,
-            eyebrow: "Set up your profile",
+            eyebrow: "Create your Kairo account",
             title: "Create your account",
-            subtitle: "Start building your portable professional trust profile.",
-            titleAccessibilityIdentifier: OnboardingStep.createAccount.titleAccessibilityIdentifier
+            subtitle: "Start building your Trust Passport.",
+            titleAccessibilityIdentifier: OnboardingStep.createAccount.titleAccessibilityIdentifier,
+            topPaddingAdjustment: -KairoSpacing.xLarge
         ) {
             EmptyView()
         } content: {
-            KairoCard {
-                VStack(spacing: KairoSpacing.medium) {
-                    KairoTextField(
-                        title: "First Name",
-                        prompt: "Enter your first name",
-                        text: $draft.firstName,
-                        errorMessage: errorMessage(for: .firstName),
-                        accessibilityIdentifier: KairoAccessibilityID.createAccountFirstName,
-                        accessibilityLabel: "First name",
-                        textContentType: .givenName,
-                        textInputAutocapitalization: .words,
-                        submitLabel: .next,
-                        focus: $focusedField,
-                        focusedField: .firstName,
-                        onSubmit: { moveFocusForward(from: .firstName) }
-                    )
-
-                    KairoTextField(
-                        title: "Last Name",
-                        prompt: "Enter your last name",
-                        text: $draft.lastName,
-                        errorMessage: errorMessage(for: .lastName),
-                        accessibilityIdentifier: KairoAccessibilityID.createAccountLastName,
-                        accessibilityLabel: "Last name",
-                        textContentType: .familyName,
-                        textInputAutocapitalization: .words,
-                        submitLabel: .next,
-                        focus: $focusedField,
-                        focusedField: .lastName,
-                        onSubmit: { moveFocusForward(from: .lastName) }
-                    )
-
-                    KairoTextField(
-                        title: "Email Address",
-                        prompt: "name@example.com",
-                        text: $draft.emailAddress,
-                        errorMessage: errorMessage(for: .emailAddress),
-                        accessibilityIdentifier: KairoAccessibilityID.createAccountEmail,
-                        accessibilityLabel: "Email address",
-                        keyboardType: .emailAddress,
-                        textContentType: .emailAddress,
-                        textInputAutocapitalization: .never,
-                        submitLabel: .next,
-                        focus: $focusedField,
-                        focusedField: .emailAddress,
-                        onSubmit: { moveFocusForward(from: .emailAddress) }
-                    )
-
-                    KairoTextField(
-                        title: "Mobile Number",
-                        prompt: "10-digit Indian mobile number",
-                        text: $draft.mobileNumber,
-                        errorMessage: errorMessage(for: .mobileNumber),
-                        accessibilityIdentifier: KairoAccessibilityID.createAccountMobile,
-                        accessibilityLabel: "Mobile number",
-                        accessibilityHint: "Enter a 10-digit Indian mobile number.",
-                        keyboardType: .phonePad,
-                        textContentType: .telephoneNumber,
-                        textInputAutocapitalization: .never,
-                        submitLabel: .next,
-                        focus: $focusedField,
-                        focusedField: .mobileNumber,
-                        onSubmit: { moveFocusForward(from: .mobileNumber) }
-                    )
-
-                    Text(indianMobileGuidance)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(indianMobileGuidance)
-
-                    KairoTextField(
-                        title: "Password",
-                        prompt: "At least 12 characters",
-                        text: $draft.password,
-                        errorMessage: errorMessage(for: .password),
-                        accessibilityIdentifier: KairoAccessibilityID.createAccountPassword,
-                        accessibilityLabel: "Password",
-                        accessibilityHint: "Enter a password with at least 12 characters.",
-                        textContentType: .newPassword,
-                        textInputAutocapitalization: .never,
-                        isSecure: true,
-                        submitLabel: .done,
-                        focus: $focusedField,
-                        focusedField: .password,
-                        onSubmit: {
-                            touch(.password)
-                            focusedField = nil
-                        }
-                    )
-                }
-            }
+            createAccountFormCard
         } actions: {
-            VStack(spacing: KairoSpacing.medium) {
-                KairoPrimaryButton(
-                    title: "Continue",
-                    isLoading: isSubmitting,
-                    accessibilityIdentifier: KairoAccessibilityID.createAccountContinue,
-                    action: handleContinue
-                )
-                .disabled(!isFormValid || isSubmitting)
-
-                KairoSecondaryButton(
-                    title: "I already have an account",
-                    accessibilityIdentifier: KairoAccessibilityID.createAccountLogin,
-                    action: { router.showLogin() }
-                )
-                .disabled(isSubmitting)
-
-                legalCopy
-
-                if let submissionErrorMessage {
-                    Text(submissionErrorMessage)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.danger)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .accessibilityElement(children: .contain)
+            actionsSection
         }
         .environment(\.openURL, OpenURLAction { url in
             handleOpenURL(url)
         })
         .onChange(of: focusedField) { _, newValue in
-            if let lastFocusedField, lastFocusedField != newValue {
-                touch(lastFocusedField)
-            }
-
-            lastFocusedField = newValue
+            handleFocusedFieldChange(newValue)
         }
         .onChange(of: draft.mobileNumber) { _, newValue in
-            let sanitizedValue = CreateAccountValidation.sanitizedMobileNumber(newValue)
-            if sanitizedValue != newValue {
-                draft.mobileNumber = sanitizedValue
-            }
+            sanitizeMobileNumber(newValue)
         }
         .onChange(of: draft.firstName) { _, _ in
-            submissionErrorMessage = nil
-            clearBackendErrors(for: [.firstName, .lastName])
+            handleNameFieldChange()
         }
         .onChange(of: draft.lastName) { _, _ in
-            submissionErrorMessage = nil
-            clearBackendErrors(for: [.firstName, .lastName])
+            handleNameFieldChange()
         }
         .onChange(of: draft.emailAddress) { _, _ in
-            submissionErrorMessage = nil
-            clearBackendErrors(for: [.emailAddress])
+            handleEmailFieldChange()
         }
         .onChange(of: draft.mobileNumber) { _, _ in
-            submissionErrorMessage = nil
-            clearBackendErrors(for: [.mobileNumber])
+            handleMobileFieldChange()
         }
         .onChange(of: draft.password) { _, _ in
-            submissionErrorMessage = nil
-            clearBackendErrors(for: [.password])
+            handlePasswordFieldChange()
         }
         .sheet(item: $presentedLegalDocument) { document in
             LegalDocumentPlaceholderSheet(document: document)
@@ -211,6 +81,160 @@ struct CreateAccountScreenView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private var createAccountFormCard: some View {
+        KairoCard {
+            createAccountFields
+        }
+    }
+
+    private var createAccountFields: some View {
+        VStack(spacing: KairoSpacing.small) {
+            firstNameField
+            lastNameField
+            emailField
+            mobileField
+            passwordField
+        }
+    }
+
+    private var firstNameField: some View {
+        KairoTextField(
+            title: "First Name",
+            prompt: "Enter your first name",
+            text: $draft.firstName,
+            errorMessage: errorMessage(for: .firstName),
+            accessibilityIdentifier: KairoAccessibilityID.createAccountFirstName,
+            accessibilityLabel: "First name",
+            textContentType: .givenName,
+            textInputAutocapitalization: .words,
+            submitLabel: .next,
+            focus: $focusedField,
+            focusedField: .firstName,
+            onSubmit: { moveFocusForward(from: .firstName) }
+        )
+    }
+
+    private var lastNameField: some View {
+        KairoTextField(
+            title: "Last Name",
+            prompt: "Enter your last name",
+            text: $draft.lastName,
+            errorMessage: errorMessage(for: .lastName),
+            accessibilityIdentifier: KairoAccessibilityID.createAccountLastName,
+            accessibilityLabel: "Last name",
+            textContentType: .familyName,
+            textInputAutocapitalization: .words,
+            submitLabel: .next,
+            focus: $focusedField,
+            focusedField: .lastName,
+            onSubmit: { moveFocusForward(from: .lastName) }
+        )
+    }
+
+    private var emailField: some View {
+        KairoTextField(
+            title: "Email Address",
+            prompt: "name@example.com",
+            text: $draft.emailAddress,
+            errorMessage: errorMessage(for: .emailAddress),
+            accessibilityIdentifier: KairoAccessibilityID.createAccountEmail,
+            accessibilityLabel: "Email address",
+            keyboardType: .emailAddress,
+            textContentType: .emailAddress,
+            textInputAutocapitalization: .never,
+            submitLabel: .next,
+            focus: $focusedField,
+            focusedField: .emailAddress,
+            onSubmit: { moveFocusForward(from: .emailAddress) }
+        )
+    }
+
+    private var mobileField: some View {
+        KairoTextField(
+            title: "Mobile Number",
+            prompt: "10-digit Indian mobile number",
+            text: $draft.mobileNumber,
+            errorMessage: errorMessage(for: .mobileNumber),
+            accessibilityIdentifier: KairoAccessibilityID.createAccountMobile,
+            accessibilityLabel: "Mobile number",
+            accessibilityHint: "Enter a 10-digit Indian mobile number.",
+            keyboardType: .phonePad,
+            textContentType: .telephoneNumber,
+            textInputAutocapitalization: .never,
+            submitLabel: .next,
+            focus: $focusedField,
+            focusedField: .mobileNumber,
+            onSubmit: { moveFocusForward(from: .mobileNumber) }
+        )
+    }
+
+    private var passwordField: some View {
+        KairoTextField(
+            title: "Password",
+            prompt: "At least 12 characters",
+            text: $draft.password,
+            errorMessage: errorMessage(for: .password),
+            accessibilityIdentifier: KairoAccessibilityID.createAccountPassword,
+            accessibilityLabel: "Password",
+            accessibilityHint: "Enter a password with at least 12 characters.",
+            textContentType: .newPassword,
+            textInputAutocapitalization: .never,
+            isSecure: true,
+            submitLabel: .done,
+            focus: $focusedField,
+            focusedField: .password,
+            onSubmit: handlePasswordSubmit
+        )
+    }
+
+    private var actionsSection: some View {
+        VStack(spacing: KairoSpacing.medium) {
+            KairoPrimaryButton(
+                title: "Create Account",
+                isLoading: isSubmitting,
+                accessibilityIdentifier: KairoAccessibilityID.createAccountContinue,
+                action: handleContinue
+            )
+            .disabled(!isFormValid || isSubmitting)
+
+            loginRow
+                .disabled(isSubmitting)
+
+            legalCopy
+
+            submissionErrorView
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var loginRow: some View {
+        HStack(spacing: KairoSpacing.xxSmall) {
+            Text("Already have an account?")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+
+            Button("Log in") {
+                router.showLogin()
+            }
+            .font(KairoTypography.footnote.weight(.semibold))
+            .foregroundStyle(KairoColors.brandPrimary)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(KairoAccessibilityID.createAccountLogin)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
+    private var submissionErrorView: some View {
+        if let submissionErrorMessage {
+            Text(submissionErrorMessage)
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.danger)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private func errorMessage(for field: CreateAccountField) -> String? {
         guard touchedFields.contains(field) else {
             return nil
@@ -227,6 +251,42 @@ struct CreateAccountScreenView: View {
         touchedFields.insert(field)
     }
 
+    private func handleFocusedFieldChange(_ newValue: CreateAccountField?) {
+        if let lastFocusedField, lastFocusedField != newValue {
+            touch(lastFocusedField)
+        }
+
+        lastFocusedField = newValue
+    }
+
+    private func handleNameFieldChange() {
+        submissionErrorMessage = nil
+        clearBackendErrors(for: [.firstName, .lastName])
+    }
+
+    private func handleEmailFieldChange() {
+        submissionErrorMessage = nil
+        clearBackendErrors(for: [.emailAddress])
+    }
+
+    private func handleMobileFieldChange() {
+        submissionErrorMessage = nil
+        clearBackendErrors(for: [.mobileNumber])
+    }
+
+    private func handlePasswordFieldChange() {
+        submissionErrorMessage = nil
+        clearBackendErrors(for: [.password])
+    }
+
+    private func sanitizeMobileNumber(_ newValue: String) {
+        let sanitizedValue = CreateAccountValidation.sanitizedMobileNumber(newValue)
+
+        if sanitizedValue != newValue {
+            draft.mobileNumber = sanitizedValue
+        }
+    }
+
     private func moveFocusForward(from field: CreateAccountField) {
         touch(field)
 
@@ -235,6 +295,11 @@ struct CreateAccountScreenView: View {
         } else {
             focusedField = nil
         }
+    }
+
+    private func handlePasswordSubmit() {
+        touch(.password)
+        focusedField = nil
     }
 
     private func handleContinue() {

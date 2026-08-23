@@ -34,8 +34,8 @@ nonisolated struct NotificationPreferenceResponseDTO: Decodable, Equatable, Send
     let updatedAt: Date
 
     private enum CodingKeys: String, CodingKey {
-        case publicID
-        case userID
+        case publicID = "publicId"
+        case userID = "userId"
         case eventType
         case enabled
         case preferredChannels

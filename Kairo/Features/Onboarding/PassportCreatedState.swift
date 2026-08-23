@@ -25,8 +25,8 @@ struct PassportCreatedState: Equatable, Sendable {
 
     static let completed = PassportCreatedState(
         title: "Your Trust Passport is ready.",
-        subtitle: "Your verified professional identity is now ready to grow with every achievement, role, and verification you add.",
-        supportingCopy: "This is only the beginning.\n\nYour Trust Passport will become stronger as you verify employment, education, certifications, projects, and professional experience.",
+        subtitle: "Identity and contact verification are complete.",
+        supportingCopy: "Continue to Home and start building your professional record.",
         summaryRows: [
             SummaryRow(id: "identity", title: "Identity", status: .verified),
             SummaryRow(id: "email", title: "Email", status: .verified),
@@ -37,8 +37,8 @@ struct PassportCreatedState: Equatable, Sendable {
         trustScoreTitle: "Trust Score",
         trustScoreMessage: "Trust Score will appear after your first professional verification.",
         primaryActionTitle: "Continue to Home",
-        secondaryActionTitle: "Review my profile",
-        reviewDestination: .passport
+        secondaryActionTitle: "",
+        reviewDestination: nil
     )
 }
 

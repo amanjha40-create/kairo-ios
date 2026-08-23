@@ -38,29 +38,29 @@ struct VerifyIdentityScreenView: View {
 
     private var introductionScreen: some View {
         OnboardingScreenLayout(
-            eyebrow: "Verify once. Trusted everywhere.",
+            layoutMode: .form,
+            eyebrow: "Identity verification",
             title: "Verify your identity",
-            subtitle: "Verify your email and mobile number to create your Trust Passport.",
+            subtitle: "Confirm your email and mobile number so Kairo can secure your account and continue onboarding.",
             titleAccessibilityIdentifier: OnboardingStep.verifyIdentity.titleAccessibilityIdentifier
         ) {
-            VerifyIdentityHero()
-                .frame(maxWidth: 184)
+            EmptyView()
         } content: {
             KairoCard {
-                Text("Identity verification is the foundation of your reusable professional trust. You'll only need to do this once.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                    introductionStep(
+                        title: "Verify your email",
+                        message: "Start with the code sent to the email address linked to this account."
+                    )
 
-                trustBenefitRow(
-                    title: "Own your trust",
-                    message: "Verified identity becomes the durable base layer for your Trust Passport."
-                )
+                    Divider()
+                        .overlay(KairoColors.border)
 
-                trustBenefitRow(
-                    title: "Carry it forward",
-                    message: "Your passport is designed to move with your career, not stay trapped in one system."
-                )
+                    introductionStep(
+                        title: "Verify your mobile number",
+                        message: "Then confirm your mobile number so Kairo can protect your account and recovery steps."
+                    )
+                }
             }
         } actions: {
             OnboardingActionGroup(
@@ -74,9 +74,9 @@ struct VerifyIdentityScreenView: View {
         }
     }
 
-    private func trustBenefitRow(title: String, message: String) -> some View {
+    private func introductionStep(title: String, message: String) -> some View {
         HStack(alignment: .top, spacing: KairoSpacing.medium) {
-            Image(systemName: "checkmark.shield")
+            Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundStyle(KairoColors.brandPrimary)
                 .padding(.top, 2)
@@ -87,7 +87,7 @@ struct VerifyIdentityScreenView: View {
                     .foregroundStyle(KairoColors.textPrimary)
 
                 Text(message)
-                    .font(KairoTypography.footnote)
+                    .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -115,6 +115,7 @@ private struct ContactVerificationScreenView: View {
 
     var body: some View {
         OnboardingScreenLayout(
+            layoutMode: .form,
             eyebrow: channel.eyebrow,
             title: channel.title,
             subtitle: channel.subtitle,
@@ -122,8 +123,7 @@ private struct ContactVerificationScreenView: View {
                 ? KairoAccessibilityID.verifyIdentityEmailTitle
                 : KairoAccessibilityID.verifyIdentityMobileTitle
         ) {
-            VerificationMethodHero(channel: channel)
-                .frame(maxWidth: 152)
+            EmptyView()
         } content: {
             if state.isVerified {
                 successCard
@@ -156,6 +156,11 @@ private struct ContactVerificationScreenView: View {
 
     private var entryCard: some View {
         KairoCard {
+            Text(channel == .email ? "We'll send a 6-digit code to the email address linked to this account." : "We'll send a 6-digit code to the mobile number linked to this account.")
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             KairoTextField(
                 title: channel.contactFieldTitle,
                 prompt: channel.contactFieldPrompt,
@@ -180,13 +185,6 @@ private struct ContactVerificationScreenView: View {
                 }
             )
             .disabled(state.hasSentCode || state.isSendingCode || state.isVerifying)
-
-            if channel == .mobile {
-                Text("For this MVP, Kairo verifies 10-digit Indian mobile numbers.")
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
 
             Divider()
                 .overlay(KairoColors.border)
@@ -226,7 +224,7 @@ private struct ContactVerificationScreenView: View {
         if state.hasSentCode || state.isSendingCode {
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
                 Text(channel.codeSentMessage)
-                    .font(KairoTypography.footnote)
+                    .font(KairoTypography.caption)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -251,7 +249,7 @@ private struct ContactVerificationScreenView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text(channel.statusMessage)
-                .font(KairoTypography.footnote)
+                .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -259,27 +257,32 @@ private struct ContactVerificationScreenView: View {
 
     private var successCard: some View {
         KairoCard {
-            Image(systemName: "checkmark.shield.fill")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
-                .foregroundStyle(KairoColors.brandPrimary)
+            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                HStack(spacing: KairoSpacing.small) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(KairoColors.brandPrimary)
 
-            Text(channel.successTitle)
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-                .accessibilityIdentifier(channel.successAccessibilityIdentifier)
+                    Text(channel.successTitle)
+                        .font(KairoTypography.title2)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .accessibilityIdentifier(channel.successAccessibilityIdentifier)
+                }
 
-            Text(channel.successMessage)
-                .font(KairoTypography.body)
+                Text(channel.successMessage)
+                    .font(KairoTypography.body)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: KairoSpacing.small) {
+                    Image(systemName: channel == .email ? "arrow.forward.circle" : "checkmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    Text(channel == .email ? "Continue to mobile verification." : "Continue into the rest of onboarding.")
+                        .font(KairoTypography.footnote)
+                }
                 .foregroundStyle(KairoColors.textSecondary)
-                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                Label("Trusted contact confirmed", systemImage: "checkmark.circle.fill")
-                Label("Ready for the next verification step", systemImage: "arrow.forward.circle")
             }
-            .font(KairoTypography.footnote)
-            .foregroundStyle(KairoColors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -498,108 +501,12 @@ private struct ContactVerificationScreenView: View {
             case .invalidURL:
                 return "Kairo's API configuration is invalid."
             case .unavailableInDemoMode:
-                return "Demo Mode keeps verification local only."
+                return "Verification isn't available in this preview."
             }
         case let sessionError as SessionServiceError where sessionError == .missingSignupSession:
             return "Your signup session expired. Please start again."
         default:
             return error.localizedDescription
         }
-    }
-}
-
-private struct VerifyIdentityHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                .fill(KairoColors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                        .stroke(KairoColors.border, lineWidth: 1)
-                )
-                .kairoShadow(KairoShadow.card)
-
-            VStack(spacing: KairoSpacing.large) {
-                HStack(spacing: KairoSpacing.medium) {
-                    verificationPill(systemImage: "envelope.badge.shield.half.filled", title: "Email")
-                    verificationPill(systemImage: "iphone.badge.checkmark", title: "Mobile")
-                }
-
-                ZStack {
-                    Circle()
-                        .fill(KairoColors.brandPrimary.opacity(0.12))
-                        .frame(width: 80, height: 80)
-
-                    Image(systemName: "checkmark.shield")
-                        .font(.system(size: 32, weight: .semibold, design: .rounded))
-                        .foregroundStyle(KairoColors.brandPrimary)
-                }
-
-                VStack(spacing: KairoSpacing.small) {
-                    Text("Trust Passport")
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
-
-                    Text("Verified once")
-                        .font(KairoTypography.title2)
-                        .foregroundStyle(KairoColors.textPrimary)
-                }
-            }
-            .padding(KairoSpacing.xLarge)
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1.02, contentMode: .fit)
-        .accessibilityHidden(true)
-    }
-
-    private func verificationPill(systemImage: String, title: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(KairoTypography.caption)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .padding(.horizontal, KairoSpacing.medium)
-            .padding(.vertical, KairoSpacing.small)
-            .background(KairoColors.brandPrimary.opacity(0.1), in: Capsule())
-    }
-}
-
-private struct VerificationMethodHero: View {
-    let channel: VerificationChannel
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                .fill(KairoColors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                        .stroke(KairoColors.border, lineWidth: 1)
-                )
-                .kairoShadow(KairoShadow.card)
-
-            VStack(spacing: KairoSpacing.large) {
-                Image(systemName: channel == .email ? "envelope.badge.shield.half.filled" : "iphone.badge.checkmark")
-                    .font(.system(size: 32, weight: .semibold, design: .rounded))
-                    .foregroundStyle(KairoColors.brandPrimary)
-                    .padding(KairoSpacing.medium)
-                    .background(KairoColors.brandPrimary.opacity(0.12), in: Circle())
-
-                VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                    Capsule()
-                        .fill(KairoColors.textPrimary.opacity(0.12))
-                        .frame(width: 116, height: 10)
-
-                    Capsule()
-                        .fill(KairoColors.textPrimary.opacity(0.08))
-                        .frame(width: 136, height: 10)
-
-                    Label("6-digit placeholder code", systemImage: "number.circle")
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
-                }
-            }
-            .padding(KairoSpacing.xLarge)
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1.02, contentMode: .fit)
-        .accessibilityHidden(true)
     }
 }

@@ -69,28 +69,14 @@ nonisolated struct VerificationRequestResponseDTO: Decodable, Equatable, Sendabl
         candidateResponse = try container.decodeFirstPresentString(forKeys: ["candidate_response"])
         candidateResponseSubmittedAt = try container.decodeFirstPresentDate(forKeys: ["candidate_response_submitted_at"])
         acceptedAt = try container.decodeFirstPresentDate(forKeys: ["accepted_at"])
-        consentedFields = try container.decodeIfPresent([String].self, forKey: VerificationDynamicCodingKey("consented_fields")) ?? []
-        consentedEvidenceScope = try container.decodeIfPresent([String].self, forKey: VerificationDynamicCodingKey("consented_evidence_scope")) ?? []
-        organizationSummary = try container.decodeIfPresent(
-            VerificationRequestOrganizationSummaryDTO.self,
-            forKey: VerificationDynamicCodingKey("organization_summary")
-        )
-        verificationTarget = try container.decodeIfPresent(
-            VerificationRequestTargetDTO.self,
-            forKey: VerificationDynamicCodingKey("verification_target")
-        )
-        employmentClaim = try container.decodeIfPresent(
-            VerificationRequestEmploymentClaimDTO.self,
-            forKey: VerificationDynamicCodingKey("employment_claim")
-        )
-        educationClaim = try container.decodeIfPresent(
-            VerificationRequestEducationClaimDTO.self,
-            forKey: VerificationDynamicCodingKey("education_claim")
-        )
-        evidenceSummary = try container.decodeIfPresent(
-            VerificationRequestEvidenceSummaryDTO.self,
-            forKey: VerificationDynamicCodingKey("evidence_summary")
-        ) ?? .init(totalItems: 0, documentItems: 0, fieldKeys: [])
+        consentedFields = try container.decodeFirstPresentValue(forKeys: ["consented_fields"]) ?? []
+        consentedEvidenceScope = try container.decodeFirstPresentValue(forKeys: ["consented_evidence_scope"]) ?? []
+        organizationSummary = try container.decodeFirstPresentValue(forKeys: ["organization_summary"])
+        verificationTarget = try container.decodeFirstPresentValue(forKeys: ["verification_target"])
+        employmentClaim = try container.decodeFirstPresentValue(forKeys: ["employment_claim"])
+        educationClaim = try container.decodeFirstPresentValue(forKeys: ["education_claim"])
+        evidenceSummary = try container.decodeFirstPresentValue(forKeys: ["evidence_summary"])
+            ?? .init(totalItems: 0, documentItems: 0, fieldKeys: [])
     }
 
     var routingID: String? {
@@ -186,13 +172,13 @@ nonisolated struct VerificationRequestTimelineResponseDTO: Decodable, Equatable,
             forKeys: ["verification_request_public_id"],
             debugName: "verification request timeline id"
         )
-        items = try container.decodeIfPresent([VerificationRequestTimelineEventDTO].self, forKey: VerificationDynamicCodingKey("items")) ?? []
-        total = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("total")) ?? items.count
-        page = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("page")) ?? 1
-        pageSize = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("page_size")) ?? items.count
-        totalPages = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("total_pages")) ?? 1
-        offset = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("offset")) ?? 0
-        limit = try container.decodeIfPresent(Int.self, forKey: VerificationDynamicCodingKey("limit")) ?? items.count
+        items = try container.decodeFirstPresentValue(forKeys: ["items"]) ?? []
+        total = try container.decodeFirstPresentValue(forKeys: ["total"]) ?? items.count
+        page = try container.decodeFirstPresentValue(forKeys: ["page"]) ?? 1
+        pageSize = try container.decodeFirstPresentValue(forKeys: ["page_size"]) ?? items.count
+        totalPages = try container.decodeFirstPresentValue(forKeys: ["total_pages"]) ?? 1
+        offset = try container.decodeFirstPresentValue(forKeys: ["offset"]) ?? 0
+        limit = try container.decodeFirstPresentValue(forKeys: ["limit"]) ?? items.count
     }
 }
 
@@ -254,8 +240,7 @@ private extension KeyedDecodingContainer where Key == VerificationDynamicCodingK
     }
 
     nonisolated func decodeFirstPresentString(forKeys keys: [String]) throws -> String? {
-        for rawKey in keys {
-            let key = VerificationDynamicCodingKey(rawKey)
+        for key in candidateKeys(for: keys) {
             if let value = try decodeIfPresent(String.self, forKey: key)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                !value.isEmpty {
@@ -281,13 +266,52 @@ private extension KeyedDecodingContainer where Key == VerificationDynamicCodingK
     }
 
     nonisolated func decodeFirstPresentDate(forKeys keys: [String]) throws -> Date? {
-        for rawKey in keys {
-            let key = VerificationDynamicCodingKey(rawKey)
+        for key in candidateKeys(for: keys) {
             if let value = try decodeIfPresent(Date.self, forKey: key) {
                 return value
             }
         }
 
         return nil
+    }
+
+    nonisolated func decodeFirstPresentValue<T: Decodable>(forKeys keys: [String]) throws -> T? {
+        for key in candidateKeys(for: keys) {
+            if let value = try decodeIfPresent(T.self, forKey: key) {
+                return value
+            }
+        }
+
+        return nil
+    }
+
+    private nonisolated func candidateKeys(for rawKeys: [String]) -> [VerificationDynamicCodingKey] {
+        var seen = Set<String>()
+        var keys: [VerificationDynamicCodingKey] = []
+
+        for rawKey in rawKeys {
+            for candidate in [rawKey, rawKey.kairoConvertedFromSnakeCase] {
+                guard seen.insert(candidate).inserted else { continue }
+                keys.append(VerificationDynamicCodingKey(candidate))
+            }
+        }
+
+        return keys
+    }
+}
+
+private extension String {
+    var kairoConvertedFromSnakeCase: String {
+        guard contains("_") else { return self }
+
+        let parts = split(separator: "_", omittingEmptySubsequences: false)
+        guard let first = parts.first else { return self }
+
+        let rest = parts.dropFirst().map { part -> String in
+            guard let firstCharacter = part.first else { return "" }
+            return String(firstCharacter).uppercased() + part.dropFirst()
+        }
+
+        return String(first) + rest.joined()
     }
 }
