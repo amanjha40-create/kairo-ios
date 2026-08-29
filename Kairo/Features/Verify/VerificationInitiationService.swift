@@ -275,11 +275,21 @@ private nonisolated struct VerificationContactRequestDTO: Encodable {
 private nonisolated struct EmploymentVerificationDraftRequestDTO: Encodable {
     let verificationContact: VerificationContactRequestDTO
     let employmentDocumentIDs: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case verificationContact = "verification_contact"
+        case employmentDocumentIDs = "employment_document_ids"
+    }
 }
 
 private nonisolated struct EducationVerificationDraftRequestDTO: Encodable {
     let verificationContact: VerificationContactRequestDTO
     let educationDocumentIDs: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case verificationContact = "verification_contact"
+        case educationDocumentIDs = "education_document_ids"
+    }
 }
 
 private nonisolated struct VerificationSubmitForReviewRequestDTO: Encodable {

@@ -62,6 +62,8 @@ final class VerificationInitiationTests: XCTestCase {
             case ("POST", "/api/v1/employments/employment_1/verification-request"):
                 let body = try requestJSONBody(from: request)
                 XCTAssertEqual(body["employment_document_ids"] as? [String], ["document_1"])
+                XCTAssertNil(body["employment_document_i_ds"])
+                XCTAssertEqual(Set(body.keys), ["employment_document_ids", "verification_contact"])
                 let contact = try XCTUnwrap(body["verification_contact"] as? [String: Any])
                 XCTAssertEqual(contact["contact_email"] as? String, "hr@brightpath.example")
                 XCTAssertEqual(contact["contact_type"] as? String, "hr")
@@ -71,6 +73,41 @@ final class VerificationInitiationTests: XCTestCase {
                 XCTAssertEqual(body["consent_version"] as? String, "candidate_verification_initiation_v1")
                 XCTAssertEqual(body["consented_evidence_scope"] as? [String], ["offer_letter"])
                 XCTAssertTrue((body["consented_fields"] as? [String])?.contains("employment.employer_name") == true)
+                return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
+            case ("GET", "/api/v1/verification-requests/request_1"):
+                return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
+            default:
+                XCTFail("Unexpected request: \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let result = try await service.submit(draft)
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(result.requestID, "request_1")
+        XCTAssertEqual(result.status, .pendingAdminReview)
+        XCTAssertFalse(result.reusedExistingRequest)
+        XCTAssertEqual(requests.map(\.httpMethod), ["POST", "POST", "GET"])
+    }
+
+    func test_educationSubmissionEncodesExactDocumentIDsKeyWithProductionEncoder() async throws {
+        let service = try await makeService()
+        var draft = draft(kind: .education)
+        makeSubmittable(&draft)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api/v1/educations/education_1/verification-request"):
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["education_document_ids"] as? [String], ["document_1"])
+                XCTAssertNil(body["education_document_i_ds"])
+                XCTAssertEqual(Set(body.keys), ["education_document_ids", "verification_contact"])
+                let contact = try XCTUnwrap(body["verification_contact"] as? [String: Any])
+                XCTAssertEqual(contact["contact_email"] as? String, "hr@brightpath.example")
+                XCTAssertEqual(contact["contact_type"] as? String, "hr")
+                return (try Self.response(request, 201), Self.requestPayload(status: "pending_subject_submission"))
+            case ("POST", "/api/v1/verification-requests/request_1/submit-for-review"):
                 return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
             case ("GET", "/api/v1/verification-requests/request_1"):
                 return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
