@@ -6,6 +6,8 @@ struct PassportOverviewScreenView: View {
     var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @Environment(\.passportShareService) private var passportShareService
     @State private var modalDestination: PassportModalDestination?
 
     var body: some View {
@@ -14,7 +16,14 @@ struct PassportOverviewScreenView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.passportScreen)
             .sheet(item: $modalDestination) { destination in
-                PassportPlaceholderSheet(destination: destination)
+                if case .sharePassport = destination {
+                    PassportShareManagementSheet(
+                        service: passportShareService,
+                        onMutation: { refreshStore.passportSharesChanged() }
+                    )
+                } else {
+                    PassportPlaceholderSheet(destination: destination)
+                }
             }
     }
 
@@ -533,23 +542,21 @@ struct PassportOverviewScreenView: View {
                 .foregroundStyle(KairoColors.textPrimary)
 
             KairoPrimaryButton(
-                title: "Share Trust Passport",
+                title: "Share Passport",
                 accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
                 action: { modalDestination = .sharePassport }
             )
 
-            KairoSecondaryButton(
-                title: "Preview public Passport",
-                accessibilityIdentifier: KairoAccessibilityID.passportPreviewAction,
-                action: { modalDestination = .previewPassport }
-            )
+            Text("Public preview, Copy, Share, and QR are available from the authoritative URL immediately after a share is created.")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Button("Download PDF") {
-                modalDestination = .downloadPDF
-            }
+            Button("Download PDF — not available yet") {}
             .buttonStyle(.plain)
             .font(KairoTypography.footnote)
             .foregroundStyle(KairoColors.textSecondary)
+            .disabled(true)
             .accessibilityIdentifier(KairoAccessibilityID.passportDownloadAction)
         }
     }

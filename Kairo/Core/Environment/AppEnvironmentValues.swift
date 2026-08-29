@@ -301,6 +301,37 @@ private struct MissingPassportOverviewService: PassportOverviewServiceProtocol {
     }
 }
 
+private struct MissingPassportShareService: PassportShareServiceProtocol {
+    func listShares() async throws -> [PassportShare] {
+        fatalError("Missing Passport share service injection.")
+    }
+
+    func getShare(id: String) async throws -> PassportShare {
+        _ = id
+        fatalError("Missing Passport share service injection.")
+    }
+
+    func getAnalytics(shareID: String) async throws -> PassportShareAnalytics {
+        _ = shareID
+        fatalError("Missing Passport share service injection.")
+    }
+
+    func createShare(_ input: PassportShareMutationInput) async throws -> PassportShareCreation {
+        _ = input
+        fatalError("Missing Passport share service injection.")
+    }
+
+    func updateShare(id: String, input: PassportShareMutationInput) async throws -> PassportShare {
+        _ = (id, input)
+        fatalError("Missing Passport share service injection.")
+    }
+
+    func revokeShare(id: String) async throws -> PassportShare {
+        _ = id
+        fatalError("Missing Passport share service injection.")
+    }
+}
+
 private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
     func loadOverview() async throws -> MoreOverview {
         fatalError("Missing More overview service injection.")
@@ -410,6 +441,10 @@ private struct PassportOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any PassportOverviewServiceProtocol = MissingPassportOverviewService()
 }
 
+private struct PassportShareServiceKey: EnvironmentKey {
+    static let defaultValue: any PassportShareServiceProtocol = MissingPassportShareService()
+}
+
 private struct MoreOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any MoreOverviewServiceProtocol = MissingMoreOverviewService()
 }
@@ -468,6 +503,11 @@ extension EnvironmentValues {
     var passportOverviewService: any PassportOverviewServiceProtocol {
         get { self[PassportOverviewServiceKey.self] }
         set { self[PassportOverviewServiceKey.self] = newValue }
+    }
+
+    var passportShareService: any PassportShareServiceProtocol {
+        get { self[PassportShareServiceKey.self] }
+        set { self[PassportShareServiceKey.self] = newValue }
     }
 
     var moreOverviewService: any MoreOverviewServiceProtocol {

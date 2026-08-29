@@ -142,9 +142,37 @@ nonisolated enum KairoAccessibilityID {
     static let passportShareAction = "candidate.passport.share"
     static let passportPreviewAction = "candidate.passport.preview"
     static let passportDownloadAction = "candidate.passport.download"
+    static let passportShareManagement = "candidate.passport.share.management"
+    static let passportShareCreateEntry = "candidate.passport.share.createEntry"
+    static let passportShareLabel = "candidate.passport.share.label"
+    static let passportShareExpiry = "candidate.passport.share.expiry"
+    static let passportShareCustomExpiry = "candidate.passport.share.expiry.custom"
+    static let passportShareCreate = "candidate.passport.share.create"
+    static let passportShareSuccess = "candidate.passport.share.success"
+    static let passportShareCopyLink = "candidate.passport.share.copyLink"
+    static let passportShareNativeShare = "candidate.passport.share.nativeShare"
+    static let passportShareQRCode = "candidate.passport.share.qrCode"
+    static let passportShareManage = "candidate.passport.share.manage"
+    static let passportShareDetail = "candidate.passport.share.detail"
+    static let passportShareUpdate = "candidate.passport.share.update"
+    static let passportShareUpdateConfirm = "candidate.passport.share.update.confirm"
+    static let passportShareRevoke = "candidate.passport.share.revoke"
+    static let passportShareRevokeConfirm = "candidate.passport.share.revoke.confirm"
     static let passportEmptyState = "candidate.passport.empty"
     static let passportContinueProfile = "candidate.passport.continueProfile"
     static let passportStartVerification = "candidate.passport.startVerification"
+
+    static func passportSharePermission(_ permission: String) -> String {
+        "candidate.passport.share.permission.\(permission)"
+    }
+
+    static func passportShareList(_ state: String) -> String {
+        "candidate.passport.share.list.\(state)"
+    }
+
+    static func passportShareRow(_ id: String) -> String {
+        "candidate.passport.share.row.\(id)"
+    }
     static let verifyScreen = "candidate.verify.screen"
     static let verifyPriorityRecommendation = "candidate.verify.priorityRecommendation"
     static let verifyStartVerification = "candidate.verify.startVerification"

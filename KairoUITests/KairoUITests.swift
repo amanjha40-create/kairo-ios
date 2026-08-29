@@ -429,7 +429,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportSharePlaceholderOpens() throws {
+    func testPassportShareManagementOpens() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
@@ -438,33 +438,32 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
         button.tap()
 
-        XCTAssertTrue(app.staticTexts["Share Trust Passport"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Passport shares"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["candidate.passport.share.createEntry"].waitForExistence(timeout: 10))
     }
 
     @MainActor
-    func testPassportPreviewPlaceholderOpens() throws {
+    func testPassportPreviewIsOnlyPromisedAfterBackendCreation() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
 
-        let button = app.buttons[passportPreviewAction]
-        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
-        button.tap()
-
-        XCTAssertTrue(app.staticTexts["Preview public Passport"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[passportPreviewAction].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(
+            app.staticTexts["Public preview, Copy, Share, and QR are available from the authoritative URL immediately after a share is created."],
+            in: app
+        ))
     }
 
     @MainActor
-    func testPassportDownloadPDFPlaceholderOpens() throws {
+    func testPassportDownloadPDFRemainsTruthfullyUnavailable() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
 
         let button = app.buttons[passportDownloadAction]
         XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
-        button.tap()
-
-        XCTAssertTrue(app.staticTexts["Download PDF"].waitForExistence(timeout: 10))
+        XCTAssertFalse(button.isEnabled)
     }
 
     @MainActor

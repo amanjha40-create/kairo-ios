@@ -12,6 +12,7 @@ struct AppDependencies: Sendable {
     let verifyOverviewService: any VerifyOverviewServiceProtocol
     let verificationInitiationService: any VerificationInitiationServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
+    let passportShareService: any PassportShareServiceProtocol
     let moreOverviewService: any MoreOverviewServiceProtocol
 
     static func make(
@@ -84,6 +85,15 @@ struct AppDependencies: Sendable {
         let passportOverviewService = PassportOverviewService(
             sessionService: sessionService
         )
+        let passportShareService: any PassportShareServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoPassportShareService()
+            } else {
+                PassportShareService(
+                    sessionService: sessionService,
+                    configuration: configuration
+                )
+            }
         let moreOverviewService = MoreOverviewService(
             sessionService: sessionService,
             bundleAppVersion: bundleAppVersion()
@@ -101,6 +111,7 @@ struct AppDependencies: Sendable {
             verifyOverviewService: verifyOverviewService,
             verificationInitiationService: verificationInitiationService,
             passportOverviewService: passportOverviewService,
+            passportShareService: passportShareService,
             moreOverviewService: moreOverviewService
         )
     }
