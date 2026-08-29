@@ -35,6 +35,7 @@ final class VerificationInitiationViewModel: ObservableObject {
         guard !hasLoaded else { return }
         hasLoaded = true
         isLoading = true
+        error = nil
         defer { isLoading = false }
 
         do {
@@ -53,6 +54,7 @@ final class VerificationInitiationViewModel: ObservableObject {
                 }
             }
         } catch {
+            hasLoaded = false
             self.error = .map(error, fallbackTitle: "Verification unavailable")
         }
     }
@@ -145,17 +147,32 @@ struct VerificationInitiationSheet: View {
 
     @ViewBuilder
     private var content: some View {
-        if let result = model.result {
-            successContent(result)
-        } else if let draft = Binding($model.draft) {
-            detailsContent(draft)
-        } else if model.isLoading && model.eligibility == nil {
-            KairoLoadingStateView(
-                title: "Checking eligible records",
-                message: "Kairo is checking your live Career records and active requests."
-            )
-        } else {
-            selectionContent
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
+            if let error = model.error {
+                KairoCard {
+                    Text(error.title)
+                        .font(KairoTypography.headline)
+                        .foregroundStyle(KairoColors.textPrimary)
+                    Text(error.message)
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationError)
+            }
+
+            if let result = model.result {
+                successContent(result)
+            } else if let draft = Binding($model.draft) {
+                detailsContent(draft)
+            } else if model.isLoading && model.eligibility == nil {
+                KairoLoadingStateView(
+                    title: "Checking eligible records",
+                    message: "Kairo is checking your live Career records and active requests."
+                )
+            } else {
+                selectionContent
+            }
         }
     }
 
@@ -217,6 +234,15 @@ struct VerificationInitiationSheet: View {
                     message: "Add an employment or education record in Career before starting verification.",
                     systemImage: "doc.badge.plus"
                 )
+            }
+
+            if model.eligibility == nil {
+                KairoSecondaryButton(
+                    title: "Retry",
+                    accessibilityIdentifier: KairoAccessibilityID.verificationInitiationRetry,
+                    action: { Task { await model.load() } }
+                )
+                .disabled(model.isLoading)
             }
 
             Text("Certification and project verification initiation is not supported by the current backend and is not offered here.")
@@ -327,6 +353,7 @@ struct VerificationInitiationSheet: View {
             )
             .disabled(model.isSubmitting)
         }
+        .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationConfirmation)
     }
 
     private func successContent(_ result: VerificationInitiationResult) -> some View {
@@ -345,6 +372,7 @@ struct VerificationInitiationSheet: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationSuccess)
 
             KairoPrimaryButton(
                 title: "View request",

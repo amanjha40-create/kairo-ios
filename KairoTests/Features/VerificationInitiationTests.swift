@@ -188,6 +188,72 @@ final class VerificationInitiationTests: XCTestCase {
         XCTAssertTrue(presentation.message.contains("contact_email"))
     }
 
+    func test_initialEligibilityFailureCanRetryWithoutCreatingLocalState() async {
+        let service = RetryVerificationInitiationService()
+        let model = VerificationInitiationViewModel(service: service, preset: nil)
+
+        await model.load()
+
+        XCTAssertNil(model.eligibility)
+        XCTAssertEqual(model.error?.title, "Network unavailable")
+
+        await model.load()
+
+        let loadCount = await service.loadCount()
+        XCTAssertEqual(model.eligibility?.eligibleSubjects.map(\.id), ["employment_retry"])
+        XCTAssertNil(model.error)
+        XCTAssertNil(model.result)
+        XCTAssertEqual(loadCount, 2)
+    }
+
+    func test_unresolvedOrganizationAndBackendFailureRemainDistinct() {
+        let unresolved = VerificationInitiationPresentationError.map(
+            NetworkError.api(
+                APIError(
+                    statusCode: 422,
+                    code: .validationError,
+                    message: "Target organization is unresolved",
+                    fieldErrors: [:],
+                    globalErrors: [],
+                    validationDetails: []
+                )
+            ),
+            fallbackTitle: "Request not sent"
+        )
+        let unavailable = VerificationInitiationPresentationError.map(
+            NetworkError.api(
+                APIError(
+                    statusCode: 503,
+                    code: .serviceUnavailable,
+                    message: "Service unavailable",
+                    fieldErrors: [:],
+                    globalErrors: [],
+                    validationDetails: []
+                )
+            ),
+            fallbackTitle: "Request not sent"
+        )
+
+        XCTAssertEqual(unresolved.title, "Organisation unresolved")
+        XCTAssertEqual(unavailable.title, "Verification service unavailable")
+    }
+
+    func test_successRefreshInvalidatesBackendDrivenTabsAndFocusIsConsumedOnce() {
+        let refreshStore = CandidateDataRefreshStore()
+
+        refreshStore.verificationRequested(requestID: "request_refresh")
+
+        XCTAssertEqual(refreshStore.revision, 1)
+        XCTAssertEqual(refreshStore.focusedVerificationRequestID, "request_refresh")
+
+        refreshStore.clearVerificationFocus(requestID: "different_request")
+        XCTAssertEqual(refreshStore.focusedVerificationRequestID, "request_refresh")
+
+        refreshStore.clearVerificationFocus(requestID: "request_refresh")
+        XCTAssertNil(refreshStore.focusedVerificationRequestID)
+        XCTAssertEqual(refreshStore.revision, 1)
+    }
+
     private func makeService() async throws -> VerificationInitiationService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
@@ -286,5 +352,42 @@ final class VerificationInitiationTests: XCTestCase {
             }
             """.utf8
         )
+    }
+}
+
+private actor RetryVerificationInitiationService: VerificationInitiationServiceProtocol {
+    private var loads = 0
+
+    func loadEligibility() async throws -> VerificationInitiationEligibility {
+        loads += 1
+        if loads == 1 {
+            throw NetworkError.transport("The request could not connect")
+        }
+        return VerificationInitiationEligibility(
+            subjects: [
+                VerificationInitiationSubject(
+                    id: "employment_retry",
+                    kind: .employment,
+                    title: "Retry Employer",
+                    subtitle: "QA role",
+                    verificationStatus: .notVerified,
+                    hasActiveRequest: false
+                )
+            ]
+        )
+    }
+
+    func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument] {
+        _ = subject
+        return []
+    }
+
+    func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult {
+        _ = draft
+        throw VerificationInitiationServiceError.unsupportedSubject
+    }
+
+    func loadCount() -> Int {
+        loads
     }
 }
