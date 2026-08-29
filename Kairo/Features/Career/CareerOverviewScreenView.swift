@@ -7,9 +7,11 @@ struct CareerOverviewScreenView: View {
     var addEmploymentAction: (() -> Void)?
     var editEmploymentAction: ((CareerEmploymentItem) -> Void)?
     var deleteEmploymentAction: ((CareerEmploymentItem) -> Void)?
+    var startEmploymentVerificationAction: ((CareerEmploymentItem) -> Void)?
     var addEducationAction: (() -> Void)?
     var editEducationAction: ((CareerEducationItem) -> Void)?
     var deleteEducationAction: ((CareerEducationItem) -> Void)?
+    var startEducationVerificationAction: ((CareerEducationItem) -> Void)?
     var addCertificationAction: (() -> Void)?
     var editCertificationAction: ((CareerCertificationItem) -> Void)?
     var deleteCertificationAction: ((CareerCertificationItem) -> Void)?
@@ -281,6 +283,17 @@ struct CareerOverviewScreenView: View {
                             deleteAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentDeleteButton(item.routeID),
                             deleteAction: item.allowsDelete ? { deleteEmploymentAction?(item) } : nil
                         )
+
+                        if item.verificationStatus == .notVerified,
+                           let startEmploymentVerificationAction {
+                            Button("Start verification") {
+                                startEmploymentVerificationAction(item)
+                            }
+                            .buttonStyle(.plain)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .accessibilityIdentifier(KairoAccessibilityID.careerEmploymentStartVerification(item.routeID))
+                        }
                     }
                 }
             }
@@ -319,6 +332,17 @@ struct CareerOverviewScreenView: View {
                             deleteAccessibilityIdentifier: KairoAccessibilityID.careerEducationDeleteButton(item.routeID),
                             deleteAction: { deleteEducationAction?(item) }
                         )
+
+                        if item.verificationStatus == .notVerified,
+                           let startEducationVerificationAction {
+                            Button("Start verification") {
+                                startEducationVerificationAction(item)
+                            }
+                            .buttonStyle(.plain)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .accessibilityIdentifier(KairoAccessibilityID.careerEducationStartVerification(item.routeID))
+                        }
                     }
                 }
             }

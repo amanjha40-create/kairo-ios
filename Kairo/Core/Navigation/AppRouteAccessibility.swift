@@ -159,6 +159,11 @@ nonisolated enum KairoAccessibilityID {
     static let verifyStartVerificationSheet = "candidate.verify.startVerificationSheet"
     static let verifyEmptyState = "candidate.verify.empty"
     static let verifyViewTrustPassport = "candidate.verify.viewTrustPassport"
+    static let verificationInitiationContinue = "candidate.verificationInitiation.continue"
+    static let verificationInitiationClaimConsent = "candidate.verificationInitiation.claimConsent"
+    static let verificationInitiationEvidenceConsent = "candidate.verificationInitiation.evidenceConsent"
+    static let verificationInitiationSubmit = "candidate.verificationInitiation.submit"
+    static let verificationInitiationViewRequest = "candidate.verificationInitiation.viewRequest"
     static let moreScreen = "candidate.more.screen"
     static let moreAccountSummary = "candidate.more.accountSummary"
     static let moreViewProfile = "candidate.more.viewProfile"
@@ -198,6 +203,22 @@ nonisolated enum KairoAccessibilityID {
 
     static func verifySuggestedAction(_ type: String) -> String {
         "candidate.verify.suggested.\(type)"
+    }
+
+    static func verificationInitiationSubject(_ id: String) -> String {
+        "candidate.verificationInitiation.subject.\(id)"
+    }
+
+    static func verificationInitiationEvidence(_ id: String) -> String {
+        "candidate.verificationInitiation.evidence.\(id)"
+    }
+
+    static func careerEmploymentStartVerification(_ id: String) -> String {
+        "candidate.career.employment.verification.\(id)"
+    }
+
+    static func careerEducationStartVerification(_ id: String) -> String {
+        "candidate.career.education.verification.\(id)"
     }
 
     static func manualProfileEmploymentJobTitle(_ index: Int) -> String {

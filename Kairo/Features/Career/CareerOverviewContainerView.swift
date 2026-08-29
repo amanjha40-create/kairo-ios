@@ -2,7 +2,10 @@ import SwiftUI
 
 struct CareerOverviewContainerView: View {
     @Environment(\.careerOverviewService) private var careerOverviewService
+    @Environment(\.verificationInitiationService) private var verificationInitiationService
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
 
     @State private var state = CareerOverviewState.loading(summary: .placeholder)
     @State private var hasLoaded = false
@@ -11,6 +14,7 @@ struct CareerOverviewContainerView: View {
     @State private var mutationError: CareerMutationPresentationError?
     @State private var activeLoadingMessage: String?
     @State private var isDeleting = false
+    @State private var verificationPreset: VerificationInitiationPreset?
 
     var body: some View {
         CareerOverviewScreenView(
@@ -32,6 +36,9 @@ struct CareerOverviewContainerView: View {
             deleteEmploymentAction: { item in
                 pendingDeleteRequest = .employment(item)
             },
+            startEmploymentVerificationAction: { item in
+                verificationPreset = .employment(id: item.routeID)
+            },
             addEducationAction: { presentedSheet = .education(mode: .create, recordID: nil, draft: .init()) },
             editEducationAction: { item in
                 Task {
@@ -40,6 +47,9 @@ struct CareerOverviewContainerView: View {
             },
             deleteEducationAction: { item in
                 pendingDeleteRequest = .education(item)
+            },
+            startEducationVerificationAction: { item in
+                verificationPreset = .education(id: item.routeID)
             },
             addCertificationAction: { presentedSheet = .certification(mode: .create, recordID: nil, draft: .init()) },
             editCertificationAction: { item in
@@ -88,6 +98,19 @@ struct CareerOverviewContainerView: View {
         }
         .sheet(item: $presentedSheet) { sheet in
             mutationSheet(for: sheet)
+        }
+        .sheet(item: $verificationPreset) { preset in
+            VerificationInitiationSheet(
+                service: verificationInitiationService,
+                preset: preset,
+                onSuccess: { requestID in
+                    refreshStore.verificationRequested(requestID: requestID)
+                    router.selectTab(.verify)
+                }
+            )
+        }
+        .onChange(of: refreshStore.revision) { _, _ in
+            Task { await load(showLoading: false) }
         }
         .alert(item: $mutationError) { error in
             Alert(

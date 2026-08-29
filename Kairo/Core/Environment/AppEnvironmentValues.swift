@@ -279,6 +279,22 @@ private struct MissingVerifyOverviewService: VerifyOverviewServiceProtocol {
     }
 }
 
+private struct MissingVerificationInitiationService: VerificationInitiationServiceProtocol {
+    func loadEligibility() async throws -> VerificationInitiationEligibility {
+        fatalError("Missing verification initiation service injection.")
+    }
+
+    func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument] {
+        _ = subject
+        fatalError("Missing verification initiation service injection.")
+    }
+
+    func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult {
+        _ = draft
+        fatalError("Missing verification initiation service injection.")
+    }
+}
+
 private struct MissingPassportOverviewService: PassportOverviewServiceProtocol {
     func loadOverview() async throws -> PassportOverview {
         fatalError("Missing Passport overview service injection.")
@@ -386,6 +402,10 @@ private struct VerifyOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any VerifyOverviewServiceProtocol = MissingVerifyOverviewService()
 }
 
+private struct VerificationInitiationServiceKey: EnvironmentKey {
+    static let defaultValue: any VerificationInitiationServiceProtocol = MissingVerificationInitiationService()
+}
+
 private struct PassportOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any PassportOverviewServiceProtocol = MissingPassportOverviewService()
 }
@@ -438,6 +458,11 @@ extension EnvironmentValues {
     var verifyOverviewService: any VerifyOverviewServiceProtocol {
         get { self[VerifyOverviewServiceKey.self] }
         set { self[VerifyOverviewServiceKey.self] = newValue }
+    }
+
+    var verificationInitiationService: any VerificationInitiationServiceProtocol {
+        get { self[VerificationInitiationServiceKey.self] }
+        set { self[VerificationInitiationServiceKey.self] = newValue }
     }
 
     var passportOverviewService: any PassportOverviewServiceProtocol {

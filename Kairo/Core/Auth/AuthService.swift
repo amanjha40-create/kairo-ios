@@ -207,7 +207,7 @@ actor AuthService: AuthServiceProtocol {
         switch apiError.code {
         case .unauthorized, .forbidden, .notFound:
             true
-        case .conflict, .validationError, .rateLimited, .internalError, .serviceUnavailable:
+        case .badRequest, .conflict, .validationError, .rateLimited, .internalError, .serviceUnavailable:
             false
         }
     }

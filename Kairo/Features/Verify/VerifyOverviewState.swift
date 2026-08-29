@@ -341,7 +341,7 @@ struct VerifyStatusStyle: Equatable, Sendable {
     let tone: VerifyStatusTone
 }
 
-enum VerifyVerificationStatus: Equatable, Sendable {
+nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
     case draft
     case pendingSubjectAcceptance
     case accepted
@@ -356,6 +356,7 @@ enum VerifyVerificationStatus: Equatable, Sendable {
     case awaitingInformation
     case verified
     case rejected
+    case unableToVerify
     case cancelled
     case expired
     case unknown(String)
@@ -375,6 +376,7 @@ enum VerifyVerificationStatus: Equatable, Sendable {
         .inProgress,
         .verified,
         .rejected,
+        .unableToVerify,
         .cancelled,
         .expired
     ]
@@ -411,6 +413,8 @@ enum VerifyVerificationStatus: Equatable, Sendable {
             self = .verified
         case "rejected":
             self = .rejected
+        case "unable_to_verify":
+            self = .unableToVerify
         case "cancelled":
             self = .cancelled
         case "expired":
@@ -450,6 +454,8 @@ enum VerifyVerificationStatus: Equatable, Sendable {
             "verified"
         case .rejected:
             "rejected"
+        case .unableToVerify:
+            "unable_to_verify"
         case .cancelled:
             "cancelled"
         case .expired:
@@ -478,6 +484,7 @@ enum VerifyVerificationStatus: Equatable, Sendable {
             .inProgress
         case .verified,
              .rejected,
+             .unableToVerify,
              .cancelled,
              .expired:
             .completed
@@ -569,6 +576,12 @@ enum VerifyVerificationStatus: Equatable, Sendable {
                 title: "Rejected",
                 symbol: "xmark.octagon",
                 tone: .danger
+            )
+        case .unableToVerify:
+            VerifyStatusStyle(
+                title: "Unable to verify",
+                symbol: "questionmark.diamond",
+                tone: .neutral
             )
         case .cancelled:
             VerifyStatusStyle(
@@ -898,158 +911,4 @@ struct VerifyOverviewEmptyContent: Equatable, Sendable {
 struct VerifyOverviewErrorState: Equatable, Sendable {
     let title: String
     let message: String
-}
-
-enum VerifyStartVerificationPhase: Equatable, Sendable {
-    case form
-    case confirmation(VerifyVerificationKind)
-}
-
-struct VerifyStartVerificationSheetState: Equatable, Sendable {
-    var selectedType: VerifyVerificationKind?
-    var phase: VerifyStartVerificationPhase
-    var employment: VerifyEmploymentDraft
-    var education: VerifyEducationDraft
-    var certification: VerifyCertificationDraft
-    var project: VerifyProjectDraft
-
-    init(
-        selectedType: VerifyVerificationKind? = nil,
-        phase: VerifyStartVerificationPhase = .form,
-        employment: VerifyEmploymentDraft = .fixture,
-        education: VerifyEducationDraft = .fixture,
-        certification: VerifyCertificationDraft = .fixture,
-        project: VerifyProjectDraft = .fixture
-    ) {
-        self.selectedType = selectedType
-        self.phase = phase
-        self.employment = employment
-        self.education = education
-        self.certification = certification
-        self.project = project
-    }
-
-    var isContinueEnabled: Bool {
-        selectedType != nil
-    }
-
-    mutating func select(_ type: VerifyVerificationKind) {
-        selectedType = type
-        phase = .form
-    }
-
-    mutating func continueFlow() {
-        guard let selectedType else {
-            return
-        }
-
-        phase = .confirmation(selectedType)
-    }
-
-    var selectedFieldRows: [VerifyFieldRow] {
-        guard let selectedType else {
-            return []
-        }
-
-        switch selectedType {
-        case .employment:
-            return employment.fieldRows
-        case .education:
-            return education.fieldRows
-        case .certification:
-            return certification.fieldRows
-        case .project:
-            return project.fieldRows
-        }
-    }
-}
-
-struct VerifyFieldRow: Equatable, Identifiable, Sendable {
-    let title: String
-    let value: String
-
-    var id: String { title }
-}
-
-struct VerifyEmploymentDraft: Equatable, Sendable {
-    var organization: String
-    var role: String
-    var startDate: String
-    var endDate: String
-
-    static let fixture = VerifyEmploymentDraft(
-        organization: "BrightPath Technologies",
-        role: "People Operations Manager",
-        startDate: "Apr 2024",
-        endDate: "Current role"
-    )
-
-    var fieldRows: [VerifyFieldRow] {
-        [
-            VerifyFieldRow(title: "Organisation", value: organization),
-            VerifyFieldRow(title: "Role", value: role),
-            VerifyFieldRow(title: "Start date", value: startDate),
-            VerifyFieldRow(title: "End date / current role", value: endDate)
-        ]
-    }
-}
-
-struct VerifyEducationDraft: Equatable, Sendable {
-    var institution: String
-    var qualification: String
-    var graduationYear: String
-
-    static let fixture = VerifyEducationDraft(
-        institution: "Welingkar Institute of Management",
-        qualification: "MBA",
-        graduationYear: "2021"
-    )
-
-    var fieldRows: [VerifyFieldRow] {
-        [
-            VerifyFieldRow(title: "Institution", value: institution),
-            VerifyFieldRow(title: "Qualification", value: qualification),
-            VerifyFieldRow(title: "Graduation year", value: graduationYear)
-        ]
-    }
-}
-
-struct VerifyCertificationDraft: Equatable, Sendable {
-    var issuer: String
-    var certificationName: String
-    var issueDate: String
-
-    static let fixture = VerifyCertificationDraft(
-        issuer: "SHRM",
-        certificationName: "Certified Professional",
-        issueDate: "Jun 2025"
-    )
-
-    var fieldRows: [VerifyFieldRow] {
-        [
-            VerifyFieldRow(title: "Issuer", value: issuer),
-            VerifyFieldRow(title: "Certification name", value: certificationName),
-            VerifyFieldRow(title: "Issue date", value: issueDate)
-        ]
-    }
-}
-
-struct VerifyProjectDraft: Equatable, Sendable {
-    var projectName: String
-    var role: String
-    var evidenceNote: String
-
-    static let fixture = VerifyProjectDraft(
-        projectName: "Candidate Trust Rollout",
-        role: "Project Lead",
-        evidenceNote: "Portfolio evidence will be connected later."
-    )
-
-    var fieldRows: [VerifyFieldRow] {
-        [
-            VerifyFieldRow(title: "Project name", value: projectName),
-            VerifyFieldRow(title: "Role", value: role),
-            VerifyFieldRow(title: "Evidence note", value: evidenceNote)
-        ]
-    }
 }

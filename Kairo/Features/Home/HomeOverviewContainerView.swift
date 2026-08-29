@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeOverviewContainerView: View {
     @Environment(\.homeOverviewService) private var homeOverviewService
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
 
     @State private var state = HomeOverviewState.loading(header: .placeholder)
     @State private var hasLoaded = false
@@ -27,6 +28,9 @@ struct HomeOverviewContainerView: View {
             hasLoaded = true
             state = .loading(header: cachedHeader)
             await load(showLoading: true)
+        }
+        .onChange(of: refreshStore.revision) { _, _ in
+            Task { await load(showLoading: false) }
         }
     }
 

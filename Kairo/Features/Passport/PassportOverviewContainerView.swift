@@ -3,6 +3,7 @@ import SwiftUI
 struct PassportOverviewContainerView: View {
     @Environment(\.passportOverviewService) private var passportOverviewService
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
 
     @State private var state = PassportOverviewState.loading(header: .fixture)
     @State private var hasLoaded = false
@@ -27,6 +28,9 @@ struct PassportOverviewContainerView: View {
             hasLoaded = true
             state = .loading(header: cachedHeader)
             await load(showLoading: true)
+        }
+        .onChange(of: refreshStore.revision) { _, _ in
+            Task { await load(showLoading: false) }
         }
     }
 

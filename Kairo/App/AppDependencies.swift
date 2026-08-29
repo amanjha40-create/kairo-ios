@@ -10,6 +10,7 @@ struct AppDependencies: Sendable {
     let homeOverviewService: any HomeOverviewServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
+    let verificationInitiationService: any VerificationInitiationServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
     let moreOverviewService: any MoreOverviewServiceProtocol
 
@@ -76,6 +77,10 @@ struct AppDependencies: Sendable {
         let verifyOverviewService = VerifyOverviewService(
             sessionService: sessionService
         )
+        let verificationInitiationService = VerificationInitiationService(
+            careerService: careerOverviewService,
+            sessionService: sessionService
+        )
         let passportOverviewService = PassportOverviewService(
             sessionService: sessionService
         )
@@ -94,6 +99,7 @@ struct AppDependencies: Sendable {
             homeOverviewService: homeOverviewService,
             careerOverviewService: careerOverviewService,
             verifyOverviewService: verifyOverviewService,
+            verificationInitiationService: verificationInitiationService,
             passportOverviewService: passportOverviewService,
             moreOverviewService: moreOverviewService
         )

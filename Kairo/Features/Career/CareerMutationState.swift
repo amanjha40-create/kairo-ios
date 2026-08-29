@@ -568,6 +568,8 @@ nonisolated enum CareerMutationErrorMapper {
 
     private nonisolated static func title(for apiError: APIError, fallbackTitle: String) -> String {
         switch apiError.code {
+        case .badRequest:
+            fallbackTitle
         case .forbidden:
             "You can't change this record"
         case .notFound:

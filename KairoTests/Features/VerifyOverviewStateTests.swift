@@ -109,24 +109,6 @@ final class VerifyOverviewStateTests: XCTestCase {
         XCTAssertEqual(declinedContent.completedRequests.count, 4)
     }
 
-    func test_startVerificationSelectionStateRequiresATypeBeforeContinuing() {
-        var state = VerifyStartVerificationSheetState()
-
-        XCTAssertNil(state.selectedType)
-        XCTAssertFalse(state.isContinueEnabled)
-
-        state.select(.employment)
-
-        XCTAssertEqual(state.selectedType, .employment)
-        XCTAssertTrue(state.isContinueEnabled)
-        XCTAssertEqual(state.phase, .form)
-
-        state.continueFlow()
-
-        XCTAssertEqual(state.phase, .confirmation(.employment))
-        XCTAssertEqual(state.selectedFieldRows.first?.title, "Organisation")
-    }
-
     func test_rejectedAndExpiredStatusesExposeExpectedPresentation() {
         XCTAssertEqual(
             VerifyVerificationStatus.rejected.style,

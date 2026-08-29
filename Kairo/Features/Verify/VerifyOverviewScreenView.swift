@@ -19,9 +19,11 @@ struct VerifyOverviewScreenView: View {
     private let retryAction: (() -> Void)?
     private let refreshAction: (() async -> Void)?
     private let requestActionHandler: VerifyRequestActionHandler?
+    private let startVerificationHandler: ((VerificationInitiationPreset) -> Void)?
+    private let focusedRequestID: String?
+    private let focusedRequestPresentedHandler: ((String) -> Void)?
 
     @State private var presentedSheet: VerifyPresentedSheet?
-    @State private var startVerificationState = VerifyStartVerificationSheetState()
     @State private var provideInformationText = ""
     @State private var actionError: VerifyActionError?
     @State private var actionInFlight: VerifyActionExecution?
@@ -30,12 +32,18 @@ struct VerifyOverviewScreenView: View {
         state: Binding<VerifyOverviewState>,
         retryAction: (() -> Void)? = nil,
         refreshAction: (() async -> Void)? = nil,
-        requestActionHandler: VerifyRequestActionHandler? = nil
+        requestActionHandler: VerifyRequestActionHandler? = nil,
+        startVerificationHandler: ((VerificationInitiationPreset) -> Void)? = nil,
+        focusedRequestID: String? = nil,
+        focusedRequestPresentedHandler: ((String) -> Void)? = nil
     ) {
         _state = state
         self.retryAction = retryAction
         self.refreshAction = refreshAction
         self.requestActionHandler = requestActionHandler
+        self.startVerificationHandler = startVerificationHandler
+        self.focusedRequestID = focusedRequestID
+        self.focusedRequestPresentedHandler = focusedRequestPresentedHandler
     }
 
     var body: some View {
@@ -59,6 +67,12 @@ struct VerifyOverviewScreenView: View {
                 message: Text(error.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .onChange(of: state) { _, _ in
+            presentFocusedRequestIfAvailable()
+        }
+        .onChange(of: focusedRequestID) { _, _ in
+            presentFocusedRequestIfAvailable()
         }
     }
 
@@ -426,8 +440,47 @@ struct VerifyOverviewScreenView: View {
     }
 
     private func openStartVerification(preselected: VerifyVerificationKind?) {
-        startVerificationState = VerifyStartVerificationSheetState(selectedType: preselected)
-        presentedSheet = .startVerification
+        guard let preselected else {
+            actionError = VerifyActionError(
+                title: "Choose a supported record",
+                message: "Start verification from an eligible employment or education record."
+            )
+            return
+        }
+
+        let preset: VerificationInitiationPreset
+        switch preselected {
+        case .employment:
+            preset = .employment()
+        case .education:
+            preset = .education()
+        case .certification, .project:
+            actionError = VerifyActionError(
+                title: "Verification not supported",
+                message: "The current backend supports employment and education verification initiation only."
+            )
+            return
+        }
+
+        guard let startVerificationHandler else {
+            actionError = VerifyActionError(
+                title: "Unavailable in preview",
+                message: "Demo and UI-test sessions do not create live verification requests."
+            )
+            return
+        }
+        startVerificationHandler(preset)
+    }
+
+    private func presentFocusedRequestIfAvailable() {
+        guard
+            let focusedRequestID,
+            let request = activeContent?.requests.first(where: {
+                $0.routeRequestID == focusedRequestID || $0.id == focusedRequestID
+            })
+        else { return }
+        presentedSheet = .requestDetail(request.id)
+        focusedRequestPresentedHandler?(focusedRequestID)
     }
 
     private func performRequestAction(
@@ -537,10 +590,6 @@ struct VerifyOverviewScreenView: View {
                     }
                 )
             }
-        case .startVerification:
-            VerifyStartVerificationSheet(
-                state: $startVerificationState
-            )
         }
     }
 
@@ -566,7 +615,6 @@ private struct VerifyActionError: Identifiable {
 private enum VerifyPresentedSheet: Identifiable {
     case requestDetail(String)
     case provideInformation(String)
-    case startVerification
 
     var id: String {
         switch self {
@@ -574,8 +622,6 @@ private enum VerifyPresentedSheet: Identifiable {
             "request.\(requestID)"
         case .provideInformation(let requestID):
             "provide.\(requestID)"
-        case .startVerification:
-            "startVerification"
         }
     }
 }
@@ -940,248 +986,6 @@ private struct VerifyProvideInformationSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
-    }
-}
-
-private struct VerifyStartVerificationSheet: View {
-    @Binding var state: VerifyStartVerificationSheetState
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    switch state.phase {
-                    case .form:
-                        selectionContent
-                    case .confirmation(let type):
-                        confirmationContent(for: type)
-                    }
-                }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
-            }
-            .background(KairoColors.background.ignoresSafeArea())
-            .navigationTitle("Start verification")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .accessibilityIdentifier(KairoAccessibilityID.verifyStartVerificationSheet)
-        .presentationDetents([.large])
-    }
-
-    private var selectionContent: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
-                VerifySectionEyebrow(title: "Choose verification")
-
-                Text("Select what you want to verify")
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
-
-                Text("Use this local flow to preview how Kairo will guide new verification starts before backend submission is connected.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                ForEach(VerifyVerificationKind.allCases) { type in
-                    VerifySelectionButton(
-                        type: type,
-                        isSelected: state.selectedType == type,
-                        action: { state.select(type) }
-                    )
-                }
-            }
-
-            if let selectedType = state.selectedType {
-                KairoCard {
-                    Text("\(selectedType.title) details")
-                        .font(KairoTypography.headline)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    startVerificationForm(for: selectedType)
-                }
-            }
-
-            KairoPrimaryButton(
-                title: "Continue",
-                action: { state.continueFlow() }
-            )
-            .disabled(!state.isContinueEnabled)
-
-            KairoSecondaryButton(
-                title: "Close",
-                action: { dismiss() }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func startVerificationForm(for type: VerifyVerificationKind) -> some View {
-        switch type {
-        case .employment:
-            KairoTextField(
-                title: "Organisation",
-                prompt: "Organisation",
-                text: $state.employment.organization
-            )
-            KairoTextField(
-                title: "Role",
-                prompt: "Role",
-                text: $state.employment.role
-            )
-            KairoTextField(
-                title: "Start date",
-                prompt: "Start date",
-                text: $state.employment.startDate
-            )
-            KairoTextField(
-                title: "End date / current role",
-                prompt: "End date or current role",
-                text: $state.employment.endDate
-            )
-        case .education:
-            KairoTextField(
-                title: "Institution",
-                prompt: "Institution",
-                text: $state.education.institution
-            )
-            KairoTextField(
-                title: "Qualification",
-                prompt: "Qualification",
-                text: $state.education.qualification
-            )
-            KairoTextField(
-                title: "Graduation year",
-                prompt: "Graduation year",
-                text: $state.education.graduationYear
-            )
-        case .certification:
-            KairoTextField(
-                title: "Issuer",
-                prompt: "Issuer",
-                text: $state.certification.issuer
-            )
-            KairoTextField(
-                title: "Certification name",
-                prompt: "Certification name",
-                text: $state.certification.certificationName
-            )
-            KairoTextField(
-                title: "Issue date",
-                prompt: "Issue date",
-                text: $state.certification.issueDate
-            )
-        case .project:
-            KairoTextField(
-                title: "Project name",
-                prompt: "Project name",
-                text: $state.project.projectName
-            )
-            KairoTextField(
-                title: "Role",
-                prompt: "Role",
-                text: $state.project.role
-            )
-            KairoTextField(
-                title: "Evidence note",
-                prompt: "Evidence note",
-                text: $state.project.evidenceNote
-            )
-        }
-    }
-
-    private func confirmationContent(for type: VerifyVerificationKind) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
-                VerifySectionEyebrow(title: "Local confirmation")
-
-                Text("\(type.title) verification ready")
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
-
-                Text("Kairo will connect real submission, outreach, and permanent verification tracking in a later milestone. For now, this confirms the native start flow and keeps Verify routing intact.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            KairoCard {
-                ForEach(state.selectedFieldRows) { row in
-                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                        Text(row.title)
-                            .font(KairoTypography.footnote)
-                            .foregroundStyle(KairoColors.textSecondary)
-
-                        Text(row.value)
-                            .font(KairoTypography.body)
-                            .foregroundStyle(KairoColors.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            KairoPrimaryButton(
-                title: "Done",
-                action: { dismiss() }
-            )
-
-            KairoSecondaryButton(
-                title: "Back",
-                action: { state.phase = .form }
-            )
-        }
-    }
-}
-
-private struct VerifySelectionButton: View {
-    let type: VerifyVerificationKind
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                        .fill(isSelected ? KairoColors.brandPrimary.opacity(0.14) : KairoColors.surfaceMuted)
-
-                    Image(systemName: type.systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isSelected ? KairoColors.brandPrimary : KairoColors.textSecondary)
-                }
-                .frame(width: 42, height: 42)
-
-                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Text(type.title)
-                        .font(KairoTypography.headline)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    Text(type.supportingCopy)
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: KairoSpacing.small)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isSelected ? KairoColors.brandPrimary : KairoColors.border)
-                    .padding(.top, KairoSpacing.xxSmall)
-            }
-            .padding(KairoSpacing.medium)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                    .fill(KairoColors.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                    .stroke(isSelected ? KairoColors.brandPrimary : KairoColors.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 }
 

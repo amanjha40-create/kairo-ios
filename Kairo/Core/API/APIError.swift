@@ -1,6 +1,7 @@
 import Foundation
 
 nonisolated enum APIErrorCode: String, Decodable, Equatable, Sendable {
+    case badRequest = "bad_request"
     case unauthorized
     case forbidden
     case notFound = "not_found"
@@ -137,6 +138,7 @@ nonisolated struct APIError: Error, Equatable, LocalizedError, Sendable {
 
     private static func defaultCode(for statusCode: Int) -> APIErrorCode? {
         switch statusCode {
+        case 400: .badRequest
         case 401: .unauthorized
         case 403: .forbidden
         case 404: .notFound
@@ -203,6 +205,8 @@ private nonisolated struct FieldMessages: Decodable {
 private extension APIErrorCode {
     nonisolated var fallbackMessage: String {
         switch self {
+        case .badRequest:
+            "The request could not be accepted."
         case .unauthorized:
             "Your session is no longer valid."
         case .forbidden:

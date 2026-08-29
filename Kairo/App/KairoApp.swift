@@ -5,6 +5,7 @@ import UIKit
 struct KairoApp: App {
     @StateObject private var router: AppRouter
     @StateObject private var sessionStore: AppSessionStore
+    @StateObject private var candidateDataRefreshStore: CandidateDataRefreshStore
 
     init() {
         let configuration = AppConfiguration.resolve()
@@ -36,6 +37,7 @@ struct KairoApp: App {
             manualProfileService: dependencies.manualProfileService,
             resumeImportService: dependencies.resumeImportService
         ))
+        _candidateDataRefreshStore = StateObject(wrappedValue: CandidateDataRefreshStore())
         self.configuration = configuration
         self.dependencies = dependencies
     }
@@ -48,6 +50,7 @@ struct KairoApp: App {
             AppRootView()
                 .environmentObject(router)
                 .environmentObject(sessionStore)
+                .environmentObject(candidateDataRefreshStore)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)
@@ -57,6 +60,7 @@ struct KairoApp: App {
                 .environment(\.homeOverviewService, dependencies.homeOverviewService)
                 .environment(\.careerOverviewService, dependencies.careerOverviewService)
                 .environment(\.verifyOverviewService, dependencies.verifyOverviewService)
+                .environment(\.verificationInitiationService, dependencies.verificationInitiationService)
                 .environment(\.passportOverviewService, dependencies.passportOverviewService)
                 .environment(\.moreOverviewService, dependencies.moreOverviewService)
         }

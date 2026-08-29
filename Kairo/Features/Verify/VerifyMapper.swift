@@ -290,7 +290,7 @@ enum VerifyOverviewMapper {
              .inProgress,
              .unknown:
             return "No action is needed from you right now."
-        case .verified, .rejected, .cancelled, .expired:
+        case .verified, .rejected, .unableToVerify, .cancelled, .expired:
             return "No further action is needed."
         }
     }
