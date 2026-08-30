@@ -1,10 +1,13 @@
 import Combine
+import Foundation
 
 @MainActor
 final class AppRouter: ObservableObject {
     @Published private(set) var rootDestination: RootDestination
     @Published var selectedTab: CandidateTab
     @Published var onboardingPath: [OnboardingDestination]
+    @Published private(set) var publicPassportPresentation: PublicPassportPresentation?
+    @Published private(set) var passportActivityRequestID: UUID?
 
     init(
         rootDestination: RootDestination = .onboarding,
@@ -14,6 +17,8 @@ final class AppRouter: ObservableObject {
         self.rootDestination = rootDestination
         self.selectedTab = selectedTab
         self.onboardingPath = onboardingPath
+        publicPassportPresentation = nil
+        passportActivityRequestID = nil
     }
 
     func showOnboarding() {
@@ -79,5 +84,44 @@ final class AppRouter: ObservableObject {
     func selectTab(_ tab: CandidateTab) {
         rootDestination = .mainTabs
         selectedTab = tab
+    }
+
+    @discardableResult
+    func handleIncomingURL(
+        _ url: URL,
+        allowedPublicPassportHosts: Set<String>,
+        isDemoModeEnabled: Bool
+    ) -> Bool {
+        guard !isDemoModeEnabled else { return false }
+
+        switch PublicPassportLinkParser.parse(url, allowedHosts: allowedPublicPassportHosts) {
+        case .success(let destination):
+            publicPassportPresentation = PublicPassportPresentation(content: .handoff(destination))
+            return true
+        case .failure(.unsupportedHost):
+            return false
+        case .failure:
+            guard PublicPassportLinkParser.targetsExpectedHost(
+                url,
+                allowedHosts: allowedPublicPassportHosts
+            ) else {
+                return false
+            }
+            publicPassportPresentation = PublicPassportPresentation(content: .unavailable)
+            return true
+        }
+    }
+
+    func dismissPublicPassportPresentation() {
+        publicPassportPresentation = nil
+    }
+
+    func showPassportActivity() {
+        enterMainTabs(selectedTab: .passport)
+        passportActivityRequestID = UUID()
+    }
+
+    func consumePassportActivityRequest() {
+        passportActivityRequestID = nil
     }
 }

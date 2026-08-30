@@ -135,6 +135,15 @@ struct AppConfiguration: Equatable, Sendable {
         nil
     }
 
+    var publicPassportHosts: Set<String> {
+        switch environment {
+        case .staging:
+            ["d3kpvsn9kfajzc.cloudfront.net"]
+        case .development, .production:
+            []
+        }
+    }
+
     var currentResumeImportConsentVersion: String {
         Self.resumeImportConsentVersion
     }

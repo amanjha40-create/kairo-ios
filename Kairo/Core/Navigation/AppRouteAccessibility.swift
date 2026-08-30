@@ -123,6 +123,7 @@ nonisolated enum KairoAccessibilityID {
     static let homeContinueProfile = "candidate.home.continueProfile"
     static let homeRecentActivity = "candidate.home.recentActivity"
     static let homeRecentPassportViews = "candidate.home.recentPassportViews"
+    static let homeRecentPassportViewsOpen = "candidate.home.recentPassportViews.open"
     static let careerScreen = "candidate.career.screen"
     static let careerSummarySection = "candidate.career.summary"
     static let careerEditProfileButton = "candidate.career.editProfile"
@@ -160,6 +161,9 @@ nonisolated enum KairoAccessibilityID {
     static let passportPreviewAction = "candidate.passport.preview"
     static let passportDownloadAction = "candidate.passport.download"
     static let passportShareManagement = "candidate.passport.share.management"
+    static let passportShareActivityEntry = "candidate.passport.share.activity.entry"
+    static let passportShareActivity = "candidate.passport.share.activity"
+    static let passportShareActivityList = "candidate.passport.share.activity.list"
     static let passportShareCreateEntry = "candidate.passport.share.createEntry"
     static let passportShareLabel = "candidate.passport.share.label"
     static let passportShareExpiry = "candidate.passport.share.expiry"
@@ -175,6 +179,9 @@ nonisolated enum KairoAccessibilityID {
     static let passportShareUpdateConfirm = "candidate.passport.share.update.confirm"
     static let passportShareRevoke = "candidate.passport.share.revoke"
     static let passportShareRevokeConfirm = "candidate.passport.share.revoke.confirm"
+    static let publicPassportContent = "public.passport.content"
+    static let publicPassportUnavailable = "public.passport.unavailable"
+    static let publicPassportOpenInBrowser = "public.passport.openInBrowser"
     static let passportEmptyState = "candidate.passport.empty"
     static let passportContinueProfile = "candidate.passport.continueProfile"
     static let passportStartVerification = "candidate.passport.startVerification"
@@ -189,6 +196,10 @@ nonisolated enum KairoAccessibilityID {
 
     static func passportShareRow(_ id: String) -> String {
         "candidate.passport.share.row.\(id)"
+    }
+
+    static func passportShareActivityRow(_ id: String) -> String {
+        "candidate.passport.share.activity.row.\(id)"
     }
     static let verifyScreen = "candidate.verify.screen"
     static let verifyPriorityRecommendation = "candidate.verify.priorityRecommendation"

@@ -95,6 +95,7 @@ final class KairoUITests: XCTestCase {
     private let homeContinueProfileButton = "candidate.home.continueProfile"
     private let homeRecentActivity = "candidate.home.recentActivity"
     private let homeRecentPassportViews = "candidate.home.recentPassportViews"
+    private let homeRecentPassportViewsOpen = "candidate.home.recentPassportViews.open"
     private let careerScreen = "candidate.career.screen"
     private let careerSummarySection = "candidate.career.summary"
     private let careerEmploymentSection = "candidate.career.employment"
@@ -114,6 +115,8 @@ final class KairoUITests: XCTestCase {
     private let passportProjectsSection = "candidate.passport.projects"
     private let passportTimelineSection = "candidate.passport.timeline"
     private let passportShareAction = "candidate.passport.share"
+    private let passportShareActivityEntry = "candidate.passport.share.activity.entry"
+    private let passportShareActivity = "candidate.passport.share.activity"
     private let passportPreviewAction = "candidate.passport.preview"
     private let passportDownloadAction = "candidate.passport.download"
     private let passportEmptyState = "candidate.passport.empty"
@@ -230,6 +233,18 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)[passportTrustScoreCard].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testHomeRecentPassportViewsOpensCanonicalShareActivity() throws {
+        let app = launchApp(environment: homeEnvironment())
+        let activityButton = app.buttons[homeRecentPassportViewsOpen]
+
+        XCTAssertTrue(waitForElementAfterScrolling(activityButton, in: app))
+        activityButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Share Activity"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[passportShareActivity].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -452,6 +467,20 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["Passport shares"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["candidate.passport.share.createEntry"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPassportShareActivityOpensFromOwnerPassport() throws {
+        let app = launchApp(environment: passportEnvironment())
+
+        openPassportTab(in: app)
+
+        let button = app.buttons[passportShareActivityEntry]
+        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
+        button.tap()
+
+        XCTAssertTrue(app.navigationBars["Share Activity"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[passportShareActivity].waitForExistence(timeout: 10))
     }
 
     @MainActor

@@ -413,32 +413,37 @@ struct HomeOverviewScreenView: View {
         _ items: [HomePassportViewItem],
         emptyMessage: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            HomeSectionHeader(
-                title: "Recent Passport views",
-                subtitle: "Visibility insights",
-                accessibilityIdentifier: KairoAccessibilityID.homeRecentPassportViews
-            )
-
-            if let item = items.first {
-                KairoCard {
-                    Text(item.title)
-                        .font(KairoTypography.bodyStrong)
-                        .foregroundStyle(KairoColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(item.relativeTime)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                }
-            } else {
-                HomeCompactEmptyCard(
-                    systemImage: "eye",
-                    title: "No recent Passport views yet",
-                    message: emptyMessage
+        Button(action: { router.showPassportActivity() }) {
+            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                HomeSectionHeader(
+                    title: "Recent Passport views",
+                    subtitle: "Open Views & Share Activity",
+                    accessibilityIdentifier: KairoAccessibilityID.homeRecentPassportViews
                 )
+
+                if let item = items.first {
+                    KairoCard {
+                        Text(item.title)
+                            .font(KairoTypography.bodyStrong)
+                            .foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(item.relativeTime)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                } else {
+                    HomeCompactEmptyCard(
+                        systemImage: "eye",
+                        title: "No recent Passport views yet",
+                        message: emptyMessage
+                    )
+                }
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(KairoAccessibilityID.homeRecentPassportViewsOpen)
+        .accessibilityHint("Opens the authoritative Passport view and share history")
     }
 }
 
