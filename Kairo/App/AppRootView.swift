@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppRootView: View {
     @Environment(\.appConfiguration) private var appConfiguration
+    @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
 
     var body: some View {
@@ -32,6 +33,35 @@ struct AppRootView: View {
         .task {
             await sessionStore.bootstrapIfNeeded()
         }
+        .onOpenURL { url in
+            routePublicPassportURL(url)
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL else { return }
+            routePublicPassportURL(url)
+        }
+        .sheet(item: publicPassportPresentationBinding) { presentation in
+            PublicPassportHandoffView(presentation: presentation)
+        }
+    }
+
+    private var publicPassportPresentationBinding: Binding<PublicPassportPresentation?> {
+        Binding(
+            get: { router.publicPassportPresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissPublicPassportPresentation()
+                }
+            }
+        )
+    }
+
+    private func routePublicPassportURL(_ url: URL) {
+        router.handleIncomingURL(
+            url,
+            allowedPublicPassportHosts: appConfiguration.publicPassportHosts,
+            isDemoModeEnabled: appConfiguration.isDemoModeEnabled
+        )
     }
 }
 

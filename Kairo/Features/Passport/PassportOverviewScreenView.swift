@@ -16,14 +16,24 @@ struct PassportOverviewScreenView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.passportScreen)
             .sheet(item: $modalDestination) { destination in
-                if case .sharePassport = destination {
+                switch destination {
+                case .sharePassport:
                     PassportShareManagementSheet(
                         service: passportShareService,
                         onMutation: { refreshStore.passportSharesChanged() }
                     )
-                } else {
+                case .shareActivity:
+                    PassportShareActivitySheet(
+                        service: passportShareService,
+                        onMutation: { refreshStore.passportSharesChanged() }
+                    )
+                default:
                     PassportPlaceholderSheet(destination: destination)
                 }
+            }
+            .onAppear { openRequestedActivityIfNeeded() }
+            .onChange(of: router.passportActivityRequestID) { _, _ in
+                openRequestedActivityIfNeeded()
             }
     }
 
@@ -547,6 +557,12 @@ struct PassportOverviewScreenView: View {
                 action: { modalDestination = .sharePassport }
             )
 
+            KairoSecondaryButton(
+                title: "Views & Share Activity",
+                accessibilityIdentifier: KairoAccessibilityID.passportShareActivityEntry,
+                action: { modalDestination = .shareActivity }
+            )
+
             Text("Public preview, Copy, Share, and QR are available from the authoritative URL immediately after a share is created.")
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
@@ -559,6 +575,12 @@ struct PassportOverviewScreenView: View {
             .disabled(true)
             .accessibilityIdentifier(KairoAccessibilityID.passportDownloadAction)
         }
+    }
+
+    private func openRequestedActivityIfNeeded() {
+        guard router.passportActivityRequestID != nil else { return }
+        modalDestination = .shareActivity
+        router.consumePassportActivityRequest()
     }
 
     private func passportRecordSection<Content: View>(
@@ -726,6 +748,7 @@ private enum PassportModalDestination: Identifiable {
     case scoreDetails
     case employmentDetails(String)
     case sharePassport
+    case shareActivity
     case previewPassport
     case downloadPDF
 
@@ -737,6 +760,8 @@ private enum PassportModalDestination: Identifiable {
             "passport.employment.\(company)"
         case .sharePassport:
             "passport.share"
+        case .shareActivity:
+            "passport.shareActivity"
         case .previewPassport:
             "passport.preview"
         case .downloadPDF:
@@ -752,6 +777,8 @@ private enum PassportModalDestination: Identifiable {
             "Employment details"
         case .sharePassport:
             "Share Trust Passport"
+        case .shareActivity:
+            "Views & Share Activity"
         case .previewPassport:
             "Preview public Passport"
         case .downloadPDF:
@@ -767,6 +794,8 @@ private enum PassportModalDestination: Identifiable {
             "Detailed verification evidence for \(company) will be connected in a later milestone."
         case .sharePassport:
             "Sharing flows and public destinations will be connected in a later milestone."
+        case .shareActivity:
+            "Authoritative Passport view and share history."
         case .previewPassport:
             "Public Passport preview will be connected in a later milestone."
         case .downloadPDF:
