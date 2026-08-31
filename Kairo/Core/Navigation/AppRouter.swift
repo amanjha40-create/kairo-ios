@@ -41,6 +41,16 @@ final class AppRouter: ObservableObject {
         onboardingPath = [.loginPlaceholder]
     }
 
+    func showForgotPassword(initialEmail: String = "") {
+        if rootDestination != .onboarding {
+            rootDestination = .onboarding
+        }
+        onboardingPath = [
+            .loginPlaceholder,
+            .forgotPassword(initialEmail: initialEmail)
+        ]
+    }
+
     func advanceOnboarding(from step: OnboardingStep) {
         let currentPath = OnboardingStep.destinationPath(to: step)
 

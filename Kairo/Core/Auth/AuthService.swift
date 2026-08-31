@@ -10,6 +10,8 @@ protocol AuthServiceProtocol: Sendable {
     func verifyPhone(mobileNumber: String?, code: String) async throws
     func completeSignup() async throws -> TokenResponseDTO
     func login(email: String, password: String) async throws -> TokenResponseDTO
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO
+    func resetPassword(token: String, newPassword: String, confirmPassword: String) async throws -> PasswordResetMessageDTO
     func logout() async throws
     func currentUser() async throws -> UserPublicDTO
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO
@@ -118,6 +120,30 @@ actor AuthService: AuthServiceProtocol {
         try await sessionService.persistTokens(response)
         try await sessionService.clearSignupSessionID()
         return response
+    }
+
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO {
+        try await postJSON(
+            path: "/auth/forgot-password",
+            body: ForgotPasswordRequestDTO(
+                email: CreateAccountValidation.normalizedEmail(email)
+            )
+        )
+    }
+
+    func resetPassword(
+        token: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> PasswordResetMessageDTO {
+        try await postJSON(
+            path: "/auth/reset-password",
+            body: ResetPasswordRequestDTO(
+                token: token,
+                newPassword: newPassword,
+                confirmPassword: confirmPassword
+            )
+        )
     }
 
     func logout() async throws {
@@ -307,6 +333,22 @@ actor DemoAuthService: AuthServiceProtocol {
         return tokens
     }
 
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO {
+        _ = email
+        return PasswordResetMessageDTO(
+            message: "If an account exists for that email, a password reset email has been sent."
+        )
+    }
+
+    func resetPassword(
+        token: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> PasswordResetMessageDTO {
+        _ = (token, newPassword, confirmPassword)
+        return PasswordResetMessageDTO(message: "Password reset successful.")
+    }
+
     func logout() async throws {
         try await sessionService.clearSession()
         currentOnboardingStatus = .fixture(
@@ -463,6 +505,75 @@ actor UITestAuthService: AuthServiceProtocol {
         }
     }
 
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO {
+        _ = email
+
+        switch configuration.passwordResetRequestResult {
+        case .success:
+            return PasswordResetMessageDTO(
+                message: "If an account exists for that email, a password reset email has been sent."
+            )
+        case .rateLimited:
+            throw NetworkError.api(APIError(
+                statusCode: 429,
+                code: .rateLimited,
+                message: "Too many requests — please slow down.",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        case .serverError:
+            throw NetworkError.api(APIError(
+                statusCode: 503,
+                code: .serviceUnavailable,
+                message: "Service unavailable",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        }
+    }
+
+    func resetPassword(
+        token: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> PasswordResetMessageDTO {
+        _ = (token, newPassword, confirmPassword)
+
+        switch configuration.passwordResetCompletionResult {
+        case .success:
+            return PasswordResetMessageDTO(message: "Password reset successful.")
+        case .invalidToken:
+            throw NetworkError.api(APIError(
+                statusCode: 401,
+                code: .unauthorized,
+                message: "Invalid or expired password reset token",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        case .validationError:
+            throw NetworkError.api(APIError(
+                statusCode: 422,
+                code: .validationError,
+                message: "Request validation failed",
+                fieldErrors: ["new_password": ["Password must be at least 12 characters"]],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        case .serverError:
+            throw NetworkError.api(APIError(
+                statusCode: 500,
+                code: .internalError,
+                message: "Internal server error",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        }
+    }
+
     func logout() async throws {
         try await sessionService.clearSession()
     }
@@ -518,14 +629,31 @@ nonisolated struct UITestAuthConfiguration: Equatable, Sendable {
         case invalidCode
     }
 
+    nonisolated enum PasswordResetRequestResult: String, Sendable {
+        case success
+        case rateLimited
+        case serverError
+    }
+
+    nonisolated enum PasswordResetCompletionResult: String, Sendable {
+        case success
+        case invalidToken
+        case validationError
+        case serverError
+    }
+
     static let loginResultKey = "KAIRO_UI_TEST_LOGIN_RESULT"
     static let signupStartResultKey = "KAIRO_UI_TEST_SIGNUP_START_RESULT"
     static let emailVerifyResultKey = "KAIRO_UI_TEST_EMAIL_VERIFY_RESULT"
     static let onboardingStatusKey = "KAIRO_UI_TEST_AUTH_ONBOARDING_STATUS"
+    static let passwordResetRequestResultKey = "KAIRO_UI_TEST_PASSWORD_RESET_REQUEST_RESULT"
+    static let passwordResetCompletionResultKey = "KAIRO_UI_TEST_PASSWORD_RESET_COMPLETION_RESULT"
 
     let loginResult: LoginResult
     let signupStartResult: SignupStartResult
     let emailVerifyResult: EmailVerifyResult
+    let passwordResetRequestResult: PasswordResetRequestResult
+    let passwordResetCompletionResult: PasswordResetCompletionResult
     let onboardingStatus: OnboardingStatusResponseDTO
 
     nonisolated static func current(
@@ -539,6 +667,12 @@ nonisolated struct UITestAuthConfiguration: Equatable, Sendable {
             loginResult: LoginResult(rawValue: environment[loginResultKey] ?? "") ?? .success,
             signupStartResult: SignupStartResult(rawValue: environment[signupStartResultKey] ?? "") ?? .success,
             emailVerifyResult: EmailVerifyResult(rawValue: environment[emailVerifyResultKey] ?? "") ?? .success,
+            passwordResetRequestResult: PasswordResetRequestResult(
+                rawValue: environment[passwordResetRequestResultKey] ?? ""
+            ) ?? .success,
+            passwordResetCompletionResult: PasswordResetCompletionResult(
+                rawValue: environment[passwordResetCompletionResultKey] ?? ""
+            ) ?? .success,
             onboardingStatus: .fixture(
                 currentStep: resolvedStep,
                 completedSteps: resolvedStep == .verifyIdentity ? [] : ["verify_email", "verify_phone"],

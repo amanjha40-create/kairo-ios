@@ -213,6 +213,77 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(signupSessionID)
     }
 
+    func test_requestPasswordResetUsesCanonicalGenericContract() async throws {
+        let tokenStore = InMemoryTokenStore()
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/forgot-password")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let json = try Self.jsonBody(from: request)
+            XCTAssertEqual(json["email"] as? String, "AMAN@EXAMPLE.COM")
+            XCTAssertEqual(Set(json.keys), ["email"])
+
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 202,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(
+                    #"{"message":"If an account exists for that email, a password reset email has been sent."}"#.utf8
+                )
+            )
+        }
+
+        let response = try await authService.requestPasswordReset(email: " AMAN@EXAMPLE.COM ")
+
+        XCTAssertEqual(
+            response.message,
+            "If an account exists for that email, a password reset email has been sent."
+        )
+    }
+
+    func test_resetPasswordUsesCanonicalSchemaAndDoesNotCreateSession() async throws {
+        let tokenStore = InMemoryTokenStore()
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/reset-password")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let json = try Self.jsonBody(from: request)
+            XCTAssertEqual(json["token"] as? String, "one-time-private-token")
+            XCTAssertEqual(json["new_password"] as? String, "a-valid-password")
+            XCTAssertEqual(json["confirm_password"] as? String, "a-valid-password")
+            XCTAssertEqual(Set(json.keys), ["token", "new_password", "confirm_password"])
+
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(#"{"message":"Password reset successful."}"#.utf8)
+            )
+        }
+
+        let response = try await authService.resetPassword(
+            token: "one-time-private-token",
+            newPassword: "a-valid-password",
+            confirmPassword: "a-valid-password"
+        )
+
+        XCTAssertEqual(response.message, "Password reset successful.")
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+        XCTAssertNil(accessToken)
+        XCTAssertNil(refreshToken)
+        XCTAssertNil(signupSessionID)
+    }
+
     func test_completeSignupPersistsTokensAndClearsSignupSession() async throws {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("signup-session-123", for: .signupSessionID)

@@ -43,6 +43,8 @@ struct OnboardingFlowView: View {
                         destinationView(for: step)
                     case .loginPlaceholder:
                         LoginScreenView()
+                    case .forgotPassword(let initialEmail):
+                        PasswordResetFlowView(initialEmail: initialEmail)
                     }
                 }
         }

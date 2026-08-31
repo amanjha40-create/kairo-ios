@@ -8,6 +8,7 @@ enum RootDestination: Equatable {
 enum OnboardingDestination: Hashable, Identifiable {
     case step(OnboardingStep)
     case loginPlaceholder
+    case forgotPassword(initialEmail: String)
 
     var id: String {
         switch self {
@@ -15,6 +16,8 @@ enum OnboardingDestination: Hashable, Identifiable {
             "step.\(step.rawValue)"
         case .loginPlaceholder:
             "login.placeholder"
+        case .forgotPassword:
+            "forgot.password"
         }
     }
 }

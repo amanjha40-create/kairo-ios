@@ -65,6 +65,15 @@ struct LoginScreenView: View {
                             submit()
                         }
                     )
+
+                    Button("Forgot password?") {
+                        router.showForgotPassword(initialEmail: emailAddress)
+                    }
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.brandPrimary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityIdentifier(KairoAccessibilityID.passwordResetForgotPassword)
+                    .disabled(isSubmitting)
                 }
             }
         } actions: {

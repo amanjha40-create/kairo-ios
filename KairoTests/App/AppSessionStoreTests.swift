@@ -458,6 +458,22 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
         )
     }
 
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO {
+        _ = email
+        return PasswordResetMessageDTO(
+            message: "If an account exists for that email, a password reset email has been sent."
+        )
+    }
+
+    func resetPassword(
+        token: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> PasswordResetMessageDTO {
+        _ = (token, newPassword, confirmPassword)
+        return PasswordResetMessageDTO(message: "Password reset successful.")
+    }
+
     func logout() async throws {
         didLogout = true
     }

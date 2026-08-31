@@ -26,6 +26,7 @@ final class KairoUITests: XCTestCase {
     private let onboardingPassportCreatedTitle = "onboarding.step.passportCreated"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
+    private let onboardingBackButton = "onboarding.back"
     private let chooseStartContinueButton = "onboarding.chooseStart.continue"
     private let chooseStartResumeOptionButton = "onboarding.chooseStart.resume"
     private let chooseStartManualOptionButton = "onboarding.chooseStart.manual"
@@ -52,6 +53,17 @@ final class KairoUITests: XCTestCase {
     private let onboardingLoginPasswordField = "onboarding.login.password"
     private let onboardingLoginSubmitButton = "onboarding.login.submit"
     private let onboardingLoginError = "onboarding.login.error"
+    private let passwordResetForgotPassword = "auth.passwordReset.forgotPassword"
+    private let passwordResetRequestTitle = "auth.passwordReset.request.title"
+    private let passwordResetEmailField = "auth.passwordReset.email"
+    private let passwordResetSendEmailButton = "auth.passwordReset.sendEmail"
+    private let passwordResetCheckEmailSuccess = "auth.passwordReset.checkEmail.success"
+    private let passwordResetEnterTokenButton = "auth.passwordReset.enterToken"
+    private let passwordResetTokenField = "auth.passwordReset.token"
+    private let passwordResetNewPasswordField = "auth.passwordReset.newPassword"
+    private let passwordResetConfirmPasswordField = "auth.passwordReset.confirmPassword"
+    private let passwordResetSubmitButton = "auth.passwordReset.submit"
+    private let passwordResetSuccess = "auth.passwordReset.success"
     private let resumeImportChooseButton = "onboarding.resumeImport.choose"
     private let resumeImportPrepareButton = "onboarding.resumeImport.prepare"
     private let resumeImportManualButton = "onboarding.resumeImport.manual"
@@ -876,6 +888,48 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[onboardingLoginError].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Check your email and password, then try again."].exists)
         XCTAssertTrue(app.staticTexts[onboardingLoginTitle].exists)
+    }
+
+    @MainActor
+    func testForgotPasswordCompletesNativeFlowAndReturnsToLogin() throws {
+        let app = launchApp()
+
+        navigateToLogin(in: app)
+        XCTAssertTrue(app.buttons[passwordResetForgotPassword].waitForExistence(timeout: 10))
+        app.buttons[passwordResetForgotPassword].tap()
+
+        XCTAssertTrue(app.staticTexts[passwordResetRequestTitle].waitForExistence(timeout: 10))
+        enterText("aman@example.com", into: app.textFields[passwordResetEmailField])
+        let sendButton = app.buttons[passwordResetSendEmailButton]
+        XCTAssertTrue(sendButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(sendButton.isEnabled)
+        sendButton.tap()
+
+        XCTAssertTrue(app.staticTexts[passwordResetCheckEmailSuccess].waitForExistence(timeout: 10))
+        app.buttons[passwordResetEnterTokenButton].tap()
+
+        enterText(
+            "one-time-private-token",
+            into: app.secureTextFields[passwordResetTokenField]
+        )
+        enterText(
+            "a-valid-password",
+            into: app.secureTextFields[passwordResetNewPasswordField]
+        )
+        enterText(
+            "a-valid-password",
+            into: app.secureTextFields[passwordResetConfirmPasswordField]
+        )
+
+        let submitButton = app.buttons[passwordResetSubmitButton]
+        XCTAssertTrue(submitButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(submitButton.isEnabled)
+        submitButton.tap()
+
+        XCTAssertTrue(app.staticTexts[passwordResetSuccess].waitForExistence(timeout: 10))
+        app.buttons[onboardingBackButton].tap()
+        assertLoginPlaceholderVisible(in: app)
+        XCTAssertFalse(app.otherElements["candidate.tabShell"].exists)
     }
 
     @MainActor

@@ -13,6 +13,23 @@ extension CandidateTab {
 }
 
 nonisolated enum KairoAccessibilityID {
+    static let passwordResetForgotPassword = "auth.passwordReset.forgotPassword"
+    static let passwordResetRequestScreen = "auth.passwordReset.request.screen"
+    static let passwordResetRequestTitle = "auth.passwordReset.request.title"
+    static let passwordResetEmail = "auth.passwordReset.email"
+    static let passwordResetSendEmail = "auth.passwordReset.sendEmail"
+    static let passwordResetCheckEmailScreen = "auth.passwordReset.checkEmail.screen"
+    static let passwordResetCheckEmailSuccess = "auth.passwordReset.checkEmail.success"
+    static let passwordResetEnterToken = "auth.passwordReset.enterToken"
+    static let passwordResetTokenScreen = "auth.passwordReset.token.screen"
+    static let passwordResetToken = "auth.passwordReset.token"
+    static let passwordResetNewPassword = "auth.passwordReset.newPassword"
+    static let passwordResetConfirmPassword = "auth.passwordReset.confirmPassword"
+    static let passwordResetSubmit = "auth.passwordReset.submit"
+    static let passwordResetSuccessScreen = "auth.passwordReset.success.screen"
+    static let passwordResetSuccess = "auth.passwordReset.success"
+    static let passwordResetRequestNew = "auth.passwordReset.requestNew"
+    static let passwordResetError = "auth.passwordReset.error"
     static let onboardingContinue = "onboarding.continue"
     static let onboardingBack = "onboarding.back"
     static let onboardingGetStarted = "onboarding.getStarted"

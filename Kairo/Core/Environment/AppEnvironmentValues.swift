@@ -52,6 +52,20 @@ private struct MissingAuthService: AuthServiceProtocol {
         fatalError("Missing auth service injection.")
     }
 
+    func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO {
+        _ = email
+        fatalError("Missing auth service injection.")
+    }
+
+    func resetPassword(
+        token: String,
+        newPassword: String,
+        confirmPassword: String
+    ) async throws -> PasswordResetMessageDTO {
+        _ = (token, newPassword, confirmPassword)
+        fatalError("Missing auth service injection.")
+    }
+
     func logout() async throws {
         fatalError("Missing auth service injection.")
     }

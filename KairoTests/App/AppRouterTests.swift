@@ -49,6 +49,21 @@ final class AppRouterTests: XCTestCase {
         XCTAssertEqual(router.onboardingPath, [.loginPlaceholder])
     }
 
+    func test_forgotPasswordUsesExistingOnboardingNavigationStack() {
+        let router = AppRouter()
+
+        router.showForgotPassword(initialEmail: "aman@example.com")
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(
+            router.onboardingPath,
+            [
+                .loginPlaceholder,
+                .forgotPassword(initialEmail: "aman@example.com")
+            ]
+        )
+    }
+
     func test_lockedNavigationRemainsInExpectedOrder() {
         XCTAssertEqual(CandidateTab.allCases.map(\.title), ["Home", "Career", "Verify", "Passport", "More"])
         XCTAssertEqual(

@@ -131,3 +131,17 @@ nonisolated struct LoginRequestDTO: Encodable, Equatable, Sendable {
         self.password = password
     }
 }
+
+nonisolated struct ForgotPasswordRequestDTO: Encodable, Equatable, Sendable {
+    let email: String
+}
+
+nonisolated struct ResetPasswordRequestDTO: Encodable, Equatable, Sendable {
+    let token: String
+    let newPassword: String
+    let confirmPassword: String
+}
+
+nonisolated struct PasswordResetMessageDTO: Decodable, Equatable, Sendable {
+    let message: String
+}
