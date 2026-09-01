@@ -63,6 +63,7 @@ struct KairoApp: App {
                 .environment(\.verificationInitiationService, dependencies.verificationInitiationService)
                 .environment(\.passportOverviewService, dependencies.passportOverviewService)
                 .environment(\.passportShareService, dependencies.passportShareService)
+                .environment(\.passportPDFExportService, dependencies.passportPDFExportService)
                 .environment(\.moreOverviewService, dependencies.moreOverviewService)
         }
     }

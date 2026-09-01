@@ -346,6 +346,21 @@ private struct MissingPassportShareService: PassportShareServiceProtocol {
     }
 }
 
+private actor MissingPassportPDFExportService: PassportPDFExportServiceProtocol {
+    func exportPassportPDF() async throws -> PassportPDFArtifact {
+        fatalError("Missing Passport PDF export service injection.")
+    }
+
+    func removeArtifact(_ artifact: PassportPDFArtifact) async {
+        _ = artifact
+        fatalError("Missing Passport PDF export service injection.")
+    }
+
+    func removeAllArtifacts() async {
+        fatalError("Missing Passport PDF export service injection.")
+    }
+}
+
 private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
     func loadOverview() async throws -> MoreOverview {
         fatalError("Missing More overview service injection.")
@@ -459,6 +474,10 @@ private struct PassportShareServiceKey: EnvironmentKey {
     static let defaultValue: any PassportShareServiceProtocol = MissingPassportShareService()
 }
 
+private struct PassportPDFExportServiceKey: EnvironmentKey {
+    static let defaultValue: any PassportPDFExportServiceProtocol = MissingPassportPDFExportService()
+}
+
 private struct MoreOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any MoreOverviewServiceProtocol = MissingMoreOverviewService()
 }
@@ -522,6 +541,11 @@ extension EnvironmentValues {
     var passportShareService: any PassportShareServiceProtocol {
         get { self[PassportShareServiceKey.self] }
         set { self[PassportShareServiceKey.self] = newValue }
+    }
+
+    var passportPDFExportService: any PassportPDFExportServiceProtocol {
+        get { self[PassportPDFExportServiceKey.self] }
+        set { self[PassportPDFExportServiceKey.self] = newValue }
     }
 
     var moreOverviewService: any MoreOverviewServiceProtocol {

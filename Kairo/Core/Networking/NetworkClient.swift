@@ -30,6 +30,28 @@ nonisolated struct NetworkRequest: Sendable {
     }
 }
 
+nonisolated struct NetworkResponse: Equatable, Sendable {
+    let data: Data
+    let statusCode: Int
+    let headers: [String: String]
+
+    init(
+        data: Data,
+        statusCode: Int,
+        headers: [String: String] = [:]
+    ) {
+        self.data = data
+        self.statusCode = statusCode
+        self.headers = headers.reduce(into: [:]) { result, entry in
+            result[entry.key.lowercased()] = entry.value
+        }
+    }
+
+    func headerValue(for name: String) -> String? {
+        headers[name.lowercased()]
+    }
+}
+
 enum NetworkError: Error, Equatable, LocalizedError {
     case invalidURL
     case invalidResponse
@@ -55,9 +77,14 @@ enum NetworkError: Error, Equatable, LocalizedError {
 
 protocol NetworkClient: Sendable {
     func send(_ request: NetworkRequest) async throws -> Data
+    func sendResponse(_ request: NetworkRequest) async throws -> NetworkResponse
 }
 
 extension NetworkClient {
+    func sendResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
+        NetworkResponse(data: try await send(request), statusCode: 200)
+    }
+
     func sendJSON<Body: Encodable>(
         path: String,
         method: HTTPMethod,

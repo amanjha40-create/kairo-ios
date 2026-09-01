@@ -31,6 +31,13 @@ protocol SessionServiceProtocol: Sendable {
     func logoutRemotely() async throws
     func prepareBootstrapSession() async throws -> Bool
     func sendAuthenticated(_ request: NetworkRequest) async throws -> Data
+    func sendAuthenticatedResponse(_ request: NetworkRequest) async throws -> NetworkResponse
+}
+
+extension SessionServiceProtocol {
+    func sendAuthenticatedResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
+        NetworkResponse(data: try await sendAuthenticated(request), statusCode: 200)
+    }
 }
 
 actor SessionService: SessionServiceProtocol {
@@ -110,14 +117,22 @@ actor SessionService: SessionServiceProtocol {
     }
 
     func sendAuthenticated(_ request: NetworkRequest) async throws -> Data {
-        try await sendAuthenticated(request, allowRefreshReplay: true, correlationID: UUID().uuidString)
+        try await sendAuthenticatedResponse(request).data
     }
 
-    private func sendAuthenticated(
+    func sendAuthenticatedResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
+        try await sendAuthenticatedResponse(
+            request,
+            allowRefreshReplay: true,
+            correlationID: UUID().uuidString
+        )
+    }
+
+    private func sendAuthenticatedResponse(
         _ request: NetworkRequest,
         allowRefreshReplay: Bool,
         correlationID: String
-    ) async throws -> Data {
+    ) async throws -> NetworkResponse {
         guard let accessToken = try await tokenStore.readToken(for: .accessToken) else {
             throw SessionServiceError.missingAccessToken
         }
@@ -129,7 +144,7 @@ actor SessionService: SessionServiceProtocol {
         )
 
         do {
-            return try await networkClient.send(decoratedRequest)
+            return try await networkClient.sendResponse(decoratedRequest)
         } catch let error as NetworkError {
             if case .api(let apiError) = error, apiError.code == .unauthorized {
                 guard allowRefreshReplay else {
@@ -144,7 +159,7 @@ actor SessionService: SessionServiceProtocol {
                     throw SessionServiceError.sessionExpired
                 }
 
-                return try await sendAuthenticated(
+                return try await sendAuthenticatedResponse(
                     request,
                     allowRefreshReplay: false,
                     correlationID: correlationID

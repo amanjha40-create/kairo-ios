@@ -5,6 +5,10 @@ struct URLSessionNetworkClient: NetworkClient {
     let session: URLSession
 
     func send(_ request: NetworkRequest) async throws -> Data {
+        try await sendResponse(request).data
+    }
+
+    func sendResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
         let urlRequest = try makeURLRequest(for: request)
         #if DEBUG
         NetworkDiagnostics.logRequest(
@@ -39,7 +43,16 @@ struct URLSessionNetworkClient: NetworkClient {
                 throw NetworkError.invalidResponse
             }
 
-            return data
+            let headers = httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, entry in
+                guard let key = entry.key as? String else { return }
+                result[key] = String(describing: entry.value)
+            }
+
+            return NetworkResponse(
+                data: data,
+                statusCode: httpResponse.statusCode,
+                headers: headers
+            )
         } catch let error as NetworkError {
             throw error
         } catch {

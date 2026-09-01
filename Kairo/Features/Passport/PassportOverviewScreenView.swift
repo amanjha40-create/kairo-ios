@@ -7,8 +7,11 @@ struct PassportOverviewScreenView: View {
 
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.passportShareService) private var passportShareService
+    @Environment(\.passportPDFExportService) private var passportPDFExportService
     @State private var modalDestination: PassportModalDestination?
+    @StateObject private var pdfExportModel = PassportPDFExportViewModel()
 
     var body: some View {
         screenContent
@@ -31,9 +34,30 @@ struct PassportOverviewScreenView: View {
                     PassportPlaceholderSheet(destination: destination)
                 }
             }
+            .sheet(item: $pdfExportModel.artifact, onDismiss: {
+                Task {
+                    await pdfExportModel.cleanupDismissedPreview(using: passportPDFExportService)
+                }
+            }) { artifact in
+                PassportPDFPreviewView(
+                    artifact: artifact,
+                    onRetry: { pdfExportModel.retryAfterPreviewDismissal() }
+                )
+            }
             .onAppear { openRequestedActivityIfNeeded() }
             .onChange(of: router.passportActivityRequestID) { _, _ in
                 openRequestedActivityIfNeeded()
+            }
+            .onDisappear {
+                Task {
+                    await pdfExportModel.endLifecycle(using: passportPDFExportService)
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .background, pdfExportModel.artifact == nil else { return }
+                Task {
+                    await pdfExportModel.endLifecycle(using: passportPDFExportService)
+                }
             }
     }
 
@@ -568,12 +592,35 @@ struct PassportOverviewScreenView: View {
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Download PDF — not available yet") {}
-            .buttonStyle(.plain)
-            .font(KairoTypography.footnote)
-            .foregroundStyle(KairoColors.textSecondary)
-            .disabled(true)
-            .accessibilityIdentifier(KairoAccessibilityID.passportDownloadAction)
+            if pdfExportModel.isDownloading {
+                KairoLoadingStateView(
+                    title: "Downloading Passport PDF",
+                    message: "Kairo is preparing a fresh, private export for this preview."
+                )
+                .accessibilityIdentifier(KairoAccessibilityID.passportPDFLoading)
+            } else {
+                KairoSecondaryButton(
+                    title: "Download PDF",
+                    accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
+                    action: { pdfExportModel.startExport(using: passportPDFExportService) }
+                )
+            }
+
+            if let error = pdfExportModel.error {
+                VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                    KairoErrorStateView(
+                        title: error.title,
+                        message: error.message,
+                        messageAccessibilityIdentifier: KairoAccessibilityID.passportPDFError
+                    )
+
+                    KairoSecondaryButton(
+                        title: "Retry PDF download",
+                        accessibilityIdentifier: KairoAccessibilityID.passportPDFRetry,
+                        action: { pdfExportModel.retry(using: passportPDFExportService) }
+                    )
+                }
+            }
         }
     }
 
@@ -750,7 +797,6 @@ private enum PassportModalDestination: Identifiable {
     case sharePassport
     case shareActivity
     case previewPassport
-    case downloadPDF
 
     var id: String {
         switch self {
@@ -764,8 +810,6 @@ private enum PassportModalDestination: Identifiable {
             "passport.shareActivity"
         case .previewPassport:
             "passport.preview"
-        case .downloadPDF:
-            "passport.pdf"
         }
     }
 
@@ -781,8 +825,6 @@ private enum PassportModalDestination: Identifiable {
             "Views & Share Activity"
         case .previewPassport:
             "Preview public Passport"
-        case .downloadPDF:
-            "Download PDF"
         }
     }
 
@@ -798,8 +840,6 @@ private enum PassportModalDestination: Identifiable {
             "Authoritative Passport view and share history."
         case .previewPassport:
             "Public Passport preview will be connected in a later milestone."
-        case .downloadPDF:
-            "PDF export will be connected in a later milestone."
         }
     }
 }

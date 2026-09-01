@@ -119,6 +119,8 @@ final class KairoUITests: XCTestCase {
     private let passportShareActivity = "candidate.passport.share.activity"
     private let passportPreviewAction = "candidate.passport.preview"
     private let passportDownloadAction = "candidate.passport.download"
+    private let passportPDFError = "candidate.passport.pdf.error"
+    private let passportPDFRetry = "candidate.passport.pdf.retry"
     private let passportEmptyState = "candidate.passport.empty"
     private let passportContinueProfile = "candidate.passport.continueProfile"
     private let passportStartVerification = "candidate.passport.startVerification"
@@ -497,14 +499,18 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportDownloadPDFRemainsTruthfullyUnavailable() throws {
+    func testPassportDownloadPDFIsAvailableWhileDemoModeStaysOffline() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
 
         let button = app.buttons[passportDownloadAction]
         XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
-        XCTAssertFalse(button.isEnabled)
+        XCTAssertTrue(button.isEnabled)
+        button.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)[passportPDFError].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportPDFRetry].waitForExistence(timeout: 10))
     }
 
     @MainActor
