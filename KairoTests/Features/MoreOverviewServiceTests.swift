@@ -35,7 +35,7 @@ final class MoreOverviewServiceTests: XCTestCase {
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/users/me":
                 XCTAssertEqual(request.httpMethod, "PATCH")
-                let body = try XCTUnwrap(request.httpBody)
+                let body = try requestBodyData(from: request)
                 let payload = try XCTUnwrap(
                     JSONSerialization.jsonObject(with: body) as? [String: Any]
                 )
@@ -81,7 +81,7 @@ final class MoreOverviewServiceTests: XCTestCase {
             XCTAssertEqual(request.url?.absoluteString, "https://staging-api.kairoid.com/api/v1/auth/change-password")
             XCTAssertEqual(request.httpMethod, "POST")
 
-            let body = try XCTUnwrap(request.httpBody)
+            let body = try requestBodyData(from: request)
             let payload = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: body) as? [String: Any]
             )
@@ -141,6 +141,107 @@ final class MoreOverviewServiceTests: XCTestCase {
         }
     }
 
+    func test_deleteAccountUsesAuthenticatedCandidateContract() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://staging-api.kairoid.com/api/v1/users/me")
+            XCTAssertEqual(request.httpMethod, "DELETE")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try requestBodyData(from: request)
+            let payload = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            XCTAssertEqual(payload["confirm"] as? String, "DELETE")
+            XCTAssertEqual(payload["current_password"] as? String, "CurrentPassword@2026")
+            XCTAssertEqual(Set(payload.keys), ["confirm", "current_password"])
+
+            return (try Self.response(for: request, statusCode: 204), Data())
+        }
+
+        try await service.deleteAccount(
+            confirm: "DELETE",
+            currentPassword: "CurrentPassword@2026"
+        )
+    }
+
+    func test_deleteAccountOmitsBlankPasswordForAccountsWithoutLocalCredential() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let body = try requestBodyData(from: request)
+            let payload = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            XCTAssertEqual(payload["confirm"] as? String, "DELETE")
+            XCTAssertNil(payload["current_password"])
+            XCTAssertEqual(Set(payload.keys), ["confirm"])
+            return (try Self.response(for: request, statusCode: 204), Data())
+        }
+
+        try await service.deleteAccount(confirm: "DELETE", currentPassword: "   ")
+    }
+
+    func test_failedAccountDeletionPreservesLocalSession() async throws {
+        let setup = try await makeServiceAndTokenStore()
+        try await setup.tokenStore.save("refresh-456", for: .refreshToken)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            (
+                try Self.response(for: request, statusCode: 503),
+                Data(#"{"error":{"code":"service_unavailable","message":"Unavailable"}}"#.utf8)
+            )
+        }
+
+        do {
+            try await setup.service.deleteAccount(
+                confirm: "DELETE",
+                currentPassword: "CurrentPassword@2026"
+            )
+            XCTFail("Expected account deletion to fail.")
+        } catch {
+            let accessToken = try await setup.tokenStore.readToken(for: .accessToken)
+            let refreshToken = try await setup.tokenStore.readToken(for: .refreshToken)
+            XCTAssertEqual(accessToken, "access-123")
+            XCTAssertEqual(refreshToken, "refresh-456")
+        }
+    }
+
+    func test_wrongDeletionPasswordDoesNotRefreshOrClearValidSession() async throws {
+        let setup = try await makeServiceAndTokenStore()
+        try await setup.tokenStore.save("refresh-456", for: .refreshToken)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/users/me")
+            return (
+                try Self.response(for: request, statusCode: 401),
+                Data(#"{"error":{"code":"unauthorized","message":"Current password is incorrect"}}"#.utf8)
+            )
+        }
+
+        do {
+            try await setup.service.deleteAccount(
+                confirm: "DELETE",
+                currentPassword: "WrongPassword@2026"
+            )
+            XCTFail("Expected account deletion to reject the wrong password.")
+        } catch let error as NetworkError {
+            guard case .api(let apiError) = error else {
+                return XCTFail("Expected the authoritative deletion API error.")
+            }
+            XCTAssertEqual(apiError.code, .unauthorized)
+        }
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        let accessToken = try await setup.tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await setup.tokenStore.readToken(for: .refreshToken)
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(accessToken, "access-123")
+        XCTAssertEqual(refreshToken, "refresh-456")
+    }
+
     func test_loadSessionsMapsCurrentAndNonCurrentSessions() async throws {
         let service = try await makeService()
 
@@ -174,7 +275,7 @@ final class MoreOverviewServiceTests: XCTestCase {
         await MockURLProtocolStorage.shared.setHandler { request in
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/account/settings" where request.httpMethod == "PATCH":
-                let body = try XCTUnwrap(request.httpBody)
+                let body = try requestBodyData(from: request)
                 let payload = try XCTUnwrap(
                     JSONSerialization.jsonObject(with: body) as? [String: Any]
                 )
@@ -235,7 +336,7 @@ final class MoreOverviewServiceTests: XCTestCase {
         await MockURLProtocolStorage.shared.setHandler { request in
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/account/settings" where request.httpMethod == "PATCH":
-                let body = try XCTUnwrap(request.httpBody)
+                let body = try requestBodyData(from: request)
                 let payload = try XCTUnwrap(
                     JSONSerialization.jsonObject(with: body) as? [String: Any]
                 )
@@ -257,6 +358,13 @@ final class MoreOverviewServiceTests: XCTestCase {
     }
 
     private func makeService() async throws -> MoreOverviewService {
+        try await makeServiceAndTokenStore().service
+    }
+
+    private func makeServiceAndTokenStore() async throws -> (
+        service: MoreOverviewService,
+        tokenStore: InMemoryTokenStore
+    ) {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
 
@@ -270,9 +378,12 @@ final class MoreOverviewServiceTests: XCTestCase {
             tokenStore: tokenStore
         )
 
-        return MoreOverviewService(
-            sessionService: sessionService,
-            bundleAppVersion: "1.4.0 (104)"
+        return (
+            MoreOverviewService(
+                sessionService: sessionService,
+                bundleAppVersion: "1.4.0 (104)"
+            ),
+            tokenStore
         )
     }
 

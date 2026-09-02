@@ -3,14 +3,24 @@ import SwiftUI
 struct VerifyIdentityScreenView: View {
     @Binding var createAccountDraft: CreateAccountDraft
     @Binding var state: VerifyIdentityFlowState
+    let recoveredSession: SignupSessionRecoveryResponseDTO?
+    let onStartOver: () -> Void
 
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
         currentScreen
             .navigationBarBackButtonHidden(true)
+            .accessibilityIdentifier(
+                state.usesAuthoritativeRecovery
+                    ? KairoAccessibilityID.verifyIdentityRecoveredSession
+                    : OnboardingStep.verifyIdentity.titleAccessibilityIdentifier
+            )
             .onAppear {
                 state.prepare(using: createAccountDraft)
+                if let recoveredSession, !state.usesAuthoritativeRecovery {
+                    state.applyRecovery(recoveredSession)
+                }
             }
     }
 
@@ -24,6 +34,7 @@ struct VerifyIdentityScreenView: View {
                 channel: .email,
                 state: $state.email,
                 onBack: { state.phase = .introduction },
+                onStartOver: onStartOver,
                 onContinue: { state.phase = .mobile }
             )
         case .mobile:
@@ -31,6 +42,7 @@ struct VerifyIdentityScreenView: View {
                 channel: .mobile,
                 state: $state.mobile,
                 onBack: { state.phase = .email },
+                onStartOver: onStartOver,
                 onContinue: { router.advanceOnboarding(from: .verifyIdentity) }
             )
         }
@@ -67,9 +79,17 @@ struct VerifyIdentityScreenView: View {
                 primaryTitle: "Continue",
                 primaryAccessibilityIdentifier: KairoAccessibilityID.verifyIdentityIntroContinue,
                 primaryAction: { state.phase = .email },
-                secondaryTitle: "Back",
-                secondaryAccessibilityIdentifier: KairoAccessibilityID.verifyIdentityIntroBack,
-                secondaryAction: { router.goBackOnboarding(from: .verifyIdentity) }
+                secondaryTitle: recoveredSession == nil ? "Back" : "Start over",
+                secondaryAccessibilityIdentifier: recoveredSession == nil
+                    ? KairoAccessibilityID.verifyIdentityIntroBack
+                    : KairoAccessibilityID.verifyIdentityRecoveryStartOver,
+                secondaryAction: {
+                    if recoveredSession == nil {
+                        router.goBackOnboarding(from: .verifyIdentity)
+                    } else {
+                        onStartOver()
+                    }
+                }
             )
         }
     }
@@ -105,6 +125,7 @@ private struct ContactVerificationScreenView: View {
     let channel: VerificationChannel
     @Binding var state: ContactVerificationState
     let onBack: () -> Void
+    let onStartOver: () -> Void
     let onContinue: () -> Void
 
     @Environment(\.authService) private var authService
@@ -168,7 +189,9 @@ private struct ContactVerificationScreenView: View {
                 errorMessage: state.displayedContactErrorMessage,
                 accessibilityIdentifier: channel.contactAccessibilityIdentifier,
                 accessibilityLabel: channel.contactFieldTitle,
-                accessibilityHint: channel.contactAccessibilityHint,
+                accessibilityHint: state.isAuthoritativeContact
+                    ? "This masked contact is owned by the recovered signup session and cannot be changed here."
+                    : channel.contactAccessibilityHint,
                 keyboardType: channel == .email ? .emailAddress : .phonePad,
                 textContentType: channel == .email ? .emailAddress : .telephoneNumber,
                 textInputAutocapitalization: .never,
@@ -184,7 +207,12 @@ private struct ContactVerificationScreenView: View {
                     }
                 }
             )
-            .disabled(state.hasSentCode || state.isSendingCode || state.isVerifying)
+            .disabled(
+                state.isAuthoritativeContact ||
+                state.hasSentCode ||
+                state.isSendingCode ||
+                state.isVerifying
+            )
 
             Divider()
                 .overlay(KairoColors.border)
@@ -240,10 +268,12 @@ private struct ContactVerificationScreenView: View {
                         .disabled(!state.canResendCode)
                         .accessibilityIdentifier(channel.resendButtonAccessibilityIdentifier)
 
-                    Button(channel.changeButtonTitle, action: changeContact)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.brandPrimary)
-                        .accessibilityIdentifier(channel.changeButtonAccessibilityIdentifier)
+                    if !state.isAuthoritativeContact {
+                        Button(channel.changeButtonTitle, action: changeContact)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .accessibilityIdentifier(channel.changeButtonAccessibilityIdentifier)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -298,9 +328,11 @@ private struct ContactVerificationScreenView: View {
             .disabled(primaryButtonDisabled)
 
             KairoSecondaryButton(
-                title: "Back",
-                accessibilityIdentifier: KairoAccessibilityID.verifyIdentityBack,
-                action: onBack
+                title: state.isAuthoritativeContact ? "Start over" : "Back",
+                accessibilityIdentifier: state.isAuthoritativeContact
+                    ? KairoAccessibilityID.verifyIdentityRecoveryStartOver
+                    : KairoAccessibilityID.verifyIdentityBack,
+                action: state.isAuthoritativeContact ? onStartOver : onBack
             )
             .disabled(isCompletingSignup)
         }
@@ -315,15 +347,16 @@ private struct ContactVerificationScreenView: View {
 
         Task {
             do {
+                let response: SignupChannelSendResponseDTO
                 switch channel {
                 case .email:
-                    try await authService.sendEmailCode(email: state.contactValue)
+                    response = try await authService.sendEmailCode(email: state.contactValue)
                 case .mobile:
-                    try await authService.sendPhoneCode(mobileNumber: state.contactValue)
+                    response = try await authService.sendPhoneCode(mobileNumber: state.contactValue)
                 }
 
                 await MainActor.run {
-                    state.completeSendingCode()
+                    state.completeSendingCode(resendAfterSeconds: response.resendAfterSeconds)
                     focusedField = .code
                 }
             } catch {
@@ -343,15 +376,16 @@ private struct ContactVerificationScreenView: View {
 
         Task {
             do {
+                let response: SignupChannelSendResponseDTO
                 switch channel {
                 case .email:
-                    try await authService.resendEmailCode(email: state.contactValue)
+                    response = try await authService.resendEmailCode(email: state.contactValue)
                 case .mobile:
-                    try await authService.resendPhoneCode(mobileNumber: state.contactValue)
+                    response = try await authService.resendPhoneCode(mobileNumber: state.contactValue)
                 }
 
                 await MainActor.run {
-                    state.completeSendingCode()
+                    state.completeSendingCode(resendAfterSeconds: response.resendAfterSeconds)
                     focusedField = .code
                 }
             } catch {
@@ -363,6 +397,10 @@ private struct ContactVerificationScreenView: View {
     }
 
     private func changeContact() {
+        guard !state.isAuthoritativeContact else {
+            return
+        }
+
         state.resetForContactChange()
         focusedField = .contact
     }

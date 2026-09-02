@@ -160,4 +160,20 @@ final class AppConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.environment, .staging)
         XCTAssertFalse(configuration.isDemoModeEnabled)
     }
+
+    func test_releaseLegalDestinationsUseCanonicalHTTPSPages() {
+        let configuration = AppConfiguration.resolve(
+            bundleValues: [
+                AppConfiguration.InfoPlistKey.buildConfiguration: "Production",
+                AppConfiguration.InfoPlistKey.environment: "production",
+                AppConfiguration.InfoPlistKey.demoMode: "NO"
+            ],
+            environmentVariables: [:]
+        )
+
+        XCTAssertEqual(configuration.termsOfServiceURL, URL(string: "https://kairoid.com/terms"))
+        XCTAssertEqual(configuration.privacyPolicyURL, URL(string: "https://kairoid.com/privacy"))
+        XCTAssertEqual(configuration.termsOfServiceURL?.scheme, "https")
+        XCTAssertEqual(configuration.privacyPolicyURL?.scheme, "https")
+    }
 }

@@ -22,8 +22,8 @@ final class VerifyOverviewStateTests: XCTestCase {
             "Welingkar Institute of Management"
         ])
         XCTAssertEqual(content.inProgressRequests.map(\.organization), [
-            "Northstar Labs",
-            "Welingkar Institute of Management"
+            "Welingkar Institute of Management",
+            "Northstar Labs"
         ])
         XCTAssertEqual(content.completedRequests.map(\.organization), [
             "BrightPath Technologies",
@@ -77,22 +77,18 @@ final class VerifyOverviewStateTests: XCTestCase {
             .inProgress,
             .verified,
             .rejected,
+            .unableToVerify,
             .cancelled,
             .expired
         ])
         XCTAssertTrue(VerifyVerificationStatus.pendingSubjectAcceptance.rank < VerifyVerificationStatus.verified.rank)
     }
 
-    func test_requestActionTransitionsUpdateLocalFixtureState() {
+    func test_acceptRequestTransitionUpdatesLocalFixtureWithoutInventingDecline() {
         let state = VerifyOverviewState.populatedFixture()
         let acceptedState = state.applying(.accept, to: "employment-brightpath")
-        let declinedState = state.applying(.decline, to: "education-welingkar-pending")
 
         guard case .populated(let acceptedContent) = acceptedState.phase else {
-            return XCTFail("Expected populated state")
-        }
-
-        guard case .populated(let declinedContent) = declinedState.phase else {
             return XCTFail("Expected populated state")
         }
 
@@ -100,13 +96,9 @@ final class VerifyOverviewStateTests: XCTestCase {
             acceptedContent.request(id: "employment-brightpath")?.status,
             .pendingAdminReview
         )
-        XCTAssertEqual(
-            declinedContent.request(id: "education-welingkar-pending")?.status,
-            .rejected
-        )
         XCTAssertEqual(acceptedContent.pendingRequests.count, 1)
         XCTAssertEqual(acceptedContent.inProgressRequests.count, 3)
-        XCTAssertEqual(declinedContent.completedRequests.count, 4)
+        XCTAssertEqual(acceptedContent.completedRequests.count, 3)
     }
 
     func test_rejectedAndExpiredStatusesExposeExpectedPresentation() {

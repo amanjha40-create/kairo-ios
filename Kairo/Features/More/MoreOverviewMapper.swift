@@ -223,7 +223,7 @@ enum MoreOverviewMapper {
             MoreRowItem(
                 id: "deleteAccount",
                 title: "Delete account",
-                subtitle: "Account deletion is not supported by the backend yet.",
+                subtitle: "Permanently delete this Candidate account and its eligible data.",
                 systemImage: "trash"
             )
         ]
@@ -371,5 +371,82 @@ enum MoreOverviewMapper {
 
     nonisolated private static func consentStatusDisplay(_ status: String) -> String {
         prettifiedLabel(from: status)
+    }
+}
+
+struct MoreAccountDeletionFailure: Equatable {
+    let currentPasswordError: String?
+    let message: String
+}
+
+enum MoreAccountDeletionErrorMapper {
+    static func map(_ error: Error) -> MoreAccountDeletionFailure {
+        guard let networkError = error as? NetworkError else {
+            return MoreAccountDeletionFailure(
+                currentPasswordError: nil,
+                message: error.localizedDescription
+            )
+        }
+
+        switch networkError {
+        case .api(let apiError):
+            switch apiError.code {
+            case .unauthorized:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: "The current password is missing or incorrect.",
+                    message: "Your account was not deleted. Check the current password and try again."
+                )
+            case .forbidden:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: "This account is not eligible for Candidate self-service deletion. Your account was not deleted."
+                )
+            case .conflict:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: "Kairo could not safely delete this account in its current state. Your account was not deleted."
+                )
+            case .validationError, .badRequest:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: apiError.message
+                )
+            case .rateLimited:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: "Too many deletion attempts. Your account was not deleted. Please wait and try again."
+                )
+            case .internalError, .serviceUnavailable:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: "Kairo could not complete account deletion. Your account and signed-in session remain unchanged."
+                )
+            case .notFound:
+                return MoreAccountDeletionFailure(
+                    currentPasswordError: nil,
+                    message: "This Candidate account could not be found. Refresh your session before trying again."
+                )
+            }
+        case .transport:
+            return MoreAccountDeletionFailure(
+                currentPasswordError: nil,
+                message: "Kairo could not confirm account deletion because the network request failed. Your local session was preserved."
+            )
+        case .invalidResponse:
+            return MoreAccountDeletionFailure(
+                currentPasswordError: nil,
+                message: "Kairo received an unexpected deletion response. Your local session was preserved."
+            )
+        case .invalidURL:
+            return MoreAccountDeletionFailure(
+                currentPasswordError: nil,
+                message: "Kairo's account-deletion configuration is invalid."
+            )
+        case .unavailableInDemoMode:
+            return MoreAccountDeletionFailure(
+                currentPasswordError: nil,
+                message: "Demo Mode never deletes a live account."
+            )
+        }
     }
 }

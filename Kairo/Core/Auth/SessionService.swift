@@ -147,6 +147,10 @@ actor SessionService: SessionServiceProtocol {
             return try await networkClient.sendResponse(decoratedRequest)
         } catch let error as NetworkError {
             if case .api(let apiError) = error, apiError.code == .unauthorized {
+                guard request.allowsSessionRefreshOnUnauthorized else {
+                    throw error
+                }
+
                 guard allowRefreshReplay else {
                     try await clearSession()
                     throw SessionServiceError.sessionExpired

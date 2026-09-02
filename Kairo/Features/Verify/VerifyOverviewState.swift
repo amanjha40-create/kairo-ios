@@ -611,7 +611,6 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
 
 enum VerifyRequestActionTransition: Equatable, Sendable {
     case accept
-    case decline
 }
 
 enum VerifyCallToAction: Equatable, Sendable {
@@ -694,12 +693,7 @@ struct VerifyOverviewContent: Equatable, Sendable {
                     return request
                 }
 
-                switch action {
-                case .accept:
-                    return request.acceptedPreview()
-                case .decline:
-                    return request.declinedPreview()
-                }
+                return request.acceptedPreview()
             },
             suggestions: suggestions
         )
@@ -805,31 +799,6 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
         )
     }
 
-    func declinedPreview() -> VerifyRequest {
-        VerifyRequest(
-            id: id,
-            routeRequestID: routeRequestID,
-            type: type,
-            organization: organization,
-            requester: requester,
-            requestedItem: requestedItem,
-            status: .rejected,
-            dateLabel: "Updated just now",
-            timelineSummary: "Declined locally",
-            requiredAction: "No further action",
-            supportingNote: "This local preview records the decline only for the current session.",
-            evidenceRequirement: evidenceRequirement,
-            timeline: timeline + [
-                VerifyTimelineEvent(
-                    id: "\(id)-declined-preview",
-                    title: "Declined locally",
-                    source: "You",
-                    dateLabel: "Just now"
-                )
-            ],
-            availableActions: []
-        )
-    }
 }
 
 struct VerifyTimelineEvent: Equatable, Identifiable, Sendable {

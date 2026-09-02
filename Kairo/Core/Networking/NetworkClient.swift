@@ -14,19 +14,22 @@ nonisolated struct NetworkRequest: Sendable {
     var headers: [String: String] = [:]
     var queryItems: [URLQueryItem] = []
     var body: Data?
+    var allowsSessionRefreshOnUnauthorized = true
 
     init(
         path: String,
         method: HTTPMethod = .get,
         headers: [String: String] = [:],
         queryItems: [URLQueryItem] = [],
-        body: Data? = nil
+        body: Data? = nil,
+        allowsSessionRefreshOnUnauthorized: Bool = true
     ) {
         self.path = path
         self.method = method
         self.headers = headers
         self.queryItems = queryItems
         self.body = body
+        self.allowsSessionRefreshOnUnauthorized = allowsSessionRefreshOnUnauthorized
     }
 }
 

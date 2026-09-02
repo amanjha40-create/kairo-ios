@@ -2,11 +2,12 @@ import Foundation
 
 protocol AuthServiceProtocol: Sendable {
     func signupStart(_ request: RegisterRequestDTO) async throws -> SignupStartResponseDTO
-    func sendEmailCode(email: String?) async throws
-    func resendEmailCode(email: String?) async throws
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO
     func verifyEmail(email: String?, code: String) async throws
-    func sendPhoneCode(mobileNumber: String?) async throws
-    func resendPhoneCode(mobileNumber: String?) async throws
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO
     func verifyPhone(mobileNumber: String?, code: String) async throws
     func completeSignup() async throws -> TokenResponseDTO
     func login(email: String, password: String) async throws -> TokenResponseDTO
@@ -40,17 +41,43 @@ actor AuthService: AuthServiceProtocol {
         return response
     }
 
-    func sendEmailCode(email: String?) async throws {
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO {
+        let signupSessionID = try await requireSignupSessionID()
+
+        do {
+            let data = try await networkClient.send(
+                NetworkRequest(
+                    path: "/auth/signup/session",
+                    headers: [
+                        "Accept": "application/json",
+                        "Cache-Control": "no-store",
+                        "X-Signup-Session-ID": signupSessionID,
+                        "X-Request-ID": UUID().uuidString,
+                        "X-Correlation-ID": UUID().uuidString
+                    ]
+                )
+            )
+            return try APIJSONCoder.makeDecoder().decode(
+                SignupSessionRecoveryResponseDTO.self,
+                from: data
+            )
+        } catch {
+            await invalidateRecoveredSignupSessionIfNeeded(for: error)
+            throw error
+        }
+    }
+
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
-        try await performSignupSessionRequest(
+        return try await performSignupChannelSendRequest(
             path: "/auth/signup/email/send",
             body: SendEmailCodeRequestDTO(signupSessionID: try await requireSignupSessionID())
         )
     }
 
-    func resendEmailCode(email: String?) async throws {
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
-        try await performSignupSessionRequest(
+        return try await performSignupChannelSendRequest(
             path: "/auth/signup/email/resend",
             body: SendEmailCodeRequestDTO(signupSessionID: try await requireSignupSessionID())
         )
@@ -67,17 +94,17 @@ actor AuthService: AuthServiceProtocol {
         )
     }
 
-    func sendPhoneCode(mobileNumber: String?) async throws {
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
-        try await performSignupSessionRequest(
+        return try await performSignupChannelSendRequest(
             path: "/auth/signup/phone/send",
             body: SendPhoneCodeRequestDTO(signupSessionID: try await requireSignupSessionID())
         )
     }
 
-    func resendPhoneCode(mobileNumber: String?) async throws {
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
-        try await performSignupSessionRequest(
+        return try await performSignupChannelSendRequest(
             path: "/auth/signup/phone/resend",
             body: SendPhoneCodeRequestDTO(signupSessionID: try await requireSignupSessionID())
         )
@@ -197,6 +224,19 @@ actor AuthService: AuthServiceProtocol {
         )
     }
 
+    private func performSignupChannelSendRequest<Body: Encodable>(
+        path: String,
+        body: Body
+    ) async throws -> SignupChannelSendResponseDTO {
+        do {
+            let data = try await rawPost(path: path, body: body)
+            return try APIJSONCoder.makeDecoder().decode(SignupChannelSendResponseDTO.self, from: data)
+        } catch {
+            await invalidateSignupSessionIfNeeded(for: error)
+            throw error
+        }
+    }
+
     private func performSignupSessionRequest<Body: Encodable>(
         path: String,
         body: Body
@@ -222,6 +262,18 @@ actor AuthService: AuthServiceProtocol {
             let networkError = error as? NetworkError,
             case .api(let apiError) = networkError,
             signupSessionShouldBeCleared(for: apiError)
+        else {
+            return
+        }
+
+        try? await sessionService.clearSignupSessionID()
+    }
+
+    private func invalidateRecoveredSignupSessionIfNeeded(for error: Error) async {
+        guard
+            let networkError = error as? NetworkError,
+            case .api(let apiError) = networkError,
+            [.unauthorized, .forbidden, .notFound, .validationError].contains(apiError.code)
         else {
             return
         }
@@ -272,24 +324,42 @@ actor DemoAuthService: AuthServiceProtocol {
         return response
     }
 
-    func sendEmailCode(email: String?) async throws {
-        _ = email
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO {
+        SignupSessionRecoveryResponseDTO(
+            state: .valid,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: false,
+            phoneVerified: false,
+            nextStep: .verifyEmail,
+            expiresAt: Date().addingTimeInterval(900),
+            emailResendAvailableAt: nil,
+            phoneResendAvailableAt: nil
+        )
     }
 
-    func resendEmailCode(email: String?) async throws {
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
+        return signupChannelFixture(channel: "email")
+    }
+
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = email
+        return signupChannelFixture(channel: "email")
     }
 
     func verifyEmail(email: String?, code: String) async throws {
         _ = (email, code)
     }
 
-    func sendPhoneCode(mobileNumber: String?) async throws {
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
+        return signupChannelFixture(channel: "phone")
     }
 
-    func resendPhoneCode(mobileNumber: String?) async throws {
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
+        return signupChannelFixture(channel: "phone")
     }
 
     func verifyPhone(mobileNumber: String?, code: String) async throws {
@@ -392,6 +462,21 @@ actor DemoAuthService: AuthServiceProtocol {
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
         currentOnboardingStatus
     }
+
+    private func signupChannelFixture(channel: String) -> SignupChannelSendResponseDTO {
+        SignupChannelSendResponseDTO(
+            signupSessionID: "demo-signup-session",
+            channel: channel,
+            verified: false,
+            emailVerified: false,
+            phoneVerified: false,
+            resendAfterSeconds: 30,
+            expiresInSeconds: 900,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            message: "Verification code sent"
+        )
+    }
 }
 
 actor UITestAuthService: AuthServiceProtocol {
@@ -433,12 +518,28 @@ actor UITestAuthService: AuthServiceProtocol {
         }
     }
 
-    func sendEmailCode(email: String?) async throws {
-        _ = email
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO {
+        SignupSessionRecoveryResponseDTO(
+            state: .valid,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: false,
+            phoneVerified: false,
+            nextStep: .verifyEmail,
+            expiresAt: Date().addingTimeInterval(900),
+            emailResendAvailableAt: nil,
+            phoneResendAvailableAt: nil
+        )
     }
 
-    func resendEmailCode(email: String?) async throws {
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
+        return signupChannelFixture(channel: "email")
+    }
+
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = email
+        return signupChannelFixture(channel: "email")
     }
 
     func verifyEmail(email: String?, code: String) async throws {
@@ -455,12 +556,14 @@ actor UITestAuthService: AuthServiceProtocol {
         }
     }
 
-    func sendPhoneCode(mobileNumber: String?) async throws {
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
+        return signupChannelFixture(channel: "phone")
     }
 
-    func resendPhoneCode(mobileNumber: String?) async throws {
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
+        return signupChannelFixture(channel: "phone")
     }
 
     func verifyPhone(mobileNumber: String?, code: String) async throws {
@@ -610,6 +713,21 @@ actor UITestAuthService: AuthServiceProtocol {
 
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
         configuration.onboardingStatus
+    }
+
+    private func signupChannelFixture(channel: String) -> SignupChannelSendResponseDTO {
+        SignupChannelSendResponseDTO(
+            signupSessionID: "ui-test-signup-session",
+            channel: channel,
+            verified: false,
+            emailVerified: false,
+            phoneVerified: false,
+            resendAfterSeconds: 30,
+            expiresInSeconds: 900,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            message: "Verification code sent"
+        )
     }
 }
 

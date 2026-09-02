@@ -18,4 +18,9 @@ final class CandidateDataRefreshStore: ObservableObject {
         guard focusedVerificationRequestID == requestID else { return }
         focusedVerificationRequestID = nil
     }
+
+    func resetAfterAccountDeletion() {
+        focusedVerificationRequestID = nil
+        revision += 1
+    }
 }

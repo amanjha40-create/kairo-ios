@@ -11,6 +11,7 @@ final class AppSessionStore: ObservableObject {
 
     @Published private(set) var launchPhase: LaunchPhase = .idle
     @Published private(set) var currentUser: AppUser?
+    @Published private(set) var signupRecovery: SignupSessionRecoveryResponseDTO?
 
     private let configuration: AppConfiguration
     private let uiTestConfiguration: UITestLaunchConfiguration
@@ -90,6 +91,26 @@ final class AppSessionStore: ObservableObject {
         }
 
         currentUser = nil
+        signupRecovery = nil
+        ManualProfileDraftStore.clear()
+        router.showOnboarding()
+        launchPhase = .idle
+    }
+
+    func abandonPendingSignup() async {
+        try? await sessionService.clearSignupSessionID()
+        signupRecovery = nil
+        ManualProfileDraftStore.clear()
+        currentUser = nil
+        router.navigateToOnboarding(.createAccount)
+        launchPhase = .idle
+    }
+
+    func completeAccountDeletion() async {
+        try? await sessionService.clearSession()
+        signupRecovery = nil
+        ManualProfileDraftStore.clear()
+        currentUser = nil
         router.showOnboarding()
         launchPhase = .idle
     }
@@ -100,13 +121,38 @@ final class AppSessionStore: ObservableObject {
 
         if !hasAccessToken, !hasRefreshToken {
             if try await sessionService.readSignupSessionID() != nil {
-                return .verifyIdentity
+                do {
+                    let recovery = try await authService.recoverSignupSession()
+
+                    switch recovery.state {
+                    case .valid:
+                        guard recovery.nextStep != nil else {
+                            throw AppSessionStoreError.invalidSignupRecoveryState
+                        }
+                        signupRecovery = recovery
+                        return .verifyIdentity
+                    case .completed, .expired:
+                        try? await sessionService.clearSignupSessionID()
+                        signupRecovery = nil
+                        return .signedOut
+                    }
+                } catch {
+                    if shouldDiscardSignupSession(for: error) {
+                        try? await sessionService.clearSignupSessionID()
+                        signupRecovery = nil
+                        return .signedOut
+                    }
+
+                    throw error
+                }
             }
 
+            signupRecovery = nil
             return .signedOut
         }
 
         _ = try await sessionService.prepareBootstrapSession()
+        signupRecovery = nil
         currentUser = try await authService.currentUser().asDomainModel()
         let onboardingStatus = try await authService.onboardingStatus()
 
@@ -203,6 +249,25 @@ final class AppSessionStore: ObservableObject {
         return false
     }
 
+    private func shouldDiscardSignupSession(for error: Error) -> Bool {
+        if let sessionError = error as? SessionServiceError,
+           sessionError == .missingSignupSession {
+            return true
+        }
+
+        guard let networkError = error as? NetworkError,
+              case .api(let apiError) = networkError else {
+            return false
+        }
+
+        return switch apiError.code {
+        case .unauthorized, .forbidden, .notFound, .validationError:
+            true
+        case .badRequest, .conflict, .rateLimited, .internalError, .serviceUnavailable:
+            false
+        }
+    }
+
     private func authMessage(for error: Error) -> String {
         switch error {
         case let networkError as NetworkError:
@@ -237,11 +302,14 @@ private enum AppLaunchRoute: Equatable {
 
 private enum AppSessionStoreError: LocalizedError {
     case unsupportedOnboardingStep(String)
+    case invalidSignupRecoveryState
 
     var errorDescription: String? {
         switch self {
         case .unsupportedOnboardingStep(let step):
             "Kairo needs an app update before it can continue this onboarding step (\(step))."
+        case .invalidSignupRecoveryState:
+            "Kairo received an incomplete signup recovery response. Please try again."
         }
     }
 }

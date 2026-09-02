@@ -1,11 +1,14 @@
 import SwiftUI
+import UIKit
 
 struct MoreOverviewScreenView: View {
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.moreOverviewService) private var moreOverviewService
+    @Environment(\.passportPDFExportService) private var passportPDFExportService
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
 
     @Binding private var state: MoreOverviewState
     private let isLiveMode: Bool
@@ -454,6 +457,10 @@ struct MoreOverviewScreenView: View {
                     onWithdraw: withdrawConsent
                 )
             }
+        case .deleteAccount:
+            MoreDeleteAccountSheetView(
+                onDelete: deleteAccount
+            )
         case .information(let model):
             MoreInformationSheetView(model: model)
         case .confirmation(let confirmation):
@@ -508,7 +515,17 @@ struct MoreOverviewScreenView: View {
         case "downloadMyData":
             presentedModal = .confirmation(.downloadMyData)
         case "deleteAccount":
-            presentedModal = .confirmation(.deleteAccount)
+            if isLiveMode {
+                presentedModal = .deleteAccount
+            } else {
+                presentedModal = .information(
+                    MoreInformationSheetModel(
+                        title: "Delete account",
+                        subtitle: "Demo Mode",
+                        primaryMessage: "Demo Mode never deletes a Staging or Production account. Sign in to a live environment to use the real self-service deletion flow."
+                    )
+                )
+            }
         default:
             break
         }
@@ -699,6 +716,33 @@ struct MoreOverviewScreenView: View {
         return "Trust Score consent was updated."
     }
 
+    private func deleteAccount(confirm: String, currentPassword: String?) async throws {
+        guard isLiveMode else {
+            throw NetworkError.unavailableInDemoMode
+        }
+
+        try await moreOverviewService.deleteAccount(
+            confirm: confirm,
+            currentPassword: currentPassword
+        )
+        await passportPDFExportService.removeAllArtifacts()
+        clearKairoOwnedPassportClipboardIfNeeded()
+        candidateDataRefreshStore.resetAfterAccountDeletion()
+        await sessionStore.completeAccountDeletion()
+    }
+
+    private func clearKairoOwnedPassportClipboardIfNeeded() {
+        guard let url = UIPasteboard.general.url,
+              let host = url.host?.lowercased(),
+              appConfiguration.publicPassportHosts.contains(host),
+              url.pathComponents.count == 3,
+              url.pathComponents[1] == "passport" else {
+            return
+        }
+
+        UIPasteboard.general.items = []
+    }
+
     private func handleNotificationToggle(id: String, isEnabled: Bool) {
         notificationsErrorMessage = nil
         let previousPreferences = state.preferences.notifications
@@ -742,16 +786,6 @@ struct MoreOverviewScreenView: View {
                         title: "Download my data",
                         subtitle: "Backend gap",
                         primaryMessage: "The candidate backend does not currently support a self-service data export route."
-                    )
-                )
-            }
-        case .deleteAccount:
-            await MainActor.run {
-                presentedModal = .information(
-                    MoreInformationSheetModel(
-                        title: "Delete account",
-                        subtitle: "Backend gap",
-                        primaryMessage: "The candidate backend does not currently support self-service account deletion or deactivation."
                     )
                 )
             }
@@ -850,6 +884,7 @@ private enum MorePresentedModal: Identifiable {
     case password
     case sessions
     case consent
+    case deleteAccount
     case information(MoreInformationSheetModel)
     case confirmation(MorePendingConfirmation)
 
@@ -863,6 +898,8 @@ private enum MorePresentedModal: Identifiable {
             "sessions"
         case .consent:
             "consent"
+        case .deleteAccount:
+            "deleteAccount"
         case .information(let model):
             "info.\(model.id)"
         case .confirmation(let confirmation):
@@ -1815,6 +1852,178 @@ private struct MoreInformationSheetView: View {
     }
 }
 
+private struct MoreDeleteAccountSheetView: View {
+    let onDelete: (_ confirm: String, _ currentPassword: String?) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: Field?
+
+    @State private var confirmationText = ""
+    @State private var currentPassword = ""
+    @State private var isSubmitting = false
+    @State private var currentPasswordError: String?
+    @State private var serverErrorMessage: String?
+    @State private var didSucceed = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoCard {
+                        Label("Permanent account deletion", systemImage: "exclamationmark.triangle.fill")
+                            .font(KairoTypography.title2)
+                            .foregroundStyle(KairoColors.danger)
+
+                        Text("This permanently deletes your Candidate account and eligible Kairo data. Some completed verification records may be retained only in anonymised form when the backend must preserve shared audit integrity.")
+                            .font(KairoTypography.body)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("This action cannot be undone.")
+                            .font(KairoTypography.bodyStrong)
+                            .foregroundStyle(KairoColors.danger)
+                    }
+
+                    KairoCard {
+                        KairoTextField(
+                            title: "Type DELETE to confirm",
+                            prompt: "DELETE",
+                            text: $confirmationText,
+                            errorMessage: confirmationError,
+                            accessibilityIdentifier: KairoAccessibilityID.moreDeleteAccountConfirmationInput,
+                            accessibilityLabel: "Account deletion confirmation",
+                            accessibilityHint: "Type DELETE in capital letters to enable permanent account deletion.",
+                            textInputAutocapitalization: .characters,
+                            submitLabel: .next,
+                            focus: $focusedField,
+                            focusedField: .confirmation,
+                            onSubmit: { focusedField = .password }
+                        )
+
+                        KairoTextField(
+                            title: "Current password",
+                            prompt: "Required for password-based accounts",
+                            text: $currentPassword,
+                            errorMessage: currentPasswordError,
+                            accessibilityIdentifier: KairoAccessibilityID.moreDeleteAccountCurrentPassword,
+                            accessibilityLabel: "Current password",
+                            accessibilityHint: "Enter your current password. Accounts without a local password may leave this blank.",
+                            textContentType: .password,
+                            textInputAutocapitalization: .never,
+                            isSecure: true,
+                            submitLabel: .done,
+                            focus: $focusedField,
+                            focusedField: .password,
+                            onSubmit: submit
+                        )
+
+                        Text("Kairo sends this password only to the authenticated deletion endpoint. It is not stored on this device.")
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if didSucceed {
+                        Text("Account deleted. Clearing this device session…")
+                            .font(KairoTypography.bodyStrong)
+                            .foregroundStyle(KairoColors.success)
+                            .accessibilityIdentifier(KairoAccessibilityID.moreDeleteAccountSuccess)
+                    }
+
+                    if let serverErrorMessage {
+                        Text(serverErrorMessage)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(KairoAccessibilityID.moreDeleteAccountError)
+                    }
+
+                    VStack(spacing: KairoSpacing.medium) {
+                        Button(role: .destructive, action: submit) {
+                            HStack(spacing: KairoSpacing.small) {
+                                if isSubmitting {
+                                    ProgressView()
+                                }
+                                Text(isSubmitting ? "Deleting account…" : "Permanently Delete Account")
+                                    .font(KairoTypography.headline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, KairoSpacing.medium)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(KairoColors.danger)
+                        .disabled(!canSubmit)
+                        .accessibilityIdentifier(KairoAccessibilityID.moreDeleteAccountFinalButton)
+                        .accessibilityLabel("Permanently delete account")
+                        .accessibilityHint("Deletes this Candidate account and signs out this device. This cannot be undone.")
+
+                        KairoSecondaryButton(title: "Cancel") {
+                            dismiss()
+                        }
+                        .disabled(isSubmitting)
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Delete account")
+            .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier(KairoAccessibilityID.moreDeleteAccountConfirmation)
+        }
+    }
+
+    private var confirmationError: String? {
+        guard !confirmationText.isEmpty, confirmationText != "DELETE" else {
+            return nil
+        }
+        return "Type DELETE exactly to continue."
+    }
+
+    private var canSubmit: Bool {
+        confirmationText == "DELETE" && !isSubmitting
+    }
+
+    private func submit() {
+        guard canSubmit else {
+            return
+        }
+
+        isSubmitting = true
+        currentPasswordError = nil
+        serverErrorMessage = nil
+        let password = currentPassword.isEmpty ? nil : currentPassword
+
+        Task {
+            do {
+                try await onDelete("DELETE", password)
+                await MainActor.run {
+                    isSubmitting = false
+                    didSucceed = true
+                    currentPassword = ""
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    apply(error)
+                }
+            }
+        }
+    }
+
+    private func apply(_ error: Error) {
+        let failure = MoreAccountDeletionErrorMapper.map(error)
+        currentPasswordError = failure.currentPasswordError
+        serverErrorMessage = failure.message
+    }
+
+    private enum Field: Hashable {
+        case confirmation
+        case password
+    }
+}
+
 private struct MoreConfirmationSheetView: View {
     let confirmation: MorePendingConfirmation
     let onCancel: () -> Void
@@ -1879,8 +2088,6 @@ private struct MoreConfirmationSheetView: View {
         switch confirmation {
         case .downloadMyData:
             KairoAccessibilityID.moreDownloadMyDataConfirmation
-        case .deleteAccount:
-            KairoAccessibilityID.moreDeleteAccountConfirmation
         case .signOut:
             KairoAccessibilityID.moreSignOutConfirmation
         case .withdrawConsent:
@@ -1894,8 +2101,6 @@ private struct MoreConfirmationSheetView: View {
         switch confirmation {
         case .downloadMyData:
             "Download my data"
-        case .deleteAccount:
-            "Delete account"
         case .signOut:
             "Sign Out"
         case .withdrawConsent:
@@ -1909,8 +2114,6 @@ private struct MoreConfirmationSheetView: View {
         switch confirmation {
         case .downloadMyData:
             "Data export is not supported by the candidate backend yet. Kairo won't generate or send an export file from this build."
-        case .deleteAccount:
-            "Self-service account deletion is not supported by the candidate backend yet. No account or Trust Passport data will be deleted from this build."
         case .signOut:
             "Kairo will clear your local authenticated state on this device and attempt backend logout before returning you to the unauthenticated flow."
         case .withdrawConsent:
@@ -1922,7 +2125,7 @@ private struct MoreConfirmationSheetView: View {
 
     private var confirmTitle: String {
         switch confirmation {
-        case .downloadMyData, .deleteAccount:
+        case .downloadMyData:
             "Understood"
         case .signOut:
             "Sign Out"

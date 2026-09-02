@@ -10,6 +10,7 @@ protocol MoreOverviewServiceProtocol: Sendable {
     ) async throws -> String
     func loadSessions() async throws -> [MoreSessionRecord]
     func revokeSession(id: String) async throws
+    func deleteAccount(confirm: String, currentPassword: String?) async throws
     func updateNotificationPreference(
         id: String,
         enabled: Bool,
@@ -97,6 +98,19 @@ actor MoreOverviewService: MoreOverviewServiceProtocol {
                 headers: ["Accept": "application/json"]
             )
         )
+    }
+
+    func deleteAccount(confirm: String, currentPassword: String?) async throws {
+        var request = try jsonRequest(
+            path: "/users/me",
+            method: .delete,
+            body: AccountDeletionRequestDTO(
+                confirm: confirm,
+                currentPassword: normalizedValue(currentPassword ?? "")
+            )
+        )
+        request.allowsSessionRefreshOnUnauthorized = false
+        _ = try await sessionService.sendAuthenticated(request)
     }
 
     func updateNotificationPreference(

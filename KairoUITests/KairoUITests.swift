@@ -26,6 +26,7 @@ final class KairoUITests: XCTestCase {
     private let onboardingPassportCreatedTitle = "onboarding.step.passportCreated"
     private let onboardingGetStartedButton = "onboarding.getStarted"
     private let onboardingContinueButton = "onboarding.continue"
+    private let onboardingIntroSkipButton = "onboarding.intro.skip"
     private let onboardingBackButton = "onboarding.back"
     private let chooseStartContinueButton = "onboarding.chooseStart.continue"
     private let chooseStartResumeOptionButton = "onboarding.chooseStart.resume"
@@ -37,6 +38,8 @@ final class KairoUITests: XCTestCase {
     private let createAccountMobileField = "onboarding.createAccount.mobile"
     private let createAccountContinueButton = "onboarding.createAccount.continue"
     private let createAccountLoginButton = "onboarding.createAccount.login"
+    private let createAccountTerms = "onboarding.createAccount.terms"
+    private let createAccountPrivacy = "onboarding.createAccount.privacy"
     private let verifyIdentityIntroContinueButton = "onboarding.verifyIdentity.intro.continue"
     private let verifyIdentityEmailCodeField = "onboarding.verifyIdentity.email.code"
     private let verifyIdentityEmailSendCodeButton = "onboarding.verifyIdentity.email.sendCode"
@@ -134,7 +137,6 @@ final class KairoUITests: XCTestCase {
     private let verifyRequestDetail = "candidate.verify.requestDetail"
     private let verifyAcceptRequest = "candidate.verify.request.accept"
     private let verifyProvideInformation = "candidate.verify.request.provideInformation"
-    private let verifyDeclineRequest = "candidate.verify.request.decline"
     private let verifyStartVerificationSheet = "candidate.verify.startVerificationSheet"
     private let verifyEmptyState = "candidate.verify.empty"
     private let verifyViewTrustPassport = "candidate.verify.viewTrustPassport"
@@ -155,6 +157,8 @@ final class KairoUITests: XCTestCase {
     private let moreAppearanceDarkButton = "candidate.more.appearance.dark"
     private let moreContactSupportButton = "candidate.more.contactSupport"
     private let moreDeleteAccountButton = "candidate.more.deleteAccount"
+    private let moreDeleteAccountConfirmationInput = "candidate.more.deleteAccount.confirmationInput"
+    private let moreDeleteAccountFinalButton = "candidate.more.deleteAccount.finalButton"
     private let moreTermsOfServiceButton = "candidate.more.terms"
     private let morePrivacyPolicyButton = "candidate.more.privacyPolicy"
     private let moreCookiePolicyButton = "candidate.more.cookiePolicy"
@@ -614,16 +618,14 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testVerifyDeclineRequestOpensConfirmation() throws {
+    func testVerifyUnsupportedDeclineActionIsAbsent() throws {
         let app = launchApp(environment: verifyEnvironment())
 
         openVerifyTab(in: app)
 
         app.buttons[verifyRequestActionButton(id: "education-welingkar-pending")].tap()
-        XCTAssertTrue(app.buttons[verifyDeclineRequest].waitForExistence(timeout: 10))
-        app.buttons[verifyDeclineRequest].tap()
-
-        XCTAssertTrue(app.sheets.buttons["Decline request"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[verifyRequestDetail].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Decline request"].exists)
     }
 
     @MainActor
@@ -773,7 +775,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreDeleteAccountConfirmationOpensAndCancels() throws {
+    func testMoreDeleteAccountIsIsolatedInDemoMode() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
@@ -783,10 +785,12 @@ final class KairoUITests: XCTestCase {
         deleteButton.tap()
 
         XCTAssertTrue(app.navigationBars["Delete account"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 10))
-        app.buttons["Cancel"].tap()
-
-        XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+        let demoIsolationMessage = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "Demo Mode never deletes")
+        ).firstMatch
+        XCTAssertTrue(demoIsolationMessage.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.textFields[moreDeleteAccountConfirmationInput].exists)
+        XCTAssertFalse(app.buttons[moreDeleteAccountFinalButton].exists)
     }
 
     @MainActor
@@ -804,22 +808,16 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreLegalPlaceholdersOpen() throws {
+    func testMoreLegalDestinationsAreConfiguredAndCookieFallbackRemainsTruthful() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
 
         let termsButton = app.buttons[moreTermsOfServiceButton]
         XCTAssertTrue(waitForElementAfterScrolling(termsButton, in: app))
-        termsButton.tap()
-        XCTAssertTrue(app.navigationBars["Terms of Service"].waitForExistence(timeout: 10))
-        dismissPresentedSheet(in: app)
 
         let privacyButton = app.buttons[morePrivacyPolicyButton]
         XCTAssertTrue(waitForElementAfterScrolling(privacyButton, in: app))
-        privacyButton.tap()
-        XCTAssertTrue(app.navigationBars["Privacy Policy"].waitForExistence(timeout: 10))
-        dismissPresentedSheet(in: app)
 
         let cookieButton = app.buttons[moreCookiePolicyButton]
         XCTAssertTrue(waitForElementAfterScrolling(cookieButton, in: app))
@@ -977,6 +975,22 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
         XCTAssertFalse(continueButton.isEnabled)
         XCTAssertFalse(app.staticTexts["Enter your first name."].exists)
+    }
+
+    @MainActor
+    func testCreateAccountShowsConfiguredTermsAndPrivacyLinks() throws {
+        let app = launchApp()
+
+        navigateToCreateAccount(in: app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)[createAccountTerms].waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)[createAccountPrivacy].waitForExistence(timeout: 10)
+        )
+        XCTAssertFalse(app.staticTexts["Terms of Service unavailable"].exists)
+        XCTAssertFalse(app.staticTexts["Privacy Policy unavailable"].exists)
     }
 
     @MainActor
@@ -1389,6 +1403,8 @@ final class KairoUITests: XCTestCase {
     private func navigateToCreateAccount(in app: XCUIApplication) {
         XCTAssertTrue(app.buttons[onboardingGetStartedButton].waitForExistence(timeout: 10))
         app.buttons[onboardingGetStartedButton].tap()
+        XCTAssertTrue(app.buttons[onboardingIntroSkipButton].waitForExistence(timeout: 10))
+        app.buttons[onboardingIntroSkipButton].tap()
         XCTAssertTrue(app.textFields[createAccountFirstNameField].waitForExistence(timeout: 10))
     }
 

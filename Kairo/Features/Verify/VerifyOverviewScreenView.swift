@@ -558,8 +558,7 @@ struct VerifyOverviewScreenView: View {
                     onAccept: { performRequestAction(.accept, requestID: requestID) },
                     onProvideInformation: { presentedSheet = .provideInformation(requestID) },
                     onSubmitForReview: { performRequestAction(.submitForReview, requestID: requestID) },
-                    onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) },
-                    onDecline: { declineRequest(requestID) }
+                    onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) }
                 )
             } else {
                 VerifySimpleSheet(
@@ -593,10 +592,6 @@ struct VerifyOverviewScreenView: View {
         }
     }
 
-    private func declineRequest(_ requestID: String) {
-        state = state.applying(.decline, to: requestID)
-        presentedSheet = nil
-    }
 }
 
 typealias VerifyRequestActionHandler = @Sendable (_ requestID: String, _ action: VerifyRequestAction, _ response: String?) async throws -> Void
@@ -755,10 +750,8 @@ private struct VerifyRequestDetailSheet: View {
     let onProvideInformation: () -> Void
     let onSubmitForReview: () -> Void
     let onResubmitForReview: () -> Void
-    let onDecline: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showsDeclineConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -814,7 +807,7 @@ private struct VerifyRequestDetailSheet: View {
                         }
                     }
 
-                    if !request.availableActions.isEmpty || !isLive {
+                    if !request.availableActions.isEmpty {
                         VStack(alignment: .leading, spacing: KairoSpacing.small) {
                             actionButtons
                         }
@@ -828,20 +821,6 @@ private struct VerifyRequestDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .accessibilityIdentifier(KairoAccessibilityID.verifyRequestDetail)
-        .confirmationDialog(
-            "Decline this request?",
-            isPresented: $showsDeclineConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Decline request", role: .destructive) {
-                onDecline()
-                dismiss()
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This local action does not send any response. It only updates the fixture state for this session.")
-        }
         .presentationDetents([.large])
     }
 
@@ -896,13 +875,6 @@ private struct VerifyRequestDetailSheet: View {
             .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .resubmitForReview))
         }
 
-        if !isLive {
-            KairoSecondaryButton(
-                title: "Decline request",
-                accessibilityIdentifier: KairoAccessibilityID.verifyDeclineRequest,
-                action: { showsDeclineConfirmation = true }
-            )
-        }
     }
 
     private func detailRow(title: String, value: String) -> some View {

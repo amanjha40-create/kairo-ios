@@ -78,11 +78,62 @@ nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
     }
 }
 
+nonisolated enum SignupSessionRecoveryStateDTO: String, Decodable, Equatable, Sendable {
+    case valid
+    case completed
+    case expired
+}
+
+nonisolated enum SignupSessionNextStepDTO: String, Decodable, Equatable, Sendable {
+    case verifyEmail = "verify_email"
+    case verifyPhone = "verify_phone"
+    case completeSignup = "complete_signup"
+    case completed
+}
+
+nonisolated struct SignupSessionRecoveryResponseDTO: Decodable, Equatable, Sendable {
+    let state: SignupSessionRecoveryStateDTO
+    let emailMasked: String
+    let phoneMasked: String
+    let emailVerified: Bool
+    let phoneVerified: Bool
+    let nextStep: SignupSessionNextStepDTO?
+    let expiresAt: Date
+    let emailResendAvailableAt: Date?
+    let phoneResendAvailableAt: Date?
+}
+
 nonisolated struct SendEmailCodeRequestDTO: Encodable, Equatable, Sendable {
     let signupSessionID: String
 
     nonisolated init(signupSessionID: String) {
         self.signupSessionID = signupSessionID
+    }
+}
+
+nonisolated struct SignupChannelSendResponseDTO: Decodable, Equatable, Sendable {
+    let signupSessionID: String
+    let channel: String
+    let verified: Bool
+    let emailVerified: Bool
+    let phoneVerified: Bool
+    let resendAfterSeconds: Int
+    let expiresInSeconds: Int
+    let emailMasked: String?
+    let phoneMasked: String?
+    let message: String
+
+    private enum CodingKeys: String, CodingKey {
+        case signupSessionID = "signupSessionId"
+        case channel
+        case verified
+        case emailVerified
+        case phoneVerified
+        case resendAfterSeconds
+        case expiresInSeconds
+        case emailMasked
+        case phoneMasked
+        case message
     }
 }
 

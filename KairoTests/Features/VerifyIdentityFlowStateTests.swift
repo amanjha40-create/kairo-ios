@@ -16,6 +16,92 @@ final class VerifyIdentityFlowStateTests: XCTestCase {
         XCTAssertEqual(state.mobile.contactValue, "9876543210")
     }
 
+    func test_recoveryUsesAuthoritativeMaskedContactsInsteadOfStaleDraftValues() {
+        let now = Date(timeIntervalSince1970: 1_788_400_000)
+        var state = VerifyIdentityFlowState()
+        state.prepare(using: CreateAccountDraft(
+            firstName: "Stale",
+            lastName: "Draft",
+            emailAddress: "stale@example.com",
+            mobileNumber: "9876543210"
+        ))
+
+        state.applyRecovery(
+            SignupSessionRecoveryResponseDTO(
+                state: .valid,
+                emailMasked: "am***@example.com",
+                phoneMasked: "+91******9299",
+                emailVerified: false,
+                phoneVerified: false,
+                nextStep: .verifyEmail,
+                expiresAt: now.addingTimeInterval(900),
+                emailResendAvailableAt: now.addingTimeInterval(41),
+                phoneResendAvailableAt: nil
+            ),
+            now: now
+        )
+
+        XCTAssertEqual(state.phase, .email)
+        XCTAssertEqual(state.email.contactValue, "am***@example.com")
+        XCTAssertEqual(state.mobile.contactValue, "+91******9299")
+        XCTAssertTrue(state.email.isAuthoritativeContact)
+        XCTAssertTrue(state.mobile.isAuthoritativeContact)
+        XCTAssertTrue(state.email.hasSentCode)
+        XCTAssertEqual(state.email.countdownRemaining, 41)
+
+        state.email.setContactValue("replacement@example.com")
+        XCTAssertEqual(state.email.contactValue, "am***@example.com")
+    }
+
+    func test_recoveryResumesAtPhoneWithoutRequiringEmailAgain() {
+        let now = Date(timeIntervalSince1970: 1_788_400_000)
+        var state = VerifyIdentityFlowState()
+
+        state.applyRecovery(
+            SignupSessionRecoveryResponseDTO(
+                state: .valid,
+                emailMasked: "am***@example.com",
+                phoneMasked: "+91******9299",
+                emailVerified: true,
+                phoneVerified: false,
+                nextStep: .verifyPhone,
+                expiresAt: now.addingTimeInterval(900),
+                emailResendAvailableAt: nil,
+                phoneResendAvailableAt: nil
+            ),
+            now: now
+        )
+
+        XCTAssertEqual(state.phase, .mobile)
+        XCTAssertTrue(state.email.isVerified)
+        XCTAssertFalse(state.mobile.isVerified)
+        XCTAssertTrue(state.mobile.canSendCode)
+    }
+
+    func test_recoveryWithBothChannelsVerifiedResumesCompletionStep() {
+        let now = Date(timeIntervalSince1970: 1_788_400_000)
+        var state = VerifyIdentityFlowState()
+
+        state.applyRecovery(
+            SignupSessionRecoveryResponseDTO(
+                state: .valid,
+                emailMasked: "am***@example.com",
+                phoneMasked: "+91******9299",
+                emailVerified: true,
+                phoneVerified: true,
+                nextStep: .completeSignup,
+                expiresAt: now.addingTimeInterval(900),
+                emailResendAvailableAt: nil,
+                phoneResendAvailableAt: nil
+            ),
+            now: now
+        )
+
+        XCTAssertEqual(state.phase, .mobile)
+        XCTAssertTrue(state.email.isVerified)
+        XCTAssertTrue(state.mobile.isVerified)
+    }
+
     func test_otpValidationRequiresSixDigits() {
         var state = ContactVerificationState(channel: .email, contactValue: "aman@example.com")
         state.beginSendingCode()

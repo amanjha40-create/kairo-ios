@@ -5,11 +5,11 @@ struct CreateAccountScreenView: View {
     let onContinue: (() -> Void)?
 
     @Environment(\.authService) private var authService
+    @Environment(\.appConfiguration) private var appConfiguration
     @EnvironmentObject private var router: AppRouter
     @FocusState private var focusedField: CreateAccountField?
     @State private var touchedFields: Set<CreateAccountField>
     @State private var lastFocusedField: CreateAccountField?
-    @State private var presentedLegalDocument: LegalDocument?
     @State private var isSubmitting = false
     @State private var backendFieldErrors: [CreateAccountField: String] = [:]
     @State private var submissionErrorMessage: String?
@@ -39,9 +39,6 @@ struct CreateAccountScreenView: View {
         } actions: {
             actionsSection
         }
-        .environment(\.openURL, OpenURLAction { url in
-            handleOpenURL(url)
-        })
         .onChange(of: focusedField) { _, newValue in
             handleFocusedFieldChange(newValue)
         }
@@ -63,9 +60,6 @@ struct CreateAccountScreenView: View {
         .onChange(of: draft.password) { _, _ in
             handlePasswordFieldChange()
         }
-        .sheet(item: $presentedLegalDocument) { document in
-            LegalDocumentPlaceholderSheet(document: document)
-        }
     }
 
     private var isFormValid: Bool {
@@ -73,12 +67,63 @@ struct CreateAccountScreenView: View {
     }
 
     private var legalCopy: some View {
-        Text(.init("By continuing you agree to Kairo's [Terms of Service](kairo://terms) and [Privacy Policy](kairo://privacy)."))
-            .font(KairoTypography.footnote)
-            .foregroundStyle(KairoColors.textSecondary)
-            .multilineTextAlignment(.center)
-            .tint(KairoColors.brandPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: KairoSpacing.xxSmall) {
+            Text("By continuing you agree to Kairo's")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: KairoSpacing.xxSmall) {
+                    legalLink(
+                        title: "Terms of Service",
+                        destination: appConfiguration.termsOfServiceURL,
+                        accessibilityIdentifier: KairoAccessibilityID.createAccountTerms
+                    )
+                    Text("and")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    legalLink(
+                        title: "Privacy Policy",
+                        destination: appConfiguration.privacyPolicyURL,
+                        accessibilityIdentifier: KairoAccessibilityID.createAccountPrivacy
+                    )
+                }
+
+                VStack(spacing: KairoSpacing.xxSmall) {
+                    legalLink(
+                        title: "Terms of Service",
+                        destination: appConfiguration.termsOfServiceURL,
+                        accessibilityIdentifier: KairoAccessibilityID.createAccountTerms
+                    )
+                    legalLink(
+                        title: "Privacy Policy",
+                        destination: appConfiguration.privacyPolicyURL,
+                        accessibilityIdentifier: KairoAccessibilityID.createAccountPrivacy
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .multilineTextAlignment(.center)
+    }
+
+    @ViewBuilder
+    private func legalLink(
+        title: String,
+        destination: URL?,
+        accessibilityIdentifier: String
+    ) -> some View {
+        if let destination {
+            Link(title, destination: destination)
+                .font(KairoTypography.footnote.weight(.semibold))
+                .foregroundStyle(KairoColors.brandPrimary)
+                .accessibilityIdentifier(accessibilityIdentifier)
+        } else {
+            Text("\(title) unavailable")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.danger)
+                .accessibilityIdentifier(accessibilityIdentifier)
+        }
     }
 
     private var createAccountFormCard: some View {
@@ -409,19 +454,6 @@ struct CreateAccountScreenView: View {
         }
     }
 
-    private func handleOpenURL(_ url: URL) -> OpenURLAction.Result {
-        switch url.host {
-        case "terms":
-            presentedLegalDocument = .termsOfService
-            return .handled
-        case "privacy":
-            presentedLegalDocument = .privacyPolicy
-            return .handled
-        default:
-            return .systemAction
-        }
-    }
-
     private func authenticationMessage(for error: Error) -> String {
         switch error {
         case let networkError as NetworkError:
@@ -450,64 +482,6 @@ struct CreateAccountScreenView: View {
             }
         default:
             return error.localizedDescription
-        }
-    }
-}
-
-private enum LegalDocument: String, Identifiable {
-    case termsOfService
-    case privacyPolicy
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .termsOfService:
-            "Terms of Service"
-        case .privacyPolicy:
-            "Privacy Policy"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .termsOfService:
-            "Kairo's Terms of Service content will be connected in a later milestone."
-        case .privacyPolicy:
-            "Kairo's Privacy Policy content will be connected in a later milestone."
-        }
-    }
-}
-
-private struct LegalDocumentPlaceholderSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let document: LegalDocument
-
-    var body: some View {
-        NavigationStack {
-            KairoCard {
-                Text(document.title)
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
-
-                Text(document.message)
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(KairoSpacing.large)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(KairoColors.background.ignoresSafeArea())
-            .navigationTitle(document.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 }

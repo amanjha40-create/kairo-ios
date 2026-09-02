@@ -88,15 +88,15 @@ final class AuthServiceTests: XCTestCase {
             return (
                 try XCTUnwrap(HTTPURLResponse(
                     url: try XCTUnwrap(request.url),
-                    statusCode: 204,
+                    statusCode: 200,
                     httpVersion: nil,
                     headerFields: nil
                 )),
-                Data()
+                Self.signupChannelSendPayload(channel: "email")
             )
         }
 
-        try await authService.sendEmailCode(email: "aman@example.com")
+        _ = try await authService.sendEmailCode(email: "aman@example.com")
     }
 
     func test_resendEmailCodeUsesResendEndpointAndSignupSessionOnly() async throws {
@@ -113,15 +113,15 @@ final class AuthServiceTests: XCTestCase {
             return (
                 try XCTUnwrap(HTTPURLResponse(
                     url: try XCTUnwrap(request.url),
-                    statusCode: 204,
+                    statusCode: 200,
                     httpVersion: nil,
                     headerFields: nil
                 )),
-                Data()
+                Self.signupChannelSendPayload(channel: "email")
             )
         }
 
-        try await authService.resendEmailCode(email: "aman@example.com")
+        _ = try await authService.resendEmailCode(email: "aman@example.com")
     }
 
     func test_verifyPhoneBodyContainsSignupSessionIDAndCodeOnly() async throws {
@@ -139,11 +139,11 @@ final class AuthServiceTests: XCTestCase {
             return (
                 try XCTUnwrap(HTTPURLResponse(
                     url: try XCTUnwrap(request.url),
-                    statusCode: 204,
+                    statusCode: 200,
                     httpVersion: nil,
                     headerFields: nil
                 )),
-                Data()
+                Self.signupChannelSendPayload(channel: "phone")
             )
         }
 
@@ -164,15 +164,15 @@ final class AuthServiceTests: XCTestCase {
             return (
                 try XCTUnwrap(HTTPURLResponse(
                     url: try XCTUnwrap(request.url),
-                    statusCode: 204,
+                    statusCode: 200,
                     httpVersion: nil,
                     headerFields: nil
                 )),
-                Data()
+                Self.signupChannelSendPayload(channel: "phone")
             )
         }
 
-        try await authService.resendPhoneCode(mobileNumber: "9876543210")
+        _ = try await authService.resendPhoneCode(mobileNumber: "9876543210")
     }
 
     func test_loginPersistsTokensAndClearsSignupSession() async throws {
@@ -211,6 +211,86 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertEqual(accessToken, "access-123")
         XCTAssertEqual(refreshToken, "refresh-456")
         XCTAssertNil(signupSessionID)
+    }
+
+    func test_recoverSignupSessionUsesHeaderCredentialAndDecodesAuthoritativeState() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("signup-session-123", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/session")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertNil(request.url?.query)
+            XCTAssertNil(request.httpBody)
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: "X-Signup-Session-ID"),
+                "signup-session-123"
+            )
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Cache-Control": "private, no-store"]
+                )),
+                Data(
+                    """
+                    {
+                      "state": "valid",
+                      "email_masked": "a***@example.com",
+                      "phone_masked": "+91******3210",
+                      "email_verified": true,
+                      "phone_verified": false,
+                      "next_step": "verify_phone",
+                      "expires_at": "2026-09-03T09:01:12Z",
+                      "email_resend_available_at": null,
+                      "phone_resend_available_at": "2026-09-02T09:02:00Z"
+                    }
+                    """.utf8
+                )
+            )
+        }
+
+        let recovery = try await authService.recoverSignupSession()
+
+        XCTAssertEqual(recovery.state, .valid)
+        XCTAssertEqual(recovery.emailMasked, "a***@example.com")
+        XCTAssertEqual(recovery.phoneMasked, "+91******3210")
+        XCTAssertTrue(recovery.emailVerified)
+        XCTAssertFalse(recovery.phoneVerified)
+        XCTAssertEqual(recovery.nextStep, .verifyPhone)
+        XCTAssertNotNil(recovery.phoneResendAvailableAt)
+        let persistedSignupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+        XCTAssertEqual(persistedSignupSessionID, "signup-session-123")
+    }
+
+    func test_unknownRecoveredSignupSessionClearsPersistedCredential() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("signup-session-123", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 404,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(#"{"error":{"code":"not_found","message":"Signup session not found"}}"#.utf8)
+            )
+        }
+
+        do {
+            _ = try await authService.recoverSignupSession()
+            XCTFail("Expected recovery to fail.")
+        } catch {
+            let persistedSignupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+            XCTAssertNil(persistedSignupSessionID)
+        }
     }
 
     func test_requestPasswordResetUsesCanonicalGenericContract() async throws {
@@ -344,7 +424,7 @@ final class AuthServiceTests: XCTestCase {
         }
 
         do {
-            try await authService.sendEmailCode(email: "aman@example.com")
+            _ = try await authService.sendEmailCode(email: "aman@example.com")
             XCTFail("Expected the signup-session request to fail.")
         } catch {
             let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
@@ -425,5 +505,24 @@ final class AuthServiceTests: XCTestCase {
 
     private nonisolated static func jsonBody(from request: URLRequest) throws -> [String: Any] {
         try requestJSONBody(from: request)
+    }
+
+    private nonisolated static func signupChannelSendPayload(channel: String) -> Data {
+        Data(
+            """
+            {
+              "signup_session_id": "signup-session-123",
+              "channel": "\(channel)",
+              "verified": false,
+              "email_verified": false,
+              "phone_verified": false,
+              "resend_after_seconds": 41,
+              "expires_in_seconds": 900,
+              "email_masked": "a***@example.com",
+              "phone_masked": "+91******3210",
+              "message": "Verification code sent"
+            }
+            """.utf8
+        )
     }
 }

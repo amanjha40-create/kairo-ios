@@ -13,12 +13,16 @@ private struct MissingAuthService: AuthServiceProtocol {
         fatalError("Missing auth service injection.")
     }
 
-    func sendEmailCode(email: String?) async throws {
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO {
+        fatalError("Missing auth service injection.")
+    }
+
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
         fatalError("Missing auth service injection.")
     }
 
-    func resendEmailCode(email: String?) async throws {
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
         _ = email
         fatalError("Missing auth service injection.")
     }
@@ -28,12 +32,12 @@ private struct MissingAuthService: AuthServiceProtocol {
         fatalError("Missing auth service injection.")
     }
 
-    func sendPhoneCode(mobileNumber: String?) async throws {
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
         fatalError("Missing auth service injection.")
     }
 
-    func resendPhoneCode(mobileNumber: String?) async throws {
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
         _ = mobileNumber
         fatalError("Missing auth service injection.")
     }
@@ -386,6 +390,11 @@ private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
 
     func revokeSession(id: String) async throws {
         _ = id
+        fatalError("Missing More overview service injection.")
+    }
+
+    func deleteAccount(confirm: String, currentPassword: String?) async throws {
+        _ = (confirm, currentPassword)
         fatalError("Missing More overview service injection.")
     }
 

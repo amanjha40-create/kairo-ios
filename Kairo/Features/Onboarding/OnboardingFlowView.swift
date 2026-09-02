@@ -4,6 +4,7 @@ struct OnboardingFlowView: View {
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.manualProfileService) private var manualProfileService
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
     @State private var flowState: OnboardingFlowState
     private let createAccountInitialTouchedFields: Set<CreateAccountField>
 
@@ -64,7 +65,9 @@ struct OnboardingFlowView: View {
         case .verifyIdentity:
             VerifyIdentityScreenView(
                 createAccountDraft: $flowState.createAccountDraft,
-                state: $flowState.verifyIdentityState
+                state: $flowState.verifyIdentityState,
+                recoveredSession: sessionStore.signupRecovery,
+                onStartOver: startOverRecoveredSignup
             )
         case .chooseStart:
             ChooseStartScreenView(state: $flowState.chooseStartState)
@@ -92,6 +95,15 @@ struct OnboardingFlowView: View {
     private func beginVerifyIdentity() {
         flowState.verifyIdentityState = VerifyIdentityFlowState()
         router.advanceOnboarding(from: .createAccount)
+    }
+
+    private func startOverRecoveredSignup() {
+        flowState.createAccountDraft = CreateAccountDraft()
+        flowState.verifyIdentityState = VerifyIdentityFlowState()
+
+        Task {
+            await sessionStore.abandonPendingSignup()
+        }
     }
 
     private var shouldPersistManualProfileDraft: Bool {

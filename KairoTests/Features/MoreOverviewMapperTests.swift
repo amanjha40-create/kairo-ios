@@ -161,6 +161,74 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertEqual(MoreOverviewMapper.cachedSummary(from: makeUser()).name, "Aman Jha")
     }
 
+    func test_accountDeletionFailureMappingDistinguishesAuthenticationAndPreservesBackendValidation() {
+        let unauthorized = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 401,
+            code: .unauthorized,
+            message: "Current password is incorrect"
+        ))
+        XCTAssertEqual(
+            unauthorized.currentPasswordError,
+            "The current password is missing or incorrect."
+        )
+        XCTAssertTrue(unauthorized.message.contains("not deleted"))
+
+        let validation = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 422,
+            code: .validationError,
+            message: "Account deletion requires confirm=DELETE"
+        ))
+        XCTAssertNil(validation.currentPasswordError)
+        XCTAssertEqual(validation.message, "Account deletion requires confirm=DELETE")
+    }
+
+    func test_accountDeletionFailureMappingCoversProtectedBackendFailureClasses() {
+        let forbidden = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 403,
+            code: .forbidden,
+            message: "Forbidden"
+        ))
+        let conflict = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 409,
+            code: .conflict,
+            message: "Conflict"
+        ))
+        let rateLimited = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 429,
+            code: .rateLimited,
+            message: "Rate limited"
+        ))
+        let serviceUnavailable = MoreAccountDeletionErrorMapper.map(apiError(
+            statusCode: 503,
+            code: .serviceUnavailable,
+            message: "Unavailable"
+        ))
+        let timeout = MoreAccountDeletionErrorMapper.map(
+            NetworkError.transport("The request timed out")
+        )
+
+        XCTAssertTrue(forbidden.message.contains("not eligible"))
+        XCTAssertTrue(conflict.message.contains("not deleted"))
+        XCTAssertTrue(rateLimited.message.contains("not deleted"))
+        XCTAssertTrue(serviceUnavailable.message.contains("session remain unchanged"))
+        XCTAssertTrue(timeout.message.contains("session was preserved"))
+    }
+
+    private func apiError(
+        statusCode: Int,
+        code: APIErrorCode,
+        message: String
+    ) -> NetworkError {
+        NetworkError.api(APIError(
+            statusCode: statusCode,
+            code: code,
+            message: message,
+            fieldErrors: [:],
+            globalErrors: [],
+            validationDetails: []
+        ))
+    }
+
     private func makeUser() -> AppUser {
         AppUser(
             id: "user_123",

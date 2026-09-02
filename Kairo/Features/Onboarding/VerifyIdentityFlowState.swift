@@ -158,9 +158,9 @@ enum VerificationChannel: String, Equatable, Sendable {
     var codeSentMessage: String {
         switch self {
         case .email:
-            "A placeholder 6-digit code is ready for this email address."
+            "A 6-digit code was sent to the email address linked to this signup."
         case .mobile:
-            "A placeholder 6-digit code is ready for this mobile number."
+            "A 6-digit code was sent to the mobile number linked to this signup."
         }
     }
 
@@ -298,9 +298,44 @@ struct VerifyIdentityFlowState: Equatable, Sendable {
     var email = ContactVerificationState(channel: .email)
     var mobile = ContactVerificationState(channel: .mobile)
 
+    var usesAuthoritativeRecovery: Bool {
+        email.isAuthoritativeContact || mobile.isAuthoritativeContact
+    }
+
     mutating func prepare(using draft: CreateAccountDraft) {
         email.prefillIfPristine(with: draft.emailAddress)
         mobile.prefillIfPristine(with: draft.mobileNumber)
+    }
+
+    mutating func applyRecovery(
+        _ recovery: SignupSessionRecoveryResponseDTO,
+        now: Date = Date()
+    ) {
+        guard recovery.state == .valid else {
+            return
+        }
+
+        email.applyAuthoritativeRecovery(
+            maskedContact: recovery.emailMasked,
+            isVerified: recovery.emailVerified,
+            resendAvailableAt: recovery.emailResendAvailableAt,
+            now: now
+        )
+        mobile.applyAuthoritativeRecovery(
+            maskedContact: recovery.phoneMasked,
+            isVerified: recovery.phoneVerified,
+            resendAvailableAt: recovery.phoneResendAvailableAt,
+            now: now
+        )
+
+        switch recovery.nextStep {
+        case .verifyEmail:
+            phase = .email
+        case .verifyPhone, .completeSignup:
+            phase = .mobile
+        case .completed, .none:
+            phase = .introduction
+        }
     }
 }
 
@@ -316,6 +351,7 @@ struct ContactVerificationState: Equatable, Sendable {
     var isVerifying = false
     var isVerified = false
     var countdownRemaining = 0
+    var isAuthoritativeContact = false
 
     init(channel: VerificationChannel, contactValue: String = "") {
         self.channel = channel
@@ -335,7 +371,11 @@ struct ContactVerificationState: Equatable, Sendable {
     }
 
     var contactErrorMessage: String? {
-        channel.contactValidationMessage(for: contactValue)
+        if isAuthoritativeContact {
+            return nil
+        }
+
+        return channel.contactValidationMessage(for: contactValue)
     }
 
     var displayedContactErrorMessage: String? {
@@ -398,7 +438,7 @@ struct ContactVerificationState: Equatable, Sendable {
     }
 
     mutating func prefillIfPristine(with value: String) {
-        guard isPristine else {
+        guard isPristine, !isAuthoritativeContact else {
             return
         }
 
@@ -406,6 +446,10 @@ struct ContactVerificationState: Equatable, Sendable {
     }
 
     mutating func setContactValue(_ value: String) {
+        guard !isAuthoritativeContact else {
+            return
+        }
+
         contactValue = channel.sanitizeContact(value)
         serverErrorMessage = nil
     }
@@ -438,14 +482,41 @@ struct ContactVerificationState: Equatable, Sendable {
         isSendingCode = true
     }
 
-    mutating func completeSendingCode() {
+    mutating func completeSendingCode(resendAfterSeconds: Int = 30) {
         isSendingCode = false
         hasSentCode = true
         isVerified = false
         otpCode = ""
         isOTPTouched = false
-        countdownRemaining = channel.countdownDuration
+        countdownRemaining = max(resendAfterSeconds, 0)
         serverErrorMessage = nil
+    }
+
+    mutating func applyAuthoritativeRecovery(
+        maskedContact: String,
+        isVerified: Bool,
+        resendAvailableAt: Date?,
+        now: Date
+    ) {
+        contactValue = maskedContact
+        otpCode = ""
+        serverErrorMessage = nil
+        isContactTouched = false
+        isOTPTouched = false
+        isSendingCode = false
+        isVerifying = false
+        self.isVerified = isVerified
+        isAuthoritativeContact = true
+        hasSentCode = !isVerified && resendAvailableAt != nil
+
+        if let resendAvailableAt, !isVerified {
+            countdownRemaining = max(
+                Int(ceil(resendAvailableAt.timeIntervalSince(now))),
+                0
+            )
+        } else {
+            countdownRemaining = 0
+        }
     }
 
     mutating func failSendingCode(message: String) {

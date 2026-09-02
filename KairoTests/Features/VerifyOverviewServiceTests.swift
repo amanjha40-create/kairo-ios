@@ -203,7 +203,7 @@ final class VerifyOverviewServiceTests: XCTestCase {
         await MockURLProtocolStorage.shared.setHandler { request in
             XCTAssertEqual(request.url?.absoluteString, "https://staging-api.kairoid.com/api/v1/verification-requests/request_1/submit-information")
             XCTAssertEqual(request.httpMethod, "POST")
-            let body = try XCTUnwrap(request.httpBody)
+            let body = try requestBodyData(from: request)
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(json["response"] as? String, "Updated employer contact")
             return (try Self.response(for: request, statusCode: 200), Self.requestDetailPayload)

@@ -48,19 +48,20 @@ final class AppSessionStoreTests: XCTestCase {
 
     func test_bootstrapRoutesToVerifyIdentityWhenSignupSessionExists() async {
         let router = AppRouter()
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(
+                currentStep: .complete,
+                passportReady: true,
+                completionPercentage: 100,
+                isOnboardingComplete: true
+            )
+        )
         let store = AppSessionStore(
             configuration: makeConfiguration(),
             uiTestConfiguration: .disabled,
             router: router,
-            authService: StubAuthService(
-                user: .fixture,
-                onboardingStatus: .fixture(
-                    currentStep: .complete,
-                    passportReady: true,
-                    completionPercentage: 100,
-                    isOnboardingComplete: true
-                )
-            ),
+            authService: authService,
             sessionService: StubSessionService(
                 hasAccessToken: false,
                 hasRefreshToken: false,
@@ -74,6 +75,182 @@ final class AppSessionStoreTests: XCTestCase {
 
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath.last, .step(.verifyIdentity))
+        XCTAssertEqual(store.signupRecovery?.emailMasked, "aa***@example.com")
+        XCTAssertEqual(store.signupRecovery?.phoneMasked, "+91******3210")
+        XCTAssertEqual(authService.recoveryCallCount, 1)
+    }
+
+    func test_expiredRecoveredSignupSessionIsDiscardedAndRoutesSignedOut() async {
+        let router = AppRouter()
+        let sessionService = StubSessionService(
+            hasAccessToken: false,
+            hasRefreshToken: false,
+            signupSessionID: "expired-signup-session"
+        )
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(currentStep: .verifyIdentity),
+            recoveryResponse: .fixture(state: .expired, nextStep: nil)
+        )
+        let store = makeStore(
+            router: router,
+            authService: authService,
+            sessionService: sessionService
+        )
+
+        await store.refreshLaunchRoute()
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath, [])
+        XCTAssertNil(store.signupRecovery)
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertNil(signupSessionID)
+    }
+
+    func test_unknownRecoveredSignupSessionIsDiscardedWithoutCreatingReplacement() async {
+        let router = AppRouter()
+        let sessionService = StubSessionService(
+            hasAccessToken: false,
+            hasRefreshToken: false,
+            signupSessionID: "unknown-signup-session"
+        )
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(currentStep: .verifyIdentity),
+            recoveryError: NetworkError.api(APIError(
+                statusCode: 404,
+                code: .notFound,
+                message: "Signup session not found",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        )
+        let store = makeStore(
+            router: router,
+            authService: authService,
+            sessionService: sessionService
+        )
+
+        await store.refreshLaunchRoute()
+
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertNil(signupSessionID)
+        XCTAssertEqual(authService.recoveryCallCount, 1)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath, [])
+    }
+
+    func test_completedRecoveredSignupSessionRoutesSignedOutWithoutCreatingReplacement() async {
+        let router = AppRouter()
+        let sessionService = StubSessionService(
+            hasAccessToken: false,
+            hasRefreshToken: false,
+            signupSessionID: "completed-signup-session"
+        )
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(currentStep: .complete),
+            recoveryResponse: .fixture(state: .completed, nextStep: .completed)
+        )
+        let store = makeStore(
+            router: router,
+            authService: authService,
+            sessionService: sessionService
+        )
+
+        await store.refreshLaunchRoute()
+
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertNil(signupSessionID)
+        XCTAssertEqual(authService.recoveryCallCount, 1)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath, [])
+    }
+
+    func test_transportFailurePreservesSignupCredentialForRetry() async {
+        let router = AppRouter()
+        let sessionService = StubSessionService(
+            hasAccessToken: false,
+            hasRefreshToken: false,
+            signupSessionID: "recoverable-signup-session"
+        )
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(currentStep: .verifyIdentity),
+            recoveryError: NetworkError.transport("offline")
+        )
+        let store = makeStore(
+            router: router,
+            authService: authService,
+            sessionService: sessionService
+        )
+
+        await store.refreshLaunchRoute()
+
+        guard case .failed(let message) = store.launchPhase else {
+            return XCTFail("Expected recovery to remain retryable after a transport failure.")
+        }
+        XCTAssertTrue(message.contains("network"))
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertEqual(signupSessionID, "recoverable-signup-session")
+        XCTAssertNil(store.signupRecovery)
+    }
+
+    func test_startingOverRecoveredSignupClearsOnlySignupCredentialAndRoutesToCreateAccount() async {
+        let router = AppRouter()
+        let sessionService = StubSessionService(
+            hasAccessToken: false,
+            hasRefreshToken: false,
+            signupSessionID: "recoverable-signup-session"
+        )
+        let store = makeStore(
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(currentStep: .verifyIdentity)
+            ),
+            sessionService: sessionService
+        )
+
+        await store.refreshLaunchRoute()
+        await store.abandonPendingSignup()
+
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertNil(signupSessionID)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath.last, .step(.createAccount))
+    }
+
+    func test_completedAccountDeletionClearsLocalSessionAndRoutesSignedOut() async {
+        let router = AppRouter(rootDestination: .mainTabs, selectedTab: .more, onboardingPath: [])
+        let sessionService = StubSessionService(
+            hasAccessToken: true,
+            hasRefreshToken: true,
+            signupSessionID: "stale-signup-session"
+        )
+        let store = makeStore(
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(currentStep: .complete, isOnboardingComplete: true)
+            ),
+            sessionService: sessionService
+        )
+
+        await store.completeAccountDeletion()
+
+        let didClearSession = await sessionService.didClearSession
+        let signupSessionID = await sessionService.signupSessionID
+        XCTAssertTrue(didClearSession)
+        XCTAssertNil(signupSessionID)
+        XCTAssertNil(store.currentUser)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath, [])
     }
 
     func test_bootstrapRoutesToMainTabsForCompletedOnboarding() async {
@@ -368,6 +545,22 @@ final class AppSessionStoreTests: XCTestCase {
             keychainService: "com.kairoid.Kairo.tests.appSession"
         )
     }
+
+    private func makeStore(
+        router: AppRouter,
+        authService: any AuthServiceProtocol,
+        sessionService: any SessionServiceProtocol
+    ) -> AppSessionStore {
+        AppSessionStore(
+            configuration: makeConfiguration(),
+            uiTestConfiguration: .disabled,
+            router: router,
+            authService: authService,
+            sessionService: sessionService,
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService()
+        )
+    }
 }
 
 private extension UITestLaunchConfiguration {
@@ -383,6 +576,7 @@ private actor StubSessionService: SessionServiceProtocol {
     let hasAccessToken: Bool
     let hasRefreshToken: Bool
     var signupSessionID: String?
+    private(set) var didClearSession = false
 
     init(
         hasAccessToken: Bool,
@@ -400,7 +594,10 @@ private actor StubSessionService: SessionServiceProtocol {
     func storeSignupSessionID(_ signupSessionID: String) async throws { self.signupSessionID = signupSessionID }
     func clearSignupSessionID() async throws { signupSessionID = nil }
     func persistTokens(_ tokens: TokenResponseDTO) async throws { _ = tokens }
-    func clearSession() async throws { signupSessionID = nil }
+    func clearSession() async throws {
+        signupSessionID = nil
+        didClearSession = true
+    }
     func logoutRemotely() async throws {}
     func prepareBootstrapSession() async throws -> Bool { hasAccessToken || hasRefreshToken }
     func sendAuthenticated(_ request: NetworkRequest) async throws -> Data {
@@ -412,11 +609,21 @@ private actor StubSessionService: SessionServiceProtocol {
 private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
     let user: UserPublicDTO
     let onboardingStatus: OnboardingStatusResponseDTO
+    let recoveryResponse: SignupSessionRecoveryResponseDTO
+    let recoveryError: Error?
     private(set) var didLogout = false
+    private(set) var recoveryCallCount = 0
 
-    init(user: UserPublicDTO, onboardingStatus: OnboardingStatusResponseDTO) {
+    init(
+        user: UserPublicDTO,
+        onboardingStatus: OnboardingStatusResponseDTO,
+        recoveryResponse: SignupSessionRecoveryResponseDTO = .fixture(),
+        recoveryError: Error? = nil
+    ) {
         self.user = user
         self.onboardingStatus = onboardingStatus
+        self.recoveryResponse = recoveryResponse
+        self.recoveryError = recoveryError
     }
 
     func signupStart(_ request: RegisterRequestDTO) async throws -> SignupStartResponseDTO {
@@ -432,11 +639,36 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
         )
     }
 
-    func sendEmailCode(email: String?) async throws { _ = email }
-    func resendEmailCode(email: String?) async throws { _ = email }
+    func recoverSignupSession() async throws -> SignupSessionRecoveryResponseDTO {
+        recoveryCallCount += 1
+        if let recoveryError {
+            throw recoveryError
+        }
+        return recoveryResponse
+    }
+
+    func sendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = email
+        return .fixture(channel: "email")
+    }
+
+    func resendEmailCode(email: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = email
+        return .fixture(channel: "email")
+    }
+
     func verifyEmail(email: String?, code: String) async throws { _ = (email, code) }
-    func sendPhoneCode(mobileNumber: String?) async throws { _ = mobileNumber }
-    func resendPhoneCode(mobileNumber: String?) async throws { _ = mobileNumber }
+
+    func sendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = mobileNumber
+        return .fixture(channel: "phone")
+    }
+
+    func resendPhoneCode(mobileNumber: String?) async throws -> SignupChannelSendResponseDTO {
+        _ = mobileNumber
+        return .fixture(channel: "phone")
+    }
+
     func verifyPhone(mobileNumber: String?, code: String) async throws { _ = (mobileNumber, code) }
 
     func completeSignup() async throws -> TokenResponseDTO {
@@ -484,6 +716,42 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
 
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
         onboardingStatus
+    }
+}
+
+private extension SignupSessionRecoveryResponseDTO {
+    static func fixture(
+        state: SignupSessionRecoveryStateDTO = .valid,
+        nextStep: SignupSessionNextStepDTO? = .verifyEmail
+    ) -> SignupSessionRecoveryResponseDTO {
+        SignupSessionRecoveryResponseDTO(
+            state: state,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: false,
+            phoneVerified: false,
+            nextStep: nextStep,
+            expiresAt: Date(timeIntervalSince1970: 1_788_400_000),
+            emailResendAvailableAt: nil,
+            phoneResendAvailableAt: nil
+        )
+    }
+}
+
+private extension SignupChannelSendResponseDTO {
+    static func fixture(channel: String) -> SignupChannelSendResponseDTO {
+        SignupChannelSendResponseDTO(
+            signupSessionID: "signup-session-123",
+            channel: channel,
+            verified: false,
+            emailVerified: false,
+            phoneVerified: false,
+            resendAfterSeconds: 30,
+            expiresInSeconds: 900,
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            message: "Verification code sent"
+        )
     }
 }
 

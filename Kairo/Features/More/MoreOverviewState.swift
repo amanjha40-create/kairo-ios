@@ -268,7 +268,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "deleteAccount",
                     title: "Delete account",
-                    subtitle: "Understand the future deletion flow before it ships.",
+                    subtitle: "Account deletion is unavailable in Demo Mode.",
                     systemImage: "trash"
                 )
             ],
@@ -459,7 +459,6 @@ enum MoreAppearanceOption: String, CaseIterable, Equatable, Sendable, Identifiab
 
 enum MorePendingConfirmation: String, Equatable, Sendable, Identifiable {
     case downloadMyData
-    case deleteAccount
     case signOut
     case withdrawConsent
     case revokeSession
@@ -470,8 +469,6 @@ enum MorePendingConfirmation: String, Equatable, Sendable, Identifiable {
         switch self {
         case .downloadMyData:
             "Download my data"
-        case .deleteAccount:
-            "Delete account"
         case .signOut:
             "Sign Out"
         case .withdrawConsent:

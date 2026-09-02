@@ -124,11 +124,11 @@ struct AppConfiguration: Equatable, Sendable {
     }
 
     var termsOfServiceURL: URL? {
-        nil
+        URL(string: "https://kairoid.com/terms")
     }
 
     var privacyPolicyURL: URL? {
-        nil
+        URL(string: "https://kairoid.com/privacy")
     }
 
     var cookiePolicyURL: URL? {
