@@ -24,6 +24,8 @@
 	<string>$(KAIRO_BUILD_CONFIGURATION)</string>
 	<key>KAIRODemoMode</key>
 	<string>$(KAIRO_DEMO_MODE_DEFAULT)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MinimumOSVersion</key>
