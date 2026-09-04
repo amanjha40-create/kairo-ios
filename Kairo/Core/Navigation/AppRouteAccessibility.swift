@@ -117,6 +117,20 @@ nonisolated enum KairoAccessibilityID {
     static let candidateNetworkStatusMessage = "candidate.networkStatusMessage"
     static let homeScreen = "candidate.home.screen"
     static let homeNotificationsButton = "candidate.home.notifications"
+    static let notificationsUnreadBadge = "candidate.notifications.unreadBadge"
+    static let notificationsCenter = "candidate.notifications.center"
+    static let notificationsMarkAllRead = "candidate.notifications.markAllRead"
+    static let notificationsEmptyState = "candidate.notifications.empty"
+    static let notificationsErrorState = "candidate.notifications.error"
+    static let notificationDetail = "candidate.notifications.detail"
+
+    static func notificationRow(_ id: String) -> String {
+        "candidate.notifications.row.\(id)"
+    }
+
+    static func notificationUnreadIndicator(_ id: String) -> String {
+        "candidate.notifications.unread.\(id)"
+    }
     static let homeTrustScoreCard = "candidate.home.trustScore"
     static let homeViewTrustPassport = "candidate.home.viewTrustPassport"
     static let homeRecommendation = "candidate.home.recommendation"

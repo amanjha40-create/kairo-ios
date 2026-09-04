@@ -6,6 +6,7 @@ struct HomeOverviewScreenView: View {
     var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @Environment(\.appConfiguration) private var appConfiguration
 
     var body: some View {
@@ -31,6 +32,9 @@ struct HomeOverviewScreenView: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeScreen)
+        .task {
+            await notificationStore.refreshUnreadCount()
+        }
     }
 
     private var topContentPadding: CGFloat {
@@ -74,21 +78,34 @@ struct HomeOverviewScreenView: View {
                 Spacer(minLength: KairoSpacing.medium)
 
                 HStack(spacing: KairoSpacing.small) {
-                    Button(action: {}) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(width: 42, height: 42)
-                            .foregroundStyle(KairoColors.textPrimary)
-                            .background(KairoColors.surface, in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(KairoColors.border, lineWidth: 1)
-                            )
+                    Button(action: { router.showNotificationCenter() }) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(width: 42, height: 42)
+                                .foregroundStyle(KairoColors.textPrimary)
+                                .background(KairoColors.surface, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(KairoColors.border, lineWidth: 1)
+                                )
+
+                            if let badge = notificationStore.unreadBadgeText {
+                                Text(badge)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(minWidth: 18, minHeight: 18)
+                                    .padding(.horizontal, badge.count > 1 ? 2 : 0)
+                                    .background(KairoColors.danger, in: Capsule())
+                                    .offset(x: 3, y: -3)
+                                    .accessibilityIdentifier(KairoAccessibilityID.notificationsUnreadBadge)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(KairoAccessibilityID.homeNotificationsButton)
-                    .accessibilityLabel("Notifications")
-                    .accessibilityHint("Notifications will be added in a later milestone.")
+                    .accessibilityLabel(notificationBellAccessibilityLabel)
+                    .accessibilityHint("Opens Notifications.")
 
                     ZStack {
                         Circle()
@@ -112,6 +129,13 @@ struct HomeOverviewScreenView: View {
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
         }
+    }
+
+    private var notificationBellAccessibilityLabel: String {
+        guard let count = notificationStore.unreadCount, count > 0 else {
+            return "Notifications"
+        }
+        return "Notifications, \(count) unread"
     }
 
     @ViewBuilder

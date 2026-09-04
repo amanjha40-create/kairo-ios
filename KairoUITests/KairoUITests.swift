@@ -99,6 +99,12 @@ final class KairoUITests: XCTestCase {
     private let homeRecentActivity = "candidate.home.recentActivity"
     private let homeRecentPassportViews = "candidate.home.recentPassportViews"
     private let homeRecentPassportViewsOpen = "candidate.home.recentPassportViews.open"
+    private let homeNotificationsButton = "candidate.home.notifications"
+    private let notificationsUnreadBadge = "candidate.notifications.unreadBadge"
+    private let notificationsCenter = "candidate.notifications.center"
+    private let notificationsMarkAllRead = "candidate.notifications.markAllRead"
+    private let notificationsEmptyState = "candidate.notifications.empty"
+    private let notificationsErrorState = "candidate.notifications.error"
     private let careerScreen = "candidate.career.screen"
     private let careerSummarySection = "candidate.career.summary"
     private let careerEmploymentSection = "candidate.career.employment"
@@ -223,6 +229,73 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Trust Score"].exists)
+    }
+
+    @MainActor
+    func testHomeBellOpensDeterministicNotificationCenterWithUnreadBadge() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "unread"))
+
+        XCTAssertTrue(app.buttons[homeNotificationsButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[notificationsUnreadBadge].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts[notificationsUnreadBadge].label, "2")
+        app.buttons[homeNotificationsButton].tap()
+
+        XCTAssertTrue(app.otherElements[notificationsCenter].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["candidate.notifications.row.demo-verification-complete"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testUnreadVerificationNotificationMarksReadAndRoutesToCanonicalVerifyDetail() throws {
+        let environment = notificationsEnvironment(state: "unread")
+            .merging(["KAIRO_UI_TEST_VERIFY_STATE": "populated"]) { _, override in override }
+        let app = launchApp(environment: environment)
+
+        app.buttons[homeNotificationsButton].tap()
+        let row = app.buttons["candidate.notifications.row.demo-verification-complete"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        XCTAssertTrue(verifyScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[verifyRequestDetail].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["candidate.notifications.unread.demo-verification-complete"].exists)
+    }
+
+    @MainActor
+    func testNotificationCenterMarkAllReadUsesAuthoritativeDemoServiceState() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "unread"))
+
+        app.buttons[homeNotificationsButton].tap()
+        let markAll = app.buttons[notificationsMarkAllRead]
+        XCTAssertTrue(markAll.waitForExistence(timeout: 10))
+        markAll.tap()
+
+        XCTAssertFalse(markAll.waitForExistence(timeout: 2))
+        app.buttons["Done"].tap()
+        XCTAssertFalse(app.staticTexts[notificationsUnreadBadge].exists)
+    }
+
+    @MainActor
+    func testNotificationCenterEmptyStateIsTruthful() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "empty"))
+
+        app.buttons[homeNotificationsButton].tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)[notificationsEmptyState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No notifications yet"].exists)
+        XCTAssertFalse(app.buttons[notificationsMarkAllRead].exists)
+    }
+
+    @MainActor
+    func testNotificationCenterErrorCanRetryWithoutLiveNetworking() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "error"))
+
+        app.buttons[homeNotificationsButton].tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)[notificationsErrorState].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Try Again"].waitForExistence(timeout: 10))
+        app.buttons["Try Again"].tap()
+        XCTAssertTrue(app.buttons["candidate.notifications.row.demo-verification-complete"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -1806,6 +1879,12 @@ final class KairoUITests: XCTestCase {
             uiTestRouteKey: "demoHome",
             "KAIRO_UI_TEST_HOME_STATE": state
         ]
+    }
+
+    private func notificationsEnvironment(state: String) -> [String: String] {
+        homeEnvironment().merging([
+            "KAIRO_UI_TEST_NOTIFICATIONS_STATE": state
+        ]) { _, override in override }
     }
 
     private func careerEnvironment(state: String = "populated") -> [String: String] {

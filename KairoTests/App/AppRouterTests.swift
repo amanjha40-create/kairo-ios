@@ -3,6 +3,18 @@ import XCTest
 
 @MainActor
 final class AppRouterTests: XCTestCase {
+    func test_notificationCenterUsesCanonicalRouterPresentation() {
+        let router = AppRouter(rootDestination: .mainTabs)
+
+        XCTAssertNil(router.notificationCenterPresentation)
+        router.showNotificationCenter()
+        XCTAssertNotNil(router.notificationCenterPresentation)
+
+        router.dismissNotificationCenter()
+        XCTAssertNil(router.notificationCenterPresentation)
+        XCTAssertEqual(router.rootDestination, .mainTabs)
+    }
+
     func test_onboardingAdvancesIntoMainTabs() {
         let router = AppRouter()
 

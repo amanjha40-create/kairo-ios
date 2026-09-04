@@ -15,6 +15,7 @@ struct AppDependencies: Sendable {
     let passportShareService: any PassportShareServiceProtocol
     let passportPDFExportService: any PassportPDFExportServiceProtocol
     let moreOverviewService: any MoreOverviewServiceProtocol
+    let candidateNotificationService: any CandidateNotificationServiceProtocol
 
     static func make(
         configuration: AppConfiguration,
@@ -105,6 +106,14 @@ struct AppDependencies: Sendable {
             sessionService: sessionService,
             bundleAppVersion: bundleAppVersion()
         )
+        let candidateNotificationService: any CandidateNotificationServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoCandidateNotificationService(
+                    fixture: UITestNotificationConfiguration.current().fixture ?? .unread
+                )
+            } else {
+                CandidateNotificationService(sessionService: sessionService)
+            }
 
         return AppDependencies(
             networkClient: networkClient,
@@ -120,7 +129,8 @@ struct AppDependencies: Sendable {
             passportOverviewService: passportOverviewService,
             passportShareService: passportShareService,
             passportPDFExportService: passportPDFExportService,
-            moreOverviewService: moreOverviewService
+            moreOverviewService: moreOverviewService,
+            candidateNotificationService: candidateNotificationService
         )
     }
 

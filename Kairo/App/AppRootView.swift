@@ -4,6 +4,7 @@ struct AppRootView: View {
     @Environment(\.appConfiguration) private var appConfiguration
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var notificationStore: CandidateNotificationStore
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -43,6 +44,12 @@ struct AppRootView: View {
         .sheet(item: publicPassportPresentationBinding) { presentation in
             PublicPassportHandoffView(presentation: presentation)
         }
+        .sheet(item: notificationCenterPresentationBinding) { _ in
+            CandidateNotificationCenterView()
+        }
+        .onChange(of: sessionStore.currentUser?.id) { _, _ in
+            notificationStore.reset()
+        }
     }
 
     private var publicPassportPresentationBinding: Binding<PublicPassportPresentation?> {
@@ -51,6 +58,17 @@ struct AppRootView: View {
             set: { presentation in
                 if presentation == nil {
                     router.dismissPublicPassportPresentation()
+                }
+            }
+        )
+    }
+
+    private var notificationCenterPresentationBinding: Binding<NotificationCenterPresentation?> {
+        Binding(
+            get: { router.notificationCenterPresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissNotificationCenter()
                 }
             }
         )

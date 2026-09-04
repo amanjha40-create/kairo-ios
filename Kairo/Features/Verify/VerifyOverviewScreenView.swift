@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VerifyOverviewFixtureHostView: View {
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @State private var state: VerifyOverviewState
 
     init(state: VerifyOverviewState) {
@@ -8,7 +9,13 @@ struct VerifyOverviewFixtureHostView: View {
     }
 
     var body: some View {
-        VerifyOverviewScreenView(state: $state)
+        VerifyOverviewScreenView(
+            state: $state,
+            focusedRequestID: refreshStore.focusedVerificationRequestID,
+            focusedRequestPresentedHandler: { requestID in
+                refreshStore.clearVerificationFocus(requestID: requestID)
+            }
+        )
     }
 }
 

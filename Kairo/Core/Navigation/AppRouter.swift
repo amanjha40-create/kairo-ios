@@ -8,6 +8,7 @@ final class AppRouter: ObservableObject {
     @Published var onboardingPath: [OnboardingDestination]
     @Published private(set) var publicPassportPresentation: PublicPassportPresentation?
     @Published private(set) var passportActivityRequestID: UUID?
+    @Published private(set) var notificationCenterPresentation: NotificationCenterPresentation?
 
     init(
         rootDestination: RootDestination = .onboarding,
@@ -19,6 +20,7 @@ final class AppRouter: ObservableObject {
         self.onboardingPath = onboardingPath
         publicPassportPresentation = nil
         passportActivityRequestID = nil
+        notificationCenterPresentation = nil
     }
 
     func showOnboarding() {
@@ -123,5 +125,13 @@ final class AppRouter: ObservableObject {
 
     func consumePassportActivityRequest() {
         passportActivityRequestID = nil
+    }
+
+    func showNotificationCenter() {
+        notificationCenterPresentation = NotificationCenterPresentation()
+    }
+
+    func dismissNotificationCenter() {
+        notificationCenterPresentation = nil
     }
 }

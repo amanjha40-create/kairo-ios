@@ -6,6 +6,7 @@ struct KairoApp: App {
     @StateObject private var router: AppRouter
     @StateObject private var sessionStore: AppSessionStore
     @StateObject private var candidateDataRefreshStore: CandidateDataRefreshStore
+    @StateObject private var candidateNotificationStore: CandidateNotificationStore
 
     init() {
         let configuration = AppConfiguration.resolve()
@@ -38,6 +39,9 @@ struct KairoApp: App {
             resumeImportService: dependencies.resumeImportService
         ))
         _candidateDataRefreshStore = StateObject(wrappedValue: CandidateDataRefreshStore())
+        _candidateNotificationStore = StateObject(wrappedValue: CandidateNotificationStore(
+            service: dependencies.candidateNotificationService
+        ))
         self.configuration = configuration
         self.dependencies = dependencies
     }
@@ -51,6 +55,7 @@ struct KairoApp: App {
                 .environmentObject(router)
                 .environmentObject(sessionStore)
                 .environmentObject(candidateDataRefreshStore)
+                .environmentObject(candidateNotificationStore)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)

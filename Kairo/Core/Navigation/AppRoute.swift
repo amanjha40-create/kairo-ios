@@ -5,6 +5,14 @@ enum RootDestination: Equatable {
     case mainTabs
 }
 
+struct NotificationCenterPresentation: Identifiable, Equatable {
+    let id: UUID
+
+    init(id: UUID = UUID()) {
+        self.id = id
+    }
+}
+
 enum OnboardingDestination: Hashable, Identifiable {
     case step(OnboardingStep)
     case loginPlaceholder
