@@ -89,6 +89,21 @@ private struct MissingHomeOverviewService: HomeOverviewServiceProtocol {
     }
 }
 
+private struct MissingTrustScoreService: TrustScoreServiceProtocol {
+    func loadScore() async throws -> TrustScoreResponseDTO {
+        fatalError("Missing Trust Score service injection.")
+    }
+
+    func grantConsent(version: String) async throws -> TrustScoreResponseDTO {
+        _ = version
+        fatalError("Missing Trust Score service injection.")
+    }
+
+    func withdrawConsent() async throws -> TrustScoreResponseDTO {
+        fatalError("Missing Trust Score service injection.")
+    }
+}
+
 private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
     func loadOverview() async throws -> CareerOverview {
         fatalError("Missing career overview service injection.")
@@ -179,14 +194,40 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
         fatalError("Missing career overview service injection.")
     }
 
-    func replaceSkill(id: String, with request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
-        _ = (id, request)
-        fatalError("Missing career overview service injection.")
-    }
-
     func deleteSkill(id: String) async throws -> CareerOverview {
         _ = id
         fatalError("Missing career overview service injection.")
+    }
+}
+
+private struct MissingCareerDocumentService: CareerDocumentServiceProtocol {
+    func listDocuments(for parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        _ = parent
+        fatalError("Missing Career document service injection.")
+    }
+
+    func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType] {
+        _ = parent
+        fatalError("Missing Career document service injection.")
+    }
+
+    func uploadDocument(
+        fileURL: URL,
+        documentType: String,
+        to parent: CareerDocumentParent
+    ) async throws -> [CareerDocument] {
+        _ = (fileURL, documentType, parent)
+        fatalError("Missing Career document service injection.")
+    }
+
+    func downloadURL(for document: CareerDocument, parent: CareerDocumentParent) async throws -> URL {
+        _ = (document, parent)
+        fatalError("Missing Career document service injection.")
+    }
+
+    func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        _ = (document, parent)
+        fatalError("Missing Career document service injection.")
     }
 }
 
@@ -410,6 +451,11 @@ private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
     func withdrawTrustScoreConsent() async throws -> MoreOverview {
         fatalError("Missing More overview service injection.")
     }
+
+    func grantTrustScoreConsent(version: String) async throws -> MoreOverview {
+        _ = version
+        fatalError("Missing More overview service injection.")
+    }
 }
 
 private actor MissingTokenStore: TokenStore {
@@ -455,8 +501,16 @@ private struct HomeOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any HomeOverviewServiceProtocol = MissingHomeOverviewService()
 }
 
+private struct TrustScoreServiceKey: EnvironmentKey {
+    static let defaultValue: any TrustScoreServiceProtocol = MissingTrustScoreService()
+}
+
 private struct CareerOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any CareerOverviewServiceProtocol = MissingCareerOverviewService()
+}
+
+private struct CareerDocumentServiceKey: EnvironmentKey {
+    static let defaultValue: any CareerDocumentServiceProtocol = MissingCareerDocumentService()
 }
 
 private struct ManualProfileServiceKey: EnvironmentKey {
@@ -517,9 +571,19 @@ extension EnvironmentValues {
         set { self[HomeOverviewServiceKey.self] = newValue }
     }
 
+    var trustScoreService: any TrustScoreServiceProtocol {
+        get { self[TrustScoreServiceKey.self] }
+        set { self[TrustScoreServiceKey.self] = newValue }
+    }
+
     var careerOverviewService: any CareerOverviewServiceProtocol {
         get { self[CareerOverviewServiceKey.self] }
         set { self[CareerOverviewServiceKey.self] = newValue }
+    }
+
+    var careerDocumentService: any CareerDocumentServiceProtocol {
+        get { self[CareerDocumentServiceKey.self] }
+        set { self[CareerDocumentServiceKey.self] = newValue }
     }
 
     var manualProfileService: any ManualProfileServiceProtocol {

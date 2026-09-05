@@ -70,14 +70,6 @@ struct CareerOverviewContainerView: View {
                 pendingDeleteRequest = .project(item)
             },
             addSkillAction: { presentedSheet = .skill(mode: .create, recordID: nil, draft: .init(), existingNames: currentSkillNames()) },
-            editSkillAction: { item in
-                presentedSheet = .skill(
-                    mode: .edit,
-                    recordID: item.routeID,
-                    draft: CareerSkillDraft(name: item.name),
-                    existingNames: currentSkillNames(excluding: item.routeID)
-                )
-            },
             deleteSkillAction: { item in
                 pendingDeleteRequest = .skill(item)
             }
@@ -418,13 +410,8 @@ struct CareerOverviewContainerView: View {
         case .create:
             overview = try await careerOverviewService.createSkill(draft.createRequest())
         case .edit:
-            guard let recordID else {
-                throw CareerOverviewContainerError.missingRecordIdentifier
-            }
-            overview = try await careerOverviewService.replaceSkill(
-                id: recordID,
-                with: draft.createRequest()
-            )
+            _ = recordID
+            throw CareerOverviewContainerError.skillRenameUnavailable
         }
 
         await applyUpdatedOverview(overview)
@@ -496,6 +483,7 @@ struct CareerOverviewContainerView: View {
         await MainActor.run {
             sessionStore.replaceCurrentUser(overview.user)
             state = CareerOverviewMapper.map(overview)
+            refreshStore.candidateDataChanged()
         }
     }
 
@@ -549,6 +537,7 @@ struct CareerOverviewContainerView: View {
 private enum CareerOverviewContainerError: LocalizedError {
     case missingCurrentUser
     case missingRecordIdentifier
+    case skillRenameUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -556,6 +545,8 @@ private enum CareerOverviewContainerError: LocalizedError {
             "Kairo couldn't load the current candidate profile required for this Career change."
         case .missingRecordIdentifier:
             "Kairo couldn't find the backend record identifier required for this Career change."
+        case .skillRenameUnavailable:
+            "Skill renaming is unavailable because the backend does not provide an atomic update route. Delete and add the skill deliberately instead."
         }
     }
 }

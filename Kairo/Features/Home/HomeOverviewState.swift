@@ -289,7 +289,7 @@ struct HomeTrustTask: Equatable, Identifiable, Sendable {
             case .complete:
                 "Complete"
             case .comingSoon:
-                "Coming soon"
+                "Available in Career"
             }
         }
     }

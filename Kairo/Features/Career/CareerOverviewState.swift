@@ -73,14 +73,16 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                             title: "People Operations Foundations",
                             issuer: "Northline Academy",
                             issueDate: "Mar 2025",
-                            verificationStatus: .verified
+                            verificationStatus: .verified,
+                            hasDocument: true
                         ),
                         CareerCertificationItem(
                             routeID: "fixture_certification_2",
                             title: "Candidate Experience Design",
                             issuer: "BrightPath Learning",
                             issueDate: "Nov 2023",
-                            verificationStatus: .pendingVerification
+                            verificationStatus: .pendingVerification,
+                            hasDocument: false
                         )
                     ],
                     projects: [
@@ -404,6 +406,7 @@ nonisolated struct CareerCertificationItem: Equatable, Identifiable, Sendable {
     let issuer: String
     let issueDate: String
     let verificationStatus: CareerVerificationStatus
+    let hasDocument: Bool
 
     var id: String { routeID }
 }

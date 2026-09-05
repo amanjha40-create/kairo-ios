@@ -515,7 +515,7 @@ private struct PassportShareMutationForm: View {
 
             permissionGroup(
                 title: "Passport sections",
-                options: [.employments, .educations, .internships, .freelance, .gigPlatforms, .portfolio, .certifications, .skills, .projects]
+                options: PassportSharePermissionOption.candidateV1Sections
             )
             permissionGroup(
                 title: "Additional details",

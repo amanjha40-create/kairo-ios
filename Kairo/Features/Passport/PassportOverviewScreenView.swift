@@ -30,8 +30,6 @@ struct PassportOverviewScreenView: View {
                         service: passportShareService,
                         onMutation: { refreshStore.passportSharesChanged() }
                     )
-                default:
-                    PassportPlaceholderSheet(destination: destination)
                 }
             }
             .sheet(item: $pdfExportModel.artifact, onDismiss: {
@@ -221,7 +219,10 @@ struct PassportOverviewScreenView: View {
             educationSection(content.education)
             certificationsSection(content.certifications)
             projectsSection(content.projects)
-            trustTimelineSection(content.timeline)
+            skillsSection(content.skills)
+            if case .available = content.timeline {
+                trustTimelineSection(content.timeline)
+            }
             actionsSection
         }
     }
@@ -307,7 +308,7 @@ struct PassportOverviewScreenView: View {
 
                 PassportInlineButton(
                     title: "View score details",
-                    action: { modalDestination = .scoreDetails }
+                    action: { router.showTrustScoreDetails() }
                 )
             }
         }
@@ -421,24 +422,25 @@ struct PassportOverviewScreenView: View {
 
     private func employmentSection(_ items: [PassportEmploymentRecord]) -> some View {
         passportRecordSection(
-            title: "Employment",
+            title: "Employment (\(items.count))",
             accessibilityIdentifier: KairoAccessibilityID.passportEmploymentSection
         ) {
-            ForEach(items) { item in
-                KairoCard {
-                    passportRecordHeader(
-                        title: item.company,
-                        subtitle: item.role,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No employment in your Trust Passport yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        passportRecordHeader(
+                            title: item.company,
+                            subtitle: item.role,
+                            status: item.verificationStatus
+                        )
 
-                    passportRecordMeta(title: "Dates", value: item.dateRange)
-                    passportRecordMeta(title: "Evidence", value: item.evidenceSummary)
-
-                    PassportInlineButton(
-                        title: "View details",
-                        action: { modalDestination = .employmentDetails(item.company) }
-                    )
+                        passportRecordMeta(title: "Dates", value: item.dateRange)
+                        if !item.evidenceSummary.isEmpty {
+                            passportRecordMeta(title: "Supporting evidence", value: item.evidenceSummary)
+                        }
+                    }
                 }
             }
         }
@@ -446,19 +448,25 @@ struct PassportOverviewScreenView: View {
 
     private func educationSection(_ items: [PassportEducationRecord]) -> some View {
         passportRecordSection(
-            title: "Education",
+            title: "Education (\(items.count))",
             accessibilityIdentifier: KairoAccessibilityID.passportEducationSection
         ) {
-            ForEach(items) { item in
-                KairoCard {
-                    passportRecordHeader(
-                        title: item.institution,
-                        subtitle: item.qualification,
-                        status: item.verificationStatus
-                    )
+            if items.isEmpty {
+                emptySectionCard(message: "No education in your Trust Passport yet.")
+            } else {
+                ForEach(items) { item in
+                    KairoCard {
+                        passportRecordHeader(
+                            title: item.institution,
+                            subtitle: item.qualification,
+                            status: item.verificationStatus
+                        )
 
-                    passportRecordMeta(title: "Dates", value: item.dateRange)
-                    passportRecordMeta(title: "Evidence", value: item.evidenceSummary)
+                        passportRecordMeta(title: "Dates", value: item.dateRange)
+                        if !item.evidenceSummary.isEmpty {
+                            passportRecordMeta(title: "Details", value: item.evidenceSummary)
+                        }
+                    }
                 }
             }
         }
@@ -466,7 +474,7 @@ struct PassportOverviewScreenView: View {
 
     private func certificationsSection(_ items: [PassportCertificationRecord]) -> some View {
         passportRecordSection(
-            title: "Certifications",
+            title: "Certifications (\(items.count))",
             accessibilityIdentifier: KairoAccessibilityID.passportCertificationsSection
         ) {
             if items.isEmpty {
@@ -481,7 +489,9 @@ struct PassportOverviewScreenView: View {
                         )
 
                         passportRecordMeta(title: "Issue date", value: item.issueDate)
-                        passportRecordMeta(title: "Evidence", value: item.evidenceSummary)
+                        if !item.evidenceSummary.isEmpty {
+                            passportRecordMeta(title: "Credential", value: item.evidenceSummary)
+                        }
                     }
                 }
             }
@@ -490,7 +500,7 @@ struct PassportOverviewScreenView: View {
 
     private func projectsSection(_ items: [PassportProjectRecord]) -> some View {
         passportRecordSection(
-            title: "Projects & Portfolio",
+            title: "Projects (\(items.count))",
             accessibilityIdentifier: KairoAccessibilityID.passportProjectsSection
         ) {
             if items.isEmpty {
@@ -505,8 +515,36 @@ struct PassportOverviewScreenView: View {
 
                         passportRecordMeta(title: "Role", value: item.role)
                         passportRecordMeta(title: "Date", value: item.date)
-                        passportRecordMeta(title: "Evidence", value: item.evidenceStatus)
-                        passportRecordMeta(title: "Portfolio", value: item.portfolioLinkTitle)
+                        if !item.evidenceStatus.isEmpty {
+                            passportRecordMeta(title: "Project details", value: item.evidenceStatus)
+                        }
+                        if !item.portfolioLinkTitle.isEmpty {
+                            passportRecordMeta(title: "Project link", value: item.portfolioLinkTitle)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func skillsSection(_ items: [PassportSkillRecord]) -> some View {
+        passportRecordSection(
+            title: "Skills (\(items.count))",
+            accessibilityIdentifier: KairoAccessibilityID.passportSkillsSection
+        ) {
+            if items.isEmpty {
+                emptySectionCard(message: "No skills in your Trust Passport yet.")
+            } else {
+                KairoCard {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        HStack(alignment: .center, spacing: KairoSpacing.medium) {
+                            Text(item.name)
+                                .font(KairoTypography.bodyStrong)
+                                .foregroundStyle(KairoColors.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            PassportBadge(status: item.verificationStatus)
+                        }
+                        if index < items.count - 1 { Divider() }
                     }
                 }
             }
@@ -792,94 +830,15 @@ private struct PassportInlineButton: View {
 }
 
 private enum PassportModalDestination: Identifiable {
-    case scoreDetails
-    case employmentDetails(String)
     case sharePassport
     case shareActivity
-    case previewPassport
 
     var id: String {
         switch self {
-        case .scoreDetails:
-            "passport.scoreDetails"
-        case .employmentDetails(let company):
-            "passport.employment.\(company)"
         case .sharePassport:
             "passport.share"
         case .shareActivity:
             "passport.shareActivity"
-        case .previewPassport:
-            "passport.preview"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .scoreDetails:
-            "Trust Score details"
-        case .employmentDetails:
-            "Employment details"
-        case .sharePassport:
-            "Share Trust Passport"
-        case .shareActivity:
-            "Views & Share Activity"
-        case .previewPassport:
-            "Preview public Passport"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .scoreDetails:
-            "Trust Score calculation and score history will be connected in a later milestone. This screen currently preserves the approved local placeholder experience."
-        case .employmentDetails(let company):
-            "Detailed verification evidence for \(company) will be connected in a later milestone."
-        case .sharePassport:
-            "Sharing flows and public destinations will be connected in a later milestone."
-        case .shareActivity:
-            "Authoritative Passport view and share history."
-        case .previewPassport:
-            "Public Passport preview will be connected in a later milestone."
-        }
-    }
-}
-
-private struct PassportPlaceholderSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let destination: PassportModalDestination
-
-    var body: some View {
-        NavigationStack {
-            KairoScreenContainer(
-                title: destination.title,
-                subtitle: destination.message,
-                titleAccessibilityIdentifier: "passport.placeholder.title",
-                scrollBehavior: .fixed
-            ) {
-                KairoCard {
-                    Text("Placeholder")
-                        .font(KairoTypography.title2)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    Text(destination.message)
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                KairoPrimaryButton(
-                    title: "Done",
-                    action: { dismiss() }
-                )
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 }

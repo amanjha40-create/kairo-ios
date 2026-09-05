@@ -9,6 +9,17 @@ final class PassportShareManagementTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func test_candidateV1ShareSectionsExcludeBackendOnlyCareerCategories() {
+        XCTAssertEqual(
+            PassportSharePermissionOption.candidateV1Sections,
+            [.employments, .educations, .certifications, .skills, .projects]
+        )
+        XCTAssertFalse(PassportSharePermissionOption.candidateV1Sections.contains(.internships))
+        XCTAssertFalse(PassportSharePermissionOption.candidateV1Sections.contains(.freelance))
+        XCTAssertFalse(PassportSharePermissionOption.candidateV1Sections.contains(.gigPlatforms))
+        XCTAssertFalse(PassportSharePermissionOption.candidateV1Sections.contains(.portfolio))
+    }
+
     func test_listSharesDecodesPageAndAllBackendLifecycleStates() async throws {
         let service = try await makeService()
 

@@ -8,7 +8,9 @@ struct AppDependencies: Sendable {
     let manualProfileService: any ManualProfileServiceProtocol
     let resumeImportService: any ResumeImportServiceProtocol
     let homeOverviewService: any HomeOverviewServiceProtocol
+    let trustScoreService: any TrustScoreServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
+    let careerDocumentService: any CareerDocumentServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
     let verificationInitiationService: any VerificationInitiationServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
@@ -73,10 +75,22 @@ struct AppDependencies: Sendable {
             authService: authService,
             sessionService: sessionService
         )
+        let trustScoreService: any TrustScoreServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoTrustScoreService()
+            } else {
+                TrustScoreService(sessionService: sessionService)
+            }
         let careerOverviewService = CareerOverviewService(
             authService: authService,
             sessionService: sessionService
         )
+        let careerDocumentService: any CareerDocumentServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoCareerDocumentService()
+            } else {
+                CareerDocumentService(sessionService: sessionService)
+            }
         let verifyOverviewService = VerifyOverviewService(
             sessionService: sessionService
         )
@@ -123,7 +137,9 @@ struct AppDependencies: Sendable {
             manualProfileService: manualProfileService,
             resumeImportService: resumeImportService,
             homeOverviewService: homeOverviewService,
+            trustScoreService: trustScoreService,
             careerOverviewService: careerOverviewService,
+            careerDocumentService: careerDocumentService,
             verifyOverviewService: verifyOverviewService,
             verificationInitiationService: verificationInitiationService,
             passportOverviewService: passportOverviewService,

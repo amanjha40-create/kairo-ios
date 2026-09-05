@@ -33,8 +33,12 @@ final class PassportOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.education.first?.dateRange, "Jun 2016 – May 2019")
         XCTAssertEqual(content.certifications, [])
         XCTAssertEqual(content.projects, [])
+        XCTAssertEqual(content.skills.map(\.name), ["Trust Operations"])
+        XCTAssertEqual(content.skills.first?.verificationStatus, .verified)
         XCTAssertEqual(content.strengthSummary.first?.title, "Identity")
         XCTAssertEqual(content.strengthSummary[3].value, "1 verified")
+        XCTAssertEqual(content.strengthSummary[7].title, "Skills")
+        XCTAssertEqual(content.strengthSummary[7].value, "4 verified")
         XCTAssertTrue(timeline.message.contains("does not currently provide"))
     }
 

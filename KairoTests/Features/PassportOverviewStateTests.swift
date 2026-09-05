@@ -20,11 +20,12 @@ final class PassportOverviewStateTests: XCTestCase {
 
         XCTAssertEqual(state.header.name, "Aarav Mehta")
         XCTAssertEqual(trustScore.value, 72)
-        XCTAssertEqual(content.strengthSummary.count, 7)
+        XCTAssertEqual(content.strengthSummary.count, 9)
         XCTAssertEqual(content.employment.count, 2)
         XCTAssertEqual(content.education.count, 1)
         XCTAssertEqual(content.certifications.count, 1)
         XCTAssertEqual(content.projects.count, 1)
+        XCTAssertEqual(content.skills.count, 3)
         XCTAssertEqual(timeline.count, 5)
         XCTAssertEqual(content.visibleSections, [
             .trustScore,
@@ -34,6 +35,7 @@ final class PassportOverviewStateTests: XCTestCase {
             .education,
             .certifications,
             .projects,
+            .skills,
             .trustTimeline,
             .actions
         ])
@@ -118,6 +120,8 @@ final class PassportOverviewStateTests: XCTestCase {
             "Employment",
             "Education",
             "Certifications",
+            "Projects",
+            "Skills",
             "Profile"
         ])
         XCTAssertEqual(content.strengthSummary.first?.status, .verified)
@@ -149,6 +153,7 @@ final class PassportOverviewStateTests: XCTestCase {
                 ],
                 education: [],
                 certifications: [],
+                skills: [],
                 projects: [],
                 timeline: .unavailable(
                     PassportUnavailableSectionState(

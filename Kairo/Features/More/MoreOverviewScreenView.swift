@@ -454,6 +454,8 @@ struct MoreOverviewScreenView: View {
             if case .populated(let content) = state.phase {
                 MoreConsentManagementSheetView(
                     consent: content.trustScoreConsent,
+                    scoreVersion: content.trustScoreVersion,
+                    onGrant: grantConsent,
                     onWithdraw: withdrawConsent
                 )
             }
@@ -686,6 +688,7 @@ struct MoreOverviewScreenView: View {
             sessionStore.replaceCurrentUser(overview.user)
             state.apply(overview: overview, destinations: destinations)
             actionStatusMessage = "Your profile settings were updated."
+            candidateDataRefreshStore.candidateDataChanged()
         }
         return "Saved"
     }
@@ -712,8 +715,20 @@ struct MoreOverviewScreenView: View {
             sessionStore.replaceCurrentUser(overview.user)
             state.apply(overview: overview, destinations: destinations)
             actionStatusMessage = "Trust Score consent was updated."
+            candidateDataRefreshStore.candidateDataChanged()
         }
         return "Trust Score consent was updated."
+    }
+
+    private func grantConsent(version: String) async throws -> String {
+        let overview = try await moreOverviewService.grantTrustScoreConsent(version: version)
+        await MainActor.run {
+            sessionStore.replaceCurrentUser(overview.user)
+            state.apply(overview: overview, destinations: destinations)
+            actionStatusMessage = "Trust Score consent was enabled."
+            candidateDataRefreshStore.candidateDataChanged()
+        }
+        return "Trust Score consent was enabled."
     }
 
     private func deleteAccount(confirm: String, currentPassword: String?) async throws {
@@ -863,6 +878,8 @@ struct MoreOverviewScreenView: View {
 
     private func accessibilityIdentifier(for row: MoreRowItem) -> String? {
         switch row.id {
+        case "helpCentre":
+            KairoAccessibilityID.moreHelpCentre
         case "contactSupport":
             KairoAccessibilityID.moreContactSupport
         case "deleteAccount":
@@ -1649,6 +1666,8 @@ private struct MoreSessionsSheetView: View {
 
 private struct MoreConsentManagementSheetView: View {
     let consent: MoreTrustScoreConsent
+    let scoreVersion: String
+    let onGrant: (String) async throws -> String
     let onWithdraw: () async throws -> String
 
     @Environment(\.dismiss) private var dismiss
@@ -1703,12 +1722,13 @@ private struct MoreConsentManagementSheetView: View {
                         )
                         .disabled(isSubmitting)
                     } else {
-                        KairoCard {
-                            Text("No additional consent action is available for the current backend state.")
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        KairoPrimaryButton(
+                            title: "Give Trust Score consent",
+                            isLoading: isSubmitting,
+                            accessibilityIdentifier: KairoAccessibilityID.trustScoreGrantConsent,
+                            action: grant
+                        )
+                        .disabled(isSubmitting)
                     }
 
                     KairoSecondaryButton(title: "Done") {
@@ -1748,6 +1768,27 @@ private struct MoreConsentManagementSheetView: View {
         Task {
             do {
                 _ = try await onWithdraw()
+                await MainActor.run {
+                    isSubmitting = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    serverErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func grant() {
+        guard !isSubmitting else { return }
+        serverErrorMessage = nil
+        isSubmitting = true
+
+        Task {
+            do {
+                _ = try await onGrant(scoreVersion)
                 await MainActor.run {
                     isSubmitting = false
                     dismiss()

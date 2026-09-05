@@ -131,7 +131,8 @@ enum CareerOverviewMapper {
             title: record.title,
             issuer: record.issuer,
             issueDate: monthYear(record.issueDate) ?? "Issue date unavailable",
-            verificationStatus: verificationStatus(from: record.verificationStatus)
+            verificationStatus: verificationStatus(from: record.verificationStatus),
+            hasDocument: record.originalFilename?.isEmpty == false
         )
     }
 

@@ -196,6 +196,14 @@ struct HomeOverviewScreenView: View {
                     .progressViewStyle(.linear)
                     .padding(.top, KairoSpacing.xxSmall)
             }
+
+            Button("View score details") {
+                router.showTrustScoreDetails()
+            }
+            .buttonStyle(.plain)
+            .font(KairoTypography.footnote)
+            .foregroundStyle(KairoColors.brandPrimary)
+            .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)

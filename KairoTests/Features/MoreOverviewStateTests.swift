@@ -22,11 +22,10 @@ final class MoreOverviewStateTests: XCTestCase {
         XCTAssertEqual(content.accountRows.map(\.title), [
             "Personal information",
             "Login & security",
-            "Connected accounts",
             "Sessions & devices"
         ])
         XCTAssertEqual(content.appVersion, "1.0.0 (1)")
-        XCTAssertEqual(content.supportEmailAddress, "support@kairoid.com")
+        XCTAssertEqual(content.supportEmailAddress, "contact@kairoid.com")
     }
 
     func test_defaultUsesDifferentFixtureLabelsForDemoAndPreview() {

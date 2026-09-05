@@ -186,12 +186,6 @@ enum MoreOverviewMapper {
                 systemImage: "lock.shield"
             ),
             MoreRowItem(
-                id: "connectedAccounts",
-                title: "Connected accounts",
-                subtitle: "Not available in this build.",
-                systemImage: "link"
-            ),
-            MoreRowItem(
                 id: "sessionsDevices",
                 title: "Sessions & devices",
                 subtitle: "Review your active account sessions.",
@@ -203,22 +197,10 @@ enum MoreOverviewMapper {
     nonisolated private static func makePrivacyRows(from consent: MoreTrustScoreConsent) -> [MoreRowItem] {
         [
             MoreRowItem(
-                id: "privacySettings",
-                title: "Privacy settings",
-                subtitle: "Additional privacy controls are not configured yet.",
-                systemImage: "hand.raised"
-            ),
-            MoreRowItem(
                 id: "manageConsent",
                 title: "Manage consent",
                 subtitle: "Trust Score consent is currently \(consentStatusDisplay(consent.status)).",
                 systemImage: "checkmark.shield"
-            ),
-            MoreRowItem(
-                id: "downloadMyData",
-                title: "Download my data",
-                subtitle: "Data export is not available yet.",
-                systemImage: "arrow.down.doc"
             ),
             MoreRowItem(
                 id: "deleteAccount",
@@ -279,18 +261,6 @@ enum MoreOverviewMapper {
                 title: "Privacy Policy",
                 subtitle: legalSubtitle(isConfigured: destinations.privacyPolicyURL != nil),
                 systemImage: "lock.doc"
-            ),
-            MoreRowItem(
-                id: "cookiePolicy",
-                title: "Cookie Policy",
-                subtitle: legalSubtitle(isConfigured: destinations.cookiePolicyURL != nil),
-                systemImage: "circle.hexagongrid"
-            ),
-            MoreRowItem(
-                id: "openSourceLicences",
-                title: "Open-source licences",
-                subtitle: "Review package acknowledgements used by this app.",
-                systemImage: "curlybraces.square"
             )
         ]
     }

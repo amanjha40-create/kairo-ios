@@ -11,6 +11,7 @@ enum PassportOverviewMapper {
             employment: overview.vault.employments.map(makeEmploymentRecord),
             education: overview.vault.educations.map(makeEducationRecord),
             certifications: overview.vault.certifications.map(makeCertificationRecord),
+            skills: overview.vault.skills.map(makeSkillRecord),
             projects: overview.vault.projects.map(makeProjectRecord),
             timeline: .unavailable(
                 PassportUnavailableSectionState(
@@ -172,6 +173,8 @@ enum PassportOverviewMapper {
             makeStrengthItem(title: "Employment", summary: overview.verificationSummary.employments),
             makeStrengthItem(title: "Education", summary: overview.verificationSummary.educations),
             makeStrengthItem(title: "Certifications", summary: overview.verificationSummary.certifications),
+            makeStrengthItem(title: "Projects", summary: overview.verificationSummary.projects),
+            makeStrengthItem(title: "Skills", summary: overview.verificationSummary.skills),
             PassportStrengthItem(
                 title: "Profile",
                 value: overview.metadata.isOnboardingComplete ? "Complete" : "In progress",
@@ -280,11 +283,19 @@ enum PassportOverviewMapper {
         )
     }
 
+    private nonisolated static func makeSkillRecord(_ record: PassportSkillRecordDomain) -> PassportSkillRecord {
+        PassportSkillRecord(
+            name: record.name,
+            verificationStatus: presentationStatus(from: record.verificationStatus)
+        )
+    }
+
     private nonisolated static func isEmpty(overview: PassportOverview) -> Bool {
         overview.vault.employments.isEmpty &&
             overview.vault.educations.isEmpty &&
             overview.vault.certifications.isEmpty &&
-            overview.vault.projects.isEmpty
+            overview.vault.projects.isEmpty &&
+            overview.vault.skills.isEmpty
     }
 
     private nonisolated static func presentationStatus(
@@ -391,7 +402,7 @@ enum PassportOverviewMapper {
             return method
         }
 
-        return "Supporting evidence details are not available in your Passport yet."
+        return ""
     }
 
     private nonisolated static func educationEvidenceSummary(
@@ -404,7 +415,7 @@ enum PassportOverviewMapper {
             return educationLevel
         }
 
-        return "Supporting evidence details are not available in your Passport yet."
+        return ""
     }
 
     private nonisolated static func certificationEvidenceSummary(
@@ -420,7 +431,7 @@ enum PassportOverviewMapper {
             return "Does not expire"
         }
 
-        return "Supporting evidence details are not available in your Passport yet."
+        return ""
     }
 
     private nonisolated static func projectEvidenceSummary(
@@ -433,7 +444,7 @@ enum PassportOverviewMapper {
             return "Linked to \(organizationName)"
         }
 
-        return "Supporting evidence details are not available in your Passport yet."
+        return ""
     }
 
     private nonisolated static func projectLinkTitle(for record: PassportProjectRecordDomain) -> String {
@@ -444,7 +455,7 @@ enum PassportOverviewMapper {
             return host
         }
 
-        return "Portfolio link not added yet"
+        return ""
     }
 
     private nonisolated static func certificationIssueDate(for record: PassportCertificationRecordDomain) -> String {

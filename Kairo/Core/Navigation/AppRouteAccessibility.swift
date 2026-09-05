@@ -132,6 +132,7 @@ nonisolated enum KairoAccessibilityID {
         "candidate.notifications.unread.\(id)"
     }
     static let homeTrustScoreCard = "candidate.home.trustScore"
+    static let homeTrustScoreDetails = "candidate.home.trustScore.details"
     static let homeViewTrustPassport = "candidate.home.viewTrustPassport"
     static let homeRecommendation = "candidate.home.recommendation"
     static let homeStartVerification = "candidate.home.startVerification"
@@ -165,6 +166,9 @@ nonisolated enum KairoAccessibilityID {
     static let careerCertificationDeleteConfirmation = "candidate.career.certification.delete.confirmation"
     static let careerProjectDeleteConfirmation = "candidate.career.project.delete.confirmation"
     static let careerSkillDeleteConfirmation = "candidate.career.skill.delete.confirmation"
+    static let careerDocuments = "candidate.career.documents"
+    static let careerDocumentUpload = "candidate.career.documents.upload"
+    static let careerDocumentError = "candidate.career.documents.error"
     static let passportScreen = "candidate.passport.screen"
     static let passportHeader = "candidate.passport.header"
     static let passportTrustScoreCard = "candidate.passport.trustScore"
@@ -174,6 +178,7 @@ nonisolated enum KairoAccessibilityID {
     static let passportEducationSection = "candidate.passport.education"
     static let passportCertificationsSection = "candidate.passport.certifications"
     static let passportProjectsSection = "candidate.passport.projects"
+    static let passportSkillsSection = "candidate.passport.skills"
     static let passportTimelineSection = "candidate.passport.timeline"
     static let passportShareAction = "candidate.passport.share"
     static let passportPreviewAction = "candidate.passport.preview"
@@ -211,9 +216,18 @@ nonisolated enum KairoAccessibilityID {
     static let passportEmptyState = "candidate.passport.empty"
     static let passportContinueProfile = "candidate.passport.continueProfile"
     static let passportStartVerification = "candidate.passport.startVerification"
+    static let trustScoreDetail = "candidate.trustScore.detail"
+    static let trustScoreBreakdown = "candidate.trustScore.breakdown"
+    static let trustScoreGrantConsent = "candidate.trustScore.consent.grant"
+    static let trustScoreWithdrawConsent = "candidate.trustScore.consent.withdraw"
+    static let moreHelpCentre = "candidate.more.helpCentre"
 
     static func passportSharePermission(_ permission: String) -> String {
         "candidate.passport.share.permission.\(permission)"
+    }
+
+    static func careerDocumentRow(_ id: String) -> String {
+        "candidate.career.documents.row.\(id)"
     }
 
     static func passportShareList(_ state: String) -> String {

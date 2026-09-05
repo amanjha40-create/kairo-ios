@@ -9,6 +9,8 @@ final class AppRouter: ObservableObject {
     @Published private(set) var publicPassportPresentation: PublicPassportPresentation?
     @Published private(set) var passportActivityRequestID: UUID?
     @Published private(set) var notificationCenterPresentation: NotificationCenterPresentation?
+    @Published private(set) var trustScorePresentation: TrustScorePresentation?
+    @Published private(set) var careerDocumentPresentation: CareerDocumentPresentation?
 
     init(
         rootDestination: RootDestination = .onboarding,
@@ -21,6 +23,8 @@ final class AppRouter: ObservableObject {
         publicPassportPresentation = nil
         passportActivityRequestID = nil
         notificationCenterPresentation = nil
+        trustScorePresentation = nil
+        careerDocumentPresentation = nil
     }
 
     func showOnboarding() {
@@ -133,5 +137,21 @@ final class AppRouter: ObservableObject {
 
     func dismissNotificationCenter() {
         notificationCenterPresentation = nil
+    }
+
+    func showTrustScoreDetails() {
+        trustScorePresentation = TrustScorePresentation()
+    }
+
+    func dismissTrustScoreDetails() {
+        trustScorePresentation = nil
+    }
+
+    func showCareerDocuments(for parent: CareerDocumentParent) {
+        careerDocumentPresentation = CareerDocumentPresentation(parent: parent)
+    }
+
+    func dismissCareerDocuments() {
+        careerDocumentPresentation = nil
     }
 }

@@ -45,7 +45,7 @@ extension OnboardingStep {
         case .chooseStart:
             "The branching point is locked in, but not yet connected to product flows."
         case .resumeImportOrQuickProfile:
-            "Resume import and quick profile capture will plug into this placeholder later."
+            "Add your profile manually or import a resume to continue."
         case .passportCreated:
             "Passport completion hands off into the main candidate application shell."
         }

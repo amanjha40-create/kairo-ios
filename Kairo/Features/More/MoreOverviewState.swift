@@ -234,36 +234,18 @@ struct MoreOverviewContent: Equatable, Sendable {
                     systemImage: "lock.shield"
                 ),
                 MoreRowItem(
-                    id: "connectedAccounts",
-                    title: "Connected accounts",
-                    subtitle: "Future sign-in and account-linking controls.",
-                    systemImage: "link"
-                ),
-                MoreRowItem(
                     id: "sessionsDevices",
                     title: "Sessions & devices",
-                    subtitle: "Review active devices and sessions later.",
+                    subtitle: "Review your active account sessions.",
                     systemImage: "desktopcomputer"
                 )
             ],
             privacyRows: [
                 MoreRowItem(
-                    id: "privacySettings",
-                    title: "Privacy settings",
-                    subtitle: "Understand how your Trust Passport is shared.",
-                    systemImage: "hand.raised"
-                ),
-                MoreRowItem(
                     id: "manageConsent",
                     title: "Manage consent",
-                    subtitle: "Future controls for employer and verifier access.",
+                    subtitle: "Manage Trust Score consent.",
                     systemImage: "checkmark.shield"
-                ),
-                MoreRowItem(
-                    id: "downloadMyData",
-                    title: "Download my data",
-                    subtitle: "Local export guidance only for this milestone.",
-                    systemImage: "arrow.down.doc"
                 ),
                 MoreRowItem(
                     id: "deleteAccount",
@@ -276,7 +258,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "helpCentre",
                     title: "Help centre",
-                    subtitle: "Browse future guidance and common questions.",
+                    subtitle: "Open Kairo's help resources.",
                     systemImage: "book.closed"
                 ),
                 MoreRowItem(
@@ -288,7 +270,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "reportProblem",
                     title: "Report a problem",
-                    subtitle: "Share an issue through a future support form.",
+                    subtitle: "Send an issue report by email.",
                     systemImage: "exclamationmark.bubble"
                 ),
                 MoreRowItem(
@@ -316,28 +298,16 @@ struct MoreOverviewContent: Equatable, Sendable {
                     title: "Privacy Policy",
                     subtitle: "Open the current Kairo privacy policy when configured.",
                     systemImage: "lock.doc"
-                ),
-                MoreRowItem(
-                    id: "cookiePolicy",
-                    title: "Cookie Policy",
-                    subtitle: "Open the current Kairo cookie policy when configured.",
-                    systemImage: "circle.hexagongrid"
-                ),
-                MoreRowItem(
-                    id: "openSourceLicences",
-                    title: "Open-source licences",
-                    subtitle: "Review package acknowledgements used by this app.",
-                    systemImage: "curlybraces.square"
                 )
             ],
             appVersion: "1.0.0 (1)",
             backendAppVersion: "fixture",
             apiVersion: "fixture",
             trustScoreVersion: "fixture",
-            supportEmailAddress: "support@kairoid.com",
-            helpCenterURL: nil,
-            termsOfServiceURL: nil,
-            privacyPolicyURL: nil,
+            supportEmailAddress: "contact@kairoid.com",
+            helpCenterURL: URL(string: "https://kairoid.com/help-center"),
+            termsOfServiceURL: URL(string: "https://kairoid.com/terms"),
+            privacyPolicyURL: URL(string: "https://kairoid.com/privacy"),
             cookiePolicyURL: nil
         )
     }

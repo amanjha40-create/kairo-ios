@@ -67,6 +67,9 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.privacyRows.first(where: { $0.id == "manageConsent" })?.subtitle, "Trust Score consent is currently Granted.")
         XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Open Kairo's help resources.")
         XCTAssertEqual(content.aboutRows.first(where: { $0.id == "privacyPolicy" })?.subtitle, "Open the latest Kairo document.")
+        XCTAssertFalse(content.accountRows.contains(where: { $0.id == "connectedAccounts" }))
+        XCTAssertFalse(content.privacyRows.contains(where: { $0.id == "privacySettings" || $0.id == "downloadMyData" }))
+        XCTAssertFalse(content.aboutRows.contains(where: { $0.id == "cookiePolicy" || $0.id == "openSourceLicences" }))
     }
 
     func test_mapHandlesUnknownNotificationEventTypeWithReadableFallback() {

@@ -92,6 +92,7 @@ struct VerifyOverviewContainerView: View {
                 response: response
             )
             await load(showLoading: true)
+            refreshStore.candidateDataChanged()
         } catch {
             if VerifyOverviewMapper.requiresSessionRecovery(for: error) {
                 await sessionStore.refreshLaunchRoute()

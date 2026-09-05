@@ -14,6 +14,10 @@ final class CandidateDataRefreshStore: ObservableObject {
         revision += 1
     }
 
+    func candidateDataChanged() {
+        revision += 1
+    }
+
     func clearVerificationFocus(requestID: String) {
         guard focusedVerificationRequestID == requestID else { return }
         focusedVerificationRequestID = nil

@@ -19,10 +19,9 @@ struct CareerOverviewScreenView: View {
     var editProjectAction: ((CareerProjectItem) -> Void)?
     var deleteProjectAction: ((CareerProjectItem) -> Void)?
     var addSkillAction: (() -> Void)?
-    var editSkillAction: ((CareerSkillItem) -> Void)?
     var deleteSkillAction: ((CareerSkillItem) -> Void)?
 
-    @State private var placeholderDestination: CareerPlaceholderDestination?
+    @EnvironmentObject private var router: AppRouter
 
     var body: some View {
         ZStack {
@@ -47,9 +46,6 @@ struct CareerOverviewScreenView: View {
             .ignoresSafeArea()
         )
         .accessibilityIdentifier(KairoAccessibilityID.careerScreen)
-        .sheet(item: $placeholderDestination) { destination in
-            CareerPlaceholderSheet(destination: destination)
-        }
     }
 
     private var titleSection: some View {
@@ -77,9 +73,9 @@ struct CareerOverviewScreenView: View {
                 summaryDetails
 
                 KairoSecondaryButton(
-                    title: "Edit Profile",
+                    title: "Edit Profile in More",
                     accessibilityIdentifier: KairoAccessibilityID.careerEditProfileButton,
-                    action: { placeholderDestination = .editProfile }
+                    action: { router.selectTab(.more) }
                 )
             }
         }
@@ -284,6 +280,20 @@ struct CareerOverviewScreenView: View {
                             deleteAction: item.allowsDelete ? { deleteEmploymentAction?(item) } : nil
                         )
 
+                        Button("Documents") {
+                            router.showCareerDocuments(
+                                for: .employment(
+                                    id: item.routeID,
+                                    title: "\(item.role) at \(item.company)",
+                                    canUpload: item.allowsEdit,
+                                    canDelete: item.allowsDelete
+                                )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.brandPrimary)
+
                         if item.verificationStatus == .notVerified,
                            let startEmploymentVerificationAction {
                             Button("Start verification") {
@@ -333,6 +343,15 @@ struct CareerOverviewScreenView: View {
                             deleteAction: { deleteEducationAction?(item) }
                         )
 
+                        Button("Documents") {
+                            router.showCareerDocuments(
+                                for: .education(id: item.routeID, title: item.institution)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.brandPrimary)
+
                         if item.verificationStatus == .notVerified,
                            let startEducationVerificationAction {
                             Button("Start verification") {
@@ -381,6 +400,17 @@ struct CareerOverviewScreenView: View {
                             deleteAccessibilityIdentifier: KairoAccessibilityID.careerCertificationDeleteButton(item.routeID),
                             deleteAction: { deleteCertificationAction?(item) }
                         )
+
+                        if item.hasDocument {
+                            Button("View certificate document") {
+                                router.showCareerDocuments(
+                                    for: .certification(id: item.routeID, title: item.title)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                        }
                     }
                 }
             }
@@ -461,7 +491,7 @@ struct CareerOverviewScreenView: View {
 
                                 careerCardActions(
                                     editAccessibilityIdentifier: KairoAccessibilityID.careerSkillEditButton(skill.routeID),
-                                    editAction: { editSkillAction?(skill) },
+                                    editAction: nil,
                                     deleteAccessibilityIdentifier: KairoAccessibilityID.careerSkillDeleteButton(skill.routeID),
                                     deleteAction: { deleteSkillAction?(skill) }
                                 )
@@ -758,46 +788,5 @@ private struct CareerPillBadge: View {
                 Capsule()
                     .stroke(resolvedColors.border, lineWidth: 1)
             )
-    }
-}
-
-private enum CareerPlaceholderDestination: Identifiable {
-    case editProfile
-
-    var id: String { "career.editProfile" }
-    var title: String { "Edit Profile" }
-    var message: String { "Profile editing will be connected in a later milestone." }
-}
-
-private struct CareerPlaceholderSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let destination: CareerPlaceholderDestination
-
-    var body: some View {
-        NavigationStack {
-            KairoScreenContainer(
-                title: destination.title,
-                subtitle: destination.message,
-                titleAccessibilityIdentifier: "career.placeholder.title",
-                scrollBehavior: .fixed
-            ) {
-                KairoCard {
-                    Text("Placeholder")
-                        .font(KairoTypography.title2)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    Text(destination.message)
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                KairoPrimaryButton(
-                    title: "Done",
-                    action: { dismiss() }
-                )
-            }
-        }
     }
 }

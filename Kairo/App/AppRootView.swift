@@ -47,6 +47,12 @@ struct AppRootView: View {
         .sheet(item: notificationCenterPresentationBinding) { _ in
             CandidateNotificationCenterView()
         }
+        .sheet(item: trustScorePresentationBinding) { _ in
+            TrustScoreDetailView()
+        }
+        .sheet(item: careerDocumentPresentationBinding) { presentation in
+            CareerDocumentsView(presentation: presentation)
+        }
         .onChange(of: sessionStore.currentUser?.id) { _, _ in
             notificationStore.reset()
         }
@@ -69,6 +75,28 @@ struct AppRootView: View {
             set: { presentation in
                 if presentation == nil {
                     router.dismissNotificationCenter()
+                }
+            }
+        )
+    }
+
+    private var trustScorePresentationBinding: Binding<TrustScorePresentation?> {
+        Binding(
+            get: { router.trustScorePresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissTrustScoreDetails()
+                }
+            }
+        )
+    }
+
+    private var careerDocumentPresentationBinding: Binding<CareerDocumentPresentation?> {
+        Binding(
+            get: { router.careerDocumentPresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissCareerDocuments()
                 }
             }
         )

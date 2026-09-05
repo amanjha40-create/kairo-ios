@@ -17,6 +17,7 @@ protocol MoreOverviewServiceProtocol: Sendable {
         existingPreferences: [MoreNotificationPreferenceItem]
     ) async throws -> MoreOverview
     func withdrawTrustScoreConsent() async throws -> MoreOverview
+    func grantTrustScoreConsent(version: String) async throws -> MoreOverview
 }
 
 actor MoreOverviewService: MoreOverviewServiceProtocol {
@@ -157,6 +158,18 @@ actor MoreOverviewService: MoreOverviewServiceProtocol {
         return try await loadOverview()
     }
 
+    func grantTrustScoreConsent(version: String) async throws -> MoreOverview {
+        _ = try await sessionService.sendAuthenticated(
+            jsonRequest(
+                path: "/trust-score/consent",
+                method: .post,
+                body: MoreTrustScoreConsentRequestDTO(consentVersion: version)
+            )
+        )
+
+        return try await loadOverview()
+    }
+
     private func fetchAccountSettings() async throws -> AccountSettingsResponseDTO {
         let data = try await sessionService.sendAuthenticated(
             NetworkRequest(
@@ -196,4 +209,8 @@ actor MoreOverviewService: MoreOverviewServiceProtocol {
 
         return ManualProfileValidation.normalizedYearsOfExperience(normalized)
     }
+}
+
+private nonisolated struct MoreTrustScoreConsentRequestDTO: Encodable, Sendable {
+    let consentVersion: String
 }

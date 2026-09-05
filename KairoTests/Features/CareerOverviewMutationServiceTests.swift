@@ -87,41 +87,26 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
         )
     }
 
-    func test_replaceSkillPostsNewSkillDeletesOldSkillAndRefetchesOverview() async throws {
+    func test_createSkillPostsSingleCanonicalRecordAndRefetchesOverview() async throws {
         let service = try await makeService()
 
         await MockURLProtocolStorage.shared.setHandler { request in
-            switch request.url?.absoluteString {
-            case "https://staging-api.kairoid.com/api/v1/skills":
-                if request.httpMethod == "POST" {
-                    let body = try requestJSONBody(from: request)
-                    XCTAssertEqual(body["name"] as? String, "SQL")
-                    return (try Self.response(for: request, statusCode: 201), Self.createdSkillPayload)
-                }
-                return try await Self.overviewResponse(for: request)
-            case "https://staging-api.kairoid.com/api/v1/skills/skill_1":
-                XCTAssertEqual(request.httpMethod, "DELETE")
-                return (try Self.response(for: request, statusCode: 204), Data())
-            default:
-                return try await Self.overviewResponse(for: request)
+            if request.url?.absoluteString == "https://staging-api.kairoid.com/api/v1/skills",
+                request.httpMethod == "POST" {
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["name"] as? String, "SQL")
+                XCTAssertEqual(Set(body.keys), ["name"])
+                return (try Self.response(for: request, statusCode: 201), Self.createdSkillPayload)
             }
+            return try await Self.overviewResponse(for: request)
         }
 
-        let overview = try await service.replaceSkill(
-            id: "skill_1",
-            with: CareerSkillCreateRequestDTO(name: "SQL")
-        )
+        let overview = try await service.createSkill(CareerSkillCreateRequestDTO(name: "SQL"))
         let requests = await MockURLProtocolStorage.shared.requests()
 
         XCTAssertEqual(overview.skills.first?.name, "Trust Operations")
-        XCTAssertEqual(
-            requests.filter { $0.url?.absoluteString == "https://staging-api.kairoid.com/api/v1/skills" && $0.httpMethod == "POST" }.count,
-            1
-        )
-        XCTAssertEqual(
-            requests.filter { $0.url?.absoluteString == "https://staging-api.kairoid.com/api/v1/skills/skill_1" && $0.httpMethod == "DELETE" }.count,
-            1
-        )
+        XCTAssertEqual(requests.filter { $0.httpMethod == "POST" }.count, 1)
+        XCTAssertEqual(requests.filter { $0.httpMethod == "DELETE" }.count, 0)
     }
 
     func test_deleteOperationsUseCanonicalRoutesAndRefetchOverview() async throws {

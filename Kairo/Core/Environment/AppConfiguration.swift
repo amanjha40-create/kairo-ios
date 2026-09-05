@@ -116,11 +116,11 @@ struct AppConfiguration: Equatable, Sendable {
     let keychainService: String
 
     var supportEmailAddress: String {
-        "support@kairoid.com"
+        "contact@kairoid.com"
     }
 
     var helpCenterURL: URL? {
-        nil
+        URL(string: "https://kairoid.com/help-center")
     }
 
     var termsOfServiceURL: URL? {

@@ -110,6 +110,14 @@ nonisolated enum PassportSharePermissionOption: String, CaseIterable, Identifiab
     case documents
     case trustScore
 
+    static let candidateV1Sections: [PassportSharePermissionOption] = [
+        .employments,
+        .educations,
+        .certifications,
+        .skills,
+        .projects
+    ]
+
     var id: String { rawValue }
 
     var title: String {

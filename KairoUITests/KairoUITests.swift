@@ -90,6 +90,7 @@ final class KairoUITests: XCTestCase {
     private let manualProfileEducationContinueButton = "onboarding.manualProfile.education.continue"
     private let homeScreen = "candidate.home.screen"
     private let homeTrustScoreCard = "candidate.home.trustScore"
+    private let homeTrustScoreDetails = "candidate.home.trustScore.details"
     private let homeViewTrustPassportButton = "candidate.home.viewTrustPassport"
     private let homeStartVerificationButton = "candidate.home.startVerification"
     private let homeVerificationRequest = "candidate.home.verificationRequest"
@@ -112,6 +113,7 @@ final class KairoUITests: XCTestCase {
     private let careerCertificationsSection = "candidate.career.certifications"
     private let careerProjectsSection = "candidate.career.projects"
     private let careerSkillsSection = "candidate.career.skills"
+    private let careerDocuments = "candidate.career.documents"
     private let careerEmptyState = "candidate.career.empty"
     private let passportScreen = "candidate.passport.screen"
     private let passportHeader = "candidate.passport.header"
@@ -122,7 +124,7 @@ final class KairoUITests: XCTestCase {
     private let passportEducationSection = "candidate.passport.education"
     private let passportCertificationsSection = "candidate.passport.certifications"
     private let passportProjectsSection = "candidate.passport.projects"
-    private let passportTimelineSection = "candidate.passport.timeline"
+    private let passportSkillsSection = "candidate.passport.skills"
     private let passportShareAction = "candidate.passport.share"
     private let passportShareActivityEntry = "candidate.passport.share.activity.entry"
     private let passportShareActivity = "candidate.passport.share.activity"
@@ -162,6 +164,7 @@ final class KairoUITests: XCTestCase {
     private let moreAppearanceLightButton = "candidate.more.appearance.light"
     private let moreAppearanceDarkButton = "candidate.more.appearance.dark"
     private let moreContactSupportButton = "candidate.more.contactSupport"
+    private let moreHelpCentreButton = "candidate.more.helpCentre"
     private let moreDeleteAccountButton = "candidate.more.deleteAccount"
     private let moreDeleteAccountConfirmationInput = "candidate.more.deleteAccount.confirmationInput"
     private let moreDeleteAccountFinalButton = "candidate.more.deleteAccount.finalButton"
@@ -170,6 +173,8 @@ final class KairoUITests: XCTestCase {
     private let moreCookiePolicyButton = "candidate.more.cookiePolicy"
     private let moreSignOutButton = "candidate.more.signOut"
     private let moreSignOutConfirmation = "candidate.more.signOut.confirmation"
+    private let trustScoreDetail = "candidate.trustScore.detail"
+    private let trustScoreBreakdown = "candidate.trustScore.breakdown"
     private var baseLaunchArguments: [String] {
         [
             "-ApplePersistenceIgnoreState",
@@ -229,6 +234,20 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Trust Score"].exists)
+    }
+
+    @MainActor
+    func testHomeTrustScoreDetailsOpenCanonicalBackendDrivenSurface() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        let details = app.buttons[homeTrustScoreDetails]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        details.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Trust Score details"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)[trustScoreBreakdown].exists)
+        XCTAssertTrue(app.staticTexts["72 / 100"].exists)
     }
 
     @MainActor
@@ -411,6 +430,20 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testCareerEmploymentDocumentsOpenCanonicalDocumentSurface() throws {
+        let app = launchApp(environment: careerEnvironment())
+
+        openCareerTab(in: app)
+        let documents = app.buttons["Documents"].firstMatch
+        XCTAssertTrue(documents.waitForExistence(timeout: 10))
+        documents.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)[careerDocuments].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Employment documents"].exists)
+        XCTAssertTrue(app.staticTexts["demo-evidence.pdf"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testCareerEducationSectionRendersFixtureCards() throws {
         let app = launchApp(environment: careerEnvironment())
 
@@ -525,13 +558,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportTrustTimelineRenders() throws {
+    func testPassportSkillsRenderAsCanonicalSection() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportTimelineSection], in: app))
-        XCTAssertTrue(app.staticTexts["Identity verified"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportSkillsSection], in: app))
+        XCTAssertTrue(app.staticTexts["Candidate Operations"].exists)
     }
 
     @MainActor
@@ -881,21 +914,20 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreLegalDestinationsAreConfiguredAndCookieFallbackRemainsTruthful() throws {
+    func testMoreSupportedHelpAndLegalDestinationsAreVisible() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+
+        let helpCentreButton = app.buttons[moreHelpCentreButton]
+        XCTAssertTrue(waitForElementAfterScrolling(helpCentreButton, in: app))
 
         let termsButton = app.buttons[moreTermsOfServiceButton]
         XCTAssertTrue(waitForElementAfterScrolling(termsButton, in: app))
 
         let privacyButton = app.buttons[morePrivacyPolicyButton]
         XCTAssertTrue(waitForElementAfterScrolling(privacyButton, in: app))
-
-        let cookieButton = app.buttons[moreCookiePolicyButton]
-        XCTAssertTrue(waitForElementAfterScrolling(cookieButton, in: app))
-        cookieButton.tap()
-        XCTAssertTrue(app.navigationBars["Cookie Policy"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[moreCookiePolicyButton].exists)
     }
 
     @MainActor

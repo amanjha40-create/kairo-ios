@@ -19,7 +19,6 @@ protocol CareerOverviewServiceProtocol: Sendable {
     func updateProject(id: String, request: CareerProjectUpdateRequestDTO) async throws -> CareerOverview
     func deleteProject(id: String) async throws -> CareerOverview
     func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview
-    func replaceSkill(id: String, with request: CareerSkillCreateRequestDTO) async throws -> CareerOverview
     func deleteSkill(id: String) async throws -> CareerOverview
 }
 
@@ -208,26 +207,6 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             body: request,
             responseType: CareerSkillDTO.self
         )
-    }
-
-    func replaceSkill(
-        id: String,
-        with request: CareerSkillCreateRequestDTO
-    ) async throws -> CareerOverview {
-        _ = try await sendJSONRequest(
-            path: "/skills",
-            method: .post,
-            body: request,
-            responseType: CareerSkillDTO.self
-        )
-        _ = try await sessionService.sendAuthenticated(
-            NetworkRequest(
-                path: "/skills/\(id)",
-                method: .delete,
-                headers: ["Accept": "application/json"]
-            )
-        )
-        return try await loadOverview()
     }
 
     func deleteSkill(id: String) async throws -> CareerOverview {

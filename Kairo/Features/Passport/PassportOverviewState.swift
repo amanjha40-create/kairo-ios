@@ -37,6 +37,8 @@ struct PassportOverviewState: Equatable, Sendable {
                         PassportStrengthItem(title: "Employment", value: "1 verified, 1 pending", status: .pendingVerification),
                         PassportStrengthItem(title: "Education", value: "1 verified", status: .verified),
                         PassportStrengthItem(title: "Certifications", value: "1 unverified", status: .notVerified),
+                        PassportStrengthItem(title: "Projects", value: "1 unverified", status: .notVerified),
+                        PassportStrengthItem(title: "Skills", value: "3 unverified", status: .notVerified),
                         PassportStrengthItem(title: "Profile", value: "Complete", status: .complete)
                     ],
                     identity: PassportIdentityDetails.fixture,
@@ -71,8 +73,13 @@ struct PassportOverviewState: Equatable, Sendable {
                             issuer: "Scrum Alliance",
                             issueDate: "Issued 2025",
                             verificationStatus: .notVerified,
-                            evidenceSummary: "Certificate upload placeholder."
+                            evidenceSummary: "Certificate on file."
                         )
+                    ],
+                    skills: [
+                        PassportSkillRecord(name: "Candidate Operations", verificationStatus: .notVerified),
+                        PassportSkillRecord(name: "Process Design", verificationStatus: .notVerified),
+                        PassportSkillRecord(name: "Stakeholder Communication", verificationStatus: .notVerified)
                     ],
                     projects: [
                         PassportProjectRecord(
@@ -80,7 +87,7 @@ struct PassportOverviewState: Equatable, Sendable {
                             role: "Project Lead",
                             date: "2025",
                             evidenceStatus: "Evidence added",
-                            portfolioLinkTitle: "Portfolio link placeholder"
+                            portfolioLinkTitle: "Project link"
                         )
                     ],
                     timeline: .available([
@@ -185,6 +192,7 @@ enum PassportOverviewSection: String, CaseIterable, Equatable, Sendable {
     case education
     case certifications
     case projects
+    case skills
     case trustTimeline
     case actions
 }
@@ -253,6 +261,7 @@ struct PassportOverviewContent: Equatable, Sendable {
     let employment: [PassportEmploymentRecord]
     let education: [PassportEducationRecord]
     let certifications: [PassportCertificationRecord]
+    let skills: [PassportSkillRecord]
     let projects: [PassportProjectRecord]
     let timeline: PassportTimelineContent
 
@@ -265,6 +274,7 @@ struct PassportOverviewContent: Equatable, Sendable {
             .education,
             .certifications,
             .projects,
+            .skills,
             .trustTimeline,
             .actions
         ]
@@ -357,6 +367,13 @@ struct PassportProjectRecord: Equatable, Identifiable, Sendable {
     let portfolioLinkTitle: String
 
     var id: String { "\(title)-\(role)" }
+}
+
+struct PassportSkillRecord: Equatable, Identifiable, Sendable {
+    let name: String
+    let verificationStatus: PassportVerificationStatus
+
+    var id: String { name }
 }
 
 enum PassportTimelineContent: Equatable, Sendable {

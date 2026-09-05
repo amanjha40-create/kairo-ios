@@ -357,6 +357,31 @@ final class MoreOverviewServiceTests: XCTestCase {
         XCTAssertNil(overview.trustScoreConsent.consentedAt)
     }
 
+    func test_grantTrustScoreConsentUsesCanonicalRouteAndRefetches() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api/v1/trust-score/consent"):
+                let body = try requestBodyData(from: request)
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+                XCTAssertEqual(payload["consent_version"], "v1")
+                return (try Self.response(for: request, statusCode: 204), Data())
+            case ("GET", "/api/v1/account/settings"):
+                return (try Self.response(for: request, statusCode: 200), Self.accountSettingsPayload)
+            default:
+                XCTFail("Unexpected request URL: \(request.url?.absoluteString ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let overview = try await service.grantTrustScoreConsent(version: "v1")
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(overview.trustScoreConsent.status, "granted")
+        XCTAssertEqual(requests.map(\.httpMethod), ["POST", "GET"])
+    }
+
     private func makeService() async throws -> MoreOverviewService {
         try await makeServiceAndTokenStore().service
     }
