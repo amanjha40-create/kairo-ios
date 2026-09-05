@@ -92,11 +92,11 @@ enum HomeOverviewMapper {
     }
 
     private static func makeTrustScore(from trustScore: DashboardOverview.TrustScore) -> HomeTrustScore {
-        let progress = max(0, min(100, trustScore.verificationCompletenessPercentage))
+        let progress = trustScore.overall.map { max(0, min(100, $0)) }
         return HomeTrustScore(
             score: trustScore.overall,
             status: trustScoreStatusTitle(trustScore.status),
-            progress: Double(progress) / 100,
+            progress: progress.map { Double($0) / 100 },
             supportingCopy: trustScoreSupportingCopy(trustScore)
         )
     }

@@ -24,6 +24,7 @@ final class HomeOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.dataSourceLabel, "Live data")
         XCTAssertEqual(content.trustScore.score, 78)
         XCTAssertEqual(content.trustScore.status, "Calculated")
+        XCTAssertEqual(content.trustScore.progress, 0.78)
         XCTAssertEqual(content.recommendation.title, "Finish identity verification")
         XCTAssertEqual(content.recommendation.actionTitle, "Start verification")
         XCTAssertEqual(content.recommendation.destinationTab, .verify)
@@ -57,6 +58,7 @@ final class HomeOverviewMapperTests: XCTestCase {
         }
 
         XCTAssertNil(content.trustScore.score)
+        XCTAssertNil(content.trustScore.progress)
         XCTAssertEqual(content.recommendation.title, "Add your employment history")
         XCTAssertEqual(content.recommendation.actionTitle, "Continue profile")
         XCTAssertEqual(content.recommendation.destinationTab, .career)
