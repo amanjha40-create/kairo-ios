@@ -162,6 +162,43 @@ final class ResumeImportStateTests: XCTestCase {
         XCTAssertEqual(state.processingAttemptCount, 2)
     }
 
+    func test_parsingFailureOwnsBackendFailedStatus() {
+        var state = ResumeImportState(currentProcessingStatus: .parsing)
+
+        state.setError("Parser failed.", stage: .parsing)
+
+        XCTAssertEqual(state.phase, .failed)
+        XCTAssertEqual(state.failureStage, .parsing)
+        XCTAssertEqual(state.currentProcessingStatus, .failed)
+        XCTAssertEqual(state.failureStage?.title, "We couldn't process that resume")
+    }
+
+    func test_onboardingCompletionFailureDoesNotMasqueradeAsParserFailure() {
+        var state = ResumeImportState(currentProcessingStatus: .needsReview)
+
+        state.setError("Imported claims are saved.", stage: .onboardingCompletion)
+
+        XCTAssertEqual(state.phase, .failed)
+        XCTAssertEqual(state.failureStage, .onboardingCompletion)
+        XCTAssertEqual(state.currentProcessingStatus, .needsReview)
+        XCTAssertEqual(state.failureStage?.title, "Your resume was imported")
+    }
+
+    func test_reviewFailureCanReturnToTheSameReviewWithoutReprocessing() {
+        var state = ResumeImportState(
+            liveReviewSession: makeReviewSession(),
+            currentProcessingStatus: .needsReview
+        )
+        state.setError("Review update failed.", stage: .review)
+
+        state.returnToReviewAfterFailure()
+
+        XCTAssertEqual(state.phase, .readyForReview)
+        XCTAssertNil(state.errorMessage)
+        XCTAssertNil(state.failureStage)
+        XCTAssertEqual(state.currentProcessingStatus, .needsReview)
+    }
+
     func test_confirmingReviewTransitionsIntoConfirmedState() {
         var state = ResumeImportState()
         state.selectFile(from: URL(fileURLWithPath: "resume.pdf"), fileSizeOverride: 200_000)
@@ -245,6 +282,21 @@ final class ResumeImportStateTests: XCTestCase {
         XCTAssertEqual(state.phase, .importing)
         XCTAssertEqual(state.currentProcessingStatus, .needsReview)
         XCTAssertEqual(state.liveImportBatch?.status, "importing")
+    }
+
+    func test_applyRestoredWorkflowRetainsCompletedImportForOnboardingOnlyRecovery() {
+        var state = ResumeImportState()
+        let snapshot = ResumeImportWorkflowSnapshot(
+            resume: makeResumeRecord(processingStatus: .needsReview),
+            reviewSession: makeReviewSession(status: .imported),
+            importBatch: makeImportBatch(status: "completed")
+        )
+
+        state.applyRestoredWorkflow(snapshot)
+
+        XCTAssertEqual(state.liveReviewSession?.status, .imported)
+        XCTAssertTrue(state.liveImportBatch?.isCompletedWithoutHardFailures ?? false)
+        XCTAssertEqual(state.currentProcessingStatus, .needsReview)
     }
 
     func test_applyRestoredWorkflowMapsExtractingToOrganisingPhase() {

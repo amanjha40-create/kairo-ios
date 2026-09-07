@@ -378,22 +378,13 @@ actor ResumeImportService: ResumeImportServiceProtocol {
             )
         }
 
-        guard status.missingRequirements.isEmpty else {
-            return ResumeImportCompletionResult(
-                user: currentUser,
-                onboardingStatus: status
+        _ = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: "/users/me/complete-onboarding",
+                method: .post,
+                headers: ["Accept": "application/json"]
             )
-        }
-
-        if !status.isOnboardingComplete {
-            _ = try await sessionService.sendAuthenticated(
-                NetworkRequest(
-                    path: "/users/me/complete-onboarding",
-                    method: .post,
-                    headers: ["Accept": "application/json"]
-                )
-            )
-        }
+        )
 
         let refreshedUser = try await authService.currentUser().asDomainModel()
         let refreshedStatus = try await authService.onboardingStatus()

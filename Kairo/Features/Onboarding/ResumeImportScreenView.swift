@@ -5,9 +5,9 @@ struct ResumeImportScreenView: View {
     let createAccountDraft: CreateAccountDraft
     @Binding var state: ResumeImportState
     let onBuildProfileManually: () -> Void
-    let onContinueRemainingProfileCompletion: () async throws -> Void
 
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.resumeImportService) private var resumeImportService
 
@@ -202,15 +202,7 @@ struct ResumeImportScreenView: View {
     }
 
     private var failureTitle: String {
-        if state.liveReviewSession != nil || state.liveImportBatch != nil {
-            return "We couldn't finish that import"
-        }
-
-        if state.liveResume != nil {
-            return "We couldn't finish processing that resume"
-        }
-
-        return "We couldn't prepare that resume"
+        state.failureStage?.title ?? "We couldn't prepare that resume"
     }
 
     private var unsupportedFileCard: some View {
@@ -368,11 +360,13 @@ struct ResumeImportScreenView: View {
                     action: retryAction
                 )
 
-                KairoSecondaryButton(
-                    title: "Choose Another Resume",
-                    accessibilityIdentifier: KairoAccessibilityID.resumeImportChooseAnotherButton,
-                    action: clearSelectedResume
-                )
+                if state.failureStage != .onboardingCompletion {
+                    KairoSecondaryButton(
+                        title: "Choose Another Resume",
+                        accessibilityIdentifier: KairoAccessibilityID.resumeImportChooseAnotherButton,
+                        action: clearSelectedResume
+                    )
+                }
             }
             .accessibilityElement(children: .contain)
         case .readyForReview, .confirmed:
@@ -400,15 +394,20 @@ struct ResumeImportScreenView: View {
     }
 
     private var retryButtonTitle: String {
-        if state.liveReviewSession != nil || state.liveImportBatch != nil {
-            return "Retry Import"
+        switch state.failureStage {
+        case .upload:
+            "Choose Resume"
+        case .parsing:
+            "Retry Processing"
+        case .review:
+            "Return to Review"
+        case .import:
+            "Retry Import"
+        case .onboardingCompletion:
+            "Finish Setup"
+        case nil:
+            "Try Again"
         }
-
-        if state.liveResume != nil {
-            return "Retry Processing"
-        }
-
-        return "Retry Import"
     }
 
     private var retryAction: () -> Void {
@@ -416,15 +415,18 @@ struct ResumeImportScreenView: View {
             return { state.retryProcessing() }
         }
 
-        if state.liveReviewSession != nil || state.liveImportBatch != nil {
-            return { Task { await handleLiveLooksGood() } }
-        }
-
-        if state.liveResume != nil {
+        switch state.failureStage {
+        case .upload, nil:
+            return { isFileImporterPresented = true }
+        case .parsing:
             return { Task { await retryLiveProcessing() } }
+        case .review:
+            return { state.returnToReviewAfterFailure() }
+        case .import:
+            return { Task { await retryImportSafely() } }
+        case .onboardingCompletion:
+            return { Task { await retryOnboardingCompletion() } }
         }
-
-        return { isFileImporterPresented = true }
     }
 
     private var fileSummaryDetails: some View {
@@ -492,13 +494,14 @@ struct ResumeImportScreenView: View {
             if let reviewID = snapshot.reviewSession?.id,
                let importBatch = snapshot.importBatch,
                importBatch.isTerminal {
+                state.applyRestoredWorkflow(snapshot)
                 await reconcileImportRecovery(reviewID: reviewID)
                 return
             }
 
             state.applyRestoredWorkflow(snapshot)
         } catch {
-            state.setError(message(for: error))
+            state.setError(message(for: error), stage: .parsing)
         }
     }
 
@@ -536,7 +539,7 @@ struct ResumeImportScreenView: View {
                     return
                 }
             } catch {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .parsing)
                 return
             }
 
@@ -544,7 +547,8 @@ struct ResumeImportScreenView: View {
         }
 
         state.setError(
-            "Resume processing is taking longer than expected. You can leave this screen and return later."
+            "Resume processing is taking longer than expected. You can leave this screen and return later.",
+            stage: .parsing
         )
     }
 
@@ -563,7 +567,7 @@ struct ResumeImportScreenView: View {
                     return
                 }
             } catch {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .import)
                 return
             }
 
@@ -571,7 +575,8 @@ struct ResumeImportScreenView: View {
         }
 
         state.setError(
-            "Import is taking longer than expected. Kairo will resume from backend state when you return."
+            "Import is taking longer than expected. Kairo will resume from backend state when you return.",
+            stage: .import
         )
     }
 
@@ -598,7 +603,7 @@ struct ResumeImportScreenView: View {
                 let selection = try resumeImportService.prepareSelection(from: url)
                 state.applyPreparedSelection(selection)
             } catch {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .upload)
             }
         case .failure(let error):
             let nsError = error as NSError
@@ -606,7 +611,10 @@ struct ResumeImportScreenView: View {
                 return
             }
 
-            state.setError("Kairo couldn't open that file. Choose another resume to continue.")
+            state.setError(
+                "Kairo couldn't open that file. Choose another resume to continue.",
+                stage: .upload
+            )
         }
     }
 
@@ -626,23 +634,31 @@ struct ResumeImportScreenView: View {
 
         state.phase = .uploading
         state.errorMessage = nil
+        state.failureStage = nil
         state.statusTitleOverride = "Uploading your resume"
         state.statusMessageOverride = "Kairo is securely uploading your file before backend processing starts."
 
+        let selection = ResumeImportPreparedSelection(
+            file: selectedFile,
+            temporaryFileURL: selectedTemporaryFileURL
+        )
+        let resume: ResumeRecord
+
         do {
-            let selection = ResumeImportPreparedSelection(
-                file: selectedFile,
-                temporaryFileURL: selectedTemporaryFileURL
-            )
-            let resume = try await resumeImportService.upload(selection: selection)
+            resume = try await resumeImportService.upload(selection: selection)
             resumeImportService.cleanupSelection(at: selectedTemporaryFileURL)
             state.selectedTemporaryFileURL = nil
             state.applyUploadStarted(resume: resume)
+        } catch {
+            state.setError(message(for: error), stage: .upload)
+            return
+        }
 
+        do {
             let process = try await resumeImportService.startProcessing(resumeID: resume.id)
             state.applyProcessingJob(process)
         } catch {
-            state.setError(message(for: error))
+            state.setError(message(for: error), stage: .parsing)
         }
     }
 
@@ -655,7 +671,30 @@ struct ResumeImportScreenView: View {
             let process = try await resumeImportService.startProcessing(resumeID: resumeID)
             state.applyProcessingJob(process)
         } catch {
-            state.setError(message(for: error))
+            state.setError(message(for: error), stage: .parsing)
+        }
+    }
+
+    private func retryImportSafely() async {
+        guard let reviewID = state.liveReviewSession?.id else {
+            return
+        }
+
+        if state.liveImportBatch != nil {
+            await reconcileImportRecovery(reviewID: reviewID)
+        } else {
+            await handleLiveLooksGood()
+        }
+    }
+
+    private func retryOnboardingCompletion() async {
+        do {
+            try await finishSuccessfulImport()
+        } catch {
+            state.setError(
+                onboardingCompletionMessage(for: error),
+                stage: .onboardingCompletion
+            )
         }
     }
 
@@ -685,7 +724,8 @@ struct ResumeImportScreenView: View {
                 state.setError(
                     plan.blockers.isEmpty
                         ? "Kairo needs updated review decisions before import can continue."
-                        : plan.blockers.map(userFacingBlocker).joined(separator: " ")
+                        : plan.blockers.map(userFacingBlocker).joined(separator: " "),
+                    stage: .review
                 )
                 return
             }
@@ -707,10 +747,13 @@ struct ResumeImportScreenView: View {
             } else if case .api(let apiError) = error, apiError.code == .conflict {
                 await reconcileImportRecovery(reviewID: review.id)
             } else {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .review)
             }
         } catch {
-            state.setError(message(for: error))
+            state.setError(
+                message(for: error),
+                stage: attemptedImportRequest ? .import : .review
+            )
         }
     }
 
@@ -719,13 +762,13 @@ struct ResumeImportScreenView: View {
             do {
                 try await finishSuccessfulImport()
             } catch {
-                state.setError(message(for: error))
+                state.setError(onboardingCompletionMessage(for: error), stage: .onboardingCompletion)
             }
             return
         }
 
         guard batch.isPartiallyCompleted else {
-            state.setError(importFailureMessage(for: batch))
+            state.setError(importFailureMessage(for: batch), stage: .import)
             return
         }
 
@@ -734,7 +777,7 @@ struct ResumeImportScreenView: View {
            let latest = try? await resumeImportService.refreshReviewSession(reviewID: reviewID) {
             state.applyReviewSession(latest)
         }
-        state.setError(importFailureMessage(for: batch))
+        state.setError(importFailureMessage(for: batch), stage: .import)
     }
 
     private func finishSuccessfulImport(
@@ -747,12 +790,14 @@ struct ResumeImportScreenView: View {
             resolvedCompletionResult = try await resumeImportService.completeOnboardingIfNeeded()
         }
 
-        if resolvedCompletionResult.isOnboardingComplete {
-            router.advanceOnboarding(from: .resumeImportOrQuickProfile)
-            return
+        guard resolvedCompletionResult.isOnboardingComplete else {
+            throw ResumeImportServiceError.onboardingIncomplete(
+                resolvedCompletionResult.onboardingStatus
+            )
         }
 
-        try await onContinueRemainingProfileCompletion()
+        sessionStore.replaceCurrentUser(resolvedCompletionResult.user)
+        router.enterMainTabs(selectedTab: .home)
     }
 
     private func reconcileImportRecovery(reviewID: String) async {
@@ -763,7 +808,8 @@ struct ResumeImportScreenView: View {
             case .importCompleted:
                 guard let completionResult = recovery.completionResult else {
                     state.setError(
-                        "Kairo refreshed the latest import state, but couldn't finish onboarding reconciliation yet."
+                        "Kairo refreshed the latest import state, but couldn't finish onboarding reconciliation yet.",
+                        stage: .onboardingCompletion
                     )
                     activeEditorItem = nil
                     return
@@ -776,17 +822,19 @@ struct ResumeImportScreenView: View {
                     state.applyImportBatch(importBatch)
                 }
                 if let importBatch = recovery.importBatch {
-                    state.setError(importFailureMessage(for: importBatch))
+                    state.setError(importFailureMessage(for: importBatch), stage: .import)
                 } else {
                     state.setError(
-                        "Some imported claims still need your attention before onboarding can finish."
+                        "Some imported claims still need your attention before onboarding can finish.",
+                        stage: .import
                     )
                 }
             case .importInProgress:
                 state.applyReviewSession(recovery.reviewSession)
                 guard let importBatch = recovery.importBatch else {
                     state.setError(
-                        "Kairo is reconciling your import progress on the server. Please wait a moment and try again."
+                        "Kairo is reconciling your import progress on the server. Please wait a moment and try again.",
+                        stage: .import
                     )
                     activeEditorItem = nil
                     return
@@ -801,13 +849,23 @@ struct ResumeImportScreenView: View {
                     state.applyImportBatch(importBatch)
                 }
                 state.setError(
-                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely."
+                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                    stage: .review
                 )
             }
 
             activeEditorItem = nil
         } catch {
-            state.setError(message(for: error))
+            let stage: ResumeImportFailureStage =
+                state.liveImportBatch?.isCompletedWithoutHardFailures == true
+                    ? .onboardingCompletion
+                    : .import
+            state.setError(
+                stage == .onboardingCompletion
+                    ? onboardingCompletionMessage(for: error)
+                    : message(for: error),
+                stage: stage
+            )
         }
     }
 
@@ -840,10 +898,10 @@ struct ResumeImportScreenView: View {
                     desiredSelected: desiredSelected
                 )
             } else {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .review)
             }
         } catch {
-            state.setError(message(for: error))
+            state.setError(message(for: error), stage: .review)
         }
     }
 
@@ -891,10 +949,10 @@ struct ResumeImportScreenView: View {
                     desiredEditedPayload: editedPayload
                 )
             } else {
-                state.setError(message(for: error))
+                state.setError(message(for: error), stage: .review)
             }
         } catch {
-            state.setError(message(for: error))
+            state.setError(message(for: error), stage: .review)
         }
     }
 
@@ -910,7 +968,8 @@ struct ResumeImportScreenView: View {
 
             guard let latestItem = latest.items.first(where: { $0.id == itemID }) else {
                 state.setError(
-                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely."
+                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                    stage: .review
                 )
                 activeEditorItem = nil
                 return
@@ -934,7 +993,8 @@ struct ResumeImportScreenView: View {
             activeEditorItem = nil
         } catch {
             state.setError(
-                "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely."
+                "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                stage: .review
             )
             activeEditorItem = nil
         }
@@ -961,6 +1021,12 @@ struct ResumeImportScreenView: View {
         }
 
         return error.localizedDescription
+    }
+
+    private func onboardingCompletionMessage(for error: Error) -> String {
+        "Your approved resume claims are already saved. Kairo couldn't finish account setup yet. "
+            + "Try again to complete setup without importing the resume a second time. "
+            + message(for: error)
     }
 
     private func importFailureMessage(for batch: ResumeImportBatch) -> String {

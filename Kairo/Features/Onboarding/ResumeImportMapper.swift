@@ -296,11 +296,17 @@ enum ResumeImportMapper {
                 .init(key: "issuing_organization", label: "Issuer", keyboard: .default),
                 .init(key: "issue_date", label: "Issue date", keyboard: .default)
             ]
-        case "project", "portfolio":
+        case "project":
             return [
-                .init(key: "project_title", label: "Project", keyboard: .default, fallbacks: ["title"]),
-                .init(key: "role", label: "Role", keyboard: .default),
-                .init(key: "portfolio_url", label: "Portfolio link", keyboard: .URL, fallbacks: ["url"])
+                .init(key: "title", label: "Project", keyboard: .default, fallbacks: ["project_title"]),
+                .init(key: "description", label: "Description", keyboard: .default),
+                .init(key: "url", label: "Project link", keyboard: .URL, fallbacks: ["portfolio_url"])
+            ]
+        case "portfolio":
+            return [
+                .init(key: "title", label: "Portfolio item", keyboard: .default),
+                .init(key: "description", label: "Description", keyboard: .default),
+                .init(key: "url", label: "Portfolio link", keyboard: .URL)
             ]
         case "skill":
             return [

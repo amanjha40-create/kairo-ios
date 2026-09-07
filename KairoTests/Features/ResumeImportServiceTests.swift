@@ -353,7 +353,7 @@ final class ResumeImportServiceTests: XCTestCase {
         XCTAssertTrue(result.onboardingStatus.isOnboardingComplete)
     }
 
-    func test_completeOnboardingIfNeededDoesNotPostWhenBackendStillRequiresMoreData() async throws {
+    func test_completeOnboardingIfNeededUsesCanonicalCompletionDespiteAdvisoryRequirements() async throws {
         let service = try await makeService()
 
         await MockURLProtocolStorage.shared.setHandler { request in
@@ -361,7 +361,15 @@ final class ResumeImportServiceTests: XCTestCase {
             case ("GET", "/api/v1/users/me"):
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case ("GET", "/api/v1/onboarding/status"):
-                return (try Self.response(for: request, statusCode: 200), Self.incompleteOnboardingMissingRequirementsPayload)
+                let callCount = await MockURLProtocolStorage.shared.requests().filter {
+                    $0.url?.path == "/api/v1/onboarding/status"
+                }.count
+                return (
+                    try Self.response(for: request, statusCode: 200),
+                    callCount == 1 ? Self.incompleteOnboardingMissingRequirementsPayload : Self.completedOnboardingPayload
+                )
+            case ("POST", "/api/v1/users/me/complete-onboarding"):
+                return (try Self.response(for: request, statusCode: 204), Data())
             default:
                 XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
                 throw URLError(.badURL)
@@ -375,12 +383,53 @@ final class ResumeImportServiceTests: XCTestCase {
             requests.map { "\($0.httpMethod ?? "nil") \($0.url?.path ?? "nil")" },
             [
                 "GET /api/v1/users/me",
+                "GET /api/v1/onboarding/status",
+                "POST /api/v1/users/me/complete-onboarding",
+                "GET /api/v1/users/me",
                 "GET /api/v1/onboarding/status"
             ]
         )
-        XCTAssertEqual(result.onboardingStatus.currentStep, "complete_profile")
-        XCTAssertEqual(result.onboardingStatus.missingRequirements, ["headline"])
-        XCTAssertFalse(result.onboardingStatus.isOnboardingComplete)
+        XCTAssertTrue(result.onboardingStatus.isOnboardingComplete)
+    }
+
+    func test_completeOnboardingIfNeededSurfacesCanonicalCompletionFailure() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/users/me"):
+                return (try Self.response(for: request, statusCode: 200), Self.userPayload)
+            case ("GET", "/api/v1/onboarding/status"):
+                return (try Self.response(for: request, statusCode: 200), Self.incompleteOnboardingMissingRequirementsPayload)
+            case ("POST", "/api/v1/users/me/complete-onboarding"):
+                return (
+                    try Self.response(for: request, statusCode: 503),
+                    Self.apiErrorPayload(code: "service_unavailable", message: "Try again later.")
+                )
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        do {
+            _ = try await service.completeOnboardingIfNeeded()
+            XCTFail("Expected canonical onboarding completion failure.")
+        } catch let NetworkError.api(apiError) {
+            XCTAssertEqual(apiError.code.rawValue, "service_unavailable")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(
+            requests.map { "\($0.httpMethod ?? "nil") \($0.url?.path ?? "nil")" },
+            [
+                "GET /api/v1/users/me",
+                "GET /api/v1/onboarding/status",
+                "POST /api/v1/users/me/complete-onboarding"
+            ]
+        )
     }
 
     func test_reconcileImportRecoveryTreatsCompletedImportAsCompleteWithoutRetryingImport() async throws {
@@ -395,7 +444,15 @@ final class ResumeImportServiceTests: XCTestCase {
             case ("GET", "/api/v1/users/me"):
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case ("GET", "/api/v1/onboarding/status"):
-                return (try Self.response(for: request, statusCode: 200), Self.incompleteOnboardingMissingRequirementsPayload)
+                let callCount = await MockURLProtocolStorage.shared.requests().filter {
+                    $0.url?.path == "/api/v1/onboarding/status"
+                }.count
+                return (
+                    try Self.response(for: request, statusCode: 200),
+                    callCount == 1 ? Self.incompleteOnboardingMissingRequirementsPayload : Self.completedOnboardingPayload
+                )
+            case ("POST", "/api/v1/users/me/complete-onboarding"):
+                return (try Self.response(for: request, statusCode: 204), Data())
             default:
                 XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
                 throw URLError(.badURL)
@@ -409,16 +466,15 @@ final class ResumeImportServiceTests: XCTestCase {
         XCTAssertEqual(recovery.reviewSession.status, .imported)
         XCTAssertEqual(recovery.importBatch?.resolvedStatus, .completed)
         XCTAssertEqual(recovery.importBatch?.incompleteCount, 5)
-        XCTAssertEqual(
-            recovery.completionResult?.onboardingStatus.missingRequirements,
-            ["headline"]
-        )
-        XCTAssertFalse(recovery.completionResult?.isOnboardingComplete ?? true)
+        XCTAssertTrue(recovery.completionResult?.isOnboardingComplete ?? false)
         XCTAssertEqual(
             requests.map { "\($0.httpMethod ?? "nil") \($0.url?.path ?? "nil")" },
             [
                 "GET /api/v1/resume-reviews/review_123",
                 "GET /api/v1/resume-reviews/review_123/import-status",
+                "GET /api/v1/users/me",
+                "GET /api/v1/onboarding/status",
+                "POST /api/v1/users/me/complete-onboarding",
                 "GET /api/v1/users/me",
                 "GET /api/v1/onboarding/status"
             ]

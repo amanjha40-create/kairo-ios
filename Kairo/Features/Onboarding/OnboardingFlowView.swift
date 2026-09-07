@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct OnboardingFlowView: View {
-    @Environment(\.appConfiguration) private var appConfiguration
-    @Environment(\.manualProfileService) private var manualProfileService
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
     @State private var flowState: OnboardingFlowState
@@ -83,8 +81,7 @@ struct OnboardingFlowView: View {
                     state: $flowState.resumeImportState,
                     onBuildProfileManually: {
                         flowState.chooseStartState.select(.buildProfileManually)
-                    },
-                    onContinueRemainingProfileCompletion: continueRemainingProfileCompletion
+                    }
                 )
             }
         case .passportCreated:
@@ -106,27 +103,4 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private var shouldPersistManualProfileDraft: Bool {
-        !appConfiguration.isDemoModeEnabled && !UITestLaunchConfiguration.current().isEnabled
-    }
-
-    private var signupDraftFullName: String? {
-        CreateAccountValidation.normalizedFullName(
-            firstName: flowState.createAccountDraft.firstName,
-            lastName: flowState.createAccountDraft.lastName
-        )
-    }
-
-    @MainActor
-    private func continueRemainingProfileCompletion() async throws {
-        let preparedDraft = try await manualProfileService.prepareRemainingProfileDraft(
-            signupDraftFullName: signupDraftFullName
-        )
-
-        flowState.applyCompletedResumeImportHandoff(manualProfileState: preparedDraft)
-
-        if shouldPersistManualProfileDraft {
-            ManualProfileDraftStore.save(preparedDraft)
-        }
-    }
 }

@@ -52,6 +52,62 @@ final class ResumeImportMapperTests: XCTestCase {
         XCTAssertEqual(payload["start_date"], .string("2022-01"))
     }
 
+    func test_projectEditorEmitsOnlyCanonicalBackendFieldsAndPersistsEditedValues() {
+        let item = ResumeReviewItem(
+            id: "project_1",
+            claimType: "project",
+            sourceClaimID: "claim_project",
+            originalPayload: [
+                "claim_type": .string("project"),
+                "title": .string("Synthetic Project"),
+                "description": .string("Synthetic description"),
+                "url": .string("https://example.test/project")
+            ],
+            editedPayload: [
+                "claim_type": .string("project"),
+                "title": .string("Synthetic Project"),
+                "description": .string("Synthetic description"),
+                "url": .string("https://example.test/project")
+            ],
+            selected: true,
+            reviewStatus: "selected",
+            duplicateStatus: .noMatch,
+            duplicateCandidates: [],
+            conflictWarnings: [],
+            importAction: .createNew,
+            targetRecordID: nil,
+            importedRecordType: nil,
+            importedRecordID: nil,
+            sourceReference: nil,
+            confidence: 0.98,
+            version: 3
+        )
+
+        XCTAssertEqual(
+            ResumeImportMapper.editableFields(for: item).map(\.key),
+            ["title", "description", "url"]
+        )
+
+        let edited = ResumeImportMapper.editedPayload(
+            for: item,
+            using: [
+                "title": "Synthetic Project Updated",
+                "description": "Synthetic description",
+                "url": "https://example.test/project/"
+            ]
+        )
+        let request = ResumeImportMapper.editedPayloadUpdateRequest(
+            for: item,
+            editedPayload: edited
+        )
+
+        XCTAssertEqual(request.editedPayload?["title"], .string("Synthetic Project Updated"))
+        XCTAssertEqual(request.editedPayload?["url"], .string("https://example.test/project/"))
+        XCTAssertNil(request.editedPayload?["project_title"])
+        XCTAssertNil(request.editedPayload?["portfolio_url"])
+        XCTAssertNil(request.editedPayload?["role"])
+    }
+
     func test_displayHelpersUseEditedPayloadBeforeFallbacks() {
         let item = ResumeReviewItem(
             id: "profile_1",

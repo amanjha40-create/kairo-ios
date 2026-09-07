@@ -23,6 +23,29 @@ nonisolated enum ResumeImportPhase: String, Equatable, Sendable {
     }
 }
 
+nonisolated enum ResumeImportFailureStage: String, Equatable, Sendable {
+    case upload
+    case parsing
+    case review
+    case `import`
+    case onboardingCompletion
+
+    var title: String {
+        switch self {
+        case .upload:
+            "We couldn't upload that resume"
+        case .parsing:
+            "We couldn't process that resume"
+        case .review:
+            "We couldn't save that review"
+        case .import:
+            "We couldn't finish that import"
+        case .onboardingCompletion:
+            "Your resume was imported"
+        }
+    }
+}
+
 nonisolated enum ResumeImportProcessingPolicy: String, Equatable, Sendable {
     case succeed
     case failOnce
@@ -212,6 +235,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
     var selectedFile: ResumeImportFile?
     var selectedTemporaryFileURL: URL?
     var errorMessage: String?
+    var failureStage: ResumeImportFailureStage?
     var processingPolicy: ResumeImportProcessingPolicy
     var processingAttemptCount: Int
     var autoAdvanceProcessing: Bool
@@ -231,6 +255,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         selectedFile: ResumeImportFile? = nil,
         selectedTemporaryFileURL: URL? = nil,
         errorMessage: String? = nil,
+        failureStage: ResumeImportFailureStage? = nil,
         processingPolicy: ResumeImportProcessingPolicy = .succeed,
         processingAttemptCount: Int = 0,
         autoAdvanceProcessing: Bool = true,
@@ -249,6 +274,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         self.selectedFile = selectedFile
         self.selectedTemporaryFileURL = selectedTemporaryFileURL
         self.errorMessage = errorMessage
+        self.failureStage = failureStage
         self.processingPolicy = processingPolicy
         self.processingAttemptCount = processingAttemptCount
         self.autoAdvanceProcessing = autoAdvanceProcessing
@@ -392,6 +418,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             )
             selectedTemporaryFileURL = nil
             errorMessage = nil
+            failureStage = nil
             phase = .selected
             processingAttemptCount = 0
             statusTitleOverride = nil
@@ -400,24 +427,28 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             selectedFile = nil
             selectedTemporaryFileURL = nil
             errorMessage = "Choose a PDF or DOCX file."
+            failureStage = nil
             phase = .unsupportedFile
             processingAttemptCount = 0
         } catch ResumeImportSelectionError.emptyFile {
             selectedFile = nil
             selectedTemporaryFileURL = nil
             errorMessage = "That file is empty. Choose another resume."
+            failureStage = .upload
             phase = .failed
             processingAttemptCount = 0
         } catch ResumeImportSelectionError.fileTooLarge {
             selectedFile = nil
             selectedTemporaryFileURL = nil
             errorMessage = "Your resume must be 10 MB or smaller."
+            failureStage = .upload
             phase = .failed
             processingAttemptCount = 0
         } catch {
             selectedFile = nil
             selectedTemporaryFileURL = nil
             errorMessage = "Kairo couldn't read that file. Choose another resume to continue."
+            failureStage = .upload
             phase = .failed
             processingAttemptCount = 0
         }
@@ -427,6 +458,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         selectedFile = selection.file
         selectedTemporaryFileURL = selection.temporaryFileURL
         errorMessage = nil
+        failureStage = nil
         phase = .selected
         processingAttemptCount = 0
         liveResume = nil
@@ -444,6 +476,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         selectedFile = nil
         selectedTemporaryFileURL = nil
         errorMessage = nil
+        failureStage = nil
         phase = .initial
         processingAttemptCount = 0
         liveResume = nil
@@ -468,6 +501,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
 
         processingAttemptCount += 1
         errorMessage = nil
+        failureStage = nil
         phase = .processingPreparing
     }
 
@@ -478,6 +512,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
 
         if liveResume != nil {
             errorMessage = nil
+            failureStage = nil
             phase = .processingPreparing
             currentProcessingStatus = .queued
             statusTitleOverride = nil
@@ -496,6 +531,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             if shouldFailCurrentAttempt {
                 phase = .failed
                 errorMessage = "Kairo couldn't finish this local demo import. Retry to keep reviewing from the same resume, or choose another file."
+                failureStage = .parsing
             } else {
                 phase = .readyForReview
             }
@@ -539,6 +575,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         liveImportBatch = snapshot.importBatch
         selectedTemporaryFileURL = nil
         restorationAttempted = true
+        failureStage = nil
 
         if snapshot.reviewSession != nil {
             phase = .readyForReview
@@ -554,6 +591,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         case .failed, .cancelled:
             phase = .failed
             errorMessage = snapshot.resume.processingStatus.message
+            failureStage = .parsing
         case .needsReview:
             phase = .readyForReview
         case .uploaded, .queued, .pendingUpload:
@@ -591,6 +629,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         liveImportBatch = nil
         currentProcessingStatus = .uploaded
         errorMessage = nil
+        failureStage = nil
         phase = .uploading
         statusTitleOverride = "Uploading your resume"
         statusMessageOverride = "Kairo is securely uploading your resume before backend processing starts."
@@ -623,6 +662,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         case .failed, .cancelled:
             phase = .failed
             errorMessage = job.status.message
+            failureStage = .parsing
         case .deleted:
             phase = .initial
         }
@@ -633,6 +673,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         liveReviewPlan = nil
         currentProcessingStatus = .needsReview
         errorMessage = nil
+        failureStage = nil
         phase = .readyForReview
         statusTitleOverride = nil
         statusMessageOverride = nil
@@ -658,6 +699,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
     mutating func beginImporting() {
         phase = .importing
         errorMessage = nil
+        failureStage = nil
         statusTitleOverride = "Importing approved claims"
         statusMessageOverride = "Kairo is importing only the resume claims you approved."
     }
@@ -670,14 +712,30 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         }
     }
 
-    mutating func setError(_ message: String, phase: ResumeImportPhase = .failed) {
+    mutating func setError(
+        _ message: String,
+        stage: ResumeImportFailureStage,
+        phase: ResumeImportPhase = .failed
+    ) {
         self.phase = phase
         errorMessage = message
-        if phase == .failed {
+        failureStage = stage
+        if stage == .parsing {
             currentProcessingStatus = .failed
         }
         statusTitleOverride = nil
         statusMessageOverride = nil
+    }
+
+    mutating func returnToReviewAfterFailure() {
+        guard liveReviewSession != nil else {
+            return
+        }
+
+        phase = .readyForReview
+        errorMessage = nil
+        failureStage = nil
+        currentProcessingStatus = .needsReview
     }
 
     mutating func ensureImportIdempotencyKey(for reviewID: String) -> String {
