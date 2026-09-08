@@ -670,6 +670,12 @@ struct ResumeImportScreenView: View {
         do {
             let process = try await resumeImportService.startProcessing(resumeID: resumeID)
             state.applyProcessingJob(process)
+            if process.status.requiresReviewSessionHydration {
+                let review = try await resumeImportService.loadOrCreateReviewSession(
+                    resumeID: resumeID
+                )
+                state.applyReviewSession(review)
+            }
         } catch {
             state.setError(message(for: error), stage: .parsing)
         }

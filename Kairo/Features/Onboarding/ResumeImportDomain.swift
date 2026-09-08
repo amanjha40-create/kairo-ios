@@ -37,6 +37,10 @@ nonisolated enum ResumeProcessingStatus: String, Equatable, Sendable {
         }
     }
 
+    var requiresReviewSessionHydration: Bool {
+        self == .needsReview
+    }
+
     var title: String {
         switch self {
         case .pendingUpload:

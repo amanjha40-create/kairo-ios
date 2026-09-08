@@ -173,6 +173,25 @@ final class ResumeImportStateTests: XCTestCase {
         XCTAssertEqual(state.failureStage?.title, "We couldn't process that resume")
     }
 
+    func test_needsReviewResponseRequiresReviewSessionHydration() {
+        XCTAssertTrue(ResumeProcessingStatus.needsReview.requiresReviewSessionHydration)
+
+        for status: ResumeProcessingStatus in [
+            .pendingUpload,
+            .uploaded,
+            .queued,
+            .extracting,
+            .extracted,
+            .parsing,
+            .failed,
+            .cancelled,
+            .deleted,
+            .unknown
+        ] {
+            XCTAssertFalse(status.requiresReviewSessionHydration)
+        }
+    }
+
     func test_onboardingCompletionFailureDoesNotMasqueradeAsParserFailure() {
         var state = ResumeImportState(currentProcessingStatus: .needsReview)
 
