@@ -1445,6 +1445,42 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testResumeImportRelaunchRestoresAuthoritativeReviewWithoutDemoClaims() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(
+                phase: "processingOrganising",
+                autoAdvance: false,
+                serviceScenario: "authoritative_recovery"
+            )) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[resumeImportProcessingTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Authoritative Systems"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Staff Software Engineer"].exists)
+        XCTAssertTrue(app.buttons[resumeImportLooksGoodButton].exists)
+        XCTAssertFalse(app.staticTexts["Meridian Trust"].exists)
+        XCTAssertFalse(app.staticTexts["Northline Career Services"].exists)
+    }
+
+    @MainActor
+    func testLiveResumeReviewFailureShowsRetryWithoutDemoClaims() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(resumeImportEnvironment(
+                phase: "processingOrganising",
+                autoAdvance: false,
+                serviceScenario: "missing_authoritative_review"
+            )) { _, override in override })
+
+        XCTAssertTrue(app.staticTexts[resumeImportFailureMessage].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[resumeImportRetryButton].exists)
+        XCTAssertTrue(app.buttons["Retry Review"].exists)
+        XCTAssertFalse(app.staticTexts["Meridian Trust"].exists)
+        XCTAssertFalse(app.staticTexts["Northline Career Services"].exists)
+        XCTAssertFalse(app.buttons[resumeImportLooksGoodButton].exists)
+    }
+
+    @MainActor
     func testResumeImportReviewStateCanChooseAnotherResume() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
@@ -1885,12 +1921,14 @@ final class KairoUITests: XCTestCase {
     private func resumeImportEnvironment(
         phase: String,
         fileName: String = "Aman_Jha_Resume.pdf",
-        autoAdvance: Bool = true
+        autoAdvance: Bool = true,
+        serviceScenario: String = "demo"
     ) -> [String: String] {
         [
             "KAIRO_UI_TEST_RESUME_IMPORT_PHASE": phase,
             "KAIRO_UI_TEST_RESUME_IMPORT_FILE_NAME": fileName,
-            "KAIRO_UI_TEST_RESUME_IMPORT_AUTO_ADVANCE": autoAdvance ? "1" : "0"
+            "KAIRO_UI_TEST_RESUME_IMPORT_AUTO_ADVANCE": autoAdvance ? "1" : "0",
+            "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": serviceScenario
         ]
     }
 

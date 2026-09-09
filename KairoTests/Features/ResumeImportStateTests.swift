@@ -192,6 +192,24 @@ final class ResumeImportStateTests: XCTestCase {
         }
     }
 
+    func test_needsReviewJobEntersHydrationInsteadOfReadyState() {
+        var state = ResumeImportState(
+            liveResume: makeResumeRecord(processingStatus: .parsing)
+        )
+        let job = ResumeProcessJob(
+            resumeID: "resume_123",
+            jobID: "job_123",
+            status: .needsReview
+        )
+
+        state.applyProcessingJob(job)
+
+        XCTAssertEqual(state.phase, .hydratingReview)
+        XCTAssertFalse(state.canConfirm)
+        XCTAssertNil(state.liveReviewSession)
+        XCTAssertEqual(state.currentProcessingTitle, "Loading your review")
+    }
+
     func test_onboardingCompletionFailureDoesNotMasqueradeAsParserFailure() {
         var state = ResumeImportState(currentProcessingStatus: .needsReview)
 
@@ -286,6 +304,51 @@ final class ResumeImportStateTests: XCTestCase {
         XCTAssertEqual(state.currentProcessingStatus, .needsReview)
         XCTAssertEqual(state.selectedFile?.fileName, "Aman_Jha_Resume.pdf")
         XCTAssertNotNil(state.liveReviewSession)
+    }
+
+    func test_applyRestoredWorkflowWithoutReviewSessionNeverEntersReadyState() {
+        var state = ResumeImportState()
+        let snapshot = ResumeImportWorkflowSnapshot(
+            resume: makeResumeRecord(processingStatus: .needsReview),
+            reviewSession: nil,
+            importBatch: nil
+        )
+
+        state.applyRestoredWorkflow(snapshot)
+
+        XCTAssertEqual(state.phase, .hydratingReview)
+        XCTAssertFalse(state.canConfirm)
+        XCTAssertNil(state.liveReviewSession)
+    }
+
+    func test_applyRestoredWorkflowRejectsReviewSessionWithoutItems() {
+        var state = ResumeImportState()
+        let snapshot = ResumeImportWorkflowSnapshot(
+            resume: makeResumeRecord(processingStatus: .needsReview),
+            reviewSession: makeReviewSession(items: []),
+            importBatch: nil
+        )
+
+        state.applyRestoredWorkflow(snapshot)
+
+        XCTAssertEqual(state.phase, .failed)
+        XCTAssertEqual(state.failureStage, .reviewHydration)
+        XCTAssertFalse(state.canConfirm)
+        XCTAssertNil(state.liveReviewSession)
+        XCTAssertEqual(state.currentProcessingStatus, .needsReview)
+    }
+
+    func test_applyReviewSessionRequiresHydratedItems() {
+        var state = ResumeImportState(
+            liveResume: makeResumeRecord(processingStatus: .needsReview)
+        )
+
+        state.applyReviewSession(makeReviewSession(items: []))
+
+        XCTAssertEqual(state.phase, .failed)
+        XCTAssertEqual(state.failureStage, .reviewHydration)
+        XCTAssertNil(state.liveReviewSession)
+        XCTAssertFalse(state.canConfirm)
     }
 
     func test_applyRestoredWorkflowWithActiveImportReturnsToImportingState() {
@@ -421,7 +484,8 @@ final class ResumeImportStateTests: XCTestCase {
     }
 
     private func makeReviewSession(
-        status: ResumeReviewStatus = .reviewing
+        status: ResumeReviewStatus = .reviewing,
+        items: [ResumeReviewItem]? = nil
     ) -> ResumeReviewSession {
         ResumeReviewSession(
             id: "review_123",
@@ -430,9 +494,37 @@ final class ResumeImportStateTests: XCTestCase {
             status: status,
             schemaVersion: "resume_review_v1",
             version: 4,
-            items: [],
+            items: items ?? [makeReviewItem()],
             createdAt: Date(timeIntervalSince1970: 1_722_499_300),
             updatedAt: Date(timeIntervalSince1970: 1_722_499_320)
+        )
+    }
+
+    private func makeReviewItem() -> ResumeReviewItem {
+        ResumeReviewItem(
+            id: "item_123",
+            claimType: "employment",
+            sourceClaimID: "claim_123",
+            originalPayload: [
+                "job_title": .string("Software Engineer"),
+                "employer_legal_name": .string("Authoritative Systems")
+            ],
+            editedPayload: [
+                "job_title": .string("Software Engineer"),
+                "employer_legal_name": .string("Authoritative Systems")
+            ],
+            selected: true,
+            reviewStatus: "selected",
+            duplicateStatus: .noMatch,
+            duplicateCandidates: [],
+            conflictWarnings: [],
+            importAction: .createNew,
+            targetRecordID: nil,
+            importedRecordType: nil,
+            importedRecordID: nil,
+            sourceReference: "page_1",
+            confidence: 0.98,
+            version: 1
         )
     }
 

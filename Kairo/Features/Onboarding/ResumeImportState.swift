@@ -7,6 +7,7 @@ nonisolated enum ResumeImportPhase: String, Equatable, Sendable {
     case uploading
     case processingPreparing
     case processingOrganising
+    case hydratingReview
     case failed
     case readyForReview
     case importing
@@ -15,7 +16,7 @@ nonisolated enum ResumeImportPhase: String, Equatable, Sendable {
 
     var isProcessing: Bool {
         switch self {
-        case .uploading, .processingPreparing, .processingOrganising, .importing:
+        case .uploading, .processingPreparing, .processingOrganising, .hydratingReview, .importing:
             true
         default:
             false
@@ -26,6 +27,7 @@ nonisolated enum ResumeImportPhase: String, Equatable, Sendable {
 nonisolated enum ResumeImportFailureStage: String, Equatable, Sendable {
     case upload
     case parsing
+    case reviewHydration
     case review
     case `import`
     case onboardingCompletion
@@ -36,6 +38,8 @@ nonisolated enum ResumeImportFailureStage: String, Equatable, Sendable {
             "We couldn't upload that resume"
         case .parsing:
             "We couldn't process that resume"
+        case .reviewHydration:
+            "We couldn't load your review"
         case .review:
             "We couldn't save that review"
         case .import:
@@ -320,6 +324,10 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             return statusTitleOverride
         }
 
+        if phase == .hydratingReview {
+            return "Loading your review"
+        }
+
         if let currentProcessingStatus {
             return currentProcessingStatus.title
         }
@@ -341,6 +349,10 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
     var currentProcessingMessage: String? {
         if let statusMessageOverride {
             return statusMessageOverride
+        }
+
+        if phase == .hydratingReview {
+            return "Kairo is restoring your authoritative resume review and its candidate claims."
         }
 
         if let currentProcessingStatus {
@@ -577,7 +589,17 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         restorationAttempted = true
         failureStage = nil
 
-        if snapshot.reviewSession != nil {
+        if let reviewSession = snapshot.reviewSession {
+            guard !reviewSession.items.isEmpty else {
+                liveReviewSession = nil
+                currentProcessingStatus = .needsReview
+                setError(
+                    ResumeReviewRecoveryFailure.missingItems.localizedDescription,
+                    stage: .reviewHydration
+                )
+                return
+            }
+
             phase = .readyForReview
             currentProcessingStatus = .needsReview
             if let importBatch = snapshot.importBatch, !importBatch.isTerminal {
@@ -593,7 +615,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             errorMessage = snapshot.resume.processingStatus.message
             failureStage = .parsing
         case .needsReview:
-            phase = .readyForReview
+            beginReviewHydration()
         case .uploaded, .queued, .pendingUpload:
             phase = .processingPreparing
             errorMessage = nil
@@ -658,7 +680,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         case .extracting, .extracted, .parsing, .unknown:
             phase = .processingOrganising
         case .needsReview:
-            phase = .readyForReview
+            beginReviewHydration()
         case .failed, .cancelled:
             phase = .failed
             errorMessage = job.status.message
@@ -669,12 +691,31 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
     }
 
     mutating func applyReviewSession(_ review: ResumeReviewSession) {
+        guard !review.items.isEmpty else {
+            liveReviewSession = nil
+            currentProcessingStatus = .needsReview
+            setError(
+                ResumeReviewRecoveryFailure.missingItems.localizedDescription,
+                stage: .reviewHydration
+            )
+            return
+        }
+
         liveReviewSession = review
         liveReviewPlan = nil
         currentProcessingStatus = .needsReview
         errorMessage = nil
         failureStage = nil
         phase = .readyForReview
+        statusTitleOverride = nil
+        statusMessageOverride = nil
+    }
+
+    mutating func beginReviewHydration() {
+        phase = .hydratingReview
+        currentProcessingStatus = .needsReview
+        errorMessage = nil
+        failureStage = nil
         statusTitleOverride = nil
         statusMessageOverride = nil
     }

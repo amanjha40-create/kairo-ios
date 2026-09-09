@@ -62,8 +62,12 @@ struct AppDependencies: Sendable {
                 )
             }
         let resumeImportService: any ResumeImportServiceProtocol =
-            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+            if configuration.isDemoModeEnabled {
                 DemoResumeImportService()
+            } else if uiTestConfiguration.isEnabled {
+                UITestResumeImportService(
+                    scenario: UITestResumeImportConfiguration.current().serviceScenario
+                )
             } else {
                 ResumeImportService(
                     sessionService: sessionService,

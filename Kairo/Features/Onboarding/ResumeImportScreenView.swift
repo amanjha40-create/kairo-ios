@@ -16,7 +16,7 @@ struct ResumeImportScreenView: View {
     @State private var editorValues: [String: String] = [:]
 
     private var isPreviewMode: Bool {
-        appConfiguration.isDemoModeEnabled || UITestLaunchConfiguration.current().isEnabled
+        appConfiguration.isDemoModeEnabled || UITestResumeImportConfiguration.current().usesDemoReview
     }
 
     private var demoReviewPreview: ResumeImportReviewPreview {
@@ -45,7 +45,7 @@ struct ResumeImportScreenView: View {
                     introductoryCard
                 case .selected:
                     selectedFileCard
-                case .uploading, .processingPreparing, .processingOrganising, .importing:
+                case .uploading, .processingPreparing, .processingOrganising, .hydratingReview, .importing:
                     processingCard
                 case .failed:
                     failureCard
@@ -215,10 +215,17 @@ struct ResumeImportScreenView: View {
 
     @ViewBuilder
     private var reviewContent: some View {
-        if let liveReviewSession = state.liveReviewSession, !isPreviewMode {
+        if isPreviewMode {
+            demoReviewContent
+        } else if let liveReviewSession = state.liveReviewSession,
+                  !liveReviewSession.items.isEmpty {
             liveReviewContent(liveReviewSession)
         } else {
-            demoReviewContent
+            KairoErrorStateView(
+                title: "We couldn't load your review",
+                message: ResumeReviewRecoveryFailure.missingItems.localizedDescription,
+                messageAccessibilityIdentifier: KairoAccessibilityID.resumeImportFailureMessage
+            )
         }
     }
 
@@ -336,7 +343,7 @@ struct ResumeImportScreenView: View {
                 secondaryAccessibilityIdentifier: KairoAccessibilityID.resumeImportManualButton,
                 secondaryAction: onBuildProfileManually
             )
-        case .uploading, .processingPreparing, .processingOrganising:
+        case .uploading, .processingPreparing, .processingOrganising, .hydratingReview:
             KairoPrimaryButton(
                 title: state.currentProcessingTitle ?? "Processing resume",
                 isLoading: true,
@@ -399,6 +406,8 @@ struct ResumeImportScreenView: View {
             "Choose Resume"
         case .parsing:
             "Retry Processing"
+        case .reviewHydration:
+            "Retry Review"
         case .review:
             "Return to Review"
         case .import:
@@ -420,6 +429,8 @@ struct ResumeImportScreenView: View {
             return { isFileImporterPresented = true }
         case .parsing:
             return { Task { await retryLiveProcessing() } }
+        case .reviewHydration:
+            return { Task { await retryReviewRecovery() } }
         case .review:
             return { state.returnToReviewAfterFailure() }
         case .import:
@@ -500,12 +511,23 @@ struct ResumeImportScreenView: View {
             }
 
             state.applyRestoredWorkflow(snapshot)
+        } catch let error as ResumeImportServiceError {
+            if case .reviewRecovery = error {
+                state.setError(message(for: error), stage: .reviewHydration)
+            } else {
+                state.setError(message(for: error), stage: .parsing)
+            }
         } catch {
             state.setError(message(for: error), stage: .parsing)
         }
     }
 
     private func pollLiveWorkflowIfNeeded() async {
+        if state.phase == .hydratingReview, let resumeID = state.liveResume?.id {
+            await hydrateLiveReviewSession(resumeID: resumeID)
+            return
+        }
+
         if let reviewID = state.liveReviewSession?.id,
            state.phase == .importing,
            let importBatch = state.liveImportBatch,
@@ -532,10 +554,6 @@ struct ResumeImportScreenView: View {
                 state.applyProcessingJob(process)
 
                 if process.status.isTerminal {
-                    if process.status == .needsReview {
-                        let review = try await resumeImportService.loadOrCreateReviewSession(resumeID: resumeID)
-                        state.applyReviewSession(review)
-                    }
                     return
                 }
             } catch {
@@ -670,15 +688,30 @@ struct ResumeImportScreenView: View {
         do {
             let process = try await resumeImportService.startProcessing(resumeID: resumeID)
             state.applyProcessingJob(process)
-            if process.status.requiresReviewSessionHydration {
-                let review = try await resumeImportService.loadOrCreateReviewSession(
-                    resumeID: resumeID
-                )
-                state.applyReviewSession(review)
-            }
         } catch {
             state.setError(message(for: error), stage: .parsing)
         }
+    }
+
+    private func hydrateLiveReviewSession(resumeID: String) async {
+        do {
+            let review = try await resumeImportService.loadOrCreateReviewSession(resumeID: resumeID)
+            state.applyReviewSession(review)
+        } catch {
+            state.setError(message(for: error), stage: .reviewHydration)
+        }
+    }
+
+    private func retryReviewRecovery() async {
+        if let resumeID = state.liveResume?.id {
+            state.beginReviewHydration()
+            await hydrateLiveReviewSession(resumeID: resumeID)
+            return
+        }
+
+        state.restorationAttempted = false
+        state.beginReviewHydration()
+        await restoreLatestWorkflowIfNeeded()
     }
 
     private func retryImportSafely() async {

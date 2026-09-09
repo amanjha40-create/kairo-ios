@@ -233,6 +233,182 @@ final class ResumeImportServiceTests: XCTestCase {
         XCTAssertNil(workflow?.importBatch)
     }
 
+    func test_restoreLatestWorkflowCreatesMissingAuthoritativeReviewExactlyOnce() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                return (
+                    try Self.response(for: request, statusCode: 404),
+                    Self.apiErrorPayload(code: "not_found", message: "Review session not found.")
+                )
+            case ("POST", "/api/v1/resumes/resume_123/review-session"):
+                return (try Self.response(for: request, statusCode: 201), Self.reviewSessionPayload)
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let workflow = try await service.restoreLatestWorkflow()
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(workflow?.reviewSession?.id, "review_123")
+        XCTAssertEqual(workflow?.reviewSession?.items.count, 1)
+        XCTAssertEqual(
+            requests.map { "\($0.httpMethod ?? "nil") \($0.url?.path ?? "nil")" },
+            [
+                "GET /api/v1/resumes",
+                "GET /api/v1/resumes/resume_123/review-session",
+                "POST /api/v1/resumes/resume_123/review-session"
+            ]
+        )
+    }
+
+    func test_restoreLatestWorkflowRefetchesAfterCreateConflict() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                let requestCount = await MockURLProtocolStorage.shared.requests().filter {
+                    $0.httpMethod == "GET" &&
+                    $0.url?.path == "/api/v1/resumes/resume_123/review-session"
+                }.count
+                if requestCount == 1 {
+                    return (
+                        try Self.response(for: request, statusCode: 404),
+                        Self.apiErrorPayload(code: "not_found", message: "Review session not found.")
+                    )
+                }
+                return (try Self.response(for: request, statusCode: 200), Self.reviewSessionPayload)
+            case ("POST", "/api/v1/resumes/resume_123/review-session"):
+                return (
+                    try Self.response(for: request, statusCode: 409),
+                    Self.apiErrorPayload(code: "conflict", message: "Review already exists.")
+                )
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let workflow = try await service.restoreLatestWorkflow()
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(workflow?.reviewSession?.id, "review_123")
+        XCTAssertEqual(
+            requests.map { "\($0.httpMethod ?? "nil") \($0.url?.path ?? "nil")" },
+            [
+                "GET /api/v1/resumes",
+                "GET /api/v1/resumes/resume_123/review-session",
+                "POST /api/v1/resumes/resume_123/review-session",
+                "GET /api/v1/resumes/resume_123/review-session"
+            ]
+        )
+    }
+
+    func test_repeatedWorkflowRestorationReusesSameJobReviewAndItems() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                let requestCount = await MockURLProtocolStorage.shared.requests().filter {
+                    $0.httpMethod == "GET" &&
+                    $0.url?.path == "/api/v1/resumes/resume_123/review-session"
+                }.count
+                if requestCount == 1 {
+                    return (
+                        try Self.response(for: request, statusCode: 404),
+                        Self.apiErrorPayload(code: "not_found", message: "Review session not found.")
+                    )
+                }
+                return (try Self.response(for: request, statusCode: 200), Self.reviewSessionPayload)
+            case ("POST", "/api/v1/resumes/resume_123/review-session"):
+                return (try Self.response(for: request, statusCode: 201), Self.reviewSessionPayload)
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        let first = try await service.restoreLatestWorkflow()
+        let second = try await service.restoreLatestWorkflow()
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(first?.resume.id, second?.resume.id)
+        XCTAssertEqual(first?.reviewSession?.id, second?.reviewSession?.id)
+        XCTAssertEqual(first?.reviewSession?.items, second?.reviewSession?.items)
+        XCTAssertEqual(requests.filter { $0.httpMethod == "POST" }.count, 1)
+        XCTAssertEqual(requests.filter { $0.url?.path == "/api/v1/resumes" }.count, 2)
+    }
+
+    func test_restoreLatestWorkflowRejectsReviewWithoutHydratedItems() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                return (try Self.response(for: request, statusCode: 200), Self.emptyReviewSessionPayload)
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        await XCTAssertThrowsErrorAsync(try await service.restoreLatestWorkflow()) { error in
+            XCTAssertEqual(
+                error as? ResumeImportServiceError,
+                .reviewRecovery(.missingItems)
+            )
+        }
+    }
+
+    func test_restoreLatestWorkflowClassifies422ReviewRecoveryFailure() async throws {
+        try await assertReviewRecoveryFailure(statusCode: 422, expected: .invalidState)
+    }
+
+    func test_restoreLatestWorkflowClassifies429ReviewRecoveryFailure() async throws {
+        try await assertReviewRecoveryFailure(statusCode: 429, expected: .rateLimited)
+    }
+
+    func test_restoreLatestWorkflowClassifies5xxReviewRecoveryFailure() async throws {
+        try await assertReviewRecoveryFailure(statusCode: 503, expected: .serverUnavailable)
+    }
+
+    func test_restoreLatestWorkflowClassifiesTimeoutAsTransportFailure() async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                throw URLError(.timedOut)
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        await XCTAssertThrowsErrorAsync(try await service.restoreLatestWorkflow()) { error in
+            XCTAssertEqual(
+                error as? ResumeImportServiceError,
+                .reviewRecovery(.transport)
+            )
+        }
+    }
+
     func test_validateUsesSessionVersion() async throws {
         let service = try await makeService()
 
@@ -588,6 +764,42 @@ final class ResumeImportServiceTests: XCTestCase {
         )
     }
 
+    private func assertReviewRecoveryFailure(
+        statusCode: Int,
+        expected: ResumeReviewRecoveryFailure
+    ) async throws {
+        let service = try await makeService()
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes"):
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                return (
+                    try Self.response(for: request, statusCode: statusCode),
+                    Self.apiErrorPayload(code: Self.errorCode(for: statusCode), message: "Sanitized failure.")
+                )
+            default:
+                XCTFail("Unexpected request \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        await XCTAssertThrowsErrorAsync(try await service.restoreLatestWorkflow()) { error in
+            XCTAssertEqual(error as? ResumeImportServiceError, .reviewRecovery(expected))
+        }
+    }
+
+    private static func errorCode(for statusCode: Int) -> String {
+        switch statusCode {
+        case 422: "validation_error"
+        case 429: "rate_limited"
+        case 500: "internal_error"
+        case 503: "service_unavailable"
+        default: "bad_request"
+        }
+    }
+
     private func makeTemporaryResumeFile(named fileName: String, contents: Data) throws -> URL {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -728,6 +940,22 @@ final class ResumeImportServiceTests: XCTestCase {
               "version": 2
             }
           ],
+          "created_at": "2026-08-08T10:00:10Z",
+          "updated_at": "2026-08-08T10:00:20Z"
+        }
+        """.utf8
+    )
+
+    private static let emptyReviewSessionPayload = Data(
+        """
+        {
+          "id": "review_123",
+          "resume_id": "resume_123",
+          "parsed_result_id": "parsed_123",
+          "status": "reviewing",
+          "schema_version": "resume_review_v1",
+          "version": 4,
+          "items": [],
           "created_at": "2026-08-08T10:00:10Z",
           "updated_at": "2026-08-08T10:00:20Z"
         }

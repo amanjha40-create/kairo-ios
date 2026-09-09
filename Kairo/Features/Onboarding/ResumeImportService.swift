@@ -35,6 +35,7 @@ enum ResumeImportServiceError: Error, Equatable, LocalizedError, Sendable {
     case storageUploadFailed
     case importBlocked(message: String)
     case onboardingIncomplete(OnboardingStatusResponseDTO)
+    case reviewRecovery(ResumeReviewRecoveryFailure)
 
     var errorDescription: String? {
         switch self {
@@ -52,6 +53,40 @@ enum ResumeImportServiceError: Error, Equatable, LocalizedError, Sendable {
             message
         case .onboardingIncomplete:
             "Kairo saved your resume import, but onboarding is still incomplete. Please try again."
+        case .reviewRecovery(let failure):
+            failure.errorDescription
+        }
+    }
+}
+
+nonisolated enum ResumeReviewRecoveryFailure: Error, Equatable, LocalizedError, Sendable {
+    case conflict
+    case invalidState
+    case rateLimited
+    case serverUnavailable
+    case transport
+    case invalidResponse
+    case missingItems
+    case unexpected
+
+    var errorDescription: String? {
+        switch self {
+        case .conflict:
+            "Your resume review changed while Kairo was restoring it. Retry to load the latest review."
+        case .invalidState:
+            "This resume is not ready for review yet. Retry after processing finishes."
+        case .rateLimited:
+            "Kairo is restoring too many resume reviews right now. Wait a moment, then retry."
+        case .serverUnavailable:
+            "Kairo couldn't restore your resume review right now. Retry in a moment."
+        case .transport:
+            "Kairo couldn't reach the network while restoring your review. Check your connection and retry."
+        case .invalidResponse:
+            "Kairo received an unexpected review response. Retry to restore your review."
+        case .missingItems:
+            "Kairo restored the review session, but its authoritative review items are unavailable. Retry to load them."
+        case .unexpected:
+            "Kairo couldn't restore your authoritative resume review. Retry to continue."
         }
     }
 }
@@ -133,7 +168,7 @@ actor ResumeImportService: ResumeImportServiceProtocol {
 
         let reviewSession: ResumeReviewSession?
         if latestResume.processingStatus == .needsReview {
-            reviewSession = try? await reviewSessionByResume(resumeID: latestResume.id)
+            reviewSession = try await restoreAuthoritativeReviewSession(resumeID: latestResume.id)
         } else {
             reviewSession = nil
         }
@@ -212,7 +247,7 @@ actor ResumeImportService: ResumeImportServiceProtocol {
             ),
             responseType: ResumeReviewSessionDTO.self
         )
-        return ResumeImportMapper.map(dto)
+        return try requireHydratedReviewSession(ResumeImportMapper.map(dto))
     }
 
     func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
@@ -448,7 +483,81 @@ actor ResumeImportService: ResumeImportServiceProtocol {
             ),
             responseType: ResumeReviewSessionDTO.self
         )
-        return ResumeImportMapper.map(dto)
+        return try requireHydratedReviewSession(ResumeImportMapper.map(dto))
+    }
+
+    private func restoreAuthoritativeReviewSession(
+        resumeID: String
+    ) async throws -> ResumeReviewSession {
+        do {
+            return try await reviewSessionByResume(resumeID: resumeID)
+        } catch let error as NetworkError {
+            guard case .api(let apiError) = error, apiError.statusCode == 404 else {
+                throw ResumeImportServiceError.reviewRecovery(reviewRecoveryFailure(for: error))
+            }
+        } catch let error as ResumeImportServiceError {
+            throw error
+        } catch {
+            throw ResumeImportServiceError.reviewRecovery(.unexpected)
+        }
+
+        do {
+            return try await loadOrCreateReviewSession(resumeID: resumeID)
+        } catch let error as NetworkError {
+            if case .api(let apiError) = error, apiError.statusCode == 409 {
+                do {
+                    return try await reviewSessionByResume(resumeID: resumeID)
+                } catch let refetchError as NetworkError {
+                    throw ResumeImportServiceError.reviewRecovery(
+                        reviewRecoveryFailure(for: refetchError)
+                    )
+                } catch let refetchError as ResumeImportServiceError {
+                    throw refetchError
+                } catch {
+                    throw ResumeImportServiceError.reviewRecovery(.unexpected)
+                }
+            }
+
+            throw ResumeImportServiceError.reviewRecovery(reviewRecoveryFailure(for: error))
+        } catch let error as ResumeImportServiceError {
+            throw error
+        } catch {
+            throw ResumeImportServiceError.reviewRecovery(.unexpected)
+        }
+    }
+
+    private func requireHydratedReviewSession(
+        _ reviewSession: ResumeReviewSession
+    ) throws -> ResumeReviewSession {
+        guard !reviewSession.items.isEmpty else {
+            throw ResumeImportServiceError.reviewRecovery(.missingItems)
+        }
+
+        return reviewSession
+    }
+
+    private func reviewRecoveryFailure(for error: NetworkError) -> ResumeReviewRecoveryFailure {
+        switch error {
+        case .transport:
+            .transport
+        case .invalidResponse:
+            .invalidResponse
+        case .invalidURL, .unavailableInDemoMode:
+            .unexpected
+        case .api(let apiError):
+            switch apiError.statusCode {
+            case 409:
+                .conflict
+            case 422:
+                .invalidState
+            case 429:
+                .rateLimited
+            case 500 ... 599:
+                .serverUnavailable
+            default:
+                .unexpected
+            }
+        }
     }
 
     private func loadResumes(offset: Int, limit: Int) async throws -> ResumeListResponseDTO {
