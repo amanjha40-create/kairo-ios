@@ -11,11 +11,16 @@ struct WelcomeScreenView: View {
             VStack(spacing: 0) {
                 TabView(selection: $selectedPage) {
                     ForEach(IntroPage.allCases) { page in
-                        IntroPageView(
-                            page: page,
-                            metrics: metrics,
-                            onSkip: navigateToCreateAccount
-                        )
+                        ScrollView(.vertical) {
+                            IntroPageView(
+                                page: page,
+                                metrics: metrics,
+                                onSkip: navigateToCreateAccount
+                            )
+                            .padding(.bottom, metrics.pageBottomPadding)
+                        }
+                        .scrollIndicators(.hidden)
+                        .scrollBounceBehavior(.basedOnSize)
                         .tag(page)
                     }
                 }
@@ -137,8 +142,12 @@ private enum IntroPage: Int, CaseIterable, Identifiable {
 private struct IntroMetrics {
     let size: CGSize
 
+    var isLandscape: Bool {
+        size.width > size.height
+    }
+
     var isCompactHeight: Bool {
-        size.height < 780
+        size.height < 900 || isLandscape
     }
 
     var isSmallWidth: Bool {
@@ -158,7 +167,11 @@ private struct IntroMetrics {
     }
 
     var heroHeight: CGFloat {
-        isCompactHeight ? 270 : 312
+        if isLandscape {
+            206
+        } else {
+            isCompactHeight ? 252 : 312
+        }
     }
 
     var titleSpacing: CGFloat {
@@ -166,7 +179,7 @@ private struct IntroMetrics {
     }
 
     var pageSpacing: CGFloat {
-        isCompactHeight ? 18 : 22
+        isCompactHeight ? 14 : 22
     }
 
     var supportSpacing: CGFloat {
@@ -174,11 +187,29 @@ private struct IntroMetrics {
     }
 
     var heroToCopySpacing: CGFloat {
-        isCompactHeight ? 18 : 24
+        isCompactHeight ? 14 : 24
     }
 
     var wordmarkWidth: CGFloat {
-        isSmallWidth ? 160 : 188
+        if isLandscape {
+            144
+        } else if isSmallWidth {
+            152
+        } else {
+            isCompactHeight ? 164 : 188
+        }
+    }
+
+    var wordmarkHeight: CGFloat {
+        wordmarkWidth * 163 / 589
+    }
+
+    var topBarHeight: CGFloat {
+        max(44, wordmarkHeight)
+    }
+
+    var pageBottomPadding: CGFloat {
+        isCompactHeight ? 8 : 12
     }
 
     var primaryButtonHeight: CGFloat {
@@ -198,11 +229,17 @@ private struct IntroMetrics {
     }
 
     var headlineSize: CGFloat {
-        isSmallWidth ? 29 : 33
+        if isLandscape {
+            28
+        } else if isSmallWidth {
+            29
+        } else {
+            isCompactHeight ? 31 : 33
+        }
     }
 
     var supportSize: CGFloat {
-        isSmallWidth ? 14.5 : 15.5
+        isLandscape ? 14 : (isSmallWidth ? 14.5 : 15.5)
     }
 }
 
@@ -210,6 +247,9 @@ private struct IntroPageView: View {
     let page: IntroPage
     let metrics: IntroMetrics
     let onSkip: () -> Void
+
+    @ScaledMetric(relativeTo: .largeTitle) private var headlineScale: CGFloat = 1
+    @ScaledMetric(relativeTo: .body) private var supportScale: CGFloat = 1
 
     var body: some View {
         VStack(spacing: metrics.pageSpacing) {
@@ -228,19 +268,23 @@ private struct IntroPageView: View {
                     .multilineTextAlignment(.center)
 
                 VStack(spacing: metrics.supportSpacing) {
-                    ForEach(Array(page.supportLines.enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(page.supportLines.enumerated()), id: \.offset) { offset, line in
                         Text(line)
-                            .font(.system(size: metrics.supportSize, weight: .medium, design: .rounded))
+                            .font(.system(size: metrics.supportSize * supportScale, weight: .medium, design: .rounded))
                             .foregroundStyle(IntroPalette.support)
                             .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(
+                                page == .trust && offset == 0
+                                    ? "onboarding.welcome.support"
+                                    : "onboarding.intro.\(page.rawValue).support.\(offset)"
+                            )
                     }
                 }
             }
             .frame(maxWidth: .infinity)
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -250,8 +294,13 @@ private struct IntroPageView: View {
                 Image("KairoWordmark")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: metrics.wordmarkWidth)
-                    .padding(.top, 8)
+                    .frame(
+                        width: metrics.wordmarkWidth,
+                        height: metrics.wordmarkHeight,
+                        alignment: .leading
+                    )
+                    .accessibilityLabel("Kairo")
+                    .accessibilityIdentifier("onboarding.welcome.wordmark")
 
                 Spacer(minLength: 0)
             } else {
@@ -263,7 +312,7 @@ private struct IntroPageView: View {
                     .accessibilityIdentifier("onboarding.intro.skip")
             }
         }
-        .frame(height: 44, alignment: .top)
+        .frame(minHeight: metrics.topBarHeight, alignment: .top)
     }
 
     @ViewBuilder
@@ -276,8 +325,9 @@ private struct IntroPageView: View {
                 Text("Anywhere.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
             .foregroundStyle(IntroPalette.navy)
+            .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(OnboardingStep.welcome.titleAccessibilityIdentifier)
         case .betterWay:
             VStack(spacing: metrics.titleSpacing) {
@@ -285,24 +335,27 @@ private struct IntroPageView: View {
                 Text("build on itself.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
             .foregroundStyle(IntroPalette.navy)
+            .fixedSize(horizontal: false, vertical: true)
         case .solution:
             VStack(spacing: metrics.titleSpacing) {
                 Text("Your professional trust,")
                 Text("in one place.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
             .foregroundStyle(IntroPalette.navy)
+            .fixedSize(horizontal: false, vertical: true)
         case .outcome:
             VStack(spacing: metrics.titleSpacing) {
                 Text("Opportunities")
                 Text("find you faster.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
             .foregroundStyle(IntroPalette.navy)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 

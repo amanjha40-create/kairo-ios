@@ -28,6 +28,8 @@ final class KairoUITests: XCTestCase {
     private let onboardingContinueButton = "onboarding.continue"
     private let onboardingIntroSkipButton = "onboarding.intro.skip"
     private let onboardingBackButton = "onboarding.back"
+    private let welcomeWordmark = "onboarding.welcome.wordmark"
+    private let welcomeSupport = "onboarding.welcome.support"
     private let chooseStartContinueButton = "onboarding.chooseStart.continue"
     private let chooseStartResumeOptionButton = "onboarding.chooseStart.resume"
     private let chooseStartManualOptionButton = "onboarding.chooseStart.manual"
@@ -974,6 +976,29 @@ final class KairoUITests: XCTestCase {
         app.buttons["Sign Out"].tap()
 
         assertLoginPlaceholderVisible(in: app)
+    }
+
+    @MainActor
+    func testWelcomeContentAndActionsRemainAvailable() throws {
+        let app = launchApp()
+
+        XCTAssertTrue(app.images[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[welcomeSupport].waitForExistence(timeout: 10))
+
+        let getStarted = app.buttons[onboardingGetStartedButton]
+        let existingAccount = app.buttons[welcomeExistingAccountButton]
+
+        XCTAssertTrue(getStarted.waitForExistence(timeout: 10))
+        XCTAssertTrue(existingAccount.waitForExistence(timeout: 10))
+        XCTAssertTrue(getStarted.isHittable)
+        XCTAssertTrue(existingAccount.isHittable)
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+
+        XCTAssertTrue(app.images[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(getStarted.isHittable)
+        XCTAssertTrue(existingAccount.isHittable)
     }
 
     @MainActor
