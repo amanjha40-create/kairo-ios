@@ -11,7 +11,7 @@ struct KairoCard<Content: View>: View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             content
         }
-        .padding(KairoSpacing.large)
+        .padding(KairoSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(KairoColors.surface)
         .overlay(

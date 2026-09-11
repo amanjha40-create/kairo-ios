@@ -17,11 +17,11 @@ private struct KairoButtonChrome: ButtonStyle {
             .foregroundStyle(resolvedForegroundColor)
             .background(
                 resolvedBackgroundColor,
-                in: Capsule()
+                in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
             )
             .overlay {
                 if let borderColor {
-                    Capsule()
+                    RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
                         .stroke(isEnabled ? borderColor : borderColor.opacity(0.45), lineWidth: 1)
                 }
             }
@@ -46,11 +46,11 @@ struct KairoPrimaryButton: View {
                 }
 
                 Text(title)
-                    .font(KairoTypography.headline)
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, KairoSpacing.medium)
+            .frame(minHeight: 48)
         }
         .accessibilityIdentifier(accessibilityIdentifier ?? title)
         .buttonStyle(
@@ -79,11 +79,11 @@ struct KairoSecondaryButton: View {
                 }
 
                 Text(title)
-                    .font(KairoTypography.headline)
+                    .font(.system(.subheadline, design: .default).weight(.semibold))
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, KairoSpacing.medium)
+            .frame(minHeight: 48)
         }
         .accessibilityIdentifier(accessibilityIdentifier ?? title)
         .buttonStyle(

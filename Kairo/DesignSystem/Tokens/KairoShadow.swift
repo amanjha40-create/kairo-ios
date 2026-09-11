@@ -9,10 +9,10 @@ struct ShadowToken {
 
 enum KairoShadow {
     static let card = ShadowToken(
-        color: Color.black.opacity(0.08),
-        radius: 18,
+        color: Color.black.opacity(0.055),
+        radius: 12,
         x: 0,
-        y: 10
+        y: 6
     )
 }
 

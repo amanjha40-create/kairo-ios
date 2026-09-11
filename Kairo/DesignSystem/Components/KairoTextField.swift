@@ -37,8 +37,10 @@ struct KairoTextField<Field: Hashable>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Text(title)
-                .font(KairoTypography.footnote)
+                .font(.system(.caption2, design: .default).weight(.semibold))
                 .foregroundStyle(KairoColors.textSecondary)
+                .textCase(.uppercase)
+                .tracking(0.55)
 
             fieldInput
                 .textInputAutocapitalization(textInputAutocapitalization)
@@ -47,14 +49,14 @@ struct KairoTextField<Field: Hashable>: View {
                 .keyboardType(keyboardType)
                 .submitLabel(submitLabel)
                 .font(KairoTypography.body)
-                .padding(.horizontal, KairoSpacing.medium)
-                .padding(.vertical, KairoSpacing.medium)
-                .background(KairoColors.surfaceMuted.opacity(0.65))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(KairoColors.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
+                    RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
                         .stroke(borderColor, lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
                 .accessibilityIdentifier(accessibilityIdentifier ?? title)
                 .accessibilityLabel(accessibilityLabel ?? title)
                 .accessibilityHint(resolvedAccessibilityHint)

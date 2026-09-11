@@ -86,7 +86,15 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
                     content
                 }
             }
-            .background(KairoColors.background.ignoresSafeArea())
+            .background(
+                RadialGradient(
+                    colors: [KairoColors.accent.opacity(0.09), KairoColors.background],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 420
+                )
+                .ignoresSafeArea()
+            )
         }
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -229,7 +237,7 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
         VStack(alignment: .leading, spacing: contentSpacing) {
             if let eyebrow {
                 Text(eyebrow)
-                    .font(.system(.caption2, design: .rounded).weight(.medium))
+                    .font(.system(.caption2, design: .default).weight(.semibold))
                     .foregroundStyle(KairoColors.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.4)

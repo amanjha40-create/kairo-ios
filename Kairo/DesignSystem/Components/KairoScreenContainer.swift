@@ -39,10 +39,11 @@ struct KairoScreenContainer<Content: View>: View {
             }
         }
         .background(
-            LinearGradient(
-                colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],
-                startPoint: .top,
-                endPoint: .bottom
+            RadialGradient(
+                colors: [KairoColors.accent.opacity(0.1), KairoColors.background],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: 380
             )
             .ignoresSafeArea()
         )
@@ -66,7 +67,7 @@ struct KairoScreenContainer<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, KairoSpacing.large)
+        .padding(.horizontal, KairoSpacing.medium)
         .padding(.vertical, KairoSpacing.xLarge)
     }
 }
