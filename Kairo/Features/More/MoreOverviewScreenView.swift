@@ -9,6 +9,7 @@ struct MoreOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var appearanceStore: AppAppearanceStore
 
     @Binding private var state: MoreOverviewState
     private let isLiveMode: Bool
@@ -49,6 +50,12 @@ struct MoreOverviewScreenView: View {
         .accessibilityIdentifier(KairoAccessibilityID.moreScreen)
         .sheet(item: $presentedModal) { modal in
             modalView(for: modal)
+        }
+        .onAppear {
+            state.selectAppearance(appearanceStore.selection)
+        }
+        .onChange(of: appearanceStore.selection) { _, selection in
+            state.selectAppearance(selection)
         }
     }
 
@@ -249,7 +256,6 @@ struct MoreOverviewScreenView: View {
                                 }
                             }
                         }
-                        .accessibilityIdentifier(KairoAccessibilityID.moreAppearanceSelection)
                     }
                 }
 
@@ -289,6 +295,7 @@ struct MoreOverviewScreenView: View {
         let isSelected = state.preferences.appearance == appearance
 
         return Button {
+            appearanceStore.select(appearance)
             state.selectAppearance(appearance)
         } label: {
             VStack(alignment: .center, spacing: KairoSpacing.xxSmall) {

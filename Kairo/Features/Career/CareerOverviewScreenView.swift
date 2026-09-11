@@ -28,12 +28,11 @@ struct CareerOverviewScreenView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
                     titleSection
-                    summarySection
                     phaseContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .refreshableIfAvailable(action: refreshAction)
         }
@@ -51,12 +50,12 @@ struct CareerOverviewScreenView: View {
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             Text("Career")
-                .font(KairoTypography.largeTitle)
+                .font(KairoTypography.screenTitle)
                 .foregroundStyle(KairoColors.textPrimary)
                 .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
 
-            Text("Build and manage your professional history.")
-                .font(KairoTypography.body)
+            Text("Manage your professional history.")
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
         }
     }
@@ -185,12 +184,12 @@ struct CareerOverviewScreenView: View {
     }
 
     private func populatedContent(_ content: CareerOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xLarge) {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
             employmentSection(content.employment)
             educationSection(content.education)
             certificationsSection(content.certifications)
-            projectsSection(content.projects)
             skillsSection(content.skills)
+            projectsSection(content.projects)
         }
     }
 
@@ -248,9 +247,11 @@ struct CareerOverviewScreenView: View {
     }
 
     private func employmentSection(_ items: [CareerEmploymentItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             CareerSectionHeader(
                 title: CareerOverviewSection.employment.title,
+                systemImage: "briefcase",
+                count: items.count,
                 accessibilityIdentifier: KairoAccessibilityID.careerEmploymentSection,
                 actionTitle: addEmploymentAction == nil ? nil : "Add Employment",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddEmploymentButton,
@@ -261,7 +262,7 @@ struct CareerOverviewScreenView: View {
                 emptySectionCard(message: "No employment records added yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    CareerRecordCard {
                         careerItemHeader(
                             title: item.company,
                             subtitle: item.role,
@@ -311,9 +312,11 @@ struct CareerOverviewScreenView: View {
     }
 
     private func educationSection(_ items: [CareerEducationItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             CareerSectionHeader(
                 title: CareerOverviewSection.education.title,
+                systemImage: "graduationcap",
+                count: items.count,
                 accessibilityIdentifier: KairoAccessibilityID.careerEducationSection,
                 actionTitle: addEducationAction == nil ? nil : "Add Education",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddEducationButton,
@@ -324,7 +327,7 @@ struct CareerOverviewScreenView: View {
                 emptySectionCard(message: "No education records added yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    CareerRecordCard {
                         careerItemHeader(
                             title: item.institution,
                             subtitle: item.degree,
@@ -369,9 +372,11 @@ struct CareerOverviewScreenView: View {
     }
 
     private func certificationsSection(_ items: [CareerCertificationItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             CareerSectionHeader(
                 title: CareerOverviewSection.certifications.title,
+                systemImage: "checkmark.seal",
+                count: items.count,
                 accessibilityIdentifier: KairoAccessibilityID.careerCertificationsSection,
                 actionTitle: addCertificationAction == nil ? nil : "Add Certification",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddCertificationButton,
@@ -382,7 +387,7 @@ struct CareerOverviewScreenView: View {
                 emptySectionCard(message: "No certifications added yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    CareerRecordCard {
                         careerItemHeader(
                             title: item.title,
                             subtitle: item.issuer,
@@ -418,9 +423,11 @@ struct CareerOverviewScreenView: View {
     }
 
     private func projectsSection(_ items: [CareerProjectItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             CareerSectionHeader(
                 title: CareerOverviewSection.projects.title,
+                systemImage: "folder",
+                count: items.count,
                 accessibilityIdentifier: KairoAccessibilityID.careerProjectsSection,
                 actionTitle: addProjectAction == nil ? nil : "Add Project",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddProjectButton,
@@ -431,7 +438,7 @@ struct CareerOverviewScreenView: View {
                 emptySectionCard(message: "No projects added yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    CareerRecordCard {
                         careerItemHeader(
                             title: item.title,
                             subtitle: item.role,
@@ -463,9 +470,11 @@ struct CareerOverviewScreenView: View {
     }
 
     private func skillsSection(_ skills: [CareerSkillItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             CareerSectionHeader(
                 title: CareerOverviewSection.skills.title,
+                systemImage: "sparkles",
+                count: skills.count,
                 accessibilityIdentifier: KairoAccessibilityID.careerSkillsSection,
                 actionTitle: addSkillAction == nil ? nil : "Add Skill",
                 actionAccessibilityIdentifier: KairoAccessibilityID.careerAddSkillButton,
@@ -475,7 +484,7 @@ struct CareerOverviewScreenView: View {
             if skills.isEmpty {
                 emptySectionCard(message: "No skills added yet.")
             } else {
-                KairoCard {
+                CareerRecordCard {
                     VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                         ForEach(Array(skills.enumerated()), id: \.element.routeID) { index, skill in
                             VStack(alignment: .leading, spacing: KairoSpacing.small) {
@@ -578,7 +587,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func emptySectionCard(message: String) -> some View {
-        KairoCard {
+        CareerEmptyRow {
             Text(message)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
@@ -614,6 +623,8 @@ private struct CareerSectionTitle: View {
 
 private struct CareerSectionHeader: View {
     let title: String
+    let systemImage: String
+    let count: Int
     let accessibilityIdentifier: String
     let actionTitle: String?
     let actionAccessibilityIdentifier: String
@@ -622,10 +633,7 @@ private struct CareerSectionHeader: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: KairoSpacing.medium) {
-                CareerSectionTitle(
-                    title: title,
-                    accessibilityIdentifier: accessibilityIdentifier
-                )
+                sectionLabel
 
                 Spacer(minLength: KairoSpacing.medium)
 
@@ -639,10 +647,7 @@ private struct CareerSectionHeader: View {
             }
 
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                CareerSectionTitle(
-                    title: title,
-                    accessibilityIdentifier: accessibilityIdentifier
-                )
+                sectionLabel
 
                 if let actionTitle, let action {
                     CareerSectionInlineAction(
@@ -654,6 +659,28 @@ private struct CareerSectionHeader: View {
             }
         }
     }
+
+    private var sectionLabel: some View {
+        HStack(spacing: KairoSpacing.small) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(KairoColors.textSecondary)
+                .frame(width: 34, height: 34)
+                .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title.uppercased())
+                    .font(KairoTypography.sectionEyebrow)
+                    .tracking(0.8)
+                    .foregroundStyle(KairoColors.textSecondary)
+
+                Text("\(count) \(count == 1 ? "record" : "records")")
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
 }
 
 private struct CareerSectionInlineAction: View {
@@ -663,12 +690,55 @@ private struct CareerSectionInlineAction: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: "plus")
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.brandPrimary)
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(KairoColors.background)
+                .frame(width: 34, height: 34)
+                .background(KairoColors.textPrimary, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct CareerRecordCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            content
+        }
+        .padding(KairoSpacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KairoColors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .stroke(KairoColors.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+    }
+}
+
+private struct CareerEmptyRow<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .center, spacing: KairoSpacing.small) {
+            content
+        }
+        .padding(.horizontal, KairoSpacing.small)
+        .padding(.vertical, KairoSpacing.medium)
+        .frame(maxWidth: .infinity)
+        .background(KairoColors.surfaceMuted.opacity(0.5), in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
     }
 }
 

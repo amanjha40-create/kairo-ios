@@ -178,6 +178,7 @@ enum VerifyOverviewMapper {
         VerifyRequest(
             id: record.id,
             routeRequestID: record.routeID,
+            subjectIDs: record.subjectIDs,
             type: record.typeTitle,
             organization: record.organizationName,
             requester: record.requesterName,

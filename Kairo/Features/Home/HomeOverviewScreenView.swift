@@ -6,6 +6,7 @@ struct HomeOverviewScreenView: View {
     var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @Environment(\.appConfiguration) private var appConfiguration
 
@@ -368,7 +369,12 @@ struct HomeOverviewScreenView: View {
                     KairoSecondaryButton(
                         title: "View request",
                         accessibilityIdentifier: KairoAccessibilityID.homeVerificationRequestAction,
-                        action: { router.selectTab(request.destinationTab) }
+                        action: {
+                            if let identifier = request.authoritativeDestinationID {
+                                refreshStore.focusVerificationRequest(identifier: identifier)
+                            }
+                            router.selectTab(request.destinationTab)
+                        }
                     )
                 }
                 .accessibilityElement(children: .contain)

@@ -35,6 +35,7 @@ final class HomeOverviewMapperTests: XCTestCase {
         ])
         XCTAssertEqual(content.verificationRequests.first?.title, "Employment verification")
         XCTAssertEqual(content.verificationRequests.first?.destinationTab, .verify)
+        XCTAssertEqual(content.verificationRequests.first?.authoritativeDestinationID, "subject_0")
         XCTAssertEqual(content.profileCompletion.destinationTab, .career)
         XCTAssertEqual(content.recentActivity.count, 2)
         XCTAssertEqual(content.recentPassportViews.count, 1)

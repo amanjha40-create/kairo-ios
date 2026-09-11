@@ -71,8 +71,8 @@ struct PassportOverviewScreenView: View {
 
     private var standardScreen: some View {
         KairoScreenContainer(
-            title: "Passport",
-            subtitle: "Your verified professional identity, ready to grow and travel with your career.",
+            title: "Trust Passport",
+            subtitle: "Your portable professional identity.",
             titleAccessibilityIdentifier: CandidateTab.passport.titleAccessibilityIdentifier
         ) {
             passportHeader
@@ -82,8 +82,8 @@ struct PassportOverviewScreenView: View {
 
     private func emptyStateScreen(_ content: PassportOverviewEmptyContent) -> some View {
         KairoScreenContainer(
-            title: "Passport",
-            subtitle: "Your verified professional identity, ready to grow and travel with your career.",
+            title: "Trust Passport",
+            subtitle: "Your portable professional identity.",
             titleAccessibilityIdentifier: CandidateTab.passport.titleAccessibilityIdentifier
         ) {
             passportHeader
@@ -99,13 +99,13 @@ struct PassportOverviewScreenView: View {
     }
 
     private var passportHeader: some View {
-        KairoCard {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: KairoSpacing.medium) {
                     profilePlaceholder
                     headerCopy
                     Spacer(minLength: KairoSpacing.small)
-                    PassportBadge(status: state.header.status)
+                    passportHeroSummary
                 }
 
                 VStack(alignment: .leading, spacing: KairoSpacing.medium) {
@@ -114,12 +114,65 @@ struct PassportOverviewScreenView: View {
                         headerCopy
                     }
 
-                    PassportBadge(status: state.header.status)
+                    passportHeroSummary
                 }
             }
         }
+        .padding(KairoSpacing.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            ZStack {
+                Color(hex: 0x07122B)
+                RadialGradient(
+                    colors: [Color(hex: 0x12D6C5).opacity(0.34), .clear],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 260
+                )
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous))
+        .kairoShadow(KairoShadow.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.passportHeader)
+    }
+
+    private var passportHeroStatus: some View {
+        Label(state.header.status.style.title, systemImage: state.header.status.style.symbol)
+            .font(KairoTypography.caption)
+            .foregroundStyle(.white)
+            .padding(.horizontal, KairoSpacing.small)
+            .padding(.vertical, KairoSpacing.xSmall)
+            .background(Color.white.opacity(0.12), in: Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+    }
+
+    private var passportHeroSummary: some View {
+        VStack(alignment: .trailing, spacing: KairoSpacing.xSmall) {
+            Text(heroTrustScoreValue)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            Text("Trust Score")
+                .font(KairoTypography.sectionEyebrow)
+                .tracking(1.1)
+                .textCase(.uppercase)
+                .foregroundStyle(Color.white.opacity(0.58))
+
+            passportHeroStatus
+        }
+        .padding(.horizontal, KairoSpacing.small)
+        .padding(.vertical, KairoSpacing.xSmall)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+    }
+
+    private var heroTrustScoreValue: String {
+        guard case .populated(let content) = state.phase,
+              case .available(let trustScore) = content.trustScore else {
+            return "--"
+        }
+
+        return String(trustScore.value)
     }
 
     @ViewBuilder
@@ -152,17 +205,17 @@ struct PassportOverviewScreenView: View {
 
     private var profileMonogram: some View {
         ZStack {
-            Circle()
-                .fill(KairoColors.surfaceMuted)
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .fill(Color.white.opacity(0.12))
 
             Text(state.header.initials)
                 .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+                .foregroundStyle(.white)
         }
         .frame(width: 68, height: 68)
         .overlay(
-            Circle()
-                .stroke(KairoColors.border, lineWidth: 1)
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
     }
 
@@ -170,21 +223,21 @@ struct PassportOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Text(state.header.identityTreatment.uppercased())
                 .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.62))
 
             Text(state.header.name)
                 .font(KairoTypography.title)
-                .foregroundStyle(KairoColors.textPrimary)
+                .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(state.header.professionalHeadline)
                 .font(KairoTypography.bodyStrong)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
 
             Label(state.header.location, systemImage: "location")
                 .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.68))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -218,8 +271,8 @@ struct PassportOverviewScreenView: View {
             employmentSection(content.employment)
             educationSection(content.education)
             certificationsSection(content.certifications)
-            projectsSection(content.projects)
             skillsSection(content.skills)
+            projectsSection(content.projects)
             if case .available = content.timeline {
                 trustTimelineSection(content.timeline)
             }
@@ -429,7 +482,7 @@ struct PassportOverviewScreenView: View {
                 emptySectionCard(message: "No employment in your Trust Passport yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    PassportRecordCard {
                         passportRecordHeader(
                             title: item.company,
                             subtitle: item.role,
@@ -455,7 +508,7 @@ struct PassportOverviewScreenView: View {
                 emptySectionCard(message: "No education in your Trust Passport yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    PassportRecordCard {
                         passportRecordHeader(
                             title: item.institution,
                             subtitle: item.qualification,
@@ -481,7 +534,7 @@ struct PassportOverviewScreenView: View {
                 emptySectionCard(message: "No certifications in your Trust Passport yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    PassportRecordCard {
                         passportRecordHeader(
                             title: item.title,
                             subtitle: item.issuer,
@@ -507,7 +560,7 @@ struct PassportOverviewScreenView: View {
                 emptySectionCard(message: "No projects in your Trust Passport yet.")
             } else {
                 ForEach(items) { item in
-                    KairoCard {
+                    PassportRecordCard {
                         Text(item.title)
                             .font(KairoTypography.title2)
                             .foregroundStyle(KairoColors.textPrimary)
@@ -535,7 +588,7 @@ struct PassportOverviewScreenView: View {
             if items.isEmpty {
                 emptySectionCard(message: "No skills in your Trust Passport yet.")
             } else {
-                KairoCard {
+                PassportRecordCard {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         HStack(alignment: .center, spacing: KairoSpacing.medium) {
                             Text(item.name)
@@ -673,7 +726,7 @@ struct PassportOverviewScreenView: View {
         accessibilityIdentifier: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoCard {
             PassportSectionTitle(
                 title: title,
                 accessibilityIdentifier: accessibilityIdentifier
@@ -751,9 +804,33 @@ private struct PassportSectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(KairoTypography.title2)
-            .foregroundStyle(KairoColors.textPrimary)
+            .font(KairoTypography.sectionEyebrow)
+            .tracking(0.8)
+            .textCase(.uppercase)
+            .foregroundStyle(KairoColors.textSecondary)
             .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct PassportRecordCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            content
+        }
+        .padding(KairoSpacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KairoColors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .stroke(KairoColors.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
     }
 }
 

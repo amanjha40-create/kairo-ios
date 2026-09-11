@@ -35,6 +35,18 @@ final class AppRouterTests: XCTestCase {
         XCTAssertEqual(router.selectedTab, .passport)
     }
 
+    func test_homeVerificationFocusPreservesAuthoritativeIdentifier() {
+        let router = AppRouter()
+        let refreshStore = CandidateDataRefreshStore()
+
+        refreshStore.focusVerificationRequest(identifier: "request_123")
+        router.selectTab(.verify)
+
+        XCTAssertEqual(refreshStore.focusedVerificationRequestID, "request_123")
+        XCTAssertEqual(router.rootDestination, .mainTabs)
+        XCTAssertEqual(router.selectedTab, .verify)
+    }
+
     func test_navigatingToIntermediateOnboardingStepBuildsExpectedPath() {
         let router = AppRouter()
 

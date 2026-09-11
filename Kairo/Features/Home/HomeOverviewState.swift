@@ -74,6 +74,7 @@ struct HomeOverviewState: Equatable, Sendable {
                             title: "Employment verification",
                             organization: "BrightPath Technologies",
                             status: "Awaiting your approval",
+                            authoritativeDestinationID: "employment-brightpath-subject",
                             destinationTab: .verify
                         )
                     ],
@@ -308,9 +309,24 @@ struct HomeVerificationRequest: Equatable, Identifiable, Sendable {
     let title: String
     let organization: String
     let status: String
+    let authoritativeDestinationID: String?
     let destinationTab: CandidateTab
 
-    var id: String { "\(title)-\(organization)" }
+    init(
+        title: String,
+        organization: String,
+        status: String,
+        authoritativeDestinationID: String? = nil,
+        destinationTab: CandidateTab
+    ) {
+        self.title = title
+        self.organization = organization
+        self.status = status
+        self.authoritativeDestinationID = authoritativeDestinationID
+        self.destinationTab = destinationTab
+    }
+
+    var id: String { authoritativeDestinationID ?? "\(title)-\(organization)" }
 }
 
 struct HomeProfileCompletion: Equatable, Sendable {

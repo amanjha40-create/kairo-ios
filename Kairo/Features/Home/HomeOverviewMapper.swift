@@ -174,6 +174,7 @@ enum HomeOverviewMapper {
                     title: activity.title,
                     organization: activity.detail ?? "Trust Center",
                     status: humanizedAction(activity.action),
+                    authoritativeDestinationID: activity.subjectID,
                     destinationTab: .verify
                 )
             }

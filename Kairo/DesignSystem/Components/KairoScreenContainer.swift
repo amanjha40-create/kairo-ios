@@ -53,13 +53,13 @@ struct KairoScreenContainer<Content: View>: View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
                 Text(title)
-                    .font(KairoTypography.largeTitle)
+                    .font(KairoTypography.screenTitle)
                     .foregroundStyle(KairoColors.textPrimary)
                     .accessibilityIdentifier(titleAccessibilityIdentifier)
 
                 if let subtitle {
                     Text(subtitle)
-                        .font(KairoTypography.body)
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                 }
             }

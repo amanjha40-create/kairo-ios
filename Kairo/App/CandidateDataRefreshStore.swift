@@ -10,6 +10,10 @@ final class CandidateDataRefreshStore: ObservableObject {
         revision += 1
     }
 
+    func focusVerificationRequest(identifier: String) {
+        focusedVerificationRequestID = identifier
+    }
+
     func passportSharesChanged() {
         revision += 1
     }

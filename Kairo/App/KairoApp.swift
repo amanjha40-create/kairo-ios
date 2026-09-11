@@ -7,6 +7,7 @@ struct KairoApp: App {
     @StateObject private var sessionStore: AppSessionStore
     @StateObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @StateObject private var candidateNotificationStore: CandidateNotificationStore
+    @StateObject private var appearanceStore: AppAppearanceStore
 
     init() {
         let configuration = AppConfiguration.resolve()
@@ -42,6 +43,7 @@ struct KairoApp: App {
         _candidateNotificationStore = StateObject(wrappedValue: CandidateNotificationStore(
             service: dependencies.candidateNotificationService
         ))
+        _appearanceStore = StateObject(wrappedValue: AppAppearanceStore())
         self.configuration = configuration
         self.dependencies = dependencies
     }
@@ -56,6 +58,7 @@ struct KairoApp: App {
                 .environmentObject(sessionStore)
                 .environmentObject(candidateDataRefreshStore)
                 .environmentObject(candidateNotificationStore)
+                .environmentObject(appearanceStore)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)
@@ -72,6 +75,7 @@ struct KairoApp: App {
                 .environment(\.passportShareService, dependencies.passportShareService)
                 .environment(\.passportPDFExportService, dependencies.passportPDFExportService)
                 .environment(\.moreOverviewService, dependencies.moreOverviewService)
+                .preferredColorScheme(appearanceStore.preferredColorScheme)
         }
     }
 }

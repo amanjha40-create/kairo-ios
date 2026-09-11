@@ -56,7 +56,7 @@ struct VerifyOverviewScreenView: View {
     var body: some View {
         KairoScreenContainer(
             title: "Verify",
-            subtitle: "Strengthen your Trust Passport with verified professional history.",
+            subtitle: "Track requests Kairo is reviewing, dispatching, or finalizing.",
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
             supportLine
@@ -124,16 +124,16 @@ struct VerifyOverviewScreenView: View {
     }
 
     private func populatedStateView(_ content: VerifyOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xLarge) {
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
             priorityActionCard(content.priorityAction)
             requestsSection(
-                title: "Pending requests",
+                title: "Needs your action",
                 identifier: KairoAccessibilityID.verifyPendingRequestsSection,
                 requests: content.pendingRequests,
                 emptyMessage: "No pending requests right now."
             )
             requestsSection(
-                title: "In progress",
+                title: "Active verifications",
                 identifier: KairoAccessibilityID.verifyInProgressSection,
                 requests: content.inProgressRequests,
                 emptyMessage: "No verifications are currently in progress."
@@ -256,15 +256,15 @@ struct VerifyOverviewScreenView: View {
 
     private func requestCard(_ request: VerifyRequest) -> some View {
         KairoCard {
-            HStack(alignment: .top, spacing: KairoSpacing.medium) {
+            HStack(alignment: .center, spacing: KairoSpacing.small) {
                 VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
                     Text(request.type)
-                        .font(KairoTypography.headline)
+                        .font(KairoTypography.bodyStrong)
                         .foregroundStyle(KairoColors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(request.organization)
-                        .font(KairoTypography.bodyStrong)
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -272,16 +272,15 @@ struct VerifyOverviewScreenView: View {
                 Spacer(minLength: KairoSpacing.small)
 
                 VerifyStatusBadge(status: request.status)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(KairoColors.textSecondary)
             }
 
             Text(request.dateLabel)
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
-
-            Text(request.timelineSummary)
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             VerifyInlineButton(
                 title: "View request",
@@ -313,26 +312,35 @@ struct VerifyOverviewScreenView: View {
                             Divider()
                         }
 
-                        HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                                Text(request.type)
-                                    .font(KairoTypography.headline)
-                                    .foregroundStyle(KairoColors.textPrimary)
+                        Button {
+                            presentedSheet = .requestDetail(request.id)
+                        } label: {
+                            HStack(alignment: .center, spacing: KairoSpacing.medium) {
+                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                    Text(request.type)
+                                        .font(KairoTypography.bodyStrong)
+                                        .foregroundStyle(KairoColors.textPrimary)
 
-                                Text(request.organization)
-                                    .font(KairoTypography.body)
-                                    .foregroundStyle(KairoColors.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    Text(request.organization)
+                                        .font(KairoTypography.footnote)
+                                        .foregroundStyle(KairoColors.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
 
-                                Text(request.dateLabel)
-                                    .font(KairoTypography.footnote)
+                                    Text(request.dateLabel)
+                                        .font(KairoTypography.caption)
+                                        .foregroundStyle(KairoColors.textSecondary)
+                                }
+
+                                Spacer(minLength: KairoSpacing.small)
+
+                                VerifyStatusBadge(status: request.status)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(KairoColors.textSecondary)
                             }
-
-                            Spacer(minLength: KairoSpacing.small)
-
-                            VerifyStatusBadge(status: request.status)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(KairoAccessibilityID.verifyRequestAction(request.id))
                     }
                 }
             }
@@ -480,12 +488,17 @@ struct VerifyOverviewScreenView: View {
     }
 
     private func presentFocusedRequestIfAvailable() {
-        guard
-            let focusedRequestID,
-            let request = activeContent?.requests.first(where: {
-                $0.routeRequestID == focusedRequestID || $0.id == focusedRequestID
-            })
-        else { return }
+        guard let focusedRequestID, let activeContent else { return }
+
+        guard let request = activeContent.request(matchingAuthoritativeIdentifier: focusedRequestID) else {
+            focusedRequestPresentedHandler?(focusedRequestID)
+            actionError = VerifyActionError(
+                title: "Request no longer available",
+                message: "Kairo opened your current verification list because that request could not be found. Pull to refresh if its status changed recently."
+            )
+            return
+        }
+
         presentedSheet = .requestDetail(request.id)
         focusedRequestPresentedHandler?(focusedRequestID)
     }
@@ -634,8 +647,10 @@ private struct VerifySectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(KairoTypography.title2)
-            .foregroundStyle(KairoColors.textPrimary)
+            .font(KairoTypography.sectionEyebrow)
+            .tracking(0.8)
+            .textCase(.uppercase)
+            .foregroundStyle(KairoColors.textSecondary)
             .accessibilityIdentifier(accessibilityIdentifier)
     }
 }

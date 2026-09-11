@@ -7,6 +7,7 @@ struct VerifyOverview: Equatable, Sendable {
 struct VerifyRequestRecord: Identifiable, Equatable, Sendable {
     let id: String
     let routeID: String?
+    var subjectIDs: [String] = []
     let kind: VerifyVerificationKind?
     let typeTitle: String
     let organizationName: String
@@ -56,6 +57,7 @@ extension VerifyRequestRecord {
         self.init(
             id: routeID ?? fallbackID,
             routeID: routeID,
+            subjectIDs: [detail.employmentID, detail.educationID].compactMap { $0 },
             kind: kind,
             typeTitle: typeTitle,
             organizationName: organizationName,

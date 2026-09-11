@@ -34,6 +34,8 @@ struct VerifyOverviewState: Equatable, Sendable {
                     requests: [
                         VerifyRequest(
                             id: "employment-brightpath",
+                            routeRequestID: "request-brightpath",
+                            subjectIDs: ["employment-brightpath-subject"],
                             type: "Employment verification",
                             organization: "BrightPath Technologies",
                             requester: "Kairo candidate trust team",
@@ -684,6 +686,14 @@ struct VerifyOverviewContent: Equatable, Sendable {
         requests.first(where: { $0.id == id })
     }
 
+    func request(matchingAuthoritativeIdentifier identifier: String) -> VerifyRequest? {
+        requests.first {
+            $0.id == identifier ||
+                $0.routeRequestID == identifier ||
+                $0.subjectIDs.contains(identifier)
+        }
+    }
+
     func applying(_ action: VerifyRequestActionTransition, to requestID: String) -> VerifyOverviewContent {
         VerifyOverviewContent(
             dataSourceLabel: dataSourceLabel,
@@ -728,6 +738,7 @@ struct VerifyPriorityAction: Equatable, Sendable {
 struct VerifyRequest: Equatable, Identifiable, Sendable {
     let id: String
     let routeRequestID: String?
+    let subjectIDs: [String]
     let type: String
     let organization: String
     let requester: String
@@ -744,6 +755,7 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
     init(
         id: String,
         routeRequestID: String? = nil,
+        subjectIDs: [String] = [],
         type: String,
         organization: String,
         requester: String,
@@ -759,6 +771,7 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
     ) {
         self.id = id
         self.routeRequestID = routeRequestID
+        self.subjectIDs = subjectIDs
         self.type = type
         self.organization = organization
         self.requester = requester
@@ -777,6 +790,7 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
         VerifyRequest(
             id: id,
             routeRequestID: routeRequestID,
+            subjectIDs: subjectIDs,
             type: type,
             organization: organization,
             requester: requester,

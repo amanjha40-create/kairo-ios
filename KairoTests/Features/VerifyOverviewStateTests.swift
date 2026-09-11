@@ -101,6 +101,23 @@ final class VerifyOverviewStateTests: XCTestCase {
         XCTAssertEqual(acceptedContent.completedRequests.count, 3)
     }
 
+    func test_authoritativeHomeIdentifierResolvesExactRequestRoute() {
+        let state = VerifyOverviewState.populatedFixture()
+        guard case .populated(let content) = state.phase else {
+            return XCTFail("Expected populated state")
+        }
+
+        XCTAssertEqual(
+            content.request(matchingAuthoritativeIdentifier: "request-brightpath")?.id,
+            "employment-brightpath"
+        )
+        XCTAssertEqual(
+            content.request(matchingAuthoritativeIdentifier: "employment-brightpath-subject")?.id,
+            "employment-brightpath"
+        )
+        XCTAssertNil(content.request(matchingAuthoritativeIdentifier: "stale-request"))
+    }
+
     func test_rejectedAndExpiredStatusesExposeExpectedPresentation() {
         XCTAssertEqual(
             VerifyVerificationStatus.rejected.style,

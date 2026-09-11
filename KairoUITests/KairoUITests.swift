@@ -109,7 +109,6 @@ final class KairoUITests: XCTestCase {
     private let notificationsEmptyState = "candidate.notifications.empty"
     private let notificationsErrorState = "candidate.notifications.error"
     private let careerScreen = "candidate.career.screen"
-    private let careerSummarySection = "candidate.career.summary"
     private let careerEmploymentSection = "candidate.career.employment"
     private let careerEducationSection = "candidate.career.education"
     private let careerCertificationsSection = "candidate.career.certifications"
@@ -386,6 +385,8 @@ final class KairoUITests: XCTestCase {
         requestAction.tap()
 
         XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.otherElements[verifyRequestDetail].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["BrightPath Technologies"].exists)
     }
 
     @MainActor
@@ -410,14 +411,25 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testCareerTabDisplaysProfessionalSummary() throws {
+    func testCareerTabDisplaysAndroidAlignedRecordHierarchy() throws {
         let app = launchApp(environment: careerEnvironment())
 
         openCareerTab(in: app)
 
         XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts[careerSummarySection].exists)
-        XCTAssertTrue(app.staticTexts["Aarav Anand"].exists)
+        XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerEducationSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerCertificationsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
+    }
+
+    @MainActor
+    func testPhase2CareerVisualEvidence() throws {
+        let app = launchApp(environment: careerEnvironment())
+        openCareerTab(in: app)
+        XCTAssertTrue(careerScreenElement(in: app).waitForExistence(timeout: 10))
+        keepScreenshot(named: "Phase 2 - Career")
     }
 
     @MainActor
@@ -496,6 +508,15 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)[passportHeader].exists)
         XCTAssertTrue(app.staticTexts["Aarav Mehta"].exists)
+    }
+
+    @MainActor
+    func testPhase2PassportVisualEvidence() throws {
+        let app = launchApp(environment: passportEnvironment())
+        openPassportTab(in: app)
+        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+        app.swipeDown()
+        keepScreenshot(named: "Phase 2 - Passport")
     }
 
     @MainActor
@@ -663,6 +684,14 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testPhase2VerifyVisualEvidence() throws {
+        let app = launchApp(environment: verifyEnvironment())
+        openVerifyTab(in: app)
+        XCTAssertTrue(verifyScreenElement(in: app).waitForExistence(timeout: 10))
+        keepScreenshot(named: "Phase 2 - Verify")
+    }
+
+    @MainActor
     func testVerifyPriorityRecommendationIsVisible() throws {
         let app = launchApp(environment: verifyEnvironment())
 
@@ -767,7 +796,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testVerifyEmptyStateStartVerificationWorks() throws {
+    func testVerifyEmptyStateUnavailableActionIsTruthfulInDemo() throws {
         let app = launchApp(environment: verifyEnvironment(state: "empty"))
 
         openVerifyTab(in: app)
@@ -776,7 +805,8 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
         app.buttons[verifyStartVerificationButton].tap()
 
-        XCTAssertTrue(app.otherElements[verifyStartVerificationSheet].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.alerts["Unavailable in preview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Demo and UI-test sessions do not create live verification requests."].exists)
     }
 
     @MainActor
@@ -857,18 +887,37 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreAppearanceSelectionRendersAndUpdatesLocally() throws {
+    func testMoreAppearanceSelectionAppliesAppWide() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.otherElements[moreAppearanceSelection], in: app))
         let darkAppearanceButton = app.buttons[moreAppearanceDarkButton]
-        XCTAssertTrue(darkAppearanceButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(darkAppearanceButton, in: app))
         darkAppearanceButton.tap()
 
         XCTAssertEqual(darkAppearanceButton.value as? String, "Selected")
         XCTAssertEqual(app.buttons[moreAppearanceSystemButton].value as? String, "Not selected")
+    }
+
+    @MainActor
+    func testMoreAppearanceSelectionPersistsAcrossRelaunch() throws {
+        let environment = moreEnvironment()
+        let app = launchApp(environment: environment)
+
+        openMoreTab(in: app)
+        let lightAppearanceButton = app.buttons[moreAppearanceLightButton]
+        XCTAssertTrue(waitForElementAfterScrolling(lightAppearanceButton, in: app))
+        lightAppearanceButton.tap()
+        XCTAssertEqual(lightAppearanceButton.value as? String, "Selected")
+
+        app.terminate()
+
+        let relaunchedApp = launchApp(environment: environment)
+        openMoreTab(in: relaunchedApp)
+        let restoredLightAppearanceButton = relaunchedApp.buttons[moreAppearanceLightButton]
+        XCTAssertTrue(waitForElementAfterScrolling(restoredLightAppearanceButton, in: relaunchedApp))
+        XCTAssertEqual(restoredLightAppearanceButton.value as? String, "Selected")
     }
 
     @MainActor
@@ -1882,6 +1931,13 @@ final class KairoUITests: XCTestCase {
         let doneButton = app.navigationBars.buttons["Done"]
         XCTAssertTrue(doneButton.waitForExistence(timeout: 10))
         doneButton.tap()
+    }
+
+    private func keepScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func createAccountEnvironment(
