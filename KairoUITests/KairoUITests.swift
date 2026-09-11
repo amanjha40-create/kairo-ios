@@ -1161,7 +1161,8 @@ final class KairoUITests: XCTestCase {
             firstName: "Aman",
             lastName: "Jha",
             email: "aman@example.com",
-            mobile: "9876543210"
+            mobile: "9876543210",
+            password: "StrongPassword123!"
         ))
 
         navigateToCreateAccount(in: app)
@@ -1170,7 +1171,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(continueButton.isEnabled)
         continueButton.tap()
 
-        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[onboardingVerifyIdentityTitle].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -1587,7 +1588,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[createAccountContinueButton].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[createAccountContinueButton].isEnabled)
         app.buttons[createAccountContinueButton].tap()
-        XCTAssertTrue(app.staticTexts[onboardingVerifyIdentityTitle].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)[onboardingVerifyIdentityTitle].waitForExistence(timeout: 10))
     }
 
     @MainActor

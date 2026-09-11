@@ -177,11 +177,11 @@ struct HomeOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                    Text("Trust Score")
+                    Text("TRUST SCORE")
                         .font(.system(.caption2, design: .default).weight(.semibold))
-                        .textCase(.uppercase)
                         .tracking(1.2)
                         .foregroundStyle(.white.opacity(0.68))
+                        .accessibilityLabel("Trust Score")
 
                     Text(dataSourceLabel)
                         .font(KairoTypography.caption)
