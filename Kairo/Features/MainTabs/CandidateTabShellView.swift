@@ -27,7 +27,10 @@ struct CandidateTabShellView: View {
                     .tag(tab)
             }
         }
-        .tint(KairoColors.brandPrimary)
+        .tint(KairoColors.accent)
+        .toolbarBackground(Color(hex: 0x07122B), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .accessibilityIdentifier(KairoAccessibilityID.candidateTabShell)
     }
 

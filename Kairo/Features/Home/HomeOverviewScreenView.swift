@@ -67,13 +67,15 @@ struct HomeOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Text(state.header.greeting)
-                        .font(KairoTypography.headline)
-                        .foregroundStyle(KairoColors.textSecondary)
+                    Image("KairoWordmark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 88, alignment: .leading)
+                        .accessibilityLabel("Kairo")
 
-                    Text(state.header.firstName)
-                        .font(KairoTypography.title)
-                        .foregroundStyle(KairoColors.textPrimary)
+                    Text("Build trust with every verified record.")
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
                 }
 
                 Spacer(minLength: KairoSpacing.medium)
@@ -126,9 +128,6 @@ struct HomeOverviewScreenView: View {
                 }
             }
 
-            Text(state.header.supportingCopy)
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
         }
     }
 
