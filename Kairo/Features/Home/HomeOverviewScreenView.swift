@@ -12,21 +12,22 @@ struct HomeOverviewScreenView: View {
     var body: some View {
         ZStack {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: KairoSpacing.large) {
+                LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     header
                     content
                 }
-                .padding(.horizontal, KairoSpacing.large)
+                .padding(.horizontal, KairoSpacing.medium)
                 .padding(.top, topContentPadding)
                 .padding(.bottom, KairoSpacing.xxLarge)
             }
             .refreshableIfAvailable(action: refreshAction)
         }
         .background(
-            LinearGradient(
-                colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.3)],
-                startPoint: .top,
-                endPoint: .bottom
+            RadialGradient(
+                colors: [KairoColors.accent.opacity(0.09), KairoColors.background],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: 430
             )
             .ignoresSafeArea()
         )
@@ -174,87 +175,90 @@ struct HomeOverviewScreenView: View {
     }
 
     private func trustScoreCard(_ trustScore: HomeTrustScore, dataSourceLabel: String) -> some View {
-        KairoCard {
-            trustScoreHeader(dataSourceLabel: dataSourceLabel)
-            viewTrustPassportButton
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+                    Text("Trust Score")
+                        .font(.system(.caption2, design: .default).weight(.semibold))
+                        .textCase(.uppercase)
+                        .tracking(1.2)
+                        .foregroundStyle(.white.opacity(0.68))
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: KairoSpacing.large) {
-                    trustScoreValue(trustScore)
-                    trustScoreNarrative(trustScore)
+                    Text(dataSourceLabel)
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.accent)
                 }
 
-                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                    trustScoreValue(trustScore)
-                    trustScoreNarrative(trustScore)
+                Spacer(minLength: KairoSpacing.medium)
+
+                Button("View Passport") {
+                    router.selectTab(.passport)
                 }
+                .font(KairoTypography.caption)
+                .foregroundStyle(Color(hex: 0x07122B))
+                .padding(.horizontal, KairoSpacing.small)
+                .padding(.vertical, KairoSpacing.xSmall)
+                .background(.white, in: Capsule())
+                .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
             }
 
-            if let progress = trustScore.progress {
-                ProgressView(value: progress)
-                    .tint(KairoColors.brandPrimary)
-                    .progressViewStyle(.linear)
-                    .padding(.top, KairoSpacing.xxSmall)
-            }
-
-            Button("View score details") {
-                router.showTrustScoreDetails()
-            }
-            .buttonStyle(.plain)
-            .font(KairoTypography.footnote)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
-    }
-
-    private func trustScoreHeader(dataSourceLabel: String) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-            Text("Trust Score")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
-            HomeBadge(title: dataSourceLabel)
-        }
-    }
-
-    private var viewTrustPassportButton: some View {
-        KairoSecondaryButton(
-            title: "View Trust Passport",
-            accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
-            action: { router.selectTab(.passport) }
-        )
-    }
-
-    private func trustScoreValue(_ trustScore: HomeTrustScore) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-            if let score = trustScore.score {
-                Text("\(score)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(KairoColors.textPrimary)
+            HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
+                Text(trustScore.score.map(String.init) ?? "Unavailable")
+                    .font(.system(size: trustScore.score == nil ? 28 : 48, weight: .bold, design: .default))
+                    .foregroundStyle(.white)
                     .minimumScaleFactor(0.7)
-            } else {
-                Text("No score yet")
-                    .font(KairoTypography.title)
-                    .foregroundStyle(KairoColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                if trustScore.score != nil {
+                    Text("/ 100")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(.white.opacity(0.62))
+                }
             }
 
             Text(trustScore.status)
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.accent)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
 
-    private func trustScoreNarrative(_ trustScore: HomeTrustScore) -> some View {
-        Text(trustScore.supportingCopy)
-            .font(KairoTypography.body)
-            .foregroundStyle(KairoColors.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+            Text(trustScore.supportingCopy)
+                .font(KairoTypography.footnote)
+                .foregroundStyle(.white.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let progress = trustScore.progress {
+                ProgressView(value: progress)
+                    .tint(KairoColors.accent)
+                    .progressViewStyle(.linear)
+            }
+
+            Button("View score details") {
+                router.showTrustScoreDetails()
+            }
+            .buttonStyle(.plain)
+            .font(KairoTypography.footnote.weight(.semibold))
+            .foregroundStyle(.white)
+            .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
+        }
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: 0x07122B), Color(hex: 0x12355A)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(KairoColors.accent.opacity(0.14))
+                .frame(width: 160, height: 160)
+                .blur(radius: 34)
+                .offset(x: 44, y: -58)
+                .allowsHitTesting(false)
+        }
+        .kairoShadow(KairoShadow.card)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
     }
 
     private func recommendationCard(_ recommendation: HomeRecommendation) -> some View {

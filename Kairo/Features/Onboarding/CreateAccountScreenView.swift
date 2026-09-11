@@ -27,11 +27,11 @@ struct CreateAccountScreenView: View {
     var body: some View {
         OnboardingScreenLayout(
             layoutMode: .form,
-            eyebrow: "Create your Kairo account",
+            eyebrow: "Step 1 of 5",
             title: "Create your account",
-            subtitle: "Start building your Trust Passport.",
+            subtitle: "Begin building your Trust Passport.",
             titleAccessibilityIdentifier: OnboardingStep.createAccount.titleAccessibilityIdentifier,
-            topPaddingAdjustment: -KairoSpacing.xLarge
+            topPaddingAdjustment: -KairoSpacing.medium
         ) {
             EmptyView()
         } content: {
@@ -127,9 +127,7 @@ struct CreateAccountScreenView: View {
     }
 
     private var createAccountFormCard: some View {
-        KairoCard {
-            createAccountFields
-        }
+        createAccountFields
     }
 
     private var createAccountFields: some View {
@@ -235,7 +233,7 @@ struct CreateAccountScreenView: View {
     private var actionsSection: some View {
         VStack(spacing: KairoSpacing.medium) {
             KairoPrimaryButton(
-                title: "Create Account",
+                title: "Continue to verification",
                 isLoading: isSubmitting,
                 accessibilityIdentifier: KairoAccessibilityID.createAccountContinue,
                 action: handleContinue

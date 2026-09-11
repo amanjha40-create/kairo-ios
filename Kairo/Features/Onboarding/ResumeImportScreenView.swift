@@ -30,16 +30,17 @@ struct ResumeImportScreenView: View {
 
     var body: some View {
         OnboardingScreenLayout(
-            layoutMode: .task,
-            eyebrow: "Verify once. Trusted everywhere.",
+            layoutMode: .form,
+            eyebrow: "Upload resume",
             title: "Import your resume",
-            subtitle: "Bring in your professional history and let Kairo organise it for your review.",
+            subtitle: "We'll organise claims from your resume so you can review them before adding anything to Kairo.",
             titleAccessibilityIdentifier: KairoAccessibilityID.resumeImportPlaceholderTitle
         ) {
-            ResumeImportHero()
-                .frame(maxWidth: 144)
+            EmptyView()
         } content: {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                reviewFirstBanner
+
                 switch state.phase {
                 case .initial:
                     introductoryCard
@@ -114,20 +115,54 @@ struct ResumeImportScreenView: View {
     }
 
     private var introductoryCard: some View {
-        KairoCard {
-            Text("Nothing is added to your Trust Passport until you confirm it.")
-                .font(KairoTypography.title2)
+        VStack(spacing: KairoSpacing.small) {
+            Image(systemName: "icloud.and.arrow.up")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(KairoColors.accent)
+
+            Text("Choose PDF or DOCX")
+                .font(KairoTypography.bodyStrong)
                 .foregroundStyle(KairoColors.textPrimary)
 
-            Text(
-                isPreviewMode
-                    ? "Choose a PDF or DOCX file to generate a deterministic demo review. Demo Mode never uploads your resume or calls resume-processing services."
-                    : "Choose a PDF or DOCX file up to 10 MB. Kairo will upload it securely, process it on the backend, and bring the parsed claims back for your approval before import."
-            )
-            .font(KairoTypography.body)
-            .foregroundStyle(KairoColors.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+            Text("Maximum file size: 10 MB")
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
         }
+        .frame(maxWidth: .infinity, minHeight: 180)
+        .padding(KairoSpacing.medium)
+        .background(KairoColors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(KairoColors.border, style: StrokeStyle(lineWidth: 1, dash: [7, 6]))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private var reviewFirstBanner: some View {
+        HStack(alignment: .top, spacing: KairoSpacing.small) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x07122B))
+                .frame(width: 32, height: 32)
+                .background(KairoColors.accent.opacity(0.24), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text("Your review comes first")
+                    .font(KairoTypography.bodyStrong)
+                    .foregroundStyle(KairoColors.textPrimary)
+
+                Text("Resume information stays candidate-provided and unverified until confirmed. No employer or institution is contacted automatically.")
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(KairoSpacing.medium)
+        .background(KairoColors.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .stroke(KairoColors.accent.opacity(0.28), lineWidth: 1)
+        )
     }
 
     private var selectedFileCard: some View {

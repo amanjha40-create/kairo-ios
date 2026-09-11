@@ -36,7 +36,7 @@ struct WelcomeScreenView: View {
 
                 Button(action: advance) {
                     Text(selectedPage.primaryButtonTitle)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold, design: .default))
                         .frame(maxWidth: .infinity)
                         .frame(height: metrics.primaryButtonHeight)
                 }
@@ -50,7 +50,7 @@ struct WelcomeScreenView: View {
                 if selectedPage == .trust {
                     Button(action: { router.showLogin() }) {
                         Text("I already have an account")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(.system(size: 15, weight: .semibold, design: .default))
                             .frame(maxWidth: .infinity)
                             .frame(height: metrics.secondaryButtonHeight)
                     }
@@ -85,9 +85,9 @@ struct WelcomeScreenView: View {
 
 private enum IntroPage: Int, CaseIterable, Identifiable {
     case trust
-    case betterWay
-    case solution
     case outcome
+    case solution
+    case betterWay
 
     var id: Int { rawValue }
 
@@ -100,7 +100,7 @@ private enum IntroPage: Int, CaseIterable, Identifiable {
     }
 
     var primaryButtonTitle: String {
-        self == .trust ? "Get Started" : "Continue"
+        self == .trust || self == .betterWay ? "Get Started" : "Continue"
     }
 
     var eyebrow: String? {
@@ -119,21 +119,24 @@ private enum IntroPage: Int, CaseIterable, Identifiable {
     var supportLines: [String] {
         switch self {
         case .trust:
-            ["Build professional trust that moves with you."]
+            [
+                "Build, own, and share professional trust that moves with you.",
+                "Once verified. Always yours."
+            ]
         case .betterWay:
             [
-                "Keep your professional record together",
-                "as your career grows."
+                "Kairo helps you build a complete, verified profile that grows with your career.",
+                "No repetition. No hassle."
             ]
         case .solution:
             [
-                "Build your record once.",
-                "Verify facts over time."
+                "Build your verified profile once.",
+                "Share it anywhere. Anytime."
             ]
         case .outcome:
             [
-                "Share your professional trust",
-                "when it matters."
+                "Share your professional trust instantly",
+                "with recruiters and organisations."
             ]
         }
     }
@@ -213,11 +216,11 @@ private struct IntroMetrics {
     }
 
     var primaryButtonHeight: CGFloat {
-        62
+        48
     }
 
     var secondaryButtonHeight: CGFloat {
-        58
+        48
     }
 
     var indicatorBottomSpacing: CGFloat {
@@ -270,7 +273,7 @@ private struct IntroPageView: View {
                 VStack(spacing: metrics.supportSpacing) {
                     ForEach(Array(page.supportLines.enumerated()), id: \.offset) { offset, line in
                         Text(line)
-                            .font(.system(size: metrics.supportSize * supportScale, weight: .medium, design: .rounded))
+                            .font(.system(size: metrics.supportSize * supportScale, weight: .regular, design: .default))
                             .foregroundStyle(IntroPalette.support)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
@@ -307,7 +310,7 @@ private struct IntroPageView: View {
                 Spacer(minLength: 0)
 
                 Button("Skip", action: onSkip)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .default))
                     .foregroundStyle(IntroPalette.teal)
                     .accessibilityIdentifier("onboarding.intro.skip")
             }
@@ -325,17 +328,17 @@ private struct IntroPageView: View {
                 Text("Anywhere.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
             .foregroundStyle(IntroPalette.navy)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(OnboardingStep.welcome.titleAccessibilityIdentifier)
         case .betterWay:
             VStack(spacing: metrics.titleSpacing) {
-                Text("Your career should")
-                Text("build on itself.")
+                Text("Your career journey")
+                Text("deserves more.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
             .foregroundStyle(IntroPalette.navy)
             .fixedSize(horizontal: false, vertical: true)
         case .solution:
@@ -344,7 +347,7 @@ private struct IntroPageView: View {
                 Text("in one place.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
             .foregroundStyle(IntroPalette.navy)
             .fixedSize(horizontal: false, vertical: true)
         case .outcome:
@@ -353,7 +356,7 @@ private struct IntroPageView: View {
                 Text("find you faster.")
                     .foregroundStyle(IntroPalette.teal)
             }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .rounded))
+            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
             .foregroundStyle(IntroPalette.navy)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -384,7 +387,7 @@ private struct IntroEyebrow: View {
                 .frame(width: 10, height: 10)
 
             Text(text)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .default))
                 .tracking(1.4)
                 .foregroundStyle(IntroPalette.eyebrow)
         }
@@ -408,9 +411,10 @@ private struct IntroPageIndicator: View {
     var body: some View {
         HStack(spacing: 10) {
             ForEach(pages) { page in
-                Circle()
+                Capsule()
                     .fill(page == selectedPage ? IntroPalette.teal : IntroPalette.dot)
-                    .frame(width: 10, height: 10)
+                    .frame(width: page == selectedPage ? 24 : 6, height: 6)
+                    .animation(.easeOut(duration: 0.2), value: selectedPage)
             }
         }
     }
@@ -421,7 +425,7 @@ private struct IntroPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(Color.white)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(IntroPalette.navy.opacity(configuration.isPressed ? 0.92 : 1))
             )
     }
@@ -432,11 +436,11 @@ private struct IntroSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(IntroPalette.navy)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(Color.white.opacity(configuration.isPressed ? 0.92 : 1))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(IntroPalette.line, lineWidth: 1.2)
             )
     }

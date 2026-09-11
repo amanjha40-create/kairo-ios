@@ -19,15 +19,14 @@ struct LoginScreenView: View {
     var body: some View {
         OnboardingScreenLayout(
             layoutMode: .form,
-            eyebrow: "Welcome back",
-            title: "Login",
-            subtitle: "Sign in to continue building and using your Trust Passport.",
+            eyebrow: nil,
+            title: "Welcome back.",
+            subtitle: "Your Trust Passport is right where you left it.",
             titleAccessibilityIdentifier: KairoAccessibilityID.onboardingLoginTitle
         ) {
             EmptyView()
         } content: {
-            KairoCard {
-                VStack(spacing: KairoSpacing.medium) {
+            VStack(spacing: KairoSpacing.small) {
                     KairoTextField(
                         title: "Email Address",
                         prompt: "name@example.com",
@@ -66,31 +65,39 @@ struct LoginScreenView: View {
                         }
                     )
 
-                    Button("Forgot password?") {
-                        router.showForgotPassword(initialEmail: emailAddress)
-                    }
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.brandPrimary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .accessibilityIdentifier(KairoAccessibilityID.passwordResetForgotPassword)
-                    .disabled(isSubmitting)
+                Button("Forgot password?") {
+                    router.showForgotPassword(initialEmail: emailAddress)
                 }
+                .font(KairoTypography.footnote.weight(.medium))
+                .foregroundStyle(KairoColors.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, KairoSpacing.xxSmall)
+                .accessibilityIdentifier(KairoAccessibilityID.passwordResetForgotPassword)
+                .disabled(isSubmitting)
             }
         } actions: {
             VStack(spacing: KairoSpacing.medium) {
                 KairoPrimaryButton(
-                    title: "Login",
+                    title: "Log in",
                     isLoading: isSubmitting,
                     accessibilityIdentifier: KairoAccessibilityID.onboardingLoginSubmit,
                     action: submit
                 )
                 .disabled(!isFormValid || isSubmitting)
 
-                KairoSecondaryButton(
-                    title: "Back",
-                    accessibilityIdentifier: KairoAccessibilityID.onboardingBack,
-                    action: { router.showOnboarding() }
-                )
+                HStack(spacing: KairoSpacing.xxSmall) {
+                    Text("New to Kairo?")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+
+                    Button("Create account") {
+                        router.navigateToOnboarding(.createAccount)
+                    }
+                    .font(KairoTypography.footnote.weight(.semibold))
+                    .foregroundStyle(KairoColors.textPrimary)
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity)
                 .disabled(isSubmitting)
 
                 if let submissionErrorMessage {
@@ -111,6 +118,24 @@ struct LoginScreenView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.onboardingLoginScreen)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { router.showOnboarding() }) {
+                    Image(systemName: "chevron.left")
+                }
+                .accessibilityIdentifier(KairoAccessibilityID.onboardingBack)
+                .accessibilityLabel("Back")
+                .disabled(isSubmitting)
+            }
+
+            ToolbarItem(placement: .principal) {
+                Image("KairoWordmark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 86)
+                    .accessibilityLabel("Kairo")
+            }
+        }
     }
 
     private var emailErrorMessage: String? {

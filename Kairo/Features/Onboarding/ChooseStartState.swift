@@ -11,16 +11,16 @@ enum ChooseStartOption: String, CaseIterable, Equatable, Hashable, Identifiable,
         case .importResume:
             "Import your resume"
         case .buildProfileManually:
-            "Build your profile manually"
+            "Fill a quick profile"
         }
     }
 
     var supportingCopy: String {
         switch self {
         case .importResume:
-            "Import your resume and review each claim before it joins your Trust Passport."
+            "Review extracted experience before adding it to Kairo."
         case .buildProfileManually:
-            "Add your experience step by step and build your profile at your own pace."
+            "Answer four questions. Add records later from Career."
         }
     }
 

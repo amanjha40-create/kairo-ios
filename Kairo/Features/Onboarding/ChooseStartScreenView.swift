@@ -8,9 +8,9 @@ struct ChooseStartScreenView: View {
     var body: some View {
         OnboardingScreenLayout(
             layoutMode: .form,
-            eyebrow: "Choose your starting point",
-            title: "How would you like to begin?",
-            subtitle: "Choose how you'd like to begin building your Trust Passport.",
+            eyebrow: "Step 3 of 5",
+            title: "How would you like to start?",
+            subtitle: "Pick the fastest way to build your Trust Passport.",
             titleAccessibilityIdentifier: OnboardingStep.chooseStart.titleAccessibilityIdentifier
         ) {
             EmptyView()
@@ -66,26 +66,8 @@ private struct ChooseStartOptionCard: View {
     let isSelected: Bool
     let action: () -> Void
 
-    private var iconTint: Color {
-        switch option {
-        case .importResume:
-            KairoColors.brandPrimary
-        case .buildProfileManually:
-            KairoColors.textPrimary
-        }
-    }
-
     private var backgroundColor: Color {
-        switch (option, isSelected) {
-        case (.importResume, true):
-            KairoColors.brandPrimary.opacity(0.08)
-        case (.buildProfileManually, true):
-            KairoColors.surfaceMuted
-        case (.importResume, false):
-            KairoColors.surface
-        case (.buildProfileManually, false):
-            KairoColors.surface
-        }
+        isSelected ? KairoColors.accent.opacity(0.08) : KairoColors.surface
     }
 
     var body: some View {
@@ -113,14 +95,13 @@ private struct ChooseStartOptionCard: View {
                     selectionBadge
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
+            .padding(KairoSpacing.medium)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(backgroundColor)
             .overlay(
                 RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
                     .stroke(
-                        isSelected ? KairoColors.brandPrimary : KairoColors.border,
+                        isSelected ? KairoColors.accent : KairoColors.border,
                         lineWidth: isSelected ? 1.5 : 1
                     )
             )
@@ -137,12 +118,12 @@ private struct ChooseStartOptionCard: View {
 
     private var iconBadge: some View {
         RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-            .fill(iconTint.opacity(option == .importResume ? 0.14 : 0.08))
-            .frame(width: 38, height: 38)
+            .fill(Color(hex: 0x07122B))
+            .frame(width: 44, height: 44)
             .overlay(
                 Image(systemName: option.systemImage)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(iconTint)
+                    .font(.system(size: 17, weight: .semibold, design: .default))
+                    .foregroundStyle(.white)
             )
     }
 
@@ -151,10 +132,10 @@ private struct ChooseStartOptionCard: View {
             if isSelected {
                 Label("Selected", systemImage: "checkmark.circle.fill")
                     .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.brandPrimary)
+                    .foregroundStyle(KairoColors.accent)
                     .padding(.horizontal, KairoSpacing.xSmall)
                     .padding(.vertical, 6)
-                    .background(KairoColors.brandPrimary.opacity(0.1), in: Capsule())
+                    .background(KairoColors.accent.opacity(0.1), in: Capsule())
             } else {
                 Image(systemName: "circle")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
