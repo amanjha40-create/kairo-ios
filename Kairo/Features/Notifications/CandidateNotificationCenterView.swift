@@ -21,7 +21,7 @@ struct CandidateNotificationCenterView: View {
 
                     if store.hasUnreadNotifications {
                         ToolbarItem(placement: .primaryAction) {
-                            Button("Mark all as read") {
+                            Button("Mark all read") {
                                 Task {
                                     await store.markAllRead()
                                     await recoverSessionIfRequired()
@@ -72,9 +72,9 @@ struct CandidateNotificationCenterView: View {
             .padding(KairoSpacing.large)
         case .empty:
             KairoEmptyStateView(
-                title: "No notifications yet",
-                message: "Verification and account updates will appear here when they are available.",
-                systemImage: "bell.slash"
+                title: "You are all caught up",
+                message: "Important Kairo updates will appear here.",
+                systemImage: "bell"
             )
             .padding(KairoSpacing.large)
             .accessibilityIdentifier(KairoAccessibilityID.notificationsEmptyState)
@@ -93,7 +93,25 @@ struct CandidateNotificationCenterView: View {
 
     private var notificationList: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: KairoSpacing.small) {
+                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                    Text("Updates from your Kairo account.")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let unreadCount = store.unreadCount, unreadCount > 0 {
+                        Label("\(unreadCount) unread", systemImage: "bell.badge.fill")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .padding(.horizontal, KairoSpacing.small)
+                            .padding(.vertical, KairoSpacing.xSmall)
+                            .background(KairoColors.brandPrimary.opacity(0.09), in: Capsule())
+                            .accessibilityLabel("\(unreadCount) unread notifications")
+                    }
+                }
+                .padding(.top, KairoSpacing.medium)
+
                 notificationSection(title: "Unread", items: store.items.filter { !$0.isRead })
                 notificationSection(title: "Earlier", items: store.items.filter(\.isRead))
 
@@ -106,6 +124,13 @@ struct CandidateNotificationCenterView: View {
             .padding(.horizontal, KairoSpacing.large)
             .padding(.bottom, KairoSpacing.xxLarge)
         }
+        .background(
+            LinearGradient(
+                colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.28)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .refreshable { await load() }
     }
 
@@ -116,10 +141,11 @@ struct CandidateNotificationCenterView: View {
     ) -> some View {
         if !items.isEmpty {
             Text(title)
-                .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.textPrimary)
-                .padding(.top, KairoSpacing.large)
-                .padding(.bottom, KairoSpacing.small)
+                .font(KairoTypography.sectionEyebrow)
+                .foregroundStyle(KairoColors.textSecondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
+                .padding(.top, KairoSpacing.medium)
 
             ForEach(items) { notification in
                 Button {
@@ -137,8 +163,6 @@ struct CandidateNotificationCenterView: View {
                     Task { await store.loadNextPageIfNeeded(after: notification) }
                 }
 
-                Divider()
-                    .foregroundStyle(KairoColors.border)
             }
         }
     }
@@ -226,6 +250,18 @@ private struct CandidateNotificationRow: View {
             }
         }
         .padding(.vertical, KairoSpacing.medium)
+        .padding(.horizontal, KairoSpacing.medium)
+        .background(
+            notification.isRead ? KairoColors.surface : KairoColors.brandPrimary.opacity(0.045),
+            in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+                .stroke(
+                    notification.isRead ? KairoColors.border : KairoColors.brandPrimary.opacity(0.38),
+                    lineWidth: 1
+                )
+        )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(

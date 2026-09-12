@@ -94,42 +94,89 @@ struct TrustScoreDetailView: View {
     }
 
     private func scoreSummary(_ score: TrustScoreResponseDTO) -> some View {
-        KairoCard {
-            Text("Current Trust Score")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            HStack {
+                Label("Trust Score", systemImage: "shield.checkered")
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, KairoSpacing.small)
+                    .padding(.vertical, KairoSpacing.xSmall)
+                    .background(Color.white.opacity(0.14), in: Capsule())
+
+                Spacer(minLength: KairoSpacing.small)
+
+                if let date = score.lastCalculatedAt {
+                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
+            }
 
             if let overall = score.overall {
                 Text("\(overall) / 100")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(KairoColors.textPrimary)
+                    .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .minimumScaleFactor(0.72)
             } else {
-                Text("No score yet")
-                    .font(KairoTypography.title)
-                    .foregroundStyle(KairoColors.textPrimary)
+                Text("No score available")
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .foregroundStyle(Color.white)
             }
 
             Text(statusTitle(score.status))
                 .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.accent)
+                .foregroundStyle(Color.white.opacity(0.88))
 
             ProgressView(value: Double(score.verificationCompletenessPercentage) / 100)
-                .tint(KairoColors.brandPrimary)
+                .tint(KairoColors.accent)
+                .background(Color.white.opacity(0.18))
 
             Text("Verification completeness: \(score.verificationCompletenessPercentage)%")
                 .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.76))
 
-            Text("Score model \(score.scoreVersion)")
-                .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
-
-            if let date = score.lastCalculatedAt {
-                Text("Last calculated \(date.formatted(date: .abbreviated, time: .shortened))")
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.textSecondary)
+            if let breakdown = score.breakdown {
+                Divider().overlay(Color.white.opacity(0.18))
+                HStack(spacing: KairoSpacing.xSmall) {
+                    heroMetric("Identity", value: breakdown.identity)
+                    heroMetric("Employment", value: breakdown.employment)
+                    heroMetric("Education", value: breakdown.education)
+                }
             }
         }
+        .padding(KairoSpacing.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.03, green: 0.08, blue: 0.19), Color(red: 0.01, green: 0.50, blue: 0.56)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .kairoShadow(KairoShadow.card)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(
+            "Trust Score, \(score.overall.map(String.init) ?? "not available") out of 100, \(statusTitle(score.status)), verification completeness \(score.verificationCompletenessPercentage) percent"
+        )
+    }
+
+    private func heroMetric(_ title: String, value: Double) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+            Text(title)
+                .font(KairoTypography.caption)
+                .foregroundStyle(Color.white.opacity(0.68))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text("\(Int(value.rounded()))")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundStyle(Color.white)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -162,8 +209,10 @@ struct TrustScoreDetailView: View {
         if let breakdown = score.breakdown {
             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                 Text("Category breakdown")
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
+                    .font(KairoTypography.sectionEyebrow)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
                 KairoCard {
                     breakdownRow(title: "Identity", value: breakdown.identity)
                     Divider()
@@ -177,15 +226,20 @@ struct TrustScoreDetailView: View {
     }
 
     private func breakdownRow(title: String, value: Double) -> some View {
-        HStack {
-            Text(title)
-                .font(KairoTypography.bodyStrong)
-                .foregroundStyle(KairoColors.textPrimary)
-            Spacer()
-            Text("\(Int(value.rounded())) / 100")
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+            HStack {
+                Text(title)
+                    .font(KairoTypography.bodyStrong)
+                    .foregroundStyle(KairoColors.textPrimary)
+                Spacer()
+                Text("\(Int(value.rounded())) / 100")
+                    .font(KairoTypography.body)
+                    .foregroundStyle(KairoColors.textSecondary)
+            }
+            ProgressView(value: value / 100)
+                .tint(KairoColors.accent)
         }
+        .padding(.vertical, KairoSpacing.xxSmall)
     }
 
     @ViewBuilder
@@ -194,8 +248,10 @@ struct TrustScoreDetailView: View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                 Text("Why your score looks this way")
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
+                    .font(KairoTypography.sectionEyebrow)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
                 KairoCard {
                     ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                         if index > 0 { Divider() }

@@ -37,7 +37,7 @@ struct MoreOverviewScreenView: View {
     var body: some View {
         KairoScreenContainer(
             title: "More",
-            subtitle: "Manage your account, preferences, and support.",
+            subtitle: "Documents, settings, notifications, and support.",
             titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
         ) {
             accountSummaryCard
@@ -70,7 +70,7 @@ struct MoreOverviewScreenView: View {
     }
 
     private var accountSummaryCard: some View {
-        KairoCard {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: KairoSpacing.medium) {
                     profilePlaceholder
@@ -91,7 +91,7 @@ struct MoreOverviewScreenView: View {
 
             Text(state.accountSummary.supportingCopy)
                 .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
             KairoSecondaryButton(
@@ -100,6 +100,21 @@ struct MoreOverviewScreenView: View {
                 action: { router.selectTab(.passport) }
             )
         }
+        .padding(KairoSpacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.03, green: 0.08, blue: 0.19), Color(red: 0.02, green: 0.48, blue: 0.55)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .kairoShadow(KairoShadow.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.moreAccountSummary)
     }
@@ -107,16 +122,16 @@ struct MoreOverviewScreenView: View {
     private var profilePlaceholder: some View {
         ZStack {
             Circle()
-                .fill(KairoColors.surfaceMuted)
+                .fill(Color.white.opacity(0.14))
 
             Text(state.accountSummary.initials)
                 .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+                .foregroundStyle(Color.white)
         }
         .frame(width: 64, height: 64)
         .overlay(
             Circle()
-                .stroke(KairoColors.border, lineWidth: 1)
+                .stroke(Color.white.opacity(0.24), lineWidth: 1)
         )
         .accessibilityElement()
         .accessibilityLabel("Profile placeholder for \(state.accountSummary.name)")
@@ -126,17 +141,17 @@ struct MoreOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             Text(state.accountSummary.name)
                 .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+                .foregroundStyle(Color.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(state.accountSummary.emailAddress)
                 .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("Trust Passport")
                 .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.72))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -953,8 +968,10 @@ private struct MoreSectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(KairoTypography.title2)
-            .foregroundStyle(KairoColors.textPrimary)
+            .font(KairoTypography.sectionEyebrow)
+            .foregroundStyle(KairoColors.textSecondary)
+            .textCase(.uppercase)
+            .tracking(0.8)
             .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
@@ -965,11 +982,11 @@ private struct MoreStatusBadge: View {
     var body: some View {
         Label(title, systemImage: "checkmark.circle.fill")
             .font(KairoTypography.caption)
-            .foregroundStyle(KairoColors.success)
+            .foregroundStyle(Color.white)
             .padding(.horizontal, KairoSpacing.small)
             .padding(.vertical, KairoSpacing.xSmall)
             .background(
-                KairoColors.success.opacity(0.12),
+                Color.white.opacity(0.14),
                 in: Capsule()
             )
     }
@@ -1017,11 +1034,16 @@ private struct MoreNavigationRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .top, spacing: KairoSpacing.medium) {
+            HStack(alignment: .center, spacing: KairoSpacing.small) {
                 Image(systemName: item.systemImage)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(KairoColors.brandPrimary)
-                    .frame(width: 24)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        KairoColors.surfaceMuted,
+                        in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
+                    )
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(item.title)
@@ -1040,8 +1062,9 @@ private struct MoreNavigationRow: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(KairoColors.textSecondary)
-                    .padding(.top, KairoSpacing.xxSmall)
+                    .accessibilityHidden(true)
             }
+            .padding(.vertical, KairoSpacing.xxSmall)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -1057,11 +1080,16 @@ private struct MoreStaticRow: View {
     let systemImage: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: KairoSpacing.medium) {
+        HStack(alignment: .center, spacing: KairoSpacing.small) {
             Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(KairoColors.brandPrimary)
-                .frame(width: 24)
+                .frame(width: 36, height: 36)
+                .background(
+                    KairoColors.surfaceMuted,
+                    in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
+                )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                 Text(title)

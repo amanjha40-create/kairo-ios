@@ -252,6 +252,26 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testTrustScoreConsentWithdrawalReturnsToTruthfulNoScoreState() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        let details = app.buttons[homeTrustScoreDetails]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        details.tap()
+
+        let withdraw = app.buttons["candidate.trustScore.consent.withdraw"]
+        XCTAssertTrue(waitForElementAfterScrolling(withdraw, in: app))
+        withdraw.tap()
+        XCTAssertTrue(app.buttons["Withdraw consent"].waitForExistence(timeout: 10))
+        app.buttons["Withdraw consent"].tap()
+
+        XCTAssertTrue(app.staticTexts["No score available"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Consent required"].exists)
+        XCTAssertTrue(app.buttons["candidate.trustScore.consent.grant"].exists)
+        XCTAssertFalse(app.staticTexts["0 / 100"].exists)
+    }
+
+    @MainActor
     func testHomeBellOpensDeterministicNotificationCenterWithUnreadBadge() throws {
         let app = launchApp(environment: notificationsEnvironment(state: "unread"))
 
@@ -302,8 +322,33 @@ final class KairoUITests: XCTestCase {
         app.buttons[homeNotificationsButton].tap()
 
         XCTAssertTrue(app.descendants(matching: .any)[notificationsEmptyState].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["No notifications yet"].exists)
+        XCTAssertTrue(app.staticTexts["You are all caught up"].exists)
+        XCTAssertTrue(app.staticTexts["Important Kairo updates will appear here."].exists)
         XCTAssertFalse(app.buttons[notificationsMarkAllRead].exists)
+    }
+
+    @MainActor
+    func testGenericNotificationUsesCanonicalFallbackDetail() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "unread"))
+
+        app.buttons[homeNotificationsButton].tap()
+        let row = app.buttons["candidate.notifications.row.demo-generic-update"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.notifications.detail"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["A Kairo update"].exists)
+        XCTAssertTrue(app.staticTexts["This deterministic message verifies the generic notification detail fallback."].exists)
+    }
+
+    @MainActor
+    func testPhase3NotificationsVisualEvidence() throws {
+        let app = launchApp(environment: notificationsEnvironment(state: "unread"))
+
+        app.buttons[homeNotificationsButton].tap()
+        XCTAssertTrue(app.otherElements[notificationsCenter].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Updates from your Kairo account."].exists)
+        keepScreenshot(named: "Phase 3 - Notifications")
     }
 
     @MainActor
@@ -844,6 +889,73 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testPhase3MoreVisualEvidence() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+        XCTAssertTrue(app.descendants(matching: .any)[moreAccountSummary].waitForExistence(timeout: 10))
+        keepScreenshot(named: "Phase 3 - More")
+    }
+
+    @MainActor
+    func testPhase3SettingsVisualEvidence() throws {
+        let app = launchApp(environment: moreEnvironment())
+
+        openMoreTab(in: app)
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePreferencesSection], in: app))
+        let darkAppearance = app.buttons[moreAppearanceDarkButton]
+        XCTAssertTrue(waitForElementAfterScrolling(darkAppearance, in: app))
+        if !darkAppearance.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(darkAppearance.isHittable)
+        app.swipeUp()
+        keepScreenshot(named: "Phase 3 - Settings")
+    }
+
+    @MainActor
+    func testPhase3TrustScoreVisualEvidence() throws {
+        let app = launchApp(environment: homeEnvironment())
+
+        let details = app.buttons[homeTrustScoreDetails]
+        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        details.tap()
+        XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["72 / 100"].exists)
+        keepScreenshot(named: "Phase 3 - Trust Score")
+    }
+
+    @MainActor
+    func testPhase3LargerDynamicTypeKeepsMajorSurfacesUsable() throws {
+        let app = launchApp(
+            environment: homeEnvironment(),
+            additionalArguments: [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityExtraLarge"
+            ]
+        )
+
+        let trustDetails = app.buttons[homeTrustScoreDetails]
+        XCTAssertTrue(trustDetails.waitForExistence(timeout: 10))
+        trustDetails.tap()
+        XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["72 / 100"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+
+        let notifications = app.buttons[homeNotificationsButton]
+        XCTAssertTrue(notifications.waitForExistence(timeout: 10))
+        notifications.tap()
+        XCTAssertTrue(app.descendants(matching: .any)[notificationsCenter].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[notificationsMarkAllRead].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+
+        openMoreTab(in: app)
+        XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePreferencesSection], in: app))
+        XCTAssertTrue(app.buttons[moreAppearanceSystemButton].exists)
+    }
+
+    @MainActor
     func testMoreViewProfileRoutesToPassportTab() throws {
         let app = launchApp(environment: moreEnvironment())
 
@@ -864,7 +976,9 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[moreAccountSection].exists)
         app.buttons["personalInformation"].tap()
         XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
-        dismissPresentedSheet(in: app)
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(waitForElementAfterScrolling(cancel, in: app))
+        cancel.tap()
 
         XCTAssertTrue(app.buttons["loginSecurity"].waitForExistence(timeout: 10))
         app.buttons["loginSecurity"].tap()
@@ -927,8 +1041,9 @@ final class KairoUITests: XCTestCase {
         openMoreTab(in: app)
 
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePrivacyDataSection], in: app))
-        XCTAssertTrue(app.staticTexts["Privacy settings"].exists)
-        XCTAssertTrue(app.staticTexts["Delete account"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts["Manage consent"], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts["Delete account"], in: app))
+        XCTAssertFalse(app.staticTexts["Privacy settings"].exists)
     }
 
     @MainActor
@@ -1012,7 +1127,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreConfirmingSignOutReturnsToLoginPlaceholder() throws {
+    func testMoreConfirmingSignOutReturnsToUnauthenticatedWelcome() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
@@ -1021,10 +1136,15 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
         signOutButton.tap()
 
-        XCTAssertTrue(app.buttons["Sign Out"].waitForExistence(timeout: 10))
-        app.buttons["Sign Out"].tap()
+        let confirmation = app.buttons
+            .matching(identifier: moreSignOutConfirmation)
+            .matching(NSPredicate(format: "label == %@", "Sign Out"))
+            .firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
+        confirmation.tap()
 
-        assertLoginPlaceholderVisible(in: app)
+        XCTAssertTrue(app.images[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[welcomeExistingAccountButton].exists)
     }
 
     @MainActor
@@ -1606,10 +1726,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchApp(environment: [String: String] = [:]) -> XCUIApplication {
+    private func launchApp(
+        environment: [String: String] = [:],
+        additionalArguments: [String] = []
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.terminate()
-        app.launchArguments = baseLaunchArguments
+        app.launchArguments = baseLaunchArguments + additionalArguments
         app.launchEnvironment = baseLaunchEnvironment.merging(environment) { _, override in override }
         app.launch()
         return app
