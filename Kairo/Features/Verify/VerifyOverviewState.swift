@@ -356,6 +356,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
     case pendingOrganizationAcceptance
     case inProgress
     case awaitingInformation
+    case pendingAdminQualityReview
     case verified
     case rejected
     case unableToVerify
@@ -376,6 +377,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
         .pendingOrganizationResolution,
         .pendingOrganizationAcceptance,
         .inProgress,
+        .pendingAdminQualityReview,
         .verified,
         .rejected,
         .unableToVerify,
@@ -411,6 +413,8 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             self = .inProgress
         case "awaiting_information":
             self = .awaitingInformation
+        case "pending_admin_quality_review":
+            self = .pendingAdminQualityReview
         case "verified":
             self = .verified
         case "rejected":
@@ -452,6 +456,8 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             "in_progress"
         case .awaitingInformation:
             "awaiting_information"
+        case .pendingAdminQualityReview:
+            "pending_admin_quality_review"
         case .verified:
             "verified"
         case .rejected:
@@ -482,6 +488,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
              .pendingOrganizationResolution,
              .pendingOrganizationAcceptance,
              .inProgress,
+             .pendingAdminQualityReview,
              .unknown:
             .inProgress
         case .verified,
@@ -565,6 +572,12 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             VerifyStatusStyle(
                 title: ProductStatusLanguage.needsAttention,
                 symbol: "text.badge.plus",
+                tone: .warning
+            )
+        case .pendingAdminQualityReview:
+            VerifyStatusStyle(
+                title: "Quality review",
+                symbol: "checkmark.magnifyingglass",
                 tone: .warning
             )
         case .verified:
@@ -749,6 +762,14 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
     let requiredAction: String
     let supportingNote: String
     let evidenceRequirement: String
+    let verificationContact: VerifyContactRecord?
+    let evidence: [VerifyEvidenceRecord]
+    let corrections: [VerifyCorrectionRecord]
+    let consentedAt: Date?
+    let consentVersion: String?
+    let consentedFields: [String]
+    let consentedEvidenceScope: [String]
+    let reviewStatus: String?
     let timeline: [VerifyTimelineEvent]
     let availableActions: [VerifyRequestAction]
 
@@ -766,6 +787,14 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
         requiredAction: String,
         supportingNote: String,
         evidenceRequirement: String,
+        verificationContact: VerifyContactRecord? = nil,
+        evidence: [VerifyEvidenceRecord] = [],
+        corrections: [VerifyCorrectionRecord] = [],
+        consentedAt: Date? = nil,
+        consentVersion: String? = nil,
+        consentedFields: [String] = [],
+        consentedEvidenceScope: [String] = [],
+        reviewStatus: String? = nil,
         timeline: [VerifyTimelineEvent],
         availableActions: [VerifyRequestAction]
     ) {
@@ -782,6 +811,14 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
         self.requiredAction = requiredAction
         self.supportingNote = supportingNote
         self.evidenceRequirement = evidenceRequirement
+        self.verificationContact = verificationContact
+        self.evidence = evidence
+        self.corrections = corrections
+        self.consentedAt = consentedAt
+        self.consentVersion = consentVersion
+        self.consentedFields = consentedFields
+        self.consentedEvidenceScope = consentedEvidenceScope
+        self.reviewStatus = reviewStatus
         self.timeline = timeline
         self.availableActions = availableActions
     }
@@ -801,6 +838,14 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
             requiredAction: "Waiting for review",
             supportingNote: "This local preview confirms the next step without sending any data.",
             evidenceRequirement: evidenceRequirement,
+            verificationContact: verificationContact,
+            evidence: evidence,
+            corrections: corrections,
+            consentedAt: consentedAt,
+            consentVersion: consentVersion,
+            consentedFields: consentedFields,
+            consentedEvidenceScope: consentedEvidenceScope,
+            reviewStatus: reviewStatus,
             timeline: timeline + [
                 VerifyTimelineEvent(
                     id: "\(id)-accepted-preview",
@@ -811,6 +856,15 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
             ],
             availableActions: []
         )
+    }
+
+    var showsCareerRecovery: Bool {
+        switch status {
+        case .rejected, .cancelled:
+            true
+        default:
+            false
+        }
     }
 
 }

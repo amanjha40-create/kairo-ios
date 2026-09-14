@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum CareerMutationSheet: Identifiable {
     case employment(mode: CareerMutationMode, recordID: String?, draft: CareerEmploymentDraft)
@@ -418,16 +419,18 @@ struct CareerCertificationEditorSheet: View {
 
     let mode: CareerMutationMode
     let seedDraft: CareerCertificationDraft
-    let onSave: (CareerCertificationDraft) async throws -> Void
+    let onSave: (CareerCertificationDraft, URL?) async throws -> Void
 
     @State private var draft: CareerCertificationDraft
     @State private var isSaving = false
     @State private var presentationError: CareerMutationPresentationError?
+    @State private var selectedDocumentURL: URL?
+    @State private var isFileImporterPresented = false
 
     init(
         mode: CareerMutationMode,
         draft: CareerCertificationDraft,
-        onSave: @escaping (CareerCertificationDraft) async throws -> Void
+        onSave: @escaping (CareerCertificationDraft, URL?) async throws -> Void
     ) {
         self.mode = mode
         seedDraft = draft
@@ -517,10 +520,66 @@ struct CareerCertificationEditorSheet: View {
                         keyboardType: .URL,
                         textInputAutocapitalization: .never
                     )
+
+                    if mode == .create {
+                        Divider()
+
+                        Text("Certificate document")
+                            .font(KairoTypography.headline)
+                            .foregroundStyle(KairoColors.textPrimary)
+
+                        if let selectedDocumentURL {
+                            Text(selectedDocumentURL.lastPathComponent)
+                                .font(KairoTypography.body)
+                                .foregroundStyle(KairoColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Remove selected file", role: .destructive) {
+                                self.selectedDocumentURL = nil
+                            }
+                        }
+
+                        KairoSecondaryButton(
+                            title: selectedDocumentURL == nil ? "Choose certificate file" : "Choose a different file",
+                            action: { isFileImporterPresented = true }
+                        )
+
+                        Text("Optional • PDF, JPEG, or PNG • up to 20 MB")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    } else if let filename = draft.existingDocumentFilename {
+                        Divider()
+                        Text("Attached certificate")
+                            .font(KairoTypography.headline)
+                            .foregroundStyle(KairoColors.textPrimary)
+                        Text(filename)
+                            .font(KairoTypography.body)
+                            .foregroundStyle(KairoColors.textSecondary)
+                        Text("Metadata edits preserve this file. The current backend does not support replacing or detaching a certificate file while preserving this certification record.")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .interactiveDismissDisabled(isSaving)
             .disabled(isSaving)
+            .fileImporter(
+                isPresented: $isFileImporterPresented,
+                allowedContentTypes: [.pdf, .jpeg, .png],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    selectedDocumentURL = urls.first
+                    presentationError = nil
+                case .failure(let error):
+                    presentationError = CareerMutationPresentationError(
+                        title: "Certificate file unavailable",
+                        message: error.localizedDescription,
+                        fieldErrors: [:]
+                    )
+                }
+            }
         }
     }
 
@@ -534,7 +593,7 @@ struct CareerCertificationEditorSheet: View {
 
         Task {
             do {
-                try await onSave(draft)
+                try await onSave(draft, selectedDocumentURL)
                 await MainActor.run {
                     isSaving = false
                     dismiss()

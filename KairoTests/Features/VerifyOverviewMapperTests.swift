@@ -184,6 +184,35 @@ final class VerifyOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.pendingRequests.first?.availableActions, [])
     }
 
+    func test_mapUsesExactBackendEligibilityAcrossCorrectionReviewAndTerminalStates() {
+        let state = VerifyOverviewMapper.map(
+            VerifyOverview(
+                requests: [
+                    makeVerifyRecord(id: "submit", status: .pendingSubjectSubmission),
+                    makeVerifyRecord(id: "info", status: .awaitingInformation),
+                    makeVerifyRecord(id: "correct", status: .awaitingSubjectCorrections),
+                    makeVerifyRecord(id: "quality", status: .pendingAdminQualityReview),
+                    makeVerifyRecord(id: "rejected", status: .rejected),
+                    makeVerifyRecord(id: "cancelled", status: .cancelled),
+                    makeVerifyRecord(id: "verified", status: .verified)
+                ]
+            )
+        )
+
+        guard case .populated(let content) = state.phase else {
+            return XCTFail("Expected populated Verify state")
+        }
+
+        XCTAssertEqual(content.request(id: "submit")?.availableActions, [.submitForReview])
+        XCTAssertEqual(content.request(id: "info")?.availableActions, [.submitInformation])
+        XCTAssertEqual(content.request(id: "correct")?.availableActions, [.resubmitForReview])
+        XCTAssertTrue(content.inProgressRequests.contains(where: { $0.id == "quality" }))
+        XCTAssertTrue(content.request(id: "rejected")?.showsCareerRecovery == true)
+        XCTAssertTrue(content.request(id: "cancelled")?.showsCareerRecovery == true)
+        XCTAssertEqual(content.request(id: "cancelled")?.status.style.title, "Withdrawn")
+        XCTAssertTrue(content.completedRequests.contains(where: { $0.id == "verified" }))
+    }
+
     func test_errorStateMapsTransportErrorToOfflineExperience() {
         let state = VerifyOverviewMapper.errorState(for: NetworkError.transport("offline"))
 
@@ -200,6 +229,38 @@ final class VerifyOverviewMapperTests: XCTestCase {
         XCTAssertFalse(VerifyOverviewMapper.requiresSessionRecovery(for: SessionServiceError.missingAccessToken))
         XCTAssertFalse(VerifyOverviewMapper.requiresSessionRecovery(for: NetworkError.transport("offline")))
     }
+}
+
+private func makeVerifyRecord(id: String, status: VerifyVerificationStatus) -> VerifyRequestRecord {
+    let timestamp = makeUTCTimestamp(
+        year: 2026,
+        month: 9,
+        day: 14,
+        hour: 10,
+        minute: 0,
+        second: 0
+    )!
+    return VerifyRequestRecord(
+        id: id,
+        routeID: id,
+        kind: .employment,
+        typeTitle: "Employment verification",
+        organizationName: "KairoID QA",
+        requesterName: "KairoID QA",
+        requestedItem: "Employment record",
+        status: status,
+        priority: "normal",
+        dueDate: nil,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        candidateResponse: nil,
+        candidateResponseSubmittedAt: nil,
+        acceptedAt: nil,
+        consentedFields: [],
+        consentedEvidenceScope: [],
+        evidenceSummary: VerifyEvidenceSummaryRecord(totalItems: 0, documentItems: 0, fieldKeys: []),
+        timeline: []
+    )
 }
 
 private func makeUTCDate(year: Int, month: Int, day: Int) -> Date? {

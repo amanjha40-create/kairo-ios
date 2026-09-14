@@ -13,6 +13,10 @@ protocol CareerOverviewServiceProtocol: Sendable {
     func updateEducation(id: String, request: CareerEducationUpdateRequestDTO) async throws -> CareerOverview
     func deleteEducation(id: String) async throws -> CareerOverview
     func createCertification(_ request: CareerCertificationCreateRequestDTO) async throws -> CareerOverview
+    func createCertification(
+        _ request: CareerCertificationCreateRequestDTO,
+        withDocument fileURL: URL
+    ) async throws -> CareerOverview
     func updateCertification(id: String, request: CareerCertificationUpdateRequestDTO) async throws -> CareerOverview
     func deleteCertification(id: String) async throws -> CareerOverview
     func createProject(_ request: CareerProjectCreateRequestDTO) async throws -> CareerOverview
@@ -25,13 +29,16 @@ protocol CareerOverviewServiceProtocol: Sendable {
 actor CareerOverviewService: CareerOverviewServiceProtocol {
     private let authService: any AuthServiceProtocol
     private let sessionService: any SessionServiceProtocol
+    private let transferClient: SecureDocumentTransferClient
 
     init(
         authService: any AuthServiceProtocol,
-        sessionService: any SessionServiceProtocol
+        sessionService: any SessionServiceProtocol,
+        transferClient: SecureDocumentTransferClient = SecureDocumentTransferClient()
     ) {
         self.authService = authService
         self.sessionService = sessionService
+        self.transferClient = transferClient
     }
 
     func loadOverview() async throws -> CareerOverview {
@@ -157,6 +164,55 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             body: request,
             responseType: CareerCertificationDTO.self
         )
+    }
+
+    func createCertification(
+        _ request: CareerCertificationCreateRequestDTO,
+        withDocument fileURL: URL
+    ) async throws -> CareerOverview {
+        let selection = try await transferClient.prepare(
+            fileURL: fileURL,
+            maximumBytes: 20 * 1_024 * 1_024,
+            allowedContentTypes: SecureDocumentTransferClient.careerContentTypes
+        )
+        let intent: CareerCertificationUploadIntentResponseDTO = try await sendJSONRequest(
+            path: "/certifications/upload-intent",
+            method: .post,
+            body: CareerCertificationUploadIntentRequestDTO(
+                title: request.title,
+                issuingOrganization: request.issuingOrganization,
+                issuedDate: request.issuedDate,
+                expiryDate: request.expiryDate,
+                doesNotExpire: request.doesNotExpire,
+                credentialID: request.credentialID,
+                credentialURL: request.credentialURL,
+                originalFilename: selection.filename,
+                contentType: selection.contentType,
+                byteSize: selection.data.count
+            ),
+            responseType: CareerCertificationUploadIntentResponseDTO.self
+        )
+
+        do {
+            try await transferClient.upload(
+                selection,
+                to: intent.uploadUrl,
+                requiredHeaders: ["Content-Type": selection.contentType]
+            )
+            _ = try await sendJSONRequest(
+                path: "/certifications/\(intent.certificationId)/complete-upload",
+                method: .post,
+                body: CareerCertificationCompleteUploadRequestDTO(
+                    checksumSHA256: selection.checksumSHA256
+                ),
+                responseType: CareerCertificationDTO.self
+            )
+        } catch {
+            try? await discardIncompleteCertification(id: intent.certificationId)
+            throw error
+        }
+
+        return try await loadOverview()
     }
 
     func updateCertification(
@@ -327,6 +383,16 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             )
         )
         return try await loadOverview()
+    }
+
+    private func discardIncompleteCertification(id: String) async throws {
+        _ = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: "/certifications/\(id)",
+                method: .delete,
+                headers: ["Accept": "application/json"]
+            )
+        )
     }
 
     private func sendJSONRequest<Body: Encodable, Response: Decodable>(

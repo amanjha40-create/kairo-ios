@@ -18,11 +18,12 @@ struct VerifyOverviewContainerView: View {
                     await load(showLoading: true)
                 }
             },
-            requestActionHandler: { requestID, action, response in
+            requestActionHandler: { requestID, action, response, consent in
                 try await performAction(
                     requestID: requestID,
                     action: action,
-                    response: response
+                    response: response,
+                    consent: consent
                 )
             },
             startVerificationHandler: { preset in
@@ -83,13 +84,15 @@ struct VerifyOverviewContainerView: View {
     private func performAction(
         requestID: String,
         action: VerifyRequestAction,
-        response: String?
+        response: String?,
+        consent: VerificationSubmissionConsent?
     ) async throws {
         do {
             try await verifyOverviewService.performAction(
                 requestID: requestID,
                 action: action,
-                response: response
+                response: response,
+                consent: consent
             )
             await load(showLoading: true)
             refreshStore.candidateDataChanged()

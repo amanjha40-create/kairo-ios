@@ -125,11 +125,34 @@ final class CareerDocumentServiceTests: XCTestCase {
             )
             XCTFail("Expected failed storage upload")
         } catch {
-            XCTAssertEqual(error as? CareerDocumentServiceError, .storageUploadFailed)
+            XCTAssertEqual(error as? SecureDocumentTransferError, .storageUploadFailed)
         }
 
         let requests = await MockURLProtocolStorage.shared.requests()
         XCTAssertEqual(requests.filter { $0.httpMethod == "DELETE" }.count, 1)
+    }
+
+    func test_replaceUploadsNewDocumentBeforeRemovingExactOldDocument() async throws {
+        let spy = CareerDocumentReplacementSpy()
+        let oldDocument = CareerDocument(
+            id: "old-document",
+            documentType: "transcript",
+            originalFilename: "old.pdf",
+            contentType: "application/pdf",
+            byteSize: 10,
+            verificationStatus: "pending_review"
+        )
+        let parent = CareerDocumentParent.education(id: "education-1", title: "University")
+
+        _ = try await spy.replaceDocument(
+            oldDocument,
+            with: URL(fileURLWithPath: "/private/tmp/replacement.pdf"),
+            documentType: "transcript",
+            parent: parent
+        )
+
+        let events = await spy.events()
+        XCTAssertEqual(events, ["upload:transcript", "delete:old-document"])
     }
 
     private func makeService() async throws -> CareerDocumentService {
@@ -152,7 +175,7 @@ final class CareerDocumentServiceTests: XCTestCase {
                 networkClient: client,
                 tokenStore: tokenStore
             ),
-            storageSession: makeMockedURLSession()
+            transferClient: SecureDocumentTransferClient(session: makeMockedURLSession())
         )
     }
 
@@ -171,4 +194,33 @@ final class CareerDocumentServiceTests: XCTestCase {
     private nonisolated static let pagePayload = Data(
         #"{"items":[{"id":"document-1","document_type":"transcript","original_filename":"evidence.pdf","content_type":"application/pdf","byte_size":20,"verification_status":"pending_review"}],"total":1,"offset":0,"limit":100}"#.utf8
     )
+}
+
+private actor CareerDocumentReplacementSpy: CareerDocumentServiceProtocol {
+    private var recordedEvents: [String] = []
+
+    func events() -> [String] { recordedEvents }
+    func listDocuments(for parent: CareerDocumentParent) async throws -> [CareerDocument] { [] }
+    nonisolated func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType] { [] }
+
+    func uploadDocument(
+        fileURL: URL,
+        documentType: String,
+        to parent: CareerDocumentParent
+    ) async throws -> [CareerDocument] {
+        recordedEvents.append("upload:\(documentType)")
+        return []
+    }
+
+    func downloadURL(for document: CareerDocument, parent: CareerDocumentParent) async throws -> URL {
+        URL(string: "https://storage.example/private")!
+    }
+
+    func deleteDocument(
+        _ document: CareerDocument,
+        parent: CareerDocumentParent
+    ) async throws -> [CareerDocument] {
+        recordedEvents.append("delete:\(document.id)")
+        return []
+    }
 }

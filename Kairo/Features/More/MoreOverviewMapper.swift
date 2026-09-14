@@ -190,6 +190,12 @@ enum MoreOverviewMapper {
                 title: "Sessions & devices",
                 subtitle: "Review your active account sessions.",
                 systemImage: "desktopcomputer"
+            ),
+            MoreRowItem(
+                id: "documentVault",
+                title: "Document Vault",
+                subtitle: "Manage private identity documents and replacement history.",
+                systemImage: "lock.doc"
             )
         ]
     }

@@ -303,6 +303,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
     var doesNotExpire = false
     var credentialID = ""
     var credentialURL = ""
+    var existingDocumentFilename: String?
 
     init() {}
 
@@ -317,6 +318,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
         doesNotExpire = record.doesNotExpire
         credentialID = record.credentialID ?? ""
         credentialURL = record.credentialURL?.absoluteString ?? ""
+        existingDocumentFilename = record.originalFilename
     }
 
     var displayName: String {

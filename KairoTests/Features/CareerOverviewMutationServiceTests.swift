@@ -109,6 +109,77 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
         XCTAssertEqual(requests.filter { $0.httpMethod == "DELETE" }.count, 0)
     }
 
+    func test_createCertificationWithDocumentUsesIntentUploadCompletionAndReload() async throws {
+        let service = try await makeService()
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("certificate.pdf")
+        try Data("%PDF-certificate-fixture".utf8).write(to: fileURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let certification = CareerCertificationCreateRequestDTO(
+            title: "Secure Product Certification",
+            issuingOrganization: "KairoID Academy",
+            issuedDate: "2026-01-01",
+            expiryDate: nil,
+            doesNotExpire: true,
+            credentialID: "CERT-123",
+            credentialURL: "https://example.com/cert/CERT-123"
+        )
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.host, request.url?.path) {
+            case ("POST", "staging-api.kairoid.com", "/api/v1/certifications/upload-intent"):
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["title"] as? String, "Secure Product Certification")
+                XCTAssertEqual(body["original_filename"] as? String, "certificate.pdf")
+                XCTAssertEqual(body["content_type"] as? String, "application/pdf")
+                return (try Self.response(for: request, statusCode: 201), Self.certificationIntentPayload)
+            case ("PUT", "storage.example", "/certificate-upload"):
+                XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                return (try Self.response(for: request, statusCode: 200), Data())
+            case ("POST", "staging-api.kairoid.com", "/api/v1/certifications/certification_upload_1/complete-upload"):
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual((body["checksum_sha256"] as? String)?.count, 64)
+                return (try Self.response(for: request, statusCode: 200), Self.createdCertificationWithDocumentPayload)
+            default:
+                return try await Self.overviewResponse(for: request)
+            }
+        }
+
+        _ = try await service.createCertification(certification, withDocument: fileURL)
+        let requests = await MockURLProtocolStorage.shared.requests()
+
+        XCTAssertEqual(requests.filter { $0.httpMethod == "PUT" }.count, 1)
+        XCTAssertEqual(requests.filter { $0.url?.path.hasSuffix("/complete-upload") == true }.count, 1)
+    }
+
+    func test_updateCertificationMetadataDoesNotSendAttachmentMutationFields() async throws {
+        let service = try await makeService()
+        let update = CareerCertificationUpdateRequestDTO(
+            title: "Updated title",
+            issuingOrganization: "Updated issuer",
+            issuedDate: "2026-01-01",
+            expiryDate: nil,
+            doesNotExpire: true,
+            credentialID: "CERT-123",
+            credentialURL: "https://example.com/cert/CERT-123"
+        )
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.url?.path == "/api/v1/certifications/certification_1",
+               request.httpMethod == "PATCH" {
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["title"] as? String, "Updated title")
+                XCTAssertNil(body["object_key"])
+                XCTAssertNil(body["original_filename"])
+                XCTAssertNil(body["content_type"])
+                XCTAssertNil(body["byte_size"])
+                return (try Self.response(for: request, statusCode: 200), Self.createdCertificationWithDocumentPayload)
+            }
+            return try await Self.overviewResponse(for: request)
+        }
+
+        _ = try await service.updateCertification(id: "certification_1", request: update)
+    }
+
     func test_deleteOperationsUseCanonicalRoutesAndRefetchOverview() async throws {
         let service = try await makeService()
 
@@ -194,7 +265,8 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
         )
         return CareerOverviewService(
             authService: authService,
-            sessionService: sessionService
+            sessionService: sessionService,
+            transferClient: SecureDocumentTransferClient(session: makeMockedURLSession())
         )
     }
 
@@ -393,6 +465,29 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
         {
           "id": "skill_created_1",
           "name": "SQL",
+          "verification_status": "draft"
+        }
+        """.utf8
+    )
+
+    private nonisolated static let certificationIntentPayload = Data(
+        #"{"certification_id":"certification_upload_1","upload_url":"https://storage.example/certificate-upload","expires_in_seconds":300}"#.utf8
+    )
+
+    private nonisolated static let createdCertificationWithDocumentPayload = Data(
+        """
+        {
+          "id": "certification_upload_1",
+          "title": "Secure Product Certification",
+          "issuing_organization": "KairoID Academy",
+          "issued_date": "2026-01-01",
+          "expiry_date": null,
+          "does_not_expire": true,
+          "credential_id": "CERT-123",
+          "credential_url": "https://example.com/cert/CERT-123",
+          "original_filename": "certificate.pdf",
+          "content_type": "application/pdf",
+          "byte_size": 24,
           "verification_status": "draft"
         }
         """.utf8

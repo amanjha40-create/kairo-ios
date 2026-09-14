@@ -28,6 +28,10 @@ final class VerifyOverviewServiceTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
 
+            if let response = try Self.optionalDetailResponse(for: request) {
+                return response
+            }
+
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/verification-requests/me":
                 return (try Self.response(for: request, statusCode: 200), Self.requestListPayload)
@@ -44,19 +48,25 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let overview = try await service.loadOverview()
         let requests = await MockURLProtocolStorage.shared.requests()
 
-        XCTAssertEqual(requests.count, 3)
+        XCTAssertEqual(requests.count, 6)
         XCTAssertEqual(
             Set(requests.compactMap(\.url?.path)),
             [
                 "/api/v1/verification-requests/me",
                 "/api/v1/verification-requests/request_1",
-                "/api/v1/verification-requests/request_1/timeline"
+                "/api/v1/verification-requests/request_1/timeline",
+                "/api/v1/verification-requests/request_1/verification-contact",
+                "/api/v1/verification-requests/request_1/evidence",
+                "/api/v1/verification-requests/request_1/corrections"
             ]
         )
         XCTAssertEqual(overview.requests.count, 1)
         XCTAssertEqual(overview.requests.first?.organizationName, "BrightPath Technologies")
         XCTAssertEqual(overview.requests.first?.status, .pendingSubjectAcceptance)
         XCTAssertEqual(overview.requests.first?.timeline.first?.newStatus, .pendingSubjectAcceptance)
+        XCTAssertEqual(overview.requests.first?.verificationContact?.email, "hr@brightpath.example.com")
+        XCTAssertEqual(overview.requests.first?.evidence.first?.originalFilename, "employment-letter.pdf")
+        XCTAssertEqual(overview.requests.first?.corrections.first?.requestText, "Clarify the employment start date.")
     }
 
     func test_loadOverviewAcceptsPageEnvelopeForRequestList() async throws {
@@ -75,6 +85,9 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let service = VerifyOverviewService(sessionService: sessionService)
 
         await MockURLProtocolStorage.shared.setHandler { request in
+            if let response = try Self.optionalDetailResponse(for: request) {
+                return response
+            }
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/verification-requests/me":
                 return (try Self.response(for: request, statusCode: 200), Self.requestListEnvelopePayload)
@@ -110,6 +123,9 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let service = VerifyOverviewService(sessionService: sessionService)
 
         await MockURLProtocolStorage.shared.setHandler { request in
+            if let response = try Self.optionalDetailResponse(for: request) {
+                return response
+            }
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/verification-requests/me":
                 return (try Self.response(for: request, statusCode: 200), Self.requestListWithLegacyBlankIDPayload)
@@ -126,10 +142,13 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let overview = try await service.loadOverview()
         let paths = await MockURLProtocolStorage.shared.requests().compactMap(\.url?.path)
 
-        XCTAssertEqual(paths, [
+        XCTAssertEqual(Set(paths), [
             "/api/v1/verification-requests/me",
             "/api/v1/verification-requests/request_1",
-            "/api/v1/verification-requests/request_1/timeline"
+            "/api/v1/verification-requests/request_1/timeline",
+            "/api/v1/verification-requests/request_1/verification-contact",
+            "/api/v1/verification-requests/request_1/evidence",
+            "/api/v1/verification-requests/request_1/corrections"
         ])
         XCTAssertEqual(overview.requests.count, 2)
 
@@ -158,6 +177,9 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let service = VerifyOverviewService(sessionService: sessionService)
 
         await MockURLProtocolStorage.shared.setHandler { request in
+            if let response = try Self.optionalDetailResponse(for: request) {
+                return response
+            }
             switch request.url?.absoluteString {
             case "https://staging-api.kairoid.com/api/v1/verification-requests/me":
                 return (try Self.response(for: request, statusCode: 200), Self.requestListWithFallbackRoutingPayload)
@@ -174,10 +196,13 @@ final class VerifyOverviewServiceTests: XCTestCase {
         let overview = try await service.loadOverview()
         let paths = await MockURLProtocolStorage.shared.requests().compactMap(\.url?.path)
 
-        XCTAssertEqual(paths, [
+        XCTAssertEqual(Set(paths), [
             "/api/v1/verification-requests/me",
             "/api/v1/verification-requests/invite_123",
-            "/api/v1/verification-requests/invite_123/timeline"
+            "/api/v1/verification-requests/invite_123/timeline",
+            "/api/v1/verification-requests/invite_123/verification-contact",
+            "/api/v1/verification-requests/invite_123/evidence",
+            "/api/v1/verification-requests/invite_123/corrections"
         ])
         XCTAssertEqual(overview.requests.count, 1)
         XCTAssertEqual(overview.requests.first?.id, "invite_123")
@@ -212,11 +237,72 @@ final class VerifyOverviewServiceTests: XCTestCase {
         try await service.performAction(
             requestID: "request_1",
             action: .submitInformation,
-            response: "Updated employer contact"
+            response: "Updated employer contact",
+            consent: nil
         )
 
         let requests = await MockURLProtocolStorage.shared.requests()
         XCTAssertEqual(requests.count, 1)
+    }
+
+    func test_submitForReviewSendsOnlyExplicitlySelectedConsentScope() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/verification-requests/request_1/submit-for-review")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = try requestBodyData(from: request)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["consented_fields"] as? [String], ["employment_dates"])
+            XCTAssertEqual(json["consented_evidence_scope"] as? [String], ["experience_letter"])
+            XCTAssertEqual(json["consent_version"] as? String, "candidate_verification_v1")
+            return (try Self.response(for: request, statusCode: 200), Self.requestDetailPayload)
+        }
+
+        try await service.performAction(
+            requestID: "request_1",
+            action: .submitForReview,
+            response: nil,
+            consent: VerificationSubmissionConsent(
+                fields: ["employment_dates"],
+                evidenceScope: ["experience_letter"],
+                version: "candidate_verification_v1"
+            )
+        )
+    }
+
+    func test_submitForReviewRejectsMissingConsentWithoutNetworkRequest() async throws {
+        let service = try await makeService()
+
+        do {
+            try await service.performAction(
+                requestID: "request_1",
+                action: .submitForReview,
+                response: nil,
+                consent: nil
+            )
+            XCTFail("Expected explicit consent requirement")
+        } catch {
+            XCTAssertEqual(error as? VerifyServiceError, .missingConsentScope)
+        }
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    private func makeService() async throws -> VerifyOverviewService {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("access-123", for: .accessToken)
+        let networkClient = URLSessionNetworkClient(
+            baseURL: APIConfiguration.baseURL(for: .staging),
+            session: makeMockedURLSession()
+        )
+        return VerifyOverviewService(
+            sessionService: SessionService(
+                configuration: makeConfiguration(),
+                networkClient: networkClient,
+                tokenStore: tokenStore
+            )
+        )
     }
 
     private func makeConfiguration() -> AppConfiguration {
@@ -239,6 +325,34 @@ final class VerifyOverviewServiceTests: XCTestCase {
             )
         )
     }
+
+    private nonisolated static func optionalDetailResponse(
+        for request: URLRequest
+    ) throws -> (HTTPURLResponse, Data)? {
+        guard let path = request.url?.path else { return nil }
+        if path.hasSuffix("/verification-contact") {
+            return (try response(for: request, statusCode: 200), contactPayload)
+        }
+        if path.hasSuffix("/evidence") {
+            return (try response(for: request, statusCode: 200), evidencePayload)
+        }
+        if path.hasSuffix("/corrections") {
+            return (try response(for: request, statusCode: 200), correctionsPayload)
+        }
+        return nil
+    }
+
+    private nonisolated static let contactPayload = Data(
+        #"{"public_id":"contact_1","contact_name":"Hiring Manager","contact_email":"hr@brightpath.example.com","contact_role":"HR","contact_type":"hr","candidate_note":"Please confirm employment.","review_status":"approved","review_notes":null,"reviewed_at":"2026-08-08T08:30:00Z","created_at":"2026-08-08T08:00:00Z","updated_at":"2026-08-08T08:30:00Z"}"#.utf8
+    )
+
+    private nonisolated static let evidencePayload = Data(
+        #"{"items":[{"public_id":"evidence_1","evidence_type":"experience_letter","field_key":"employment_dates","document_id":null,"employment_document_id":"document_1","education_document_id":null,"status":"submitted","created_at":"2026-08-08T08:00:00Z","updated_at":"2026-08-08T08:00:00Z","document_type":"experience_letter","original_filename":"employment-letter.pdf","mime_type":"application/pdf","file_size":2048,"upload_status":"completed","download_url":"https://storage.example/evidence","download_url_expires_in_seconds":300}]}"#.utf8
+    )
+
+    private nonisolated static let correctionsPayload = Data(
+        #"[{"public_id":"correction_1","evidence_public_id":"evidence_1","field_key":"employment_dates","request_text":"Clarify the employment start date.","guidance":{"expected":"Month and year"},"status":"open","created_at":"2026-08-08T08:00:00Z","updated_at":"2026-08-08T08:00:00Z"}]"#.utf8
+    )
 
     private nonisolated static let requestListPayload = Data(
         """

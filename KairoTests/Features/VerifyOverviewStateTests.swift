@@ -75,6 +75,7 @@ final class VerifyOverviewStateTests: XCTestCase {
             .pendingOrganizationResolution,
             .pendingOrganizationAcceptance,
             .inProgress,
+            .pendingAdminQualityReview,
             .verified,
             .rejected,
             .unableToVerify,

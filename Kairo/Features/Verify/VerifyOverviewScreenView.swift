@@ -127,13 +127,13 @@ struct VerifyOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             priorityActionCard(content.priorityAction)
             requestsSection(
-                title: "Needs your action",
+                title: "Needs your attention",
                 identifier: KairoAccessibilityID.verifyPendingRequestsSection,
                 requests: content.pendingRequests,
                 emptyMessage: "No pending requests right now."
             )
             requestsSection(
-                title: "Active verifications",
+                title: "In progress",
                 identifier: KairoAccessibilityID.verifyInProgressSection,
                 requests: content.inProgressRequests,
                 emptyMessage: "No verifications are currently in progress."
@@ -506,7 +506,8 @@ struct VerifyOverviewScreenView: View {
     private func performRequestAction(
         _ action: VerifyRequestAction,
         requestID: String,
-        response: String? = nil
+        response: String? = nil,
+        consent: VerificationSubmissionConsent? = nil
     ) {
         if let requestActionHandler {
             guard let routeRequestID = request(for: requestID)?.routeRequestID else {
@@ -520,7 +521,7 @@ struct VerifyOverviewScreenView: View {
             actionInFlight = VerifyActionExecution(requestID: requestID, action: action)
             Task {
                 do {
-                    try await requestActionHandler(routeRequestID, action, response)
+                    try await requestActionHandler(routeRequestID, action, response, consent)
                     await MainActor.run {
                         actionInFlight = nil
                         provideInformationText = ""
@@ -577,8 +578,12 @@ struct VerifyOverviewScreenView: View {
                     actionInFlight: actionInFlight,
                     onAccept: { performRequestAction(.accept, requestID: requestID) },
                     onProvideInformation: { presentedSheet = .provideInformation(requestID) },
-                    onSubmitForReview: { performRequestAction(.submitForReview, requestID: requestID) },
-                    onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) }
+                    onSubmitForReview: { presentedSheet = .submissionConsent(requestID) },
+                    onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) },
+                    onOpenCareer: {
+                        presentedSheet = nil
+                        router.selectTab(.career)
+                    }
                 )
             } else {
                 VerifySimpleSheet(
@@ -609,12 +614,39 @@ struct VerifyOverviewScreenView: View {
                     }
                 )
             }
+        case .submissionConsent(let requestID):
+            if let request = request(for: requestID) {
+                VerifySubmissionConsentSheet(
+                    request: request,
+                    isSubmitting: actionInFlight == VerifyActionExecution(
+                        requestID: requestID,
+                        action: .submitForReview
+                    ),
+                    onSubmit: { consent in
+                        performRequestAction(
+                            .submitForReview,
+                            requestID: requestID,
+                            consent: consent
+                        )
+                    }
+                )
+            } else {
+                VerifySimpleSheet(
+                    title: "Request unavailable",
+                    message: "The selected request is no longer available in this session."
+                )
+            }
         }
     }
 
 }
 
-typealias VerifyRequestActionHandler = @Sendable (_ requestID: String, _ action: VerifyRequestAction, _ response: String?) async throws -> Void
+typealias VerifyRequestActionHandler = @Sendable (
+    _ requestID: String,
+    _ action: VerifyRequestAction,
+    _ response: String?,
+    _ consent: VerificationSubmissionConsent?
+) async throws -> Void
 
 private struct VerifyActionExecution: Equatable {
     let requestID: String
@@ -630,6 +662,7 @@ private struct VerifyActionError: Identifiable {
 private enum VerifyPresentedSheet: Identifiable {
     case requestDetail(String)
     case provideInformation(String)
+    case submissionConsent(String)
 
     var id: String {
         switch self {
@@ -637,6 +670,8 @@ private enum VerifyPresentedSheet: Identifiable {
             "request.\(requestID)"
         case .provideInformation(let requestID):
             "provide.\(requestID)"
+        case .submissionConsent(let requestID):
+            "consent.\(requestID)"
         }
     }
 }
@@ -772,8 +807,10 @@ private struct VerifyRequestDetailSheet: View {
     let onProvideInformation: () -> Void
     let onSubmitForReview: () -> Void
     let onResubmitForReview: () -> Void
+    let onOpenCareer: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -801,6 +838,27 @@ private struct VerifyRequestDetailSheet: View {
                         detailRow(title: "Required action", value: request.requiredAction)
                         detailRow(title: "Evidence requirements", value: request.evidenceRequirement)
                         detailRow(title: "Supporting note", value: request.supportingNote)
+                        if let reviewStatus = request.reviewStatus {
+                            detailRow(title: "Review status", value: humanized(reviewStatus))
+                        }
+                        if let consentedAt = request.consentedAt {
+                            detailRow(
+                                title: "Consent recorded",
+                                value: consentedAt.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        }
+                    }
+
+                    if let contact = request.verificationContact {
+                        contactCard(contact)
+                    }
+
+                    if !request.evidence.isEmpty {
+                        evidenceCard
+                    }
+
+                    if !request.corrections.isEmpty {
+                        correctionsCard
                     }
 
                     if !request.timeline.isEmpty {
@@ -832,6 +890,22 @@ private struct VerifyRequestDetailSheet: View {
                     if !request.availableActions.isEmpty {
                         VStack(alignment: .leading, spacing: KairoSpacing.small) {
                             actionButtons
+                        }
+                    }
+
+                    if request.showsCareerRecovery {
+                        KairoCard {
+                            Text("Update the source record")
+                                .font(KairoTypography.headline)
+                                .foregroundStyle(KairoColors.textPrimary)
+                            Text("Review the linked Career record, make any needed correction, then start a new verification when it is ready.")
+                                .font(KairoTypography.body)
+                                .foregroundStyle(KairoColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            KairoSecondaryButton(
+                                title: "Open Career record",
+                                action: onOpenCareer
+                            )
                         }
                     }
                 }
@@ -874,12 +948,7 @@ private struct VerifyRequestDetailSheet: View {
         if request.availableActions.contains(.submitForReview) {
             KairoPrimaryButton(
                 title: "Submit for review",
-                action: {
-                    onSubmitForReview()
-                    if isLive {
-                        dismiss()
-                    }
-                }
+                action: onSubmitForReview
             )
             .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .submitForReview))
         }
@@ -897,6 +966,78 @@ private struct VerifyRequestDetailSheet: View {
             .disabled(actionInFlight == VerifyActionExecution(requestID: request.id, action: .resubmitForReview))
         }
 
+
+    }
+
+    private func contactCard(_ contact: VerifyContactRecord) -> some View {
+        KairoCard {
+            VerifySectionEyebrow(title: "Verification contact")
+            detailRow(title: "Name", value: contact.name ?? "Not provided")
+            detailRow(title: "Email", value: contact.email)
+            detailRow(title: "Role", value: contact.role ?? "Not provided")
+            detailRow(title: "Contact type", value: humanized(contact.type))
+            detailRow(title: "Review status", value: humanized(contact.reviewStatus))
+            if let note = contact.candidateNote, !note.isEmpty {
+                detailRow(title: "Your note", value: note)
+            }
+            if let reviewNotes = contact.reviewNotes, !reviewNotes.isEmpty {
+                detailRow(title: "Review note", value: reviewNotes)
+            }
+        }
+    }
+
+    private var evidenceCard: some View {
+        KairoCard {
+            VerifySectionEyebrow(title: "Evidence")
+            ForEach(Array(request.evidence.enumerated()), id: \.element.id) { index, evidence in
+                if index > 0 { Divider() }
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    Text(evidence.originalFilename ?? humanized(evidence.fieldKey))
+                        .font(KairoTypography.headline)
+                        .foregroundStyle(KairoColors.textPrimary)
+                    Text("\(humanized(evidence.evidenceType)) • \(humanized(evidence.status))")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    if let fileSize = evidence.fileSize {
+                        Text(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file))
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                    if let downloadURL = evidence.downloadURL {
+                        Button("View evidence") { openURL(downloadURL) }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .frame(minHeight: 44)
+                    }
+                }
+            }
+        }
+    }
+
+    private var correctionsCard: some View {
+        KairoCard {
+            VerifySectionEyebrow(title: "Requested corrections")
+            ForEach(Array(request.corrections.enumerated()), id: \.element.id) { index, correction in
+                if index > 0 { Divider() }
+                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+                    Text(humanized(correction.fieldKey))
+                        .font(KairoTypography.headline)
+                        .foregroundStyle(KairoColors.textPrimary)
+                    Text(correction.requestText)
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(correction.guidance, id: \.self) { guidance in
+                        Text(guidance)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                    Text(humanized(correction.status))
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.warning)
+                }
+            }
+        }
     }
 
     private func detailRow(title: String, value: String) -> some View {
@@ -910,6 +1051,157 @@ private struct VerifyRequestDetailSheet: View {
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func humanized(_ value: String) -> String {
+        value.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+private struct VerifySubmissionConsentSheet: View {
+    let request: VerifyRequest
+    let isSubmitting: Bool
+    let onSubmit: (VerificationSubmissionConsent) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedFields: Set<String> = []
+    @State private var selectedEvidenceScope: Set<String> = []
+    @State private var confirmsAuthorization = false
+
+    private var fieldOptions: [String] {
+        unique(request.consentedFields + request.evidence.map(\.fieldKey).filter { !$0.isEmpty })
+    }
+
+    private var evidenceScopeOptions: [String] {
+        unique(request.consentedEvidenceScope + request.evidence.map { evidence in
+            if let documentType = evidence.documentType, !documentType.isEmpty {
+                return documentType
+            }
+            return evidence.evidenceType
+        }.filter { !$0.isEmpty })
+    }
+
+    private var canSubmit: Bool {
+        confirmsAuthorization && (!selectedFields.isEmpty || !selectedEvidenceScope.isEmpty) && !isSubmitting
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoCard {
+                        Text("Review what you are sharing")
+                            .font(KairoTypography.title2)
+                            .foregroundStyle(KairoColors.textPrimary)
+                        Text("Select only the fields and evidence scope you authorize KairoID to use for this verification request.")
+                            .font(KairoTypography.body)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if fieldOptions.isEmpty && evidenceScopeOptions.isEmpty {
+                        KairoEmptyStateView(
+                            title: "No evidence is ready",
+                            message: "Return to Career, attach the required evidence, then reopen this request.",
+                            systemImage: "doc.badge.ellipsis"
+                        )
+                    } else {
+                        if !fieldOptions.isEmpty {
+                            consentOptionsCard(
+                                title: "Requested fields",
+                                options: fieldOptions,
+                                selection: $selectedFields
+                            )
+                        }
+                        if !evidenceScopeOptions.isEmpty {
+                            consentOptionsCard(
+                                title: "Evidence scope",
+                                options: evidenceScopeOptions,
+                                selection: $selectedEvidenceScope
+                            )
+                        }
+
+                        KairoCard {
+                            Toggle(isOn: $confirmsAuthorization) {
+                                Text("I authorize KairoID to submit only the selected information and evidence for this verification.")
+                                    .font(KairoTypography.body)
+                                    .foregroundStyle(KairoColors.textPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .tint(KairoColors.brandPrimary)
+                        }
+
+                        KairoPrimaryButton(
+                            title: "Consent and submit for review",
+                            isLoading: isSubmitting,
+                            action: submit
+                        )
+                        .disabled(!canSubmit)
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.xLarge)
+            }
+            .background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Submission consent")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.disabled(isSubmitting)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func consentOptionsCard(
+        title: String,
+        options: [String],
+        selection: Binding<Set<String>>
+    ) -> some View {
+        KairoCard {
+            Text(title)
+                .font(KairoTypography.headline)
+                .foregroundStyle(KairoColors.textPrimary)
+            ForEach(options, id: \.self) { option in
+                Toggle(
+                    humanized(option),
+                    isOn: Binding(
+                        get: { selection.wrappedValue.contains(option) },
+                        set: { enabled in
+                            var updated = selection.wrappedValue
+                            if enabled {
+                                updated.insert(option)
+                            } else {
+                                updated.remove(option)
+                            }
+                            selection.wrappedValue = updated
+                        }
+                    )
+                )
+                .tint(KairoColors.brandPrimary)
+            }
+        }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        onSubmit(
+            VerificationSubmissionConsent(
+                fields: fieldOptions.filter(selectedFields.contains),
+                evidenceScope: evidenceScopeOptions.filter(selectedEvidenceScope.contains),
+                version: request.consentVersion
+            )
+        )
+    }
+
+    private func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { seen.insert($0).inserted }
+    }
+
+    private func humanized(_ value: String) -> String {
+        value.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
 

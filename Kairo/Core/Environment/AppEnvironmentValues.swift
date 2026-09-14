@@ -178,6 +178,14 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
         fatalError("Missing career overview service injection.")
     }
 
+    func createCertification(
+        _ request: CareerCertificationCreateRequestDTO,
+        withDocument fileURL: URL
+    ) async throws -> CareerOverview {
+        _ = (request, fileURL)
+        fatalError("Missing career overview service injection.")
+    }
+
     func updateCertification(id: String, request: CareerCertificationUpdateRequestDTO) async throws -> CareerOverview {
         _ = (id, request)
         fatalError("Missing career overview service injection.")
@@ -242,6 +250,38 @@ private struct MissingCareerDocumentService: CareerDocumentServiceProtocol {
     func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument] {
         _ = (document, parent)
         fatalError("Missing Career document service injection.")
+    }
+}
+
+private struct MissingDocumentVaultService: DocumentVaultServiceProtocol {
+    func listDocuments() async throws -> [VaultDocument] {
+        fatalError("Missing Document Vault service injection.")
+    }
+
+    func uploadDocument(
+        fileURL: URL,
+        type: VaultDocumentType,
+        documentNumber: String?,
+        expiresAt: Date?,
+        replacing documentID: String?
+    ) async throws -> [VaultDocument] {
+        _ = (fileURL, type, documentNumber, expiresAt, documentID)
+        fatalError("Missing Document Vault service injection.")
+    }
+
+    func updateMetadata(documentID: String, documentNumber: String?, expiresAt: Date?) async throws -> [VaultDocument] {
+        _ = (documentID, documentNumber, expiresAt)
+        fatalError("Missing Document Vault service injection.")
+    }
+
+    func downloadURL(documentID: String) async throws -> URL {
+        _ = documentID
+        fatalError("Missing Document Vault service injection.")
+    }
+
+    func deleteDocument(documentID: String) async throws -> [VaultDocument] {
+        _ = documentID
+        fatalError("Missing Document Vault service injection.")
     }
 }
 
@@ -345,9 +385,10 @@ private struct MissingVerifyOverviewService: VerifyOverviewServiceProtocol {
     func performAction(
         requestID: String,
         action: VerifyRequestAction,
-        response: String?
+        response: String?,
+        consent: VerificationSubmissionConsent?
     ) async throws {
-        _ = (requestID, action, response)
+        _ = (requestID, action, response, consent)
         fatalError("Missing Verify overview service injection.")
     }
 }
@@ -527,6 +568,10 @@ private struct CareerDocumentServiceKey: EnvironmentKey {
     static let defaultValue: any CareerDocumentServiceProtocol = MissingCareerDocumentService()
 }
 
+private struct DocumentVaultServiceKey: EnvironmentKey {
+    static let defaultValue: any DocumentVaultServiceProtocol = MissingDocumentVaultService()
+}
+
 private struct ManualProfileServiceKey: EnvironmentKey {
     static let defaultValue: any ManualProfileServiceProtocol = MissingManualProfileService()
 }
@@ -598,6 +643,11 @@ extension EnvironmentValues {
     var careerDocumentService: any CareerDocumentServiceProtocol {
         get { self[CareerDocumentServiceKey.self] }
         set { self[CareerDocumentServiceKey.self] = newValue }
+    }
+
+    var documentVaultService: any DocumentVaultServiceProtocol {
+        get { self[DocumentVaultServiceKey.self] }
+        set { self[DocumentVaultServiceKey.self] = newValue }
     }
 
     var manualProfileService: any ManualProfileServiceProtocol {

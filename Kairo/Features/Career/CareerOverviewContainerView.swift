@@ -292,8 +292,13 @@ struct CareerOverviewContainerView: View {
                 try await saveEducation(mode: mode, recordID: recordID, draft: draft)
             }
         case .certification(let mode, let recordID, let draft):
-            CareerCertificationEditorSheet(mode: mode, draft: draft) { draft in
-                try await saveCertification(mode: mode, recordID: recordID, draft: draft)
+            CareerCertificationEditorSheet(mode: mode, draft: draft) { draft, documentURL in
+                try await saveCertification(
+                    mode: mode,
+                    recordID: recordID,
+                    draft: draft,
+                    documentURL: documentURL
+                )
             }
         case .project(let mode, let recordID, let draft):
             CareerProjectEditorSheet(mode: mode, draft: draft) { draft in
@@ -356,13 +361,21 @@ struct CareerOverviewContainerView: View {
     private func saveCertification(
         mode: CareerMutationMode,
         recordID: String?,
-        draft: CareerCertificationDraft
+        draft: CareerCertificationDraft,
+        documentURL: URL?
     ) async throws {
         let overview: CareerOverview
 
         switch mode {
         case .create:
-            overview = try await careerOverviewService.createCertification(draft.createRequest())
+            if let documentURL {
+                overview = try await careerOverviewService.createCertification(
+                    draft.createRequest(),
+                    withDocument: documentURL
+                )
+            } else {
+                overview = try await careerOverviewService.createCertification(draft.createRequest())
+            }
         case .edit:
             guard let recordID else {
                 throw CareerOverviewContainerError.missingRecordIdentifier

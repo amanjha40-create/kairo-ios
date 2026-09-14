@@ -42,8 +42,11 @@ nonisolated struct VerificationRequestResponseDTO: Decodable, Equatable, Sendabl
     let candidateResponse: String?
     let candidateResponseSubmittedAt: Date?
     let acceptedAt: Date?
+    let consentedAt: Date?
+    let consentVersion: String?
     let consentedFields: [String]
     let consentedEvidenceScope: [String]
+    let reviewStatus: String?
     let organizationSummary: VerificationRequestOrganizationSummaryDTO?
     let verificationTarget: VerificationRequestTargetDTO?
     let employmentClaim: VerificationRequestEmploymentClaimDTO?
@@ -69,8 +72,11 @@ nonisolated struct VerificationRequestResponseDTO: Decodable, Equatable, Sendabl
         candidateResponse = try container.decodeFirstPresentString(forKeys: ["candidate_response"])
         candidateResponseSubmittedAt = try container.decodeFirstPresentDate(forKeys: ["candidate_response_submitted_at"])
         acceptedAt = try container.decodeFirstPresentDate(forKeys: ["accepted_at"])
+        consentedAt = try container.decodeFirstPresentDate(forKeys: ["consented_at"])
+        consentVersion = try container.decodeFirstPresentString(forKeys: ["consent_version"])
         consentedFields = try container.decodeFirstPresentValue(forKeys: ["consented_fields"]) ?? []
         consentedEvidenceScope = try container.decodeFirstPresentValue(forKeys: ["consented_evidence_scope"]) ?? []
+        reviewStatus = try container.decodeFirstPresentString(forKeys: ["review_status"])
         organizationSummary = try container.decodeFirstPresentValue(forKeys: ["organization_summary"])
         verificationTarget = try container.decodeFirstPresentValue(forKeys: ["verification_target"])
         employmentClaim = try container.decodeFirstPresentValue(forKeys: ["employment_claim"])
@@ -203,6 +209,152 @@ nonisolated struct VerificationRequestTimelineEventDTO: Decodable, Equatable, Se
 
 nonisolated struct VerificationInformationSubmissionRequestDTO: Encodable, Equatable, Sendable {
     let response: String
+}
+
+nonisolated struct VerificationSubmitForReviewRequestDTO: Encodable, Equatable, Sendable {
+    let consentedFields: [String]
+    let consentedEvidenceScope: [String]
+    let consentVersion: String?
+}
+
+nonisolated struct VerificationContactResponseDTO: Decodable, Equatable, Sendable {
+    let publicID: String
+    let contactName: String?
+    let contactEmail: String
+    let contactRole: String?
+    let contactType: String
+    let candidateNote: String?
+    let reviewStatus: String
+    let reviewNotes: String?
+    let reviewedAt: Date?
+    let createdAt: Date
+    let updatedAt: Date
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: VerificationDynamicCodingKey.self)
+        publicID = try container.decodeRequiredString(forKeys: ["public_id"], debugName: "verification contact id")
+        contactName = try container.decodeFirstPresentString(forKeys: ["contact_name"])
+        contactEmail = try container.decodeRequiredString(forKeys: ["contact_email"], debugName: "verification contact email")
+        contactRole = try container.decodeFirstPresentString(forKeys: ["contact_role"])
+        contactType = try container.decodeRequiredString(forKeys: ["contact_type"], debugName: "verification contact type")
+        candidateNote = try container.decodeFirstPresentString(forKeys: ["candidate_note"])
+        reviewStatus = try container.decodeRequiredString(forKeys: ["review_status"], debugName: "verification contact review status")
+        reviewNotes = try container.decodeFirstPresentString(forKeys: ["review_notes"])
+        reviewedAt = try container.decodeFirstPresentDate(forKeys: ["reviewed_at"])
+        createdAt = try container.decodeRequiredDate(forKeys: ["created_at"], debugName: "verification contact created at")
+        updatedAt = try container.decodeRequiredDate(forKeys: ["updated_at"], debugName: "verification contact updated at")
+    }
+}
+
+nonisolated struct VerificationEvidenceResponseDTO: Decodable, Equatable, Sendable {
+    let publicID: String
+    let evidenceType: String
+    let fieldKey: String
+    let documentID: String?
+    let employmentDocumentID: String?
+    let educationDocumentID: String?
+    let status: String
+    let createdAt: Date
+    let updatedAt: Date
+    let documentType: String?
+    let originalFilename: String?
+    let mimeType: String?
+    let fileSize: Int?
+    let uploadStatus: String?
+    let downloadURL: URL?
+    let downloadURLExpiresInSeconds: Int?
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: VerificationDynamicCodingKey.self)
+        publicID = try container.decodeRequiredString(forKeys: ["public_id"], debugName: "verification evidence id")
+        evidenceType = try container.decodeRequiredString(forKeys: ["evidence_type"], debugName: "verification evidence type")
+        fieldKey = try container.decodeRequiredString(forKeys: ["field_key"], debugName: "verification evidence field")
+        documentID = try container.decodeFirstPresentString(forKeys: ["document_id"])
+        employmentDocumentID = try container.decodeFirstPresentString(forKeys: ["employment_document_id"])
+        educationDocumentID = try container.decodeFirstPresentString(forKeys: ["education_document_id"])
+        status = try container.decodeRequiredString(forKeys: ["status"], debugName: "verification evidence status")
+        createdAt = try container.decodeRequiredDate(forKeys: ["created_at"], debugName: "verification evidence created at")
+        updatedAt = try container.decodeRequiredDate(forKeys: ["updated_at"], debugName: "verification evidence updated at")
+        documentType = try container.decodeFirstPresentString(forKeys: ["document_type"])
+        originalFilename = try container.decodeFirstPresentString(forKeys: ["original_filename"])
+        mimeType = try container.decodeFirstPresentString(forKeys: ["mime_type"])
+        fileSize = try container.decodeFirstPresentValue(forKeys: ["file_size"])
+        uploadStatus = try container.decodeFirstPresentString(forKeys: ["upload_status"])
+        downloadURL = try container.decodeFirstPresentValue(forKeys: ["download_url"])
+        downloadURLExpiresInSeconds = try container.decodeFirstPresentValue(forKeys: ["download_url_expires_in_seconds"])
+    }
+}
+
+nonisolated struct VerificationCorrectionResponseDTO: Decodable, Equatable, Sendable {
+    let publicID: String
+    let evidencePublicID: String?
+    let fieldKey: String
+    let requestText: String
+    let guidance: [String: VerificationJSONValue]
+    let status: String
+    let createdAt: Date
+    let updatedAt: Date
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: VerificationDynamicCodingKey.self)
+        publicID = try container.decodeRequiredString(forKeys: ["public_id"], debugName: "verification correction id")
+        evidencePublicID = try container.decodeFirstPresentString(forKeys: ["evidence_public_id"])
+        fieldKey = try container.decodeRequiredString(forKeys: ["field_key"], debugName: "verification correction field")
+        requestText = try container.decodeRequiredString(forKeys: ["request_text"], debugName: "verification correction request")
+        guidance = try container.decodeFirstPresentValue(forKeys: ["guidance"]) ?? [:]
+        status = try container.decodeRequiredString(forKeys: ["status"], debugName: "verification correction status")
+        createdAt = try container.decodeRequiredDate(forKeys: ["created_at"], debugName: "verification correction created at")
+        updatedAt = try container.decodeRequiredDate(forKeys: ["updated_at"], debugName: "verification correction updated at")
+    }
+}
+
+nonisolated indirect enum VerificationJSONValue: Decodable, Equatable, Sendable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: VerificationJSONValue])
+    case array([VerificationJSONValue])
+    case null
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode([String: VerificationJSONValue].self) {
+            self = .object(value)
+        } else {
+            self = .array(try container.decode([VerificationJSONValue].self))
+        }
+    }
+
+    nonisolated var displayText: String? {
+        switch self {
+        case .string(let value):
+            value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
+        case .number(let value):
+            value.formatted()
+        case .bool(let value):
+            value ? "Yes" : "No"
+        case .array(let values):
+            values.compactMap(\.displayText).joined(separator: ", ")
+        case .object(let values):
+            values.sorted(by: { $0.key < $1.key }).compactMap { key, value in
+                value.displayText.map { "\(Self.humanized(key)): \($0)" }
+            }.joined(separator: "; ")
+        case .null:
+            nil
+        }
+    }
+
+    private nonisolated static func humanized(_ value: String) -> String {
+        value.replacingOccurrences(of: "_", with: " ").capitalized
+    }
 }
 
 private struct VerificationDynamicCodingKey: CodingKey, Hashable {

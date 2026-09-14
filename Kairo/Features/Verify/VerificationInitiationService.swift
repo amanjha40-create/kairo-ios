@@ -120,7 +120,7 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
             }
             submitted = try await post(
                 path: "/verification-requests/\(requestID)/submit-for-review",
-                body: VerificationSubmitForReviewRequestDTO(
+                body: VerificationInitiationSubmitForReviewRequestDTO(
                     consentedFields: draft.consentedFields,
                     consentedEvidenceScope: draft.consentedEvidenceScope,
                     consentVersion: "candidate_verification_initiation_v1"
@@ -292,7 +292,7 @@ private nonisolated struct EducationVerificationDraftRequestDTO: Encodable {
     }
 }
 
-private nonisolated struct VerificationSubmitForReviewRequestDTO: Encodable {
+private nonisolated struct VerificationInitiationSubmitForReviewRequestDTO: Encodable {
     let consentedFields: [String]
     let consentedEvidenceScope: [String]
     let consentVersion: String

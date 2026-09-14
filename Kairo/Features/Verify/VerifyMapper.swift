@@ -189,6 +189,14 @@ nonisolated enum VerifyOverviewMapper {
             requiredAction: requiredActionText(for: record.status),
             supportingNote: supportingNote(for: record),
             evidenceRequirement: evidenceRequirement(for: record),
+            verificationContact: record.verificationContact,
+            evidence: record.evidence,
+            corrections: record.corrections,
+            consentedAt: record.consentedAt,
+            consentVersion: record.consentVersion,
+            consentedFields: record.consentedFields,
+            consentedEvidenceScope: record.consentedEvidenceScope,
+            reviewStatus: record.reviewStatus,
             timeline: record.timeline.map(makeTimelineEvent),
             availableActions: record.availableActions
         )
@@ -289,6 +297,7 @@ nonisolated enum VerifyOverviewMapper {
              .pendingOrganizationResolution,
              .pendingOrganizationAcceptance,
              .inProgress,
+             .pendingAdminQualityReview,
              .unknown:
             return "No action is needed from you right now."
         case .verified, .rejected, .unableToVerify, .cancelled, .expired:

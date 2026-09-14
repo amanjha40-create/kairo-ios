@@ -276,6 +276,28 @@ nonisolated struct CareerCertificationUpdateRequestDTO: Encodable, Equatable, Se
     let credentialURL: String?
 }
 
+nonisolated struct CareerCertificationUploadIntentRequestDTO: Encodable, Equatable, Sendable {
+    let title: String
+    let issuingOrganization: String
+    let issuedDate: String?
+    let expiryDate: String?
+    let doesNotExpire: Bool
+    let credentialID: String?
+    let credentialURL: String?
+    let originalFilename: String
+    let contentType: String
+    let byteSize: Int
+}
+
+nonisolated struct CareerCertificationUploadIntentResponseDTO: Decodable, Equatable, Sendable {
+    let certificationId: String
+    let uploadUrl: URL
+}
+
+nonisolated struct CareerCertificationCompleteUploadRequestDTO: Encodable, Equatable, Sendable {
+    let checksumSHA256: String
+}
+
 nonisolated struct CareerProjectCreateRequestDTO: Encodable, Equatable, Sendable {
     let title: String
     let role: String?

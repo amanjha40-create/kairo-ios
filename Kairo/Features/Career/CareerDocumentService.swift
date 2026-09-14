@@ -1,6 +1,4 @@
-import CryptoKit
 import Foundation
-import UniformTypeIdentifiers
 
 nonisolated enum CareerDocumentParent: Equatable, Sendable {
     case employment(id: String, title: String, canUpload: Bool, canDelete: Bool)
@@ -77,18 +75,33 @@ protocol CareerDocumentServiceProtocol: Sendable {
     func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument]
 }
 
+extension CareerDocumentServiceProtocol {
+    /// Replaces mutable evidence without risking loss of the existing file if the
+    /// new upload fails. The backend remains authoritative for whether the old
+    /// document is still mutable when its exact delete is attempted.
+    func replaceDocument(
+        _ document: CareerDocument,
+        with fileURL: URL,
+        documentType: String,
+        parent: CareerDocumentParent
+    ) async throws -> [CareerDocument] {
+        _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+        return try await deleteDocument(document, parent: parent)
+    }
+}
+
 actor CareerDocumentService: CareerDocumentServiceProtocol {
     private let sessionService: any SessionServiceProtocol
-    private let storageSession: URLSession
+    private let transferClient: SecureDocumentTransferClient
     private let decoder = APIJSONCoder.makeDecoder()
     private let encoder = APIJSONCoder.makeEncoder()
 
     init(
         sessionService: any SessionServiceProtocol,
-        storageSession: URLSession = CareerDocumentService.defaultStorageSession()
+        transferClient: SecureDocumentTransferClient = SecureDocumentTransferClient()
     ) {
         self.sessionService = sessionService
-        self.storageSession = storageSession
+        self.transferClient = transferClient
     }
 
     nonisolated func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType] {
@@ -149,7 +162,11 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         to parent: CareerDocumentParent
     ) async throws -> [CareerDocument] {
         guard parent.canUpload else { throw CareerDocumentServiceError.uploadUnavailable }
-        let selection = try readSelection(fileURL)
+        let selection = try await transferClient.prepare(
+            fileURL: fileURL,
+            maximumBytes: 20 * 1_024 * 1_024,
+            allowedContentTypes: SecureDocumentTransferClient.careerContentTypes
+        )
         let intentPath: String
         let completionPath: (String) -> String
 
@@ -181,19 +198,24 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         )
         let intent = try decoder.decode(CareerDocumentUploadIntentResponseDTO.self, from: intentData)
         do {
-            try await upload(selection.data, contentType: selection.contentType, intent: intent)
+            try await transferClient.upload(
+                selection,
+                to: intent.uploadUrl,
+                requiredHeaders: intent.headersRequired
+            )
         } catch {
             try? await discardIncompleteUpload(documentID: intent.documentId, parent: parent)
             throw error
         }
 
-        let digest = SHA256.hash(data: selection.data).map { String(format: "%02x", $0) }.joined()
         _ = try await sessionService.sendAuthenticated(
             NetworkRequest(
                 path: completionPath(intent.documentId),
                 method: .post,
                 headers: ["Accept": "application/json", "Content-Type": "application/json"],
-                body: try encoder.encode(CareerDocumentCompleteRequestDTO(checksumSHA256: digest))
+                body: try encoder.encode(
+                    CareerDocumentCompleteRequestDTO(checksumSHA256: selection.checksumSHA256)
+                )
             )
         )
         return try await listDocuments(for: parent)
@@ -213,10 +235,7 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             NetworkRequest(path: path, headers: ["Accept": "application/json"])
         )
         let response = try decoder.decode(CareerDocumentDownloadResponseDTO.self, from: data)
-        guard response.downloadUrl.scheme?.lowercased() == "https" else {
-            throw CareerDocumentServiceError.invalidDownloadURL
-        }
-        return response.downloadUrl
+        return try SecureDocumentTransferClient.validatedDownloadURL(response.downloadUrl)
     }
 
     func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument] {
@@ -248,50 +267,6 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         return page.items.map(\.domain)
     }
 
-    private func readSelection(_ url: URL) throws -> (filename: String, contentType: String, data: Data) {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-        let data = try Data(contentsOf: url, options: .mappedIfSafe)
-        guard !data.isEmpty else { throw CareerDocumentServiceError.emptyFile }
-        guard data.count <= 20 * 1_024 * 1_024 else { throw CareerDocumentServiceError.fileTooLarge }
-
-        let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType?.preferredMIMEType)
-            ?? mimeType(for: url.pathExtension)
-        guard ["application/pdf", "image/jpeg", "image/png"].contains(contentType) else {
-            throw CareerDocumentServiceError.unsupportedFileType
-        }
-        return (url.lastPathComponent, contentType, data)
-    }
-
-    private func mimeType(for pathExtension: String) -> String {
-        switch pathExtension.lowercased() {
-        case "pdf": "application/pdf"
-        case "jpg", "jpeg": "image/jpeg"
-        case "png": "image/png"
-        default: "application/octet-stream"
-        }
-    }
-
-    private func upload(
-        _ data: Data,
-        contentType: String,
-        intent: CareerDocumentUploadIntentResponseDTO
-    ) async throws {
-        guard intent.uploadUrl.scheme?.lowercased() == "https" else {
-            throw CareerDocumentServiceError.invalidUploadURL
-        }
-        var request = URLRequest(url: intent.uploadUrl)
-        request.httpMethod = "PUT"
-        for (header, value) in intent.headersRequired { request.setValue(value, forHTTPHeaderField: header) }
-        if request.value(forHTTPHeaderField: "Content-Type") == nil {
-            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
-        }
-        let (_, response) = try await storageSession.upload(for: request, from: data)
-        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
-            throw CareerDocumentServiceError.storageUploadFailed
-        }
-    }
-
     private func discardIncompleteUpload(documentID: String, parent: CareerDocumentParent) async throws {
         let path: String
         switch parent {
@@ -307,12 +282,6 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         )
     }
 
-    nonisolated private static func defaultStorageSession() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 120
-        return URLSession(configuration: configuration)
-    }
 }
 
 actor DemoCareerDocumentService: CareerDocumentServiceProtocol {

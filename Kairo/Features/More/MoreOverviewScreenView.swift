@@ -472,6 +472,8 @@ struct MoreOverviewScreenView: View {
             MoreChangePasswordSheetView(onSubmit: changePassword)
         case .sessions:
             MoreSessionsSheetView()
+        case .documentVault:
+            DocumentVaultView()
         case .consent:
             if case .populated(let content) = state.phase {
                 MoreConsentManagementSheetView(
@@ -519,6 +521,8 @@ struct MoreOverviewScreenView: View {
             )
         case "sessionsDevices":
             presentedModal = .sessions
+        case "documentVault":
+            presentedModal = .documentVault
         default:
             break
         }
@@ -922,6 +926,7 @@ private enum MorePresentedModal: Identifiable {
     case profile
     case password
     case sessions
+    case documentVault
     case consent
     case deleteAccount
     case information(MoreInformationSheetModel)
@@ -935,6 +940,8 @@ private enum MorePresentedModal: Identifiable {
             "password"
         case .sessions:
             "sessions"
+        case .documentVault:
+            "documentVault"
         case .consent:
             "consent"
         case .deleteAccount:

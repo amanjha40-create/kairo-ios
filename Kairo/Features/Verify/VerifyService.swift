@@ -5,8 +5,15 @@ protocol VerifyOverviewServiceProtocol: Sendable {
     func performAction(
         requestID: String,
         action: VerifyRequestAction,
-        response: String?
+        response: String?,
+        consent: VerificationSubmissionConsent?
     ) async throws
+}
+
+nonisolated struct VerificationSubmissionConsent: Equatable, Sendable {
+    let fields: [String]
+    let evidenceScope: [String]
+    let version: String?
 }
 
 actor VerifyOverviewService: VerifyOverviewServiceProtocol {
@@ -35,18 +42,19 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
 
                     do {
                         let detail = try await self.loadDetail(requestID: routeID)
-                        let timelineItems: [VerificationRequestTimelineEventDTO]
-                        do {
-                            timelineItems = try await self.loadTimeline(requestID: routeID).items
-                        } catch {
-                            timelineItems = []
-                        }
+                        async let timelineItems = self.loadTimelineSafely(requestID: routeID)
+                        async let verificationContact = self.loadContactSafely(requestID: routeID)
+                        async let evidenceItems = self.loadEvidenceSafely(requestID: routeID)
+                        async let correctionItems = self.loadCorrectionsSafely(requestID: routeID)
 
                         return VerifyRequestRecord(
                             detail: detail,
                             fallbackID: fallbackID,
                             routeIDOverride: routeID,
-                            timeline: timelineItems
+                            verificationContact: await verificationContact,
+                            evidence: await evidenceItems,
+                            corrections: await correctionItems,
+                            timeline: await timelineItems
                         )
                     } catch {
                         return VerifyRequestRecord(
@@ -72,7 +80,8 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
     func performAction(
         requestID: String,
         action: VerifyRequestAction,
-        response: String?
+        response: String?,
+        consent: VerificationSubmissionConsent?
     ) async throws {
         switch action {
         case .accept:
@@ -99,11 +108,22 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
                 )
             ) as VerificationRequestResponseDTO
         case .submitForReview:
+            guard let consent,
+                  !consent.fields.isEmpty || !consent.evidenceScope.isEmpty else {
+                throw VerifyServiceError.missingConsentScope
+            }
             _ = try await send(
                 NetworkRequest(
                     path: "/verification-requests/\(requestID)/submit-for-review",
                     method: .post,
-                    headers: ["Accept": "application/json"]
+                    headers: ["Accept": "application/json", "Content-Type": "application/json"],
+                    body: try APIJSONCoder.makeEncoder().encode(
+                        VerificationSubmitForReviewRequestDTO(
+                            consentedFields: consent.fields,
+                            consentedEvidenceScope: consent.evidenceScope,
+                            consentVersion: consent.version
+                        )
+                    )
                 )
             ) as VerificationRequestResponseDTO
         case .resubmitForReview:
@@ -159,6 +179,33 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
                 headers: ["Accept": "application/json"]
             )
         )
+    }
+
+    private func loadTimelineSafely(requestID: String) async -> [VerificationRequestTimelineEventDTO] {
+        (try? await loadTimeline(requestID: requestID).items) ?? []
+    }
+
+    private func loadContactSafely(requestID: String) async -> VerificationContactResponseDTO? {
+        try? await send(
+            NetworkRequest(
+                path: "/verification-requests/\(requestID)/verification-contact",
+                headers: ["Accept": "application/json"]
+            )
+        )
+    }
+
+    private func loadEvidenceSafely(requestID: String) async -> [VerificationEvidenceResponseDTO] {
+        (try? await loadCollection(
+            [VerificationEvidenceResponseDTO].self,
+            path: "/verification-requests/\(requestID)/evidence"
+        )) ?? []
+    }
+
+    private func loadCorrectionsSafely(requestID: String) async -> [VerificationCorrectionResponseDTO] {
+        (try? await loadCollection(
+            [VerificationCorrectionResponseDTO].self,
+            path: "/verification-requests/\(requestID)/corrections"
+        )) ?? []
     }
 
     private func loadCollection<Element: Decodable & Equatable & Sendable>(
@@ -238,5 +285,13 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
         }
 
         return decodedItems
+    }
+}
+
+nonisolated enum VerifyServiceError: Error, LocalizedError, Equatable, Sendable {
+    case missingConsentScope
+
+    var errorDescription: String? {
+        "Review the requested fields and evidence, then provide consent before submitting."
     }
 }

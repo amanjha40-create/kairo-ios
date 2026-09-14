@@ -16,6 +16,7 @@ struct CareerDocumentsView: View {
     @State private var isLoading = true
     @State private var isMutating = false
     @State private var isFileImporterPresented = false
+    @State private var pendingReplacement: CareerDocument?
     @State private var pendingDelete: CareerDocument?
     @State private var errorMessage: String?
 
@@ -125,10 +126,21 @@ struct CareerDocumentsView: View {
                         Button("View") { view(document) }
                             .buttonStyle(.plain)
                             .foregroundStyle(KairoColors.brandPrimary)
+                            .frame(minHeight: 44)
                         if presentation.parent.canDelete {
-                            Button("Delete", role: .destructive) { pendingDelete = document }
+                            Button("Replace") {
+                                selectedType = document.documentType
+                                pendingReplacement = document
+                                isFileImporterPresented = true
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(KairoColors.brandPrimary)
+                            .frame(minHeight: 44)
+
+                            Button("Remove", role: .destructive) { pendingDelete = document }
                                 .buttonStyle(.plain)
                                 .foregroundStyle(KairoColors.danger)
+                                .frame(minHeight: 44)
                         }
                     }
                     .font(KairoTypography.footnote)
@@ -181,6 +193,8 @@ struct CareerDocumentsView: View {
     }
 
     private func handleFileSelection(_ result: Result<[URL], Error>) {
+        let replacement = pendingReplacement
+        pendingReplacement = nil
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
@@ -188,11 +202,21 @@ struct CareerDocumentsView: View {
             errorMessage = nil
             Task {
                 do {
-                    let loaded = try await service.uploadDocument(
-                        fileURL: url,
-                        documentType: selectedType,
-                        to: presentation.parent
-                    )
+                    let loaded: [CareerDocument]
+                    if let replacement {
+                        loaded = try await service.replaceDocument(
+                            replacement,
+                            with: url,
+                            documentType: selectedType,
+                            parent: presentation.parent
+                        )
+                    } else {
+                        loaded = try await service.uploadDocument(
+                            fileURL: url,
+                            documentType: selectedType,
+                            to: presentation.parent
+                        )
+                    }
                     await MainActor.run {
                         documents = loaded
                         isMutating = false
@@ -252,6 +276,14 @@ struct CareerDocumentsView: View {
     }
 
     private func statusTitle(_ value: String) -> String {
-        value.replacingOccurrences(of: "_", with: " ").capitalized
+        switch value.lowercased() {
+        case "approved", "verified": "Verified"
+        case "pending_review", "pending", "submitted", "under_review": "Pending KairoID Review"
+        case "rejected": "Rejected"
+        case "withdrawn", "cancelled": "Withdrawn"
+        case "draft", "pending_upload": "Draft"
+        case "self_declared", "not_verified": "Candidate-provided"
+        default: "Candidate-provided"
+        }
     }
 }
