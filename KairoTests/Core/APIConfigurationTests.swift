@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class APIConfigurationTests: XCTestCase {
     func test_developmentEnvironmentUsesLocalhostAPI() {
         XCTAssertEqual(

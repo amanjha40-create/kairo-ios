@@ -1,6 +1,7 @@
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class AppConfigurationV1DestinationTests: XCTestCase {
     func test_helpAndSupportUseCanonicalPublicDestinations() {
         let configuration = AppConfiguration(

@@ -11,7 +11,7 @@ struct KairoApp: App {
 
     init() {
         let configuration = AppConfiguration.resolve()
-        let uiTestConfiguration = UITestLaunchConfiguration.current()
+        let uiTestConfiguration = UITestLaunchConfiguration.current().validated(for: configuration)
         let dependencies = AppDependencies.make(
             configuration: configuration,
             uiTestConfiguration: uiTestConfiguration

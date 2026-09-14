@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class PassportOverviewMapperTests: XCTestCase {
     func test_mapCreatesPopulatedPassportStateFromLiveOverview() {
         let overview = makeOverview()

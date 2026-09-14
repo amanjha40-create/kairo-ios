@@ -1,6 +1,6 @@
 import Foundation
 
-enum PassportOverviewMapper {
+nonisolated enum PassportOverviewMapper {
     nonisolated static func map(_ overview: PassportOverview) -> PassportOverviewState {
         let header = makeHeader(from: overview)
         let content = PassportOverviewContent(

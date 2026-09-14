@@ -55,7 +55,7 @@ nonisolated struct NetworkResponse: Equatable, Sendable {
     }
 }
 
-enum NetworkError: Error, Equatable, LocalizedError {
+nonisolated enum NetworkError: Error, Equatable, LocalizedError, Sendable {
     case invalidURL
     case invalidResponse
     case api(APIError)
@@ -88,7 +88,7 @@ extension NetworkClient {
         NetworkResponse(data: try await send(request), statusCode: 200)
     }
 
-    func sendJSON<Body: Encodable>(
+    func sendJSON<Body: Encodable & Sendable>(
         path: String,
         method: HTTPMethod,
         body: Body,

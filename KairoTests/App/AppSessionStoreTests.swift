@@ -5,11 +5,15 @@ import XCTest
 final class AppSessionStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        ManualProfileDraftStore.clear()
+        MainActor.assumeIsolated {
+            ManualProfileDraftStore.clear()
+        }
     }
 
     override func tearDown() {
-        ManualProfileDraftStore.clear()
+        MainActor.assumeIsolated {
+            ManualProfileDraftStore.clear()
+        }
         super.tearDown()
     }
 
@@ -789,12 +793,12 @@ private actor StubResumeImportService: ResumeImportServiceProtocol {
         self.recoveryState = recoveryState
     }
 
-    func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
+    nonisolated func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
         _ = pickedURL
         fatalError("prepareSelection(from:) should not be called in AppSessionStoreTests")
     }
 
-    func cleanupSelection(at temporaryFileURL: URL) {
+    nonisolated func cleanupSelection(at temporaryFileURL: URL) {
         _ = temporaryFileURL
     }
 

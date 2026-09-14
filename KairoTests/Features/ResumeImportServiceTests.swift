@@ -729,8 +729,12 @@ final class ResumeImportServiceTests: XCTestCase {
         XCTAssertNil(recovery.completionResult)
     }
 
+    nonisolated private func makeService() async throws -> ResumeImportService {
+        try await Self.makeServiceOnMainActor()
+    }
+
     @MainActor
-    private func makeService() async throws -> ResumeImportService {
+    private static func makeServiceOnMainActor() async throws -> ResumeImportService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
 

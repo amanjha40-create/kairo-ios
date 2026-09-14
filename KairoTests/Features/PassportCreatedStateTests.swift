@@ -1,6 +1,7 @@
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class PassportCreatedStateTests: XCTestCase {
     func test_completedStateUsesApprovedCompactContentAndRoutesDirectlyHome() {
         let state = PassportCreatedState.completed

@@ -85,7 +85,7 @@ final class HomeOverviewServiceTests: XCTestCase {
         )
     }
 
-    private static let userPayload = Data(
+    private nonisolated static let userPayload = Data(
         """
         {
           "id": "user_123",
@@ -110,7 +110,7 @@ final class HomeOverviewServiceTests: XCTestCase {
         """.utf8
     )
 
-    private static let dashboardPayload = Data(
+    private nonisolated static let dashboardPayload = Data(
         """
         {
           "profile_completion": {

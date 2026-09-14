@@ -31,6 +31,19 @@ struct UITestLaunchConfiguration {
             disablesAnimations: isEnabled && environment[disableAnimationsEnvironmentKey] != "0"
         )
     }
+
+    func validated(for configuration: AppConfiguration) -> UITestLaunchConfiguration {
+        guard configuration.buildConfiguration != .production else {
+            return UITestLaunchConfiguration(
+                isEnabled: false,
+                route: .onboarding,
+                onboardingStep: nil,
+                disablesAnimations: false
+            )
+        }
+
+        return self
+    }
 }
 
 enum AppBuildConfiguration: String, CaseIterable, Sendable {
@@ -153,17 +166,22 @@ struct AppConfiguration: Equatable, Sendable {
         environmentVariables: [String: String] = ProcessInfo.processInfo.environment,
         defaultBuildConfiguration: AppBuildConfiguration? = nil
     ) -> AppConfiguration {
+        let embeddedBuildConfiguration = AppBuildConfiguration(
+            rawValue: bundleValues[InfoPlistKey.buildConfiguration] as? String
+        )
         let buildConfiguration: AppBuildConfiguration
 
-        if let override = environmentVariables[buildConfigurationVariable] {
+        if embeddedBuildConfiguration == .production {
+            buildConfiguration = .production
+        } else if let override = environmentVariables[buildConfigurationVariable] {
             buildConfiguration = AppBuildConfiguration(rawValue: override)
         } else if let defaultBuildConfiguration {
             buildConfiguration = defaultBuildConfiguration
         } else {
-            buildConfiguration = AppBuildConfiguration(
-                rawValue: bundleValues[InfoPlistKey.buildConfiguration] as? String
-            )
+            buildConfiguration = embeddedBuildConfiguration
         }
+
+        let isProductionBuild = embeddedBuildConfiguration == .production || buildConfiguration == .production
 
         let embeddedEnvironment = resolveEmbeddedEnvironment(
             bundleValue: bundleValues[InfoPlistKey.environment] as? String,
@@ -172,17 +190,21 @@ struct AppConfiguration: Equatable, Sendable {
 
         let environment: AppEnvironment
 
-        if let rawEnvironment = environmentVariables[environmentVariable] {
+        if isProductionBuild {
+            environment = .production
+        } else if let rawEnvironment = environmentVariables[environmentVariable] {
             environment = AppEnvironment(rawValue: rawEnvironment)
         } else {
             environment = embeddedEnvironment
         }
 
-        let isDemoModeEnabled = resolveDemoMode(
-            bundleValue: bundleValues[InfoPlistKey.demoMode] as? String,
-            rawValue: environmentVariables[demoModeVariable],
-            buildConfiguration: buildConfiguration
-        )
+        let isDemoModeEnabled = isProductionBuild
+            ? false
+            : resolveDemoMode(
+                bundleValue: bundleValues[InfoPlistKey.demoMode] as? String,
+                rawValue: environmentVariables[demoModeVariable],
+                buildConfiguration: buildConfiguration
+            )
 
         return AppConfiguration(
             buildConfiguration: buildConfiguration,

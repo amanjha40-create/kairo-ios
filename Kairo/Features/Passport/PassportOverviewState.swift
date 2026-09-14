@@ -1,13 +1,13 @@
 import Foundation
 
-enum PassportOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
+nonisolated enum PassportOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
     case populated
     case empty
     case loading
     case error
 }
 
-struct PassportOverviewState: Equatable, Sendable {
+nonisolated struct PassportOverviewState: Equatable, Sendable {
     let header: PassportHeader
     let phase: PassportOverviewPhase
 
@@ -177,14 +177,14 @@ struct PassportOverviewState: Equatable, Sendable {
     }
 }
 
-enum PassportOverviewPhase: Equatable, Sendable {
+nonisolated enum PassportOverviewPhase: Equatable, Sendable {
     case loading
     case populated(PassportOverviewContent)
     case empty(PassportOverviewEmptyContent)
     case error(PassportOverviewErrorState)
 }
 
-enum PassportOverviewSection: String, CaseIterable, Equatable, Sendable {
+nonisolated enum PassportOverviewSection: String, CaseIterable, Equatable, Sendable {
     case trustScore
     case passportStrength
     case identity
@@ -197,20 +197,20 @@ enum PassportOverviewSection: String, CaseIterable, Equatable, Sendable {
     case actions
 }
 
-enum PassportStatusTone: Equatable, Sendable {
+nonisolated enum PassportStatusTone: Equatable, Sendable {
     case verified
     case pending
     case neutral
     case accent
 }
 
-struct PassportStatusStyle: Equatable, Sendable {
+nonisolated struct PassportStatusStyle: Equatable, Sendable {
     let title: String
     let symbol: String
     let tone: PassportStatusTone
 }
 
-enum PassportVerificationStatus: String, CaseIterable, Equatable, Sendable {
+nonisolated enum PassportVerificationStatus: String, CaseIterable, Equatable, Sendable {
     case verified
     case pendingVerification
     case notVerified
@@ -233,7 +233,7 @@ enum PassportVerificationStatus: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-struct PassportHeader: Equatable, Sendable {
+nonisolated struct PassportHeader: Equatable, Sendable {
     let initials: String
     let name: String
     let professionalHeadline: String
@@ -253,7 +253,7 @@ struct PassportHeader: Equatable, Sendable {
     )
 }
 
-struct PassportOverviewContent: Equatable, Sendable {
+nonisolated struct PassportOverviewContent: Equatable, Sendable {
     let dataSourceLabel: String
     let trustScore: PassportTrustScoreContent
     let strengthSummary: [PassportStrengthItem]
@@ -281,18 +281,18 @@ struct PassportOverviewContent: Equatable, Sendable {
     }
 }
 
-struct PassportOverviewEmptyContent: Equatable, Sendable {
+nonisolated struct PassportOverviewEmptyContent: Equatable, Sendable {
     let dataSourceLabel: String
     let title: String
     let message: String
 }
 
-enum PassportTrustScoreContent: Equatable, Sendable {
+nonisolated enum PassportTrustScoreContent: Equatable, Sendable {
     case available(PassportTrustScore)
     case unavailable(PassportTrustScoreUnavailableState)
 }
 
-struct PassportTrustScore: Equatable, Sendable {
+nonisolated struct PassportTrustScore: Equatable, Sendable {
     let value: Int
     let status: String
     let progress: Double
@@ -300,12 +300,12 @@ struct PassportTrustScore: Equatable, Sendable {
     let isFixture: Bool
 }
 
-struct PassportTrustScoreUnavailableState: Equatable, Sendable {
+nonisolated struct PassportTrustScoreUnavailableState: Equatable, Sendable {
     let title: String
     let message: String
 }
 
-struct PassportStrengthItem: Equatable, Identifiable, Sendable {
+nonisolated struct PassportStrengthItem: Equatable, Identifiable, Sendable {
     let title: String
     let value: String
     let status: PassportVerificationStatus
@@ -313,7 +313,7 @@ struct PassportStrengthItem: Equatable, Identifiable, Sendable {
     var id: String { title }
 }
 
-struct PassportIdentityDetails: Equatable, Sendable {
+nonisolated struct PassportIdentityDetails: Equatable, Sendable {
     let fullName: String
     let emailAddress: String
     let mobileNumber: String
@@ -329,7 +329,7 @@ struct PassportIdentityDetails: Equatable, Sendable {
     )
 }
 
-struct PassportEmploymentRecord: Equatable, Identifiable, Sendable {
+nonisolated struct PassportEmploymentRecord: Equatable, Identifiable, Sendable {
     let company: String
     let role: String
     let dateRange: String
@@ -339,7 +339,7 @@ struct PassportEmploymentRecord: Equatable, Identifiable, Sendable {
     var id: String { "\(company)-\(role)" }
 }
 
-struct PassportEducationRecord: Equatable, Identifiable, Sendable {
+nonisolated struct PassportEducationRecord: Equatable, Identifiable, Sendable {
     let institution: String
     let qualification: String
     let dateRange: String
@@ -349,7 +349,7 @@ struct PassportEducationRecord: Equatable, Identifiable, Sendable {
     var id: String { "\(institution)-\(qualification)" }
 }
 
-struct PassportCertificationRecord: Equatable, Identifiable, Sendable {
+nonisolated struct PassportCertificationRecord: Equatable, Identifiable, Sendable {
     let title: String
     let issuer: String
     let issueDate: String
@@ -359,7 +359,7 @@ struct PassportCertificationRecord: Equatable, Identifiable, Sendable {
     var id: String { "\(title)-\(issuer)" }
 }
 
-struct PassportProjectRecord: Equatable, Identifiable, Sendable {
+nonisolated struct PassportProjectRecord: Equatable, Identifiable, Sendable {
     let title: String
     let role: String
     let date: String
@@ -369,31 +369,31 @@ struct PassportProjectRecord: Equatable, Identifiable, Sendable {
     var id: String { "\(title)-\(role)" }
 }
 
-struct PassportSkillRecord: Equatable, Identifiable, Sendable {
+nonisolated struct PassportSkillRecord: Equatable, Identifiable, Sendable {
     let name: String
     let verificationStatus: PassportVerificationStatus
 
     var id: String { name }
 }
 
-enum PassportTimelineContent: Equatable, Sendable {
+nonisolated enum PassportTimelineContent: Equatable, Sendable {
     case available([PassportTimelineEvent])
     case unavailable(PassportUnavailableSectionState)
 }
 
-struct PassportTimelineEvent: Equatable, Identifiable, Sendable {
+nonisolated struct PassportTimelineEvent: Equatable, Identifiable, Sendable {
     let title: String
     let dateLabel: String
 
     var id: String { "\(title)-\(dateLabel)" }
 }
 
-struct PassportUnavailableSectionState: Equatable, Sendable {
+nonisolated struct PassportUnavailableSectionState: Equatable, Sendable {
     let title: String
     let message: String
 }
 
-struct PassportOverviewErrorState: Equatable, Sendable {
+nonisolated struct PassportOverviewErrorState: Equatable, Sendable {
     let title: String
     let message: String
 }

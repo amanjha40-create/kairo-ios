@@ -1,13 +1,13 @@
 import Foundation
 
-enum VerifyOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
+nonisolated enum VerifyOverviewFixtureKind: String, CaseIterable, Equatable, Sendable {
     case populated
     case empty
     case loading
     case error
 }
 
-struct VerifyOverviewState: Equatable, Sendable {
+nonisolated struct VerifyOverviewState: Equatable, Sendable {
     let header: VerifyHeader
     let phase: VerifyOverviewPhase
 
@@ -298,14 +298,14 @@ struct VerifyOverviewState: Equatable, Sendable {
     }
 }
 
-enum VerifyOverviewPhase: Equatable, Sendable {
+nonisolated enum VerifyOverviewPhase: Equatable, Sendable {
     case loading
     case populated(VerifyOverviewContent)
     case empty(VerifyOverviewEmptyContent)
     case error(VerifyOverviewErrorState)
 }
 
-struct VerifyHeader: Equatable, Sendable {
+nonisolated struct VerifyHeader: Equatable, Sendable {
     let supportingLine: String
 
     nonisolated static let live = VerifyHeader(
@@ -315,7 +315,7 @@ struct VerifyHeader: Equatable, Sendable {
     nonisolated static let fixture = live
 }
 
-enum VerifyOverviewSection: String, CaseIterable, Equatable, Sendable {
+nonisolated enum VerifyOverviewSection: String, CaseIterable, Equatable, Sendable {
     case priorityAction
     case pendingRequests
     case inProgress
@@ -323,13 +323,13 @@ enum VerifyOverviewSection: String, CaseIterable, Equatable, Sendable {
     case suggestedNext
 }
 
-enum VerifyRequestGroup: Equatable, Sendable {
+nonisolated enum VerifyRequestGroup: Equatable, Sendable {
     case pending
     case inProgress
     case completed
 }
 
-enum VerifyStatusTone: Equatable, Sendable {
+nonisolated enum VerifyStatusTone: Equatable, Sendable {
     case accent
     case success
     case warning
@@ -337,7 +337,7 @@ enum VerifyStatusTone: Equatable, Sendable {
     case neutral
 }
 
-struct VerifyStatusStyle: Equatable, Sendable {
+nonisolated struct VerifyStatusStyle: Equatable, Sendable {
     let title: String
     let symbol: String
     let tone: VerifyStatusTone
@@ -611,18 +611,18 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
     }
 }
 
-enum VerifyRequestActionTransition: Equatable, Sendable {
+nonisolated enum VerifyRequestActionTransition: Equatable, Sendable {
     case accept
 }
 
-enum VerifyCallToAction: Equatable, Sendable {
+nonisolated enum VerifyCallToAction: Equatable, Sendable {
     case startVerification(VerifyVerificationKind)
     case openRequest(String)
     case openCareer
     case viewTrustPassport
 }
 
-enum VerifyRequestAction: Equatable, Hashable, Sendable {
+nonisolated enum VerifyRequestAction: Equatable, Hashable, Sendable {
     case accept
     case submitInformation
     case submitForReview
@@ -642,7 +642,7 @@ enum VerifyRequestAction: Equatable, Hashable, Sendable {
     }
 }
 
-struct VerifyOverviewContent: Equatable, Sendable {
+nonisolated struct VerifyOverviewContent: Equatable, Sendable {
     let dataSourceLabel: String
     let priorityAction: VerifyPriorityAction
     let requests: [VerifyRequest]
@@ -724,7 +724,7 @@ struct VerifyOverviewContent: Equatable, Sendable {
     }
 }
 
-struct VerifyPriorityAction: Equatable, Sendable {
+nonisolated struct VerifyPriorityAction: Equatable, Sendable {
     let title: String
     let organization: String
     let supportingCopy: String
@@ -735,7 +735,7 @@ struct VerifyPriorityAction: Equatable, Sendable {
     let action: VerifyCallToAction?
 }
 
-struct VerifyRequest: Equatable, Identifiable, Sendable {
+nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
     let id: String
     let routeRequestID: String?
     let subjectIDs: [String]
@@ -815,14 +815,14 @@ struct VerifyRequest: Equatable, Identifiable, Sendable {
 
 }
 
-struct VerifyTimelineEvent: Equatable, Identifiable, Sendable {
+nonisolated struct VerifyTimelineEvent: Equatable, Identifiable, Sendable {
     let id: String
     let title: String
     let source: String
     let dateLabel: String
 }
 
-struct VerifySuggestion: Equatable, Identifiable, Sendable {
+nonisolated struct VerifySuggestion: Equatable, Identifiable, Sendable {
     let id: String
     let kind: VerifyVerificationKind?
     let title: String
@@ -833,7 +833,7 @@ struct VerifySuggestion: Equatable, Identifiable, Sendable {
     var availabilityNote: String?
 }
 
-enum VerifyVerificationKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+nonisolated enum VerifyVerificationKind: String, CaseIterable, Identifiable, Equatable, Sendable {
     case employment
     case education
     case certification
@@ -881,7 +881,7 @@ enum VerifyVerificationKind: String, CaseIterable, Identifiable, Equatable, Send
     }
 }
 
-struct VerifyOverviewEmptyContent: Equatable, Sendable {
+nonisolated struct VerifyOverviewEmptyContent: Equatable, Sendable {
     let dataSourceLabel: String
     let title: String
     let message: String
@@ -891,7 +891,7 @@ struct VerifyOverviewEmptyContent: Equatable, Sendable {
     let secondaryAction: VerifyCallToAction?
 }
 
-struct VerifyOverviewErrorState: Equatable, Sendable {
+nonisolated struct VerifyOverviewErrorState: Equatable, Sendable {
     let title: String
     let message: String
 }

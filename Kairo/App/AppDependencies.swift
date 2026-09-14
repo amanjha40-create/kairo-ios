@@ -23,7 +23,8 @@ struct AppDependencies: Sendable {
         configuration: AppConfiguration,
         uiTestConfiguration: UITestLaunchConfiguration = .current()
     ) -> AppDependencies {
-        let tokenStore: any TokenStore = configuration.isDemoModeEnabled
+        let uiTestConfiguration = uiTestConfiguration.validated(for: configuration)
+        let tokenStore: any TokenStore = configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
             ? InMemoryTokenStore()
             : KeychainTokenStore(service: configuration.keychainService)
 

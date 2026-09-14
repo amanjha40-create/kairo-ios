@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class HomeOverviewMapperTests: XCTestCase {
     func test_mapCreatesPopulatedHomeStateFromLiveDashboardOverview() {
         let overview = makeOverview(

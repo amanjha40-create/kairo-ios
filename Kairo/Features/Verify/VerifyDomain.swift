@@ -1,10 +1,10 @@
 import Foundation
 
-struct VerifyOverview: Equatable, Sendable {
+nonisolated struct VerifyOverview: Equatable, Sendable {
     let requests: [VerifyRequestRecord]
 }
 
-struct VerifyRequestRecord: Identifiable, Equatable, Sendable {
+nonisolated struct VerifyRequestRecord: Identifiable, Equatable, Sendable {
     let id: String
     let routeID: String?
     var subjectIDs: [String] = []
@@ -27,13 +27,13 @@ struct VerifyRequestRecord: Identifiable, Equatable, Sendable {
     let timeline: [VerifyTimelineEventRecord]
 }
 
-struct VerifyEvidenceSummaryRecord: Equatable, Sendable {
+nonisolated struct VerifyEvidenceSummaryRecord: Equatable, Sendable {
     let totalItems: Int
     let documentItems: Int
     let fieldKeys: [String]
 }
 
-struct VerifyTimelineEventRecord: Identifiable, Equatable, Sendable {
+nonisolated struct VerifyTimelineEventRecord: Identifiable, Equatable, Sendable {
     let id: String
     let eventType: String
     let eventSource: String
@@ -156,7 +156,7 @@ extension VerifyRequestRecord {
 }
 
 extension VerifyEvidenceSummaryRecord {
-    init(dto: VerificationRequestEvidenceSummaryDTO) {
+    nonisolated init(dto: VerificationRequestEvidenceSummaryDTO) {
         self.init(
             totalItems: dto.totalItems,
             documentItems: dto.documentItems,
@@ -166,7 +166,7 @@ extension VerifyEvidenceSummaryRecord {
 }
 
 extension VerifyTimelineEventRecord {
-    init(dto: VerificationRequestTimelineEventDTO) {
+    nonisolated init(dto: VerificationRequestTimelineEventDTO) {
         self.init(
             id: dto.publicID,
             eventType: dto.eventType,
@@ -179,7 +179,7 @@ extension VerifyTimelineEventRecord {
 }
 
 extension VerifyVerificationKind {
-    init?(rawBackendValue: String) {
+    nonisolated init?(rawBackendValue: String) {
         switch rawBackendValue
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() {
@@ -198,7 +198,7 @@ extension VerifyVerificationKind {
 }
 
 private extension String {
-    var nonEmpty: String? {
+    nonisolated var nonEmpty: String? {
         isEmpty ? nil : self
     }
 }

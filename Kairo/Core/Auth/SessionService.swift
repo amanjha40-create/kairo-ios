@@ -228,7 +228,7 @@ actor SessionService: SessionServiceProtocol {
         )
     }
 
-    private func decodeJSON<Response: Decodable, Body: Encodable>(
+    private func decodeJSON<Response: Decodable, Body: Encodable & Sendable>(
         _ body: Body,
         path: String
     ) async throws -> Response {

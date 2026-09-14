@@ -1,6 +1,7 @@
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class ManualProfileFlowStateTests: XCTestCase {
     func test_basicProfileRequiresCityAndCountry() {
         let draft = ManualProfileBasicDraft(

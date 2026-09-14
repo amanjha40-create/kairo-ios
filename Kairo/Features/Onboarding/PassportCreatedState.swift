@@ -1,8 +1,8 @@
 import Foundation
 
-struct PassportCreatedState: Equatable, Sendable {
-    struct SummaryRow: Equatable, Identifiable, Sendable {
-        enum Status: String, Equatable, Sendable {
+nonisolated struct PassportCreatedState: Equatable, Sendable {
+    nonisolated struct SummaryRow: Equatable, Identifiable, Sendable {
+        nonisolated enum Status: String, Equatable, Sendable {
             case verified = "Verified"
             case created = "Created"
             case active = "Active"
@@ -42,7 +42,7 @@ struct PassportCreatedState: Equatable, Sendable {
     )
 }
 
-extension OnboardingFlowState {
+nonisolated extension OnboardingFlowState {
     var passportCreatedState: PassportCreatedState {
         .completed
     }

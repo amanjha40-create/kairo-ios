@@ -301,7 +301,7 @@ private extension KeyedDecodingContainer where Key == VerificationDynamicCodingK
 }
 
 private extension String {
-    var kairoConvertedFromSnakeCase: String {
+    nonisolated var kairoConvertedFromSnakeCase: String {
         guard contains("_") else { return self }
 
         let parts = split(separator: "_", omittingEmptySubsequences: false)

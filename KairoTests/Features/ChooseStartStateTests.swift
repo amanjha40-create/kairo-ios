@@ -1,6 +1,7 @@
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class ChooseStartStateTests: XCTestCase {
     func test_continueIsDisabledUntilSelectionIsMade() {
         let state = ChooseStartState()

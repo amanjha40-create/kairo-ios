@@ -1,6 +1,7 @@
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class VerifyIdentityFlowStateTests: XCTestCase {
     func test_preparePrefillsCreateAccountContactsWhenVerificationIsPristine() {
         var state = VerifyIdentityFlowState()

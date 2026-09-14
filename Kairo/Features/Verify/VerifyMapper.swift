@@ -1,6 +1,6 @@
 import Foundation
 
-enum VerifyOverviewMapper {
+nonisolated enum VerifyOverviewMapper {
     nonisolated static func map(_ overview: VerifyOverview) -> VerifyOverviewState {
         let sortedRequests = sortRequests(overview.requests)
         let content = VerifyOverviewContent(
@@ -324,7 +324,7 @@ enum VerifyOverviewMapper {
 }
 
 private extension VerifyRequestRecord {
-    var availableActions: [VerifyRequestAction] {
+    nonisolated var availableActions: [VerifyRequestAction] {
         guard routeID != nil else {
             return []
         }

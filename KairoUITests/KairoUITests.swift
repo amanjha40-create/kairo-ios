@@ -192,11 +192,15 @@ final class KairoUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        XCUIApplication().terminate()
+        MainActor.assumeIsolated {
+            XCUIApplication().terminate()
+        }
     }
 
     override func tearDownWithError() throws {
-        XCUIApplication().terminate()
+        MainActor.assumeIsolated {
+            XCUIApplication().terminate()
+        }
     }
 
     @MainActor
@@ -747,7 +751,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testVerifyStartVerificationOpensLocalSheet() throws {
+    func testVerifyStartVerificationIsTruthfullyUnavailableInFixtureMode() throws {
         let app = launchApp(environment: verifyEnvironment())
 
         openVerifyTab(in: app)
@@ -755,8 +759,8 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
         app.buttons[verifyStartVerificationButton].tap()
 
-        XCTAssertTrue(app.otherElements[verifyStartVerificationSheet].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Start verification"].exists)
+        XCTAssertTrue(app.alerts["Unavailable in preview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Demo and UI-test sessions do not create live verification requests."].exists)
     }
 
     @MainActor
@@ -783,7 +787,8 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[verifyAcceptRequest].waitForExistence(timeout: 10))
         app.buttons[verifyAcceptRequest].tap()
 
-        XCTAssertTrue(app.staticTexts["Approved and submitted locally"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Under admin review"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyInProgressSection], in: app))
     }
 
     @MainActor
@@ -1368,7 +1373,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(continueButton.isEnabled)
         continueButton.tap()
 
-        XCTAssertTrue(app.staticTexts["An account with this email already exists."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["An account with these details already exists. Try signing in instead."].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts[onboardingCreateAccountTitle].exists)
     }
 
@@ -1550,8 +1555,8 @@ final class KairoUITests: XCTestCase {
         app.buttons[manualProfileEducationContinueButton].tap()
 
         XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.otherElements[passportCreatedSummaryCard].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts[passportCreatedTrustScoreMessage].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Continue to Home and start building your professional record."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedContinueHomeButton].exists)
     }
 
     @MainActor
@@ -1696,7 +1701,8 @@ final class KairoUITests: XCTestCase {
         tapWhenHittable(app.buttons[resumeImportLooksGoodButton], in: app)
 
         XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.otherElements[passportCreatedSummaryCard].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Continue to Home and start building your professional record."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedContinueHomeButton].exists)
     }
 
     @MainActor
@@ -1713,16 +1719,13 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportCreatedReviewProfileRoutesToPassportPlaceholder() throws {
+    func testPassportCreatedOffersOnlyTheSupportedHomeDestination() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("passportCreated")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[passportCreatedReviewProfileButton].waitForExistence(timeout: 10))
-        app.buttons[passportCreatedReviewProfileButton].tap()
-
-        XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["candidate.screen.passport"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[passportCreatedContinueHomeButton].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[passportCreatedReviewProfileButton].exists)
     }
 
     @MainActor
@@ -2056,6 +2059,7 @@ final class KairoUITests: XCTestCase {
         doneButton.tap()
     }
 
+    @MainActor
     private func keepScreenshot(named name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name

@@ -203,7 +203,7 @@ actor AuthService: AuthServiceProtocol {
         return try APIJSONCoder.makeDecoder().decode(OnboardingStatusResponseDTO.self, from: data)
     }
 
-    private func postJSON<Response: Decodable, Body: Encodable>(
+    private func postJSON<Response: Decodable, Body: Encodable & Sendable>(
         path: String,
         body: Body
     ) async throws -> Response {
@@ -211,7 +211,7 @@ actor AuthService: AuthServiceProtocol {
         return try APIJSONCoder.makeDecoder().decode(Response.self, from: data)
     }
 
-    private func rawPost<Body: Encodable>(path: String, body: Body) async throws -> Data {
+    private func rawPost<Body: Encodable & Sendable>(path: String, body: Body) async throws -> Data {
         try await networkClient.sendJSON(
             path: path,
             method: .post,
@@ -224,7 +224,7 @@ actor AuthService: AuthServiceProtocol {
         )
     }
 
-    private func performSignupChannelSendRequest<Body: Encodable>(
+    private func performSignupChannelSendRequest<Body: Encodable & Sendable>(
         path: String,
         body: Body
     ) async throws -> SignupChannelSendResponseDTO {
@@ -237,7 +237,7 @@ actor AuthService: AuthServiceProtocol {
         }
     }
 
-    private func performSignupSessionRequest<Body: Encodable>(
+    private func performSignupSessionRequest<Body: Encodable & Sendable>(
         path: String,
         body: Body
     ) async throws {

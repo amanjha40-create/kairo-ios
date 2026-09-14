@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import Kairo
 
+@MainActor
 final class URLSessionNetworkClientTests: XCTestCase {
     func test_makeURLRequestBuildsPathAndQueryItems() throws {
         let client = URLSessionNetworkClient(
