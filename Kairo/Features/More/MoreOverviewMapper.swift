@@ -50,7 +50,7 @@ enum MoreOverviewMapper {
                 phase: .error(
                     MoreOverviewErrorState(
                         title: "You're offline",
-                        message: "Kairo couldn't reach your account settings. Check your connection and try again."
+                        message: "KairoID couldn't reach your account settings. Check your connection and try again."
                     )
                 )
             )
@@ -76,7 +76,7 @@ enum MoreOverviewMapper {
                     phase: .error(
                         MoreOverviewErrorState(
                             title: "Account settings unavailable",
-                            message: "Kairo received an unexpected account-settings response. Please try again."
+                            message: "KairoID received an unexpected account-settings response. Please try again."
                         )
                     )
                 )
@@ -87,7 +87,7 @@ enum MoreOverviewMapper {
                     phase: .error(
                         MoreOverviewErrorState(
                             title: "Account settings unavailable",
-                            message: "Kairo's account-settings configuration is invalid."
+                            message: "KairoID's account-settings configuration is invalid."
                         )
                     )
                 )
@@ -98,7 +98,7 @@ enum MoreOverviewMapper {
                     phase: .error(
                         MoreOverviewErrorState(
                             title: "You're offline",
-                            message: "Kairo couldn't reach your account settings. Check your connection and try again."
+                            message: "KairoID couldn't reach your account settings. Check your connection and try again."
                         )
                     )
                 )
@@ -112,7 +112,7 @@ enum MoreOverviewMapper {
                 phase: .error(
                     MoreOverviewErrorState(
                         title: "Account settings unavailable",
-                        message: "Kairo received account data in an unexpected format. Please try again."
+                        message: "KairoID received account data in an unexpected format. Please try again."
                     )
                 )
             )
@@ -218,13 +218,13 @@ enum MoreOverviewMapper {
                 title: "Help centre",
                 subtitle: helpCenterURL == nil
                     ? "A help-centre link is not configured yet."
-                    : "Open Kairo's help resources.",
+                    : "Open KairoID's help resources.",
                 systemImage: "book.closed"
             ),
             MoreRowItem(
                 id: "contactSupport",
                 title: "Contact support",
-                subtitle: "Email the Kairo support team.",
+                subtitle: "Email the KairoID support team.",
                 systemImage: "envelope.open"
             ),
             MoreRowItem(
@@ -246,7 +246,7 @@ enum MoreOverviewMapper {
         [
             MoreRowItem(
                 id: "aboutKairo",
-                title: "About Kairo",
+                title: "About KairoID",
                 subtitle: "Why portable professional trust matters.",
                 systemImage: "sparkles"
             ),
@@ -307,10 +307,10 @@ enum MoreOverviewMapper {
         }
 
         if normalized.contains("product") || normalized.contains("marketing") || normalized.contains("announcement") {
-            return "Receive product updates from Kairo."
+            return "Receive product updates from KairoID."
         }
 
-        return "Control whether Kairo sends this notification."
+        return "Control whether KairoID sends this notification."
     }
 
     nonisolated private static func prettifiedLabel(from value: String) -> String {
@@ -335,7 +335,7 @@ enum MoreOverviewMapper {
 
     nonisolated private static func legalSubtitle(isConfigured: Bool) -> String {
         isConfigured
-            ? "Open the latest Kairo document."
+            ? "Open the latest KairoID document."
             : "This legal destination is not configured yet."
     }
 
@@ -374,7 +374,7 @@ enum MoreAccountDeletionErrorMapper {
             case .conflict:
                 return MoreAccountDeletionFailure(
                     currentPasswordError: nil,
-                    message: "Kairo could not safely delete this account in its current state. Your account was not deleted."
+                    message: "KairoID could not safely delete this account in its current state. Your account was not deleted."
                 )
             case .validationError, .badRequest:
                 return MoreAccountDeletionFailure(
@@ -389,7 +389,7 @@ enum MoreAccountDeletionErrorMapper {
             case .internalError, .serviceUnavailable:
                 return MoreAccountDeletionFailure(
                     currentPasswordError: nil,
-                    message: "Kairo could not complete account deletion. Your account and signed-in session remain unchanged."
+                    message: "KairoID could not complete account deletion. Your account and signed-in session remain unchanged."
                 )
             case .notFound:
                 return MoreAccountDeletionFailure(
@@ -400,17 +400,17 @@ enum MoreAccountDeletionErrorMapper {
         case .transport:
             return MoreAccountDeletionFailure(
                 currentPasswordError: nil,
-                message: "Kairo could not confirm account deletion because the network request failed. Your local session was preserved."
+                message: "KairoID could not confirm account deletion because the network request failed. Your local session was preserved."
             )
         case .invalidResponse:
             return MoreAccountDeletionFailure(
                 currentPasswordError: nil,
-                message: "Kairo received an unexpected deletion response. Your local session was preserved."
+                message: "KairoID received an unexpected deletion response. Your local session was preserved."
             )
         case .invalidURL:
             return MoreAccountDeletionFailure(
                 currentPasswordError: nil,
-                message: "Kairo's account-deletion configuration is invalid."
+                message: "KairoID's account-deletion configuration is invalid."
             )
         case .unavailableInDemoMode:
             return MoreAccountDeletionFailure(

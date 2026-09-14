@@ -315,7 +315,7 @@ final class MoreOverviewServiceTests: XCTestCase {
                     id: "notif_marketing",
                     eventType: "product_updates",
                     title: "Product updates",
-                    subtitle: "Receive product updates from Kairo.",
+                    subtitle: "Receive product updates from KairoID.",
                     isEnabled: false,
                     preferredChannels: ["email"],
                     quietHours: [:],

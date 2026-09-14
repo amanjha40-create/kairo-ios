@@ -180,7 +180,7 @@ struct HomeOverviewState: Equatable, Sendable {
             phase: .error(
                 HomeOverviewErrorState(
                     title: "Home overview unavailable",
-                    message: "Kairo could not prepare your trust overview preview. Try again when the next demo data set is available."
+                    message: "KairoID could not prepare your trust overview preview. Try again when the next demo data set is available."
                 )
             )
         )
@@ -230,7 +230,7 @@ struct HomeHeader: Equatable, Sendable {
     static let placeholder = HomeHeader(
         greeting: "Welcome back,",
         firstName: "there",
-        supportingCopy: "Kairo is preparing your latest trust snapshot.",
+        supportingCopy: "KairoID is preparing your latest trust snapshot.",
         initials: "KA"
     )
 

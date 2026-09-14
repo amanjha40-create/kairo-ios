@@ -71,7 +71,7 @@ final class CareerOverviewMapperTests: XCTestCase {
                     isOngoing: false,
                     projectURL: URL(string: "https://portfolio.example.com/projects/1"),
                     repositoryURL: nil,
-                    organizationName: "Kairo",
+                    organizationName: "KairoID",
                     verificationStatus: .verified,
                     rawVerificationStatus: "approved"
                 )
@@ -191,8 +191,8 @@ final class CareerOverviewMapperTests: XCTestCase {
                     id: "employment_newer_current",
                     subjectFullName: nil,
                     subjectEmail: nil,
-                    company: "Kairo Labs",
-                    employerLegalName: "Kairo Labs",
+                    company: "KairoID Labs",
+                    employerLegalName: "KairoID Labs",
                     employerTradeName: nil,
                     role: "Trust Program Lead",
                     employmentType: "full_time",
@@ -214,7 +214,7 @@ final class CareerOverviewMapperTests: XCTestCase {
 
         let state = CareerOverviewMapper.map(overview)
 
-        XCTAssertEqual(state.summary.currentCompany, "Kairo Labs")
+        XCTAssertEqual(state.summary.currentCompany, "KairoID Labs")
     }
 
     func test_mapFallsBackToMostRecentEmploymentWhenNoCurrentEmploymentExists() {
@@ -243,8 +243,8 @@ final class CareerOverviewMapperTests: XCTestCase {
                     id: "employment_newer",
                     subjectFullName: nil,
                     subjectEmail: nil,
-                    company: "Kairo Labs",
-                    employerLegalName: "Kairo Labs",
+                    company: "KairoID Labs",
+                    employerLegalName: "KairoID Labs",
                     employerTradeName: nil,
                     role: "Trust Program Lead",
                     employmentType: "full_time",
@@ -266,7 +266,7 @@ final class CareerOverviewMapperTests: XCTestCase {
 
         let state = CareerOverviewMapper.map(overview)
 
-        XCTAssertEqual(state.summary.currentCompany, "Kairo Labs")
+        XCTAssertEqual(state.summary.currentCompany, "KairoID Labs")
     }
 
     func test_errorStateMapsTransportErrorToOfflineExperience() {

@@ -68,7 +68,7 @@ struct CreateAccountScreenView: View {
 
     private var legalCopy: some View {
         VStack(spacing: KairoSpacing.xxSmall) {
-            Text("By continuing you agree to Kairo's")
+            Text("By continuing you agree to KairoID's")
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
 
@@ -239,6 +239,8 @@ struct CreateAccountScreenView: View {
                 action: handleContinue
             )
             .disabled(!isFormValid || isSubmitting)
+
+            GoogleAuthenticationButton()
 
             loginRow
                 .disabled(isSubmitting)
@@ -465,16 +467,16 @@ struct CreateAccountScreenView: View {
                 case .rateLimited:
                     return "Too many attempts. Please try again shortly."
                 case .serviceUnavailable, .internalError:
-                    return "Kairo is temporarily unavailable. Please try again."
+                    return "KairoID is temporarily unavailable. Please try again."
                 default:
                     return apiError.message
                 }
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .invalidResponse:
-                return "Kairo received an unexpected response. Please try again."
+                return "KairoID received an unexpected response. Please try again."
             case .invalidURL:
-                return "Kairo's API configuration is invalid."
+                return "KairoID's API configuration is invalid."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps account creation local only."
             }

@@ -181,10 +181,10 @@ struct ManualProfileScreenView: View {
 
     private func onboardingIncompleteMessage(for status: OnboardingStatusResponseDTO) -> String {
         guard !status.missingRequirements.isEmpty else {
-            return "Kairo saved your profile, but onboarding is still incomplete. Please review your details and try again."
+            return "KairoID saved your profile, but onboarding is still incomplete. Please review your details and try again."
         }
 
-        return "Kairo still needs: \(status.missingRequirements.joined(separator: ", "))."
+        return "KairoID still needs: \(status.missingRequirements.joined(separator: ", "))."
     }
 
     private func requiresSessionRecovery(for error: Error) -> Bool {
@@ -208,16 +208,16 @@ struct ManualProfileScreenView: View {
             case .api(let apiError):
                 return apiError.message
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps Manual Profile local."
             case .invalidResponse:
-                return "Kairo received an unexpected Manual Profile response. Please try again."
+                return "KairoID received an unexpected Manual Profile response. Please try again."
             case .invalidURL:
-                return "Kairo's Manual Profile configuration is invalid."
+                return "KairoID's Manual Profile configuration is invalid."
             }
         case let sessionError as SessionServiceError:
-            return sessionError.errorDescription ?? "Kairo couldn't continue your Manual Profile."
+            return sessionError.errorDescription ?? "KairoID couldn't continue your Manual Profile."
         default:
             return error.localizedDescription
         }
@@ -309,7 +309,7 @@ private struct BasicProfileStepView: View {
                 }
 
                 KairoCard {
-                    Text("Start with the profile details Kairo needs to create a reusable Trust Passport foundation.")
+                    Text("Start with the profile details KairoID needs to create a reusable Trust Passport foundation.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -473,7 +473,7 @@ private struct EmploymentStepView: View {
                 }
 
                 KairoCard {
-                    Text("Add each role with an exact country and full calendar dates so Kairo can persist it accurately.")
+                    Text("Add each role with an exact country and full calendar dates so KairoID can persist it accurately.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -740,7 +740,7 @@ private struct EducationStepView: View {
                 }
 
                 KairoCard {
-                    Text("Add each credential at the right level so Kairo can classify and verify it cleanly.")
+                    Text("Add each credential at the right level so KairoID can classify and verify it cleanly.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

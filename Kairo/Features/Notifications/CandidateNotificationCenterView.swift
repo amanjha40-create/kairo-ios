@@ -67,13 +67,13 @@ struct CandidateNotificationCenterView: View {
         case .idle, .loading:
             KairoLoadingStateView(
                 title: "Loading notifications",
-                message: "Kairo is checking your latest updates."
+                message: "KairoID is checking your latest updates."
             )
             .padding(KairoSpacing.large)
         case .empty:
             KairoEmptyStateView(
                 title: "You are all caught up",
-                message: "Important Kairo updates will appear here.",
+                message: "Important KairoID updates will appear here.",
                 systemImage: "bell"
             )
             .padding(KairoSpacing.large)
@@ -95,7 +95,7 @@ struct CandidateNotificationCenterView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: KairoSpacing.small) {
                 HStack(alignment: .center, spacing: KairoSpacing.small) {
-                    Text("Updates from your Kairo account.")
+                    Text("Updates from your KairoID account.")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)

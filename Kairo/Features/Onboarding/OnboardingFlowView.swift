@@ -44,6 +44,10 @@ struct OnboardingFlowView: View {
                         LoginScreenView()
                     case .forgotPassword(let initialEmail):
                         PasswordResetFlowView(initialEmail: initialEmail)
+                    case .resetPassword(let token):
+                        PasswordResetFlowView(initialToken: token)
+                    case .googlePhoneCompletion:
+                        GooglePhoneCompletionView()
                     }
                 }
         }
@@ -65,6 +69,7 @@ struct OnboardingFlowView: View {
                 createAccountDraft: $flowState.createAccountDraft,
                 state: $flowState.verifyIdentityState,
                 recoveredSession: sessionStore.signupRecovery,
+                googleSignup: sessionStore.pendingGoogleSignup,
                 onStartOver: startOverRecoveredSignup
             )
         case .chooseStart:

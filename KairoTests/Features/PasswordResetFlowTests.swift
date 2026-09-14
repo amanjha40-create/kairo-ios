@@ -36,6 +36,15 @@ final class PasswordResetFlowTests: XCTestCase {
         XCTAssertNotNil(PasswordResetValidation.tokenMessage(String(repeating: "t", count: 513)))
     }
 
+    func test_universalLinkTokenStartsDirectlyInResetPhaseWithoutTransformingValue() {
+        let token = String(repeating: "T", count: 43)
+        let state = PasswordResetFlowState(token: token)
+
+        XCTAssertEqual(state.phase, .reset)
+        XCTAssertEqual(state.token, token)
+        XCTAssertTrue(state.emailAddress.isEmpty)
+    }
+
     func test_sensitiveFieldsAreClearedAfterSuccess() {
         var state = PasswordResetFlowState(emailAddress: "aman@example.com")
         state.token = "private-token-value"
@@ -109,7 +118,7 @@ final class PasswordResetFlowTests: XCTestCase {
             context: .submitReset
         )
 
-        XCTAssertEqual(presentation.message, "Kairo is temporarily unavailable. Please try again.")
+        XCTAssertEqual(presentation.message, "KairoID is temporarily unavailable. Please try again.")
     }
 
     func test_transportFailureIsDistinctFromBackendFailure() {
@@ -120,7 +129,7 @@ final class PasswordResetFlowTests: XCTestCase {
 
         XCTAssertEqual(
             presentation.message,
-            "Kairo couldn't reach the network. Check your connection and try again."
+            "KairoID couldn't reach the network. Check your connection and try again."
         )
     }
 

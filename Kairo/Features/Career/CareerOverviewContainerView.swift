@@ -542,9 +542,9 @@ private enum CareerOverviewContainerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingCurrentUser:
-            "Kairo couldn't load the current candidate profile required for this Career change."
+            "KairoID couldn't load the current candidate profile required for this Career change."
         case .missingRecordIdentifier:
-            "Kairo couldn't find the backend record identifier required for this Career change."
+            "KairoID couldn't find the backend record identifier required for this Career change."
         case .skillRenameUnavailable:
             "Skill renaming is unavailable because the backend does not provide an atomic update route. Delete and add the skill deliberately instead."
         }

@@ -43,7 +43,7 @@ extension OnboardingStep {
         case .verifyIdentity:
             "Verify your email and mobile number to create your Trust Passport."
         case .chooseStart:
-            "The branching point is locked in, but not yet connected to product flows."
+            "Choose how you want to build your professional profile."
         case .resumeImportOrQuickProfile:
             "Add your profile manually or import a resume to continue."
         case .passportCreated:

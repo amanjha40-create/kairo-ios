@@ -5,6 +5,7 @@ struct AppRootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
+    @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -35,11 +36,11 @@ struct AppRootView: View {
             await sessionStore.bootstrapIfNeeded()
         }
         .onOpenURL { url in
-            routePublicPassportURL(url)
+            routeIncomingURL(url)
         }
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             guard let url = activity.webpageURL else { return }
-            routePublicPassportURL(url)
+            routeIncomingURL(url)
         }
         .sheet(item: publicPassportPresentationBinding) { presentation in
             PublicPassportHandoffView(presentation: presentation)
@@ -53,8 +54,12 @@ struct AppRootView: View {
         .sheet(item: careerDocumentPresentationBinding) { presentation in
             CareerDocumentsView(presentation: presentation)
         }
+        .sheet(item: googleAuthenticationPresentationBinding) { presentation in
+            GoogleAuthenticationHandoffView(presentation: presentation)
+        }
         .onChange(of: sessionStore.currentUser?.id) { _, _ in
             notificationStore.reset()
+            candidateDataRefreshStore.resetForIdentityChange()
         }
     }
 
@@ -102,12 +107,19 @@ struct AppRootView: View {
         )
     }
 
-    private func routePublicPassportURL(_ url: URL) {
-        router.handleIncomingURL(
-            url,
-            allowedPublicPassportHosts: appConfiguration.publicPassportHosts,
-            isDemoModeEnabled: appConfiguration.isDemoModeEnabled
+    private var googleAuthenticationPresentationBinding: Binding<GoogleAuthenticationPresentation?> {
+        Binding(
+            get: { router.googleAuthenticationPresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissGoogleAuthentication()
+                }
+            }
         )
+    }
+
+    private func routeIncomingURL(_ url: URL) {
+        router.handleIncomingURL(url, configuration: appConfiguration)
     }
 }
 
@@ -115,7 +127,7 @@ private struct SessionBootstrapScreen: View {
     var body: some View {
         KairoLoadingStateView(
             title: "Restoring your session",
-            message: "Kairo is checking your secure session and onboarding status."
+            message: "KairoID is checking your secure session and onboarding status."
         )
         .padding(KairoSpacing.large)
     }

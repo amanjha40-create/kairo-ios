@@ -44,7 +44,7 @@ struct PublicPassportHandoffView: View {
     private var subtitle: String {
         switch presentation.content {
         case .handoff:
-            "Continue to Kairo's public web experience without signing in."
+            "Continue to KairoID's public web experience without signing in."
         case .unavailable:
             "This link is malformed or unsupported."
         }
@@ -69,7 +69,7 @@ struct PublicPassportHandoffView: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("No Kairo account or owner session is required.")
+                Text("No KairoID account or owner session is required.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
             }
@@ -82,7 +82,7 @@ struct PublicPassportHandoffView: View {
                 }
             )
 
-            Text("Invalid, expired, and revoked links use the same privacy-preserving unavailable response. Kairo does not reveal whether a link existed previously.")
+            Text("Invalid, expired, and revoked links use the same privacy-preserving unavailable response. KairoID does not reveal whether a link existed previously.")
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -92,7 +92,7 @@ struct PublicPassportHandoffView: View {
     private var unavailableContent: some View {
         KairoErrorStateView(
             title: "This Passport link is unavailable",
-            message: "Check that you opened a complete Kairo Passport link. For privacy, no additional link details are shown."
+            message: "Check that you opened a complete KairoID Passport link. For privacy, no additional link details are shown."
         )
         .accessibilityIdentifier(KairoAccessibilityID.publicPassportUnavailable)
     }

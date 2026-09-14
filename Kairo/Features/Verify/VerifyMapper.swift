@@ -22,7 +22,7 @@ nonisolated enum VerifyOverviewMapper {
             return .error(
                 header: header,
                 title: "You're offline",
-                message: "Kairo couldn't reach your Verify data. Check your connection and try again."
+                message: "KairoID couldn't reach your Verify data. Check your connection and try again."
             )
         }
 
@@ -38,19 +38,19 @@ nonisolated enum VerifyOverviewMapper {
                 return .error(
                     header: header,
                     title: "Verify unavailable",
-                    message: "Kairo received an unexpected Verify response. Please try again."
+                    message: "KairoID received an unexpected Verify response. Please try again."
                 )
             case .invalidURL:
                 return .error(
                     header: header,
                     title: "Verify unavailable",
-                    message: "Kairo's Verify configuration is invalid."
+                    message: "KairoID's Verify configuration is invalid."
                 )
             case .transport, .unavailableInDemoMode:
                 return .error(
                     header: header,
                     title: "You're offline",
-                    message: "Kairo couldn't reach your Verify data. Check your connection and try again."
+                    message: "KairoID couldn't reach your Verify data. Check your connection and try again."
                 )
             }
         }
@@ -117,7 +117,7 @@ nonisolated enum VerifyOverviewMapper {
             return VerifyPriorityAction(
                 title: "Track your latest verification",
                 organization: inProgress.organizationName,
-                supportingCopy: "Kairo is following the latest live status for this verification request.",
+                supportingCopy: "KairoID is following the latest live status for this verification request.",
                 trustImpact: "Live status",
                 estimatedCompletionTime: updatedLabel(for: inProgress.updatedAt),
                 statusTitle: inProgress.status.style.title,
@@ -142,7 +142,7 @@ nonisolated enum VerifyOverviewMapper {
         return VerifyPriorityAction(
             title: "No verification requests yet",
             organization: "Trust Center",
-            supportingCopy: "Kairo will surface employment and education verification requests here once they exist for your records.",
+            supportingCopy: "KairoID will surface employment and education verification requests here once they exist for your records.",
             trustImpact: "Live status",
             estimatedCompletionTime: "No action needed",
             statusTitle: "Up to date",
@@ -212,7 +212,7 @@ nonisolated enum VerifyOverviewMapper {
             return "Accepted on \(fullDateFormatter.string(from: acceptedAt))."
         }
 
-        return "Kairo is reflecting the current backend status for this verification request."
+        return "KairoID is reflecting the current backend status for this verification request."
     }
 
     private nonisolated static func evidenceRequirement(for record: VerifyRequestRecord) -> String {
@@ -261,11 +261,11 @@ nonisolated enum VerifyOverviewMapper {
         case "organization":
             return "Organisation"
         case "admin":
-            return "Kairo review team"
+            return "KairoID review team"
         case "system":
-            return "Kairo"
+            return "KairoID"
         case "ai":
-            return "Kairo assistant"
+            return "KairoID assistant"
         default:
             return rawValue
         }
@@ -280,7 +280,7 @@ nonisolated enum VerifyOverviewMapper {
         case .accepted, .pendingSubjectSubmission:
             return "Submit the requested information and evidence for review."
         case .awaitingInformation:
-            return "Provide the information Kairo requested for this verification."
+            return "Provide the information KairoID requested for this verification."
         case .awaitingSubjectCorrections:
             return "Update the requested details and resubmit for review."
         case .pendingAdminReview,

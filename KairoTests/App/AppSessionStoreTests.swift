@@ -84,6 +84,35 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertEqual(authService.recoveryCallCount, 1)
     }
 
+    func test_googleRecoveryWithoutPhoneRoutesToMandatoryPhoneCompletion() async {
+        let router = AppRouter()
+        let authService = StubAuthService(
+            user: .fixture,
+            onboardingStatus: .fixture(currentStep: .verifyIdentity),
+            recoveryResponse: .fixture(
+                nextStep: .verifyPhone,
+                emailVerified: true,
+                phoneMasked: ""
+            )
+        )
+        let store = makeStore(
+            router: router,
+            authService: authService,
+            sessionService: StubSessionService(
+                hasAccessToken: false,
+                hasRefreshToken: false,
+                signupSessionID: "google-signup-session"
+            )
+        )
+
+        await store.refreshLaunchRoute()
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertEqual(router.onboardingPath.last, .googlePhoneCompletion)
+        XCTAssertEqual(store.signupRecovery?.emailVerified, true)
+        XCTAssertTrue(store.signupRecovery?.phoneMasked.isEmpty == true)
+    }
+
     func test_expiredRecoveredSignupSessionIsDiscardedAndRoutesSignedOut() async {
         let router = AppRouter()
         let sessionService = StubSessionService(
@@ -710,6 +739,35 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
         return PasswordResetMessageDTO(message: "Password reset successful.")
     }
 
+    func googleAuthorizationURL() async throws -> URL {
+        URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+    }
+
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO {
+        _ = code
+        return GoogleHandoffExchangeResponseDTO(
+            outcome: .authFailed,
+            message: "Google sign-in could not be completed. Please try again.",
+            tokens: nil,
+            signup: nil
+        )
+    }
+
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        _ = phone
+        return SignupStartResponseDTO(
+            signupSessionId: "google-signup-session",
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: true,
+            phoneVerified: false,
+            emailResendAfterSeconds: 0,
+            phoneResendAfterSeconds: 0,
+            expiresInSeconds: 900,
+            message: "Phone number added"
+        )
+    }
+
     func logout() async throws {
         didLogout = true
     }
@@ -726,13 +784,15 @@ private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {
 private extension SignupSessionRecoveryResponseDTO {
     static func fixture(
         state: SignupSessionRecoveryStateDTO = .valid,
-        nextStep: SignupSessionNextStepDTO? = .verifyEmail
+        nextStep: SignupSessionNextStepDTO? = .verifyEmail,
+        emailVerified: Bool = false,
+        phoneMasked: String = "+91******3210"
     ) -> SignupSessionRecoveryResponseDTO {
         SignupSessionRecoveryResponseDTO(
             state: state,
             emailMasked: "aa***@example.com",
-            phoneMasked: "+91******3210",
-            emailVerified: false,
+            phoneMasked: phoneMasked,
+            emailVerified: emailVerified,
             phoneVerified: false,
             nextStep: nextStep,
             expiresAt: Date(timeIntervalSince1970: 1_788_400_000),

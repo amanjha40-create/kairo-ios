@@ -71,27 +71,27 @@ nonisolated enum ResumeProcessingStatus: String, Equatable, Sendable {
     var message: String {
         switch self {
         case .pendingUpload:
-            "Kairo is preparing a secure upload for your resume."
+            "KairoID is preparing a secure upload for your resume."
         case .uploaded:
-            "Your file is uploaded. Kairo is about to start parsing it."
+            "Your file is uploaded. KairoID is about to start parsing it."
         case .queued:
             "Your resume is queued for backend processing."
         case .extracting:
-            "Kairo is extracting structured information from your file."
+            "KairoID is extracting structured information from your file."
         case .extracted:
-            "Kairo is turning extracted content into reviewable candidate claims."
+            "KairoID is turning extracted content into reviewable candidate claims."
         case .parsing:
             "Review-first candidate claims are being prepared for your approval."
         case .needsReview:
             "Your parsed resume is ready. Review each claim before anything is imported."
         case .failed:
-            "Kairo couldn't parse this resume. You can retry or choose a different file."
+            "KairoID couldn't parse this resume. You can retry or choose a different file."
         case .cancelled:
             "This resume is no longer being processed."
         case .deleted:
             "This resume was removed."
         case .unknown:
-            "Kairo is processing your resume."
+            "KairoID is processing your resume."
         }
     }
 }

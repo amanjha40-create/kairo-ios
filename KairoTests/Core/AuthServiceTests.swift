@@ -364,6 +364,173 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(signupSessionID)
     }
 
+    func test_googleAuthorizationURLUsesBackendAuthoritativeHTTPSContract() async throws {
+        let authService = makeAuthService(tokenStore: InMemoryTokenStore())
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/google/url")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Cache-Control": "private, no-store"]
+                )),
+                Data(
+                    #"{"provider":"google","auth_url":"https://accounts.google.com/o/oauth2/v2/auth?client_id=public-client"}"#.utf8
+                )
+            )
+        }
+
+        let url = try await authService.googleAuthorizationURL()
+
+        XCTAssertEqual(url.host, "accounts.google.com")
+        XCTAssertEqual(url.scheme, "https")
+    }
+
+    func test_googleLoginHandoffExchangesOnlyOpaqueCodeAndPersistsReturnedTokens() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("stale-signup", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+        let code = String(repeating: "G", count: 43)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/google/handoff/exchange")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let json = try Self.jsonBody(from: request)
+            XCTAssertEqual(json["code"] as? String, code)
+            XCTAssertEqual(Set(json.keys), ["code"])
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(
+                    """
+                    {
+                      "outcome": "LOGIN_COMPLETE",
+                      "message": "Signed in successfully.",
+                      "tokens": {
+                        "access_token": "google-access",
+                        "refresh_token": "google-refresh",
+                        "token_type": "bearer",
+                        "expires_in": 3600
+                      },
+                      "signup": null
+                    }
+                    """.utf8
+                )
+            )
+        }
+
+        let response = try await authService.exchangeGoogleHandoff(code: code)
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+
+        XCTAssertEqual(response.outcome, .loginComplete)
+        XCTAssertEqual(accessToken, "google-access")
+        XCTAssertEqual(refreshToken, "google-refresh")
+        XCTAssertNil(signupSessionID)
+    }
+
+    func test_newGoogleIdentityRequiresPhoneAndCannotLeaveAuthenticatedTokens() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("stale-access", for: .accessToken)
+        try await tokenStore.save("stale-refresh", for: .refreshToken)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/google/handoff/exchange")
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Self.googlePhoneRequiredPayload
+            )
+        }
+
+        let response = try await authService.exchangeGoogleHandoff(code: String(repeating: "H", count: 43))
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+
+        XCTAssertEqual(response.outcome, .phoneVerificationRequired)
+        XCTAssertEqual(response.signup?.emailVerified, true)
+        XCTAssertNil(accessToken)
+        XCTAssertNil(refreshToken)
+        XCTAssertEqual(signupSessionID, "google-signup-session")
+    }
+
+    func test_googlePhoneCompletionUsesExistingSignupIdentityAndCanonicalPhone() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("google-signup-session", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/google/phone")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let json = try Self.jsonBody(from: request)
+            XCTAssertEqual(json["signup_session_id"] as? String, "google-signup-session")
+            XCTAssertEqual(json["phone"] as? String, "+919876543210")
+            XCTAssertEqual(Set(json.keys), ["signup_session_id", "phone"])
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Self.googlePhoneSignupPayload
+            )
+        }
+
+        let response = try await authService.startGooglePhoneVerification(phone: "9876543210")
+
+        XCTAssertEqual(response.signupSessionId, "google-signup-session")
+        XCTAssertEqual(response.phoneMasked, "+91******3210")
+    }
+
+    func test_sameEmailUnlinkedGoogleOutcomeFailsClosedWithoutCredentials() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("stale-access", for: .accessToken)
+        try await tokenStore.save("stale-refresh", for: .refreshToken)
+        try await tokenStore.save("stale-signup", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/google/handoff/exchange")
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(
+                    #"{"outcome":"ACCOUNT_LINKING_REQUIRED","message":"Sign in with your password.","tokens":null,"signup":null}"#.utf8
+                )
+            )
+        }
+
+        let response = try await authService.exchangeGoogleHandoff(code: String(repeating: "J", count: 43))
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+
+        XCTAssertEqual(response.outcome, .accountLinkingRequired)
+        XCTAssertNil(accessToken)
+        XCTAssertNil(refreshToken)
+        XCTAssertNil(signupSessionID)
+    }
+
     func test_completeSignupPersistsTokensAndClearsSignupSession() async throws {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("signup-session-123", for: .signupSessionID)
@@ -521,6 +688,51 @@ final class AuthServiceTests: XCTestCase {
               "email_masked": "a***@example.com",
               "phone_masked": "+91******3210",
               "message": "Verification code sent"
+            }
+            """.utf8
+        )
+    }
+
+    private nonisolated static var googlePhoneRequiredPayload: Data {
+        googlePhoneRequiredPayload(requiringMaskedPhone: false)
+    }
+
+    private nonisolated static func googlePhoneRequiredPayload(requiringMaskedPhone: Bool) -> Data {
+        Data(
+            """
+            {
+              "outcome": "PHONE_VERIFICATION_REQUIRED",
+              "message": "Add and verify a mobile number.",
+              "tokens": null,
+              "signup": {
+                "signup_session_id": "google-signup-session",
+                "email_masked": "a***@example.com",
+                "phone_masked": "\(requiringMaskedPhone ? "+91******3210" : "")",
+                "email_verified": true,
+                "phone_verified": false,
+                "email_resend_after_seconds": 0,
+                "phone_resend_after_seconds": 30,
+                "expires_in_seconds": 900,
+                "message": "Phone verification required"
+              }
+            }
+            """.utf8
+        )
+    }
+
+    private nonisolated static var googlePhoneSignupPayload: Data {
+        Data(
+            """
+            {
+              "signup_session_id": "google-signup-session",
+              "email_masked": "a***@example.com",
+              "phone_masked": "+91******3210",
+              "email_verified": true,
+              "phone_verified": false,
+              "email_resend_after_seconds": 0,
+              "phone_resend_after_seconds": 30,
+              "expires_in_seconds": 900,
+              "message": "Phone verification required"
             }
             """.utf8
         )

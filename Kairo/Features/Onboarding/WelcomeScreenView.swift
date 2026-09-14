@@ -120,12 +120,12 @@ private enum IntroPage: Int, CaseIterable, Identifiable {
         switch self {
         case .trust:
             [
-                "Build, own, and share professional trust that moves with you.",
-                "Once verified. Always yours."
+                ProductBrand.tagline,
+                "Build, own, and share professional trust that moves with you."
             ]
         case .betterWay:
             [
-                "Kairo helps you build a complete, verified profile that grows with your career.",
+                "KairoID helps you build a complete, verified profile that grows with your career.",
                 "No repetition. No hassle."
             ]
         case .solution:
@@ -294,15 +294,15 @@ private struct IntroPageView: View {
     private var topBar: some View {
         HStack(alignment: .top) {
             if page == .trust {
-                Image("KairoWordmark")
-                    .resizable()
-                    .scaledToFit()
+                Text(ProductBrand.name)
+                    .font(.system(size: 28, weight: .bold, design: .default))
+                    .foregroundStyle(IntroPalette.navy)
                     .frame(
                         width: metrics.wordmarkWidth,
                         height: metrics.wordmarkHeight,
                         alignment: .leading
                     )
-                    .accessibilityLabel("Kairo")
+                    .accessibilityLabel(ProductBrand.name)
                     .accessibilityIdentifier("onboarding.welcome.wordmark")
 
                 Spacer(minLength: 0)
@@ -490,7 +490,7 @@ private struct IntroTrustHero: View {
                             }
 
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Kairo Passport")
+                                Text("KairoID Passport")
                                     .font(.system(size: 21, weight: .bold, design: .rounded))
                                     .foregroundStyle(Color.white)
 
@@ -704,7 +704,7 @@ private struct IntroOutcomeHero: View {
                                     )
                             }
 
-                            Text("Kairo Passport")
+                            Text("KairoID Passport")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color.white)
 

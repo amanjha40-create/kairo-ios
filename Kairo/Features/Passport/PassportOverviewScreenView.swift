@@ -248,7 +248,7 @@ struct PassportOverviewScreenView: View {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your Trust Passport",
-                message: "Kairo is assembling your portable professional trust preview."
+                message: "KairoID is assembling your portable professional trust preview."
             )
         case .error(let errorState):
             KairoErrorStateView(
@@ -686,7 +686,7 @@ struct PassportOverviewScreenView: View {
             if pdfExportModel.isDownloading {
                 KairoLoadingStateView(
                     title: "Downloading Passport PDF",
-                    message: "Kairo is preparing a fresh, private export for this preview."
+                    message: "KairoID is preparing a fresh, private export for this preview."
                 )
                 .accessibilityIdentifier(KairoAccessibilityID.passportPDFLoading)
             } else {

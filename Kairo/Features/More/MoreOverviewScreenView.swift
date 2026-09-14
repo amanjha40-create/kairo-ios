@@ -162,7 +162,7 @@ struct MoreOverviewScreenView: View {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your account hub",
-                message: "Kairo is loading your live account settings."
+                message: "KairoID is loading your live account settings."
             )
         case .error(let errorState):
             KairoErrorStateView(
@@ -213,7 +213,7 @@ struct MoreOverviewScreenView: View {
                     if content.notificationPreferences.isEmpty {
                         KairoEmptyStateView(
                             title: "No notification preferences available",
-                            message: "Kairo did not return any candidate notification preferences for this account.",
+                            message: "KairoID did not return any candidate notification preferences for this account.",
                             systemImage: "bell.slash"
                         )
                     } else {
@@ -297,7 +297,7 @@ struct MoreOverviewScreenView: View {
                             MoreInformationSheetModel(
                                 title: "Accessibility",
                                 subtitle: "Helpful guidance for your device settings.",
-                                primaryMessage: "Kairo already respects your iPhone's VoiceOver, Dynamic Type, Dark Mode, and Reduce Motion settings. Larger Text and Reduce Motion can be adjusted in the iOS Settings app."
+                                primaryMessage: "KairoID already respects your iPhone's VoiceOver, Dynamic Type, Dark Mode, and Reduce Motion settings. Larger Text and Reduce Motion can be adjusted in the iOS Settings app."
                             )
                         )
                     }
@@ -421,7 +421,7 @@ struct MoreOverviewScreenView: View {
 
                 Text(
                     isLiveMode
-                        ? "Securely sign out of Kairo on this device. Kairo will revoke the stored refresh session when the backend accepts the logout request."
+                        ? "Securely sign out of KairoID on this device. KairoID will revoke the stored refresh session when the backend accepts the logout request."
                         : "Return to the local sign-in preview without contacting the backend."
                 )
                 .font(KairoTypography.body)
@@ -514,7 +514,7 @@ struct MoreOverviewScreenView: View {
                 MoreInformationSheetModel(
                     title: "Connected accounts",
                     subtitle: "Connected-account controls",
-                    primaryMessage: "Connected accounts are not supported by the candidate backend yet. Kairo does not currently offer social sign-in or account linking from this screen."
+                    primaryMessage: "Connected accounts are not supported by the candidate backend yet. KairoID does not currently offer social sign-in or account linking from this screen."
                 )
             )
         case "sessionsDevices":
@@ -531,7 +531,7 @@ struct MoreOverviewScreenView: View {
                 MoreInformationSheetModel(
                     title: "Privacy settings",
                     subtitle: "Privacy controls",
-                    primaryMessage: "The candidate backend does not currently expose additional account-level privacy settings beyond trust-score consent. Kairo will add truthful controls here when those routes exist."
+                    primaryMessage: "The candidate backend does not currently expose additional account-level privacy settings beyond trust-score consent. KairoID will add truthful controls here when those routes exist."
                 )
             )
         case "manageConsent":
@@ -564,7 +564,7 @@ struct MoreOverviewScreenView: View {
                     fallback: MoreInformationSheetModel(
                         title: "Help centre unavailable",
                         subtitle: "Help & support",
-                        primaryMessage: "Kairo couldn't open the configured Help centre on this device.",
+                        primaryMessage: "KairoID couldn't open the configured Help centre on this device.",
                         supportEmailAddress: appConfiguration.supportEmailAddress
                     )
                 )
@@ -580,17 +580,17 @@ struct MoreOverviewScreenView: View {
             }
         case "contactSupport":
             openSupportEmail(
-                subject: "Kairo Support Request",
+                subject: "KairoID Support Request",
                 fallbackTitle: "Contact support"
             )
         case "reportProblem":
             openSupportEmail(
-                subject: "Kairo Problem Report",
+                subject: "KairoID Problem Report",
                 fallbackTitle: "Report a problem"
             )
         case "giveFeedback":
             openSupportEmail(
-                subject: "Kairo Product Feedback",
+                subject: "KairoID Product Feedback",
                 fallbackTitle: "Give feedback"
             )
         default:
@@ -604,9 +604,9 @@ struct MoreOverviewScreenView: View {
             if case .populated(let content) = state.phase {
                 presentedModal = .information(
                     MoreInformationSheetModel(
-                        title: "About Kairo",
+                        title: "About KairoID",
                         subtitle: "Why portable professional trust matters.",
-                        primaryMessage: "Kairo is building portable professional trust so your verified identity, roles, and achievements can move with you.",
+                        primaryMessage: "KairoID is building portable professional trust so your verified identity, roles, and achievements can move with you.",
                         metadataRows: [
                             MoreMetadataRow(title: "App version", value: content.appVersion),
                             MoreMetadataRow(title: "Backend app version", value: content.backendAppVersion),
@@ -636,7 +636,7 @@ struct MoreOverviewScreenView: View {
                 MoreInformationSheetModel(
                     title: "Open-source licences",
                     subtitle: "Package acknowledgements",
-                    primaryMessage: "A browsable open-source licence screen is not bundled yet in this build. Kairo should add that before release."
+                    primaryMessage: "A browsable open-source licence screen is not bundled yet in this build. KairoID should add that before release."
                 )
             )
         default:
@@ -661,7 +661,7 @@ struct MoreOverviewScreenView: View {
             fallback: MoreInformationSheetModel(
                 title: title,
                 subtitle: "Legal document",
-                primaryMessage: "Kairo couldn't open the configured \(title) destination on this device."
+                primaryMessage: "KairoID couldn't open the configured \(title) destination on this device."
             )
         )
     }
@@ -675,7 +675,7 @@ struct MoreOverviewScreenView: View {
                 MoreInformationSheetModel(
                     title: fallbackTitle,
                     subtitle: "Support email",
-                    primaryMessage: "Kairo couldn't prepare the support email destination.",
+                    primaryMessage: "KairoID couldn't prepare the support email destination.",
                     supportEmailAddress: appConfiguration.supportEmailAddress
                 )
             )
@@ -846,16 +846,16 @@ struct MoreOverviewScreenView: View {
             case .api(let apiError):
                 return apiError.message
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .invalidResponse:
-                return "Kairo received an unexpected response. Please try again."
+                return "KairoID received an unexpected response. Please try again."
             case .invalidURL:
-                return "Kairo's settings configuration is invalid."
+                return "KairoID's settings configuration is invalid."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps account settings local."
             }
         case let sessionError as SessionServiceError:
-            return sessionError.errorDescription ?? "Kairo couldn't complete this account action."
+            return sessionError.errorDescription ?? "KairoID couldn't complete this account action."
         default:
             return error.localizedDescription
         }
@@ -1550,7 +1550,7 @@ private struct MoreSessionsSheetView: View {
                     if isLoading {
                         KairoLoadingStateView(
                             title: "Loading sessions",
-                            message: "Kairo is preparing your active account sessions."
+                            message: "KairoID is preparing your active account sessions."
                         )
                     } else if let errorMessage {
                         KairoErrorStateView(
@@ -1561,7 +1561,7 @@ private struct MoreSessionsSheetView: View {
                     } else if sessions.isEmpty {
                         KairoEmptyStateView(
                             title: "No sessions returned",
-                            message: "Kairo did not return any active sessions for this account.",
+                            message: "KairoID did not return any active sessions for this account.",
                             systemImage: "desktopcomputer.trianglebadge.exclamationmark"
                         )
                     } else {
@@ -1735,7 +1735,7 @@ private struct MoreConsentManagementSheetView: View {
                             Divider()
                             MoreStaticRow(
                                 title: "Consented at",
-                                subtitle: "When Kairo recorded your consent.",
+                                subtitle: "When KairoID recorded your consent.",
                                 value: absoluteDate(consentedAt),
                                 systemImage: "calendar"
                             )
@@ -1950,7 +1950,7 @@ private struct MoreDeleteAccountSheetView: View {
                             .font(KairoTypography.title2)
                             .foregroundStyle(KairoColors.danger)
 
-                        Text("This permanently deletes your Candidate account and eligible Kairo data. Some completed verification records may be retained only in anonymised form when the backend must preserve shared audit integrity.")
+                        Text("This permanently deletes your Candidate account and eligible KairoID data. Some completed verification records may be retained only in anonymised form when the backend must preserve shared audit integrity.")
                             .font(KairoTypography.body)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1993,7 +1993,7 @@ private struct MoreDeleteAccountSheetView: View {
                             onSubmit: submit
                         )
 
-                        Text("Kairo sends this password only to the authenticated deletion endpoint. It is not stored on this device.")
+                        Text("KairoID sends this password only to the authenticated deletion endpoint. It is not stored on this device.")
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2189,13 +2189,13 @@ private struct MoreConfirmationSheetView: View {
     private var message: String {
         switch confirmation {
         case .downloadMyData:
-            "Data export is not supported by the candidate backend yet. Kairo won't generate or send an export file from this build."
+            "Data export is not supported by the candidate backend yet. KairoID won't generate or send an export file from this build."
         case .signOut:
-            "Kairo will clear your local authenticated state on this device and attempt backend logout before returning you to the unauthenticated flow."
+            "KairoID will clear your local authenticated state on this device and attempt backend logout before returning you to the unauthenticated flow."
         case .withdrawConsent:
-            "Kairo will update your Trust Score consent using the backend's current account-settings contract."
+            "KairoID will update your Trust Score consent using the backend's current account-settings contract."
         case .revokeSession:
-            "Kairo will revoke this account session."
+            "KairoID will revoke this account session."
         }
     }
 

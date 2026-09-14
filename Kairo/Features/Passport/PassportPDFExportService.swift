@@ -30,13 +30,13 @@ nonisolated enum PassportPDFExportError: Error, Equatable, LocalizedError, Senda
     var errorDescription: String? {
         switch self {
         case .invalidContentType:
-            "Kairo received an unexpected file type instead of a Passport PDF."
+            "KairoID received an unexpected file type instead of a Passport PDF."
         case .emptyDocument:
-            "Kairo received an empty Passport PDF."
+            "KairoID received an empty Passport PDF."
         case .malformedDocument:
-            "Kairo received a Passport PDF that could not be opened safely."
+            "KairoID received a Passport PDF that could not be opened safely."
         case .temporaryStorageUnavailable:
-            "Kairo could not prepare temporary storage for the Passport PDF."
+            "KairoID could not prepare temporary storage for the Passport PDF."
         case .unavailableInDemoMode:
             "PDF export is unavailable in Demo Mode because Demo Mode never calls the live Passport service."
         }
@@ -50,7 +50,7 @@ protocol PassportPDFExportServiceProtocol: Sendable {
 }
 
 actor PassportPDFExportService: PassportPDFExportServiceProtocol {
-    nonisolated static let fallbackFilename = "Kairo-Trust-Passport.pdf"
+    nonisolated static let fallbackFilename = "KairoID-Trust-Passport.pdf"
 
     private let sessionService: any SessionServiceProtocol
     private let exportDirectoryURL: URL

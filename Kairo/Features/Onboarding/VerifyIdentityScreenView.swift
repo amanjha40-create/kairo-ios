@@ -4,6 +4,7 @@ struct VerifyIdentityScreenView: View {
     @Binding var createAccountDraft: CreateAccountDraft
     @Binding var state: VerifyIdentityFlowState
     let recoveredSession: SignupSessionRecoveryResponseDTO?
+    let googleSignup: SignupStartResponseDTO?
     let onStartOver: () -> Void
 
     @EnvironmentObject private var router: AppRouter
@@ -20,6 +21,8 @@ struct VerifyIdentityScreenView: View {
                 state.prepare(using: createAccountDraft)
                 if let recoveredSession, !state.usesAuthoritativeRecovery {
                     state.applyRecovery(recoveredSession)
+                } else if let googleSignup, !state.usesAuthoritativeRecovery {
+                    state.applyGooglePhoneSignup(googleSignup)
                 }
             }
     }
@@ -53,7 +56,7 @@ struct VerifyIdentityScreenView: View {
             layoutMode: .form,
             eyebrow: "Identity verification",
             title: "Verify your identity",
-            subtitle: "Confirm your email and mobile number so Kairo can secure your account and continue onboarding.",
+            subtitle: "Confirm your email and mobile number so KairoID can secure your account and continue onboarding.",
             titleAccessibilityIdentifier: OnboardingStep.verifyIdentity.titleAccessibilityIdentifier
         ) {
             EmptyView()
@@ -70,7 +73,7 @@ struct VerifyIdentityScreenView: View {
 
                     introductionStep(
                         title: "Verify your mobile number",
-                        message: "Then confirm your mobile number so Kairo can protect your account and recovery steps."
+                        message: "Then confirm your mobile number so KairoID can protect your account and recovery steps."
                     )
                 }
             }
@@ -79,12 +82,12 @@ struct VerifyIdentityScreenView: View {
                 primaryTitle: "Continue",
                 primaryAccessibilityIdentifier: KairoAccessibilityID.verifyIdentityIntroContinue,
                 primaryAction: { state.phase = .email },
-                secondaryTitle: recoveredSession == nil ? "Back" : "Start over",
-                secondaryAccessibilityIdentifier: recoveredSession == nil
+                secondaryTitle: recoveredSession == nil && googleSignup == nil ? "Back" : "Start over",
+                secondaryAccessibilityIdentifier: recoveredSession == nil && googleSignup == nil
                     ? KairoAccessibilityID.verifyIdentityIntroBack
                     : KairoAccessibilityID.verifyIdentityRecoveryStartOver,
                 secondaryAction: {
-                    if recoveredSession == nil {
+                    if recoveredSession == nil && googleSignup == nil {
                         router.goBackOnboarding(from: .verifyIdentity)
                     } else {
                         onStartOver()
@@ -526,18 +529,18 @@ private struct ContactVerificationScreenView: View {
                 case .rateLimited:
                     return "Too many attempts. Please try again shortly."
                 case .serviceUnavailable, .internalError:
-                    return "Kairo is temporarily unavailable. Please try again."
+                    return "KairoID is temporarily unavailable. Please try again."
                 case .unauthorized:
                     return "Your signup session expired. Please start again."
                 default:
                     return apiError.message
                 }
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .invalidResponse:
-                return "Kairo received an unexpected response. Please try again."
+                return "KairoID received an unexpected response. Please try again."
             case .invalidURL:
-                return "Kairo's API configuration is invalid."
+                return "KairoID's API configuration is invalid."
             case .unavailableInDemoMode:
                 return "Verification isn't available in this preview."
             }

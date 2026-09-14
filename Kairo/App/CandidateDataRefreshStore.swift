@@ -28,6 +28,10 @@ final class CandidateDataRefreshStore: ObservableObject {
     }
 
     func resetAfterAccountDeletion() {
+        resetForIdentityChange()
+    }
+
+    func resetForIdentityChange() {
         focusedVerificationRequestID = nil
         revision += 1
     }

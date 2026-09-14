@@ -365,9 +365,9 @@ nonisolated enum CareerDocumentServiceError: Error, LocalizedError, Equatable {
         case .emptyFile: "Choose a non-empty file."
         case .fileTooLarge: "Choose a file no larger than 20 MB."
         case .unsupportedFileType: "Choose a PDF, JPEG, or PNG file."
-        case .invalidUploadURL: "Kairo received an invalid secure upload destination."
+        case .invalidUploadURL: "KairoID received an invalid secure upload destination."
         case .storageUploadFailed: "The secure document upload did not complete. Try again."
-        case .invalidDownloadURL: "Kairo received an invalid secure document destination."
+        case .invalidDownloadURL: "KairoID received an invalid secure document destination."
         case .uploadUnavailable: "This record does not support adding a document in its current state."
         case .deleteUnavailable: "This document cannot be removed in its current state."
         }

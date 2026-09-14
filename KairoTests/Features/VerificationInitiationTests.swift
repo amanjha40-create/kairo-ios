@@ -329,7 +329,7 @@ final class VerificationInitiationTests: XCTestCase {
         VerificationInitiationSubject(
             id: id,
             kind: kind,
-            title: kind == .employment ? "BrightPath Technologies" : "Kairo University",
+            title: kind == .employment ? "BrightPath Technologies" : "KairoID University",
             subtitle: kind == .employment ? "People Operations Manager" : "MBA",
             verificationStatus: status,
             hasActiveRequest: hasActiveRequest

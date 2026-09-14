@@ -63,7 +63,7 @@ enum CareerDeleteRequest: Identifiable {
     var message: String {
         switch self {
         case .employment(let item):
-            "Delete \(item.company)? This change only completes after Kairo confirms it with the backend."
+            "Delete \(item.company)? This change only completes after KairoID confirms it with the backend."
         case .education(let item):
             "Delete \(item.institution)? This record will remain until the backend confirms the delete."
         case .certification(let item):
@@ -71,7 +71,7 @@ enum CareerDeleteRequest: Identifiable {
         case .project(let item):
             "Delete \(item.title)? This project stays visible unless the backend confirms the delete."
         case .skill(let item):
-            "Delete \(item.name)? This skill will disappear only after Kairo refetches the authoritative Career state."
+            "Delete \(item.name)? This skill will disappear only after KairoID refetches the authoritative Career state."
         }
     }
 

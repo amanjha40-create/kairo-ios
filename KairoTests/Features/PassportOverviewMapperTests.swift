@@ -145,7 +145,7 @@ final class PassportOverviewMapperTests: XCTestCase {
         XCTAssertEqual(errorState.title, "Trust Passport unavailable")
         XCTAssertEqual(
             errorState.message,
-            "Kairo received an unexpected Passport response. Please try again."
+            "KairoID received an unexpected Passport response. Please try again."
         )
     }
 

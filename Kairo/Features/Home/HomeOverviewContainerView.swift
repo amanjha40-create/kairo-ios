@@ -42,7 +42,7 @@ struct HomeOverviewContainerView: View {
                     .split(separator: " ")
                     .first
                     .map(String.init) ?? "there",
-                supportingCopy: "Kairo is preparing your latest trust snapshot.",
+                supportingCopy: "KairoID is preparing your latest trust snapshot.",
                 initials: initials(from: currentUser)
             )
         }

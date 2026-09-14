@@ -103,6 +103,30 @@ final class VerifyIdentityFlowStateTests: XCTestCase {
         XCTAssertTrue(state.mobile.isVerified)
     }
 
+    func test_googlePhoneSignupSkipsEmailAndResumesAtAuthoritativeMobileCode() {
+        var state = VerifyIdentityFlowState()
+
+        state.applyGooglePhoneSignup(SignupStartResponseDTO(
+            signupSessionId: "google-signup-session",
+            emailMasked: "am***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: true,
+            phoneVerified: false,
+            emailResendAfterSeconds: 0,
+            phoneResendAfterSeconds: 30,
+            expiresInSeconds: 900,
+            message: "Phone code sent"
+        ))
+
+        XCTAssertEqual(state.phase, .mobile)
+        XCTAssertTrue(state.email.isVerified)
+        XCTAssertTrue(state.email.isAuthoritativeContact)
+        XCTAssertEqual(state.mobile.contactValue, "+91******3210")
+        XCTAssertTrue(state.mobile.isAuthoritativeContact)
+        XCTAssertTrue(state.mobile.hasSentCode)
+        XCTAssertEqual(state.mobile.countdownRemaining, 30)
+    }
+
     func test_otpValidationRequiresSixDigits() {
         var state = ContactVerificationState(channel: .email, contactValue: "aman@example.com")
         state.beginSendingCode()

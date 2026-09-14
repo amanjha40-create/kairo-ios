@@ -70,6 +70,20 @@ private struct MissingAuthService: AuthServiceProtocol {
         fatalError("Missing auth service injection.")
     }
 
+    func googleAuthorizationURL() async throws -> URL {
+        fatalError("Missing auth service injection.")
+    }
+
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO {
+        _ = code
+        fatalError("Missing auth service injection.")
+    }
+
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        _ = phone
+        fatalError("Missing auth service injection.")
+    }
+
     func logout() async throws {
         fatalError("Missing auth service injection.")
     }

@@ -168,7 +168,7 @@ struct CareerOverviewScreenView: View {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your Career overview",
-                message: "Kairo is assembling your professional timeline preview."
+                message: "KairoID is assembling your professional timeline preview."
             )
         case .error(let errorState):
             KairoErrorStateView(

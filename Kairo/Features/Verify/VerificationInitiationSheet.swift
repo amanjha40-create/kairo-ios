@@ -168,7 +168,7 @@ struct VerificationInitiationSheet: View {
             } else if model.isLoading && model.eligibility == nil {
                 KairoLoadingStateView(
                     title: "Checking eligible records",
-                    message: "Kairo is checking your live Career records and active requests."
+                    message: "KairoID is checking your live Career records and active requests."
                 )
             } else {
                 selectionContent
@@ -183,7 +183,7 @@ struct VerificationInitiationSheet: View {
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                Text("Employment and education are supported by the current verification backend. Record status and duplicate checks come from Kairo before submission.")
+                Text("Employment and education are supported by the current verification backend. Record status and duplicate checks come from KairoID before submission.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -329,7 +329,7 @@ struct VerificationInitiationSheet: View {
                 Text("Your consent")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("Kairo will share only the selected Career claim fields and selected evidence with the verification workflow. The request first enters Kairo admin review; it is not marked verified by this action.")
+                Text("KairoID will share only the selected Career claim fields and selected evidence with the verification workflow. The request first enters KairoID admin review; it is not marked verified by this action.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -366,8 +366,8 @@ struct VerificationInitiationSheet: View {
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
                 Text(result.reusedExistingRequest
-                    ? "Kairo found the existing request and refreshed its authoritative status."
-                    : "Your request was submitted for Kairo review. Career and Verify will refresh from the backend.")
+                    ? "KairoID found the existing request and refreshed its authoritative status."
+                    : "Your request was submitted for KairoID review. Career and Verify will refresh from the backend.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -401,7 +401,7 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
         if let decodingError = error as? DecodingError {
             return .init(
                 title: "Response unavailable",
-                message: "Kairo could not read the verification response. No verified status was applied. Retry after refreshing. (\(decodingError.localizedDescription))"
+                message: "KairoID could not read the verification response. No verified status was applied. Retry after refreshing. (\(decodingError.localizedDescription))"
             )
         }
         if let networkError = error as? NetworkError {
@@ -411,7 +411,7 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
             case .transport(let message) where message.localizedCaseInsensitiveContains("timed out"):
                 return .init(title: "Request timed out", message: "The server did not confirm the request. Retry to reconcile with the authoritative backend state.")
             case .transport:
-                return .init(title: "Network unavailable", message: "Kairo could not reach the verification service. Check your connection and retry.")
+                return .init(title: "Network unavailable", message: "KairoID could not reach the verification service. Check your connection and retry.")
             case .invalidResponse:
                 return .init(title: "Invalid response", message: "The server did not return a usable verification response. No verified status was applied.")
             case .invalidURL, .unavailableInDemoMode:
@@ -424,7 +424,7 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
     private static func map(_ error: APIError, fallbackTitle: String) -> Self {
         let lowercased = error.message.lowercased()
         if lowercased.contains("organization") && (lowercased.contains("resolve") || lowercased.contains("unresolved")) {
-            return .init(title: "Organisation unresolved", message: "Kairo could not resolve this organisation yet. Check the contact and retry later.")
+            return .init(title: "Organisation unresolved", message: "KairoID could not resolve this organisation yet. Check the contact and retry later.")
         }
         if lowercased.contains("upload is not complete") || lowercased.contains("completed") && lowercased.contains("evidence") {
             return .init(title: "Evidence upload incomplete", message: "Finish uploading a supporting document, refresh Career, and retry.")

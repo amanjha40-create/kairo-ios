@@ -525,7 +525,7 @@ nonisolated enum CareerMutationErrorMapper {
             case .transport:
                 return CareerMutationPresentationError(
                     title: "You're offline",
-                    message: "Kairo couldn't reach your Career data. Check your connection and try again.",
+                    message: "KairoID couldn't reach your Career data. Check your connection and try again.",
                     fieldErrors: [:]
                 )
             case .api(let apiError):
@@ -541,13 +541,13 @@ nonisolated enum CareerMutationErrorMapper {
             case .invalidResponse:
                 return CareerMutationPresentationError(
                     title: fallbackTitle,
-                    message: "Kairo received an unexpected Career response. Please try again.",
+                    message: "KairoID received an unexpected Career response. Please try again.",
                     fieldErrors: [:]
                 )
             case .invalidURL:
                 return CareerMutationPresentationError(
                     title: fallbackTitle,
-                    message: "Kairo's Career configuration is invalid.",
+                    message: "KairoID's Career configuration is invalid.",
                     fieldErrors: [:]
                 )
             case .unavailableInDemoMode:

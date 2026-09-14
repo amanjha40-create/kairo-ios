@@ -33,7 +33,7 @@ struct ResumeImportScreenView: View {
             layoutMode: .form,
             eyebrow: "Upload resume",
             title: "Import your resume",
-            subtitle: "We'll organise claims from your resume so you can review them before adding anything to Kairo.",
+            subtitle: "We'll organise claims from your resume so you can review them before adding anything to KairoID.",
             titleAccessibilityIdentifier: KairoAccessibilityID.resumeImportPlaceholderTitle
         ) {
             EmptyView()
@@ -174,7 +174,7 @@ struct ResumeImportScreenView: View {
             Text(
                 isPreviewMode
                     ? "Demo Mode keeps only minimal file metadata in the current seeded session."
-                    : "Kairo will request a secure upload intent, upload your file without exposing your bearer token to storage, and confirm the checksum before parsing begins."
+                    : "KairoID will request a secure upload intent, upload your file without exposing your bearer token to storage, and confirm the checksum before parsing begins."
             )
             .font(KairoTypography.footnote)
             .foregroundStyle(KairoColors.textSecondary)
@@ -318,7 +318,7 @@ struct ResumeImportScreenView: View {
                 )
             } else {
                 KairoCard {
-                    Text("These are candidate-provided claims. Imported records remain unverified until Kairo verifies them separately.")
+                    Text("These are candidate-provided claims. Imported records remain unverified until KairoID verifies them separately.")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -628,7 +628,7 @@ struct ResumeImportScreenView: View {
         }
 
         state.setError(
-            "Import is taking longer than expected. Kairo will resume from backend state when you return.",
+            "Import is taking longer than expected. KairoID will resume from backend state when you return.",
             stage: .import
         )
     }
@@ -665,7 +665,7 @@ struct ResumeImportScreenView: View {
             }
 
             state.setError(
-                "Kairo couldn't open that file. Choose another resume to continue.",
+                "KairoID couldn't open that file. Choose another resume to continue.",
                 stage: .upload
             )
         }
@@ -689,7 +689,7 @@ struct ResumeImportScreenView: View {
         state.errorMessage = nil
         state.failureStage = nil
         state.statusTitleOverride = "Uploading your resume"
-        state.statusMessageOverride = "Kairo is securely uploading your file before backend processing starts."
+        state.statusMessageOverride = "KairoID is securely uploading your file before backend processing starts."
 
         let selection = ResumeImportPreparedSelection(
             file: selectedFile,
@@ -797,7 +797,7 @@ struct ResumeImportScreenView: View {
                 state.applyReviewSession(latest)
                 state.setError(
                     plan.blockers.isEmpty
-                        ? "Kairo needs updated review decisions before import can continue."
+                        ? "KairoID needs updated review decisions before import can continue."
                         : plan.blockers.map(userFacingBlocker).joined(separator: " "),
                     stage: .review
                 )
@@ -882,7 +882,7 @@ struct ResumeImportScreenView: View {
             case .importCompleted:
                 guard let completionResult = recovery.completionResult else {
                     state.setError(
-                        "Kairo refreshed the latest import state, but couldn't finish onboarding reconciliation yet.",
+                        "KairoID refreshed the latest import state, but couldn't finish onboarding reconciliation yet.",
                         stage: .onboardingCompletion
                     )
                     activeEditorItem = nil
@@ -907,7 +907,7 @@ struct ResumeImportScreenView: View {
                 state.applyReviewSession(recovery.reviewSession)
                 guard let importBatch = recovery.importBatch else {
                     state.setError(
-                        "Kairo is reconciling your import progress on the server. Please wait a moment and try again.",
+                        "KairoID is reconciling your import progress on the server. Please wait a moment and try again.",
                         stage: .import
                     )
                     activeEditorItem = nil
@@ -923,7 +923,7 @@ struct ResumeImportScreenView: View {
                     state.applyImportBatch(importBatch)
                 }
                 state.setError(
-                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                    "Your resume review changed on the server. KairoID refreshed the latest version so you can continue safely.",
                     stage: .review
                 )
             }
@@ -1042,7 +1042,7 @@ struct ResumeImportScreenView: View {
 
             guard let latestItem = latest.items.first(where: { $0.id == itemID }) else {
                 state.setError(
-                    "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                    "Your resume review changed on the server. KairoID refreshed the latest version so you can continue safely.",
                     stage: .review
                 )
                 activeEditorItem = nil
@@ -1067,7 +1067,7 @@ struct ResumeImportScreenView: View {
             activeEditorItem = nil
         } catch {
             state.setError(
-                "Your resume review changed on the server. Kairo refreshed the latest version so you can continue safely.",
+                "Your resume review changed on the server. KairoID refreshed the latest version so you can continue safely.",
                 stage: .review
             )
             activeEditorItem = nil
@@ -1082,13 +1082,13 @@ struct ResumeImportScreenView: View {
         if let networkError = error as? NetworkError {
             switch networkError {
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .api(let apiError):
                 return apiError.message
             case .invalidResponse:
-                return "Kairo received an unexpected resume response. Please try again."
+                return "KairoID received an unexpected resume response. Please try again."
             case .invalidURL:
-                return "Kairo's resume configuration is invalid."
+                return "KairoID's resume configuration is invalid."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps resume import local."
             }
@@ -1098,25 +1098,25 @@ struct ResumeImportScreenView: View {
     }
 
     private func onboardingCompletionMessage(for error: Error) -> String {
-        "Your approved resume claims are already saved. Kairo couldn't finish account setup yet. "
+        "Your approved resume claims are already saved. KairoID couldn't finish account setup yet. "
             + "Try again to complete setup without importing the resume a second time. "
             + message(for: error)
     }
 
     private func importFailureMessage(for batch: ResumeImportBatch) -> String {
         if batch.isPartiallyCompleted {
-            return "Kairo imported some approved claims, but some items still need your attention before onboarding can finish."
+            return "KairoID imported some approved claims, but some items still need your attention before onboarding can finish."
         }
 
         if batch.failedCount > 0 || batch.blockedCount > 0 {
-            return "Some resume claims still need attention before Kairo can finish the import. Review the latest items and try again."
+            return "Some resume claims still need attention before KairoID can finish the import. Review the latest items and try again."
         }
 
         if batch.incompleteCount > 0 {
             return "Some imported claims are incomplete. Review the latest items before continuing."
         }
 
-        return "Kairo couldn't finish that import. Review the latest claims and try again."
+        return "KairoID couldn't finish that import. Review the latest claims and try again."
     }
 
     private func userFacingBlocker(_ code: String) -> String {
@@ -1267,7 +1267,7 @@ private struct ResumeReviewEditorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    Text("Edit only the fields Kairo currently supports for resume review. Everything else stays exactly as parsed.")
+                    Text("Edit only the fields KairoID currently supports for resume review. Everything else stays exactly as parsed.")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

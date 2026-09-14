@@ -337,6 +337,20 @@ struct VerifyIdentityFlowState: Equatable, Sendable {
             phase = .introduction
         }
     }
+
+    mutating func applyGooglePhoneSignup(_ signup: SignupStartResponseDTO) {
+        email.applyAuthoritativeSignup(
+            maskedContact: signup.emailMasked,
+            isVerified: signup.emailVerified,
+            resendAfterSeconds: signup.emailResendAfterSeconds
+        )
+        mobile.applyAuthoritativeSignup(
+            maskedContact: signup.phoneMasked,
+            isVerified: signup.phoneVerified,
+            resendAfterSeconds: signup.phoneResendAfterSeconds
+        )
+        phase = .mobile
+    }
 }
 
 struct ContactVerificationState: Equatable, Sendable {
@@ -517,6 +531,24 @@ struct ContactVerificationState: Equatable, Sendable {
         } else {
             countdownRemaining = 0
         }
+    }
+
+    mutating func applyAuthoritativeSignup(
+        maskedContact: String,
+        isVerified: Bool,
+        resendAfterSeconds: Int
+    ) {
+        contactValue = maskedContact
+        otpCode = ""
+        serverErrorMessage = nil
+        isContactTouched = false
+        isOTPTouched = false
+        isSendingCode = false
+        isVerifying = false
+        self.isVerified = isVerified
+        isAuthoritativeContact = true
+        hasSentCode = !isVerified
+        countdownRemaining = isVerified ? 0 : max(resendAfterSeconds, 0)
     }
 
     mutating func failSendingCode(message: String) {

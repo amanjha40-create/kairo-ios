@@ -74,8 +74,7 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertTrue(router.handleIncomingURL(
             url,
-            allowedPublicPassportHosts: [host],
-            isDemoModeEnabled: false
+            configuration: makeConfiguration()
         ))
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.selectedTab, .home)
@@ -88,8 +87,7 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertTrue(router.handleIncomingURL(
             url,
-            allowedPublicPassportHosts: [host],
-            isDemoModeEnabled: false
+            configuration: makeConfiguration()
         ))
         XCTAssertEqual(router.rootDestination, .mainTabs)
         XCTAssertEqual(router.selectedTab, .career)
@@ -102,8 +100,7 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertTrue(router.handleIncomingURL(
             url,
-            allowedPublicPassportHosts: [host],
-            isDemoModeEnabled: false
+            configuration: makeConfiguration()
         ))
         XCTAssertEqual(router.publicPassportPresentation?.content, .unavailable)
     }
@@ -114,8 +111,7 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertFalse(router.handleIncomingURL(
             url,
-            allowedPublicPassportHosts: [host],
-            isDemoModeEnabled: false
+            configuration: makeConfiguration()
         ))
         XCTAssertNil(router.publicPassportPresentation)
     }
@@ -126,8 +122,7 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertFalse(router.handleIncomingURL(
             url,
-            allowedPublicPassportHosts: [host],
-            isDemoModeEnabled: true
+            configuration: makeConfiguration(isDemoModeEnabled: true)
         ))
         XCTAssertNil(router.publicPassportPresentation)
     }
@@ -160,5 +155,15 @@ final class PublicPassportRoutingTests: XCTestCase {
 
         XCTAssertTrue(production.publicPassportHosts.isEmpty)
         XCTAssertEqual(staging.publicPassportHosts, [host])
+    }
+
+    private func makeConfiguration(isDemoModeEnabled: Bool = false) -> AppConfiguration {
+        AppConfiguration(
+            buildConfiguration: .staging,
+            environment: .staging,
+            isDemoModeEnabled: isDemoModeEnabled,
+            apiBaseURL: APIConfiguration.baseURL(for: .staging),
+            keychainService: "com.kairoid.Kairo.tests.public-passport-routing"
+        )
     }
 }

@@ -85,8 +85,10 @@ struct LoginScreenView: View {
                 )
                 .disabled(!isFormValid || isSubmitting)
 
+                GoogleAuthenticationButton()
+
                 HStack(spacing: KairoSpacing.xxSmall) {
-                    Text("New to Kairo?")
+                    Text("New to KairoID?")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
 
@@ -129,11 +131,10 @@ struct LoginScreenView: View {
             }
 
             ToolbarItem(placement: .principal) {
-                Image("KairoWordmark")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 86)
-                    .accessibilityLabel("Kairo")
+                Text(ProductBrand.name)
+                    .font(KairoTypography.headline)
+                    .foregroundStyle(KairoColors.textPrimary)
+                    .accessibilityLabel(ProductBrand.name)
             }
         }
     }
@@ -205,16 +206,16 @@ struct LoginScreenView: View {
                 case .rateLimited:
                     return "Too many login attempts. Please try again shortly."
                 case .serviceUnavailable, .internalError:
-                    return "Kairo is temporarily unavailable. Please try again."
+                    return "KairoID is temporarily unavailable. Please try again."
                 default:
                     return apiError.message
                 }
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .invalidResponse:
-                return "Kairo received an unexpected response. Please try again."
+                return "KairoID received an unexpected response. Please try again."
             case .invalidURL:
-                return "Kairo's API configuration is invalid."
+                return "KairoID's API configuration is invalid."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps authentication local only."
             }

@@ -49,7 +49,7 @@ struct HomeOverviewScreenView: View {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your Home overview",
-                message: "Kairo is assembling your latest trust snapshot."
+                message: "KairoID is assembling your latest trust snapshot."
             )
         case .error(let errorState):
             KairoErrorStateView(
@@ -68,13 +68,12 @@ struct HomeOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Image("KairoWordmark")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 88, alignment: .leading)
-                        .accessibilityLabel("Kairo")
+                    Text(ProductBrand.name)
+                        .font(KairoTypography.title2)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .accessibilityLabel(ProductBrand.name)
 
-                    Text("Build trust with every verified record.")
+                    Text(ProductBrand.tagline)
                         .font(KairoTypography.caption)
                         .foregroundStyle(KairoColors.textSecondary)
                 }
@@ -129,6 +128,16 @@ struct HomeOverviewScreenView: View {
                 }
             }
 
+            Text("\(state.header.greeting) \(state.header.firstName)")
+                .font(KairoTypography.title)
+                .foregroundStyle(KairoColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(state.header.supportingCopy)
+                .font(KairoTypography.body)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
         }
     }
 
@@ -143,8 +152,8 @@ struct HomeOverviewScreenView: View {
     private func populatedContent(_ content: HomeOverviewContent) -> some View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
         recommendationCard(content.recommendation)
-        trustTasksSection(content.visibleTrustTasks)
         verificationRequestsSection(content.verificationRequests)
+        trustTasksSection(content.visibleTrustTasks)
         profileCompletionCard(content.profileCompletion)
         recentActivitySection(content.recentActivity)
         recentPassportViewsSection(
@@ -159,13 +168,13 @@ struct HomeOverviewScreenView: View {
 
         KairoEmptyStateView(
             title: "Your Home is ready to grow",
-            message: "Kairo will keep turning your verified career milestones into reusable professional trust.",
+            message: "KairoID will keep turning your verified career milestones into reusable professional trust.",
             systemImage: "sparkles"
         )
 
         recommendationCard(content.recommendation)
-        trustTasksSection(content.visibleTrustTasks)
         verificationRequestsSection(content.verificationRequests)
+        trustTasksSection(content.visibleTrustTasks)
         profileCompletionCard(content.profileCompletion)
         recentActivitySection(content.recentActivity)
         recentPassportViewsSection(
@@ -264,7 +273,7 @@ struct HomeOverviewScreenView: View {
     private func recommendationCard(_ recommendation: HomeRecommendation) -> some View {
         KairoCard {
             HomeSectionHeader(
-                title: "Kairo recommends",
+                title: "Needs your attention",
                 accessibilityIdentifier: KairoAccessibilityID.homeRecommendation
             )
 
@@ -287,7 +296,7 @@ struct HomeOverviewScreenView: View {
 
     private func trustTasksSection(_ tasks: [HomeTrustTask]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Build your trust")
+            Text("Career & profile progress")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 
@@ -340,7 +349,7 @@ struct HomeOverviewScreenView: View {
 
     private func verificationRequestsSection(_ requests: [HomeVerificationRequest]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Verification requests")
+            Text("In progress")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 
@@ -419,7 +428,7 @@ struct HomeOverviewScreenView: View {
 
     private func recentActivitySection(_ items: [HomeActivityItem]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Recent activity")
+            Text("Recent trust changes")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
                 .accessibilityIdentifier(KairoAccessibilityID.homeRecentActivity)

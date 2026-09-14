@@ -240,6 +240,40 @@ final class SessionServiceTests: XCTestCase {
         XCTAssertEqual(refreshCount, 1)
     }
 
+    func test_accountAToLogoutToAccountBReplacesAllKeychainSessionMaterial() async throws {
+        let tokenStore = InMemoryTokenStore()
+        let service = makeSessionService(tokenStore: tokenStore)
+        try await service.persistTokens(TokenResponseDTO(
+            accessToken: "account-a-access",
+            refreshToken: "account-a-refresh",
+            tokenType: "bearer",
+            expiresIn: 3600
+        ))
+
+        try await service.clearSession()
+
+        let clearedAccessToken = try await tokenStore.readToken(for: .accessToken)
+        let clearedRefreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let clearedSignupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+        XCTAssertNil(clearedAccessToken)
+        XCTAssertNil(clearedRefreshToken)
+        XCTAssertNil(clearedSignupSessionID)
+
+        try await service.persistTokens(TokenResponseDTO(
+            accessToken: "account-b-access",
+            refreshToken: "account-b-refresh",
+            tokenType: "bearer",
+            expiresIn: 3600
+        ))
+
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        XCTAssertEqual(accessToken, "account-b-access")
+        XCTAssertEqual(refreshToken, "account-b-refresh")
+        XCTAssertNotEqual(accessToken, "account-a-access")
+        XCTAssertNotEqual(refreshToken, "account-a-refresh")
+    }
+
     private func makeConfiguration() -> AppConfiguration {
         AppConfiguration(
             buildConfiguration: .development,

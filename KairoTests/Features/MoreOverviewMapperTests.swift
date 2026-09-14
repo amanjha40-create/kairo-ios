@@ -43,7 +43,7 @@ final class MoreOverviewMapperTests: XCTestCase {
         let state = MoreOverviewMapper.map(
             overview,
             destinations: MoreExternalDestinations(
-                supportEmailAddress: "support@kairoid.com",
+                supportEmailAddress: "contact@kairoid.com",
                 helpCenterURL: URL(string: "https://help.kairoid.com"),
                 termsOfServiceURL: URL(string: "https://www.kairoid.com/terms"),
                 privacyPolicyURL: URL(string: "https://www.kairoid.com/privacy"),
@@ -65,8 +65,8 @@ final class MoreOverviewMapperTests: XCTestCase {
         ])
         XCTAssertEqual(content.accountRows.first?.subtitle, "Email verified • Phone not verified")
         XCTAssertEqual(content.privacyRows.first(where: { $0.id == "manageConsent" })?.subtitle, "Trust Score consent is currently Granted.")
-        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Open Kairo's help resources.")
-        XCTAssertEqual(content.aboutRows.first(where: { $0.id == "privacyPolicy" })?.subtitle, "Open the latest Kairo document.")
+        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Open KairoID's help resources.")
+        XCTAssertEqual(content.aboutRows.first(where: { $0.id == "privacyPolicy" })?.subtitle, "Open the latest KairoID document.")
         XCTAssertFalse(content.accountRows.contains(where: { $0.id == "connectedAccounts" }))
         XCTAssertFalse(content.privacyRows.contains(where: { $0.id == "privacySettings" || $0.id == "downloadMyData" }))
         XCTAssertFalse(content.aboutRows.contains(where: { $0.id == "cookiePolicy" || $0.id == "openSourceLicences" }))
@@ -97,7 +97,7 @@ final class MoreOverviewMapperTests: XCTestCase {
         let state = MoreOverviewMapper.map(
             overview,
             destinations: MoreExternalDestinations(
-                supportEmailAddress: "support@kairoid.com",
+                supportEmailAddress: "contact@kairoid.com",
                 helpCenterURL: nil,
                 termsOfServiceURL: nil,
                 privacyPolicyURL: nil,
@@ -112,7 +112,7 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.notificationPreferences.first?.title, "Weekly Digest Digest")
         XCTAssertEqual(
             content.notificationPreferences.first?.subtitle,
-            "Control whether Kairo sends this notification."
+            "Control whether KairoID sends this notification."
         )
     }
 

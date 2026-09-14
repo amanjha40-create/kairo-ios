@@ -128,7 +128,7 @@ nonisolated struct PassportOverviewState: Equatable, Sendable {
             phase: .error(
                 PassportOverviewErrorState(
                     title: "Trust Passport unavailable",
-                    message: "Kairo could not prepare your Trust Passport preview. Try again when local fixture data is available."
+                    message: "KairoID could not prepare your Trust Passport preview. Try again when local fixture data is available."
                 )
             )
         )
@@ -220,11 +220,11 @@ nonisolated enum PassportVerificationStatus: String, CaseIterable, Equatable, Se
     var style: PassportStatusStyle {
         switch self {
         case .verified:
-            PassportStatusStyle(title: "Verified", symbol: "checkmark.seal.fill", tone: .verified)
+            PassportStatusStyle(title: ProductStatusLanguage.verified, symbol: "checkmark.seal.fill", tone: .verified)
         case .pendingVerification:
-            PassportStatusStyle(title: "Pending verification", symbol: "clock.badge.checkmark.fill", tone: .pending)
+            PassportStatusStyle(title: ProductStatusLanguage.pendingReview, symbol: "clock.badge.checkmark.fill", tone: .pending)
         case .notVerified:
-            PassportStatusStyle(title: "Not verified", symbol: "circle.dashed", tone: .neutral)
+            PassportStatusStyle(title: ProductStatusLanguage.candidateProvided, symbol: "person.crop.circle.badge.questionmark", tone: .neutral)
         case .complete:
             PassportStatusStyle(title: "Complete", symbol: "checkmark.circle.fill", tone: .accent)
         case .active:

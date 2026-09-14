@@ -138,7 +138,7 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
             case .transport:
                 return .init(
                     title: "Network unavailable",
-                    message: "Kairo could not reach Passport export. Check your connection and retry."
+                    message: "KairoID could not reach Passport export. Check your connection and retry."
                 )
             case .invalidResponse:
                 return .init(
@@ -148,7 +148,7 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
             case .invalidURL:
                 return .init(
                     title: "PDF export unavailable",
-                    message: "Kairo could not construct the Passport PDF request."
+                    message: "KairoID could not construct the Passport PDF request."
                 )
             case .unavailableInDemoMode:
                 return .init(
@@ -160,7 +160,7 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
 
         return .init(
             title: "PDF export failed",
-            message: "Kairo could not download this Passport PDF. Retry when your connection is available."
+            message: "KairoID could not download this Passport PDF. Retry when your connection is available."
         )
     }
 
@@ -189,7 +189,7 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
         case 500:
             return .init(
                 title: "PDF export failed",
-                message: "Kairo could not generate your Passport PDF. Retry shortly."
+                message: "KairoID could not generate your Passport PDF. Retry shortly."
             )
         case 503:
             return .init(

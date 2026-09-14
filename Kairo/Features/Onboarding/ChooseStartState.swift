@@ -18,7 +18,7 @@ enum ChooseStartOption: String, CaseIterable, Equatable, Hashable, Identifiable,
     var supportingCopy: String {
         switch self {
         case .importResume:
-            "Review extracted experience before adding it to Kairo."
+            "Review extracted experience before adding it to KairoID."
         case .buildProfileManually:
             "Answer four questions. Add records later from Career."
         }

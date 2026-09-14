@@ -352,7 +352,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         }
 
         if phase == .hydratingReview {
-            return "Kairo is restoring your authoritative resume review and its candidate claims."
+            return "KairoID is restoring your authoritative resume review and its candidate claims."
         }
 
         if let currentProcessingStatus {
@@ -361,13 +361,13 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
 
         switch phase {
         case .uploading:
-            return "Kairo is securely uploading your resume before processing begins."
+            return "KairoID is securely uploading your resume before processing begins."
         case .processingPreparing:
-            return "Kairo is preparing your uploaded file for backend parsing."
+            return "KairoID is preparing your uploaded file for backend parsing."
         case .processingOrganising:
-            return "Kairo is converting parsed content into reviewable candidate claims."
+            return "KairoID is converting parsed content into reviewable candidate claims."
         case .importing:
-            return "Kairo is importing only the claims you approved."
+            return "KairoID is importing only the claims you approved."
         default:
             return nil
         }
@@ -459,7 +459,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         } catch {
             selectedFile = nil
             selectedTemporaryFileURL = nil
-            errorMessage = "Kairo couldn't read that file. Choose another resume to continue."
+            errorMessage = "KairoID couldn't read that file. Choose another resume to continue."
             failureStage = .upload
             phase = .failed
             processingAttemptCount = 0
@@ -542,7 +542,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         case .processingOrganising:
             if shouldFailCurrentAttempt {
                 phase = .failed
-                errorMessage = "Kairo couldn't finish this local demo import. Retry to keep reviewing from the same resume, or choose another file."
+                errorMessage = "KairoID couldn't finish this local demo import. Retry to keep reviewing from the same resume, or choose another file."
                 failureStage = .parsing
             } else {
                 phase = .readyForReview
@@ -654,7 +654,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         failureStage = nil
         phase = .uploading
         statusTitleOverride = "Uploading your resume"
-        statusMessageOverride = "Kairo is securely uploading your resume before backend processing starts."
+        statusMessageOverride = "KairoID is securely uploading your resume before backend processing starts."
     }
 
     mutating func applyProcessingJob(_ job: ResumeProcessJob) {
@@ -742,7 +742,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         errorMessage = nil
         failureStage = nil
         statusTitleOverride = "Importing approved claims"
-        statusMessageOverride = "Kairo is importing only the resume claims you approved."
+        statusMessageOverride = "KairoID is importing only the resume claims you approved."
     }
 
     mutating func applyImportBatch(_ batch: ResumeImportBatch) {

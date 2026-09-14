@@ -14,8 +14,12 @@ struct PasswordResetFlowState: Equatable {
     var newPassword = ""
     var confirmPassword = ""
 
-    init(emailAddress: String = "") {
+    init(emailAddress: String = "", token: String? = nil) {
         self.emailAddress = emailAddress
+        if let token {
+            self.token = token
+            phase = .reset
+        }
     }
 
     mutating func showCheckEmail() {
@@ -130,7 +134,7 @@ struct PasswordResetErrorPresentation: Equatable {
                 )
             case .serviceUnavailable, .internalError:
                 return PasswordResetErrorPresentation(
-                    message: "Kairo is temporarily unavailable. Please try again.",
+                    message: "KairoID is temporarily unavailable. Please try again.",
                     offersNewReset: false
                 )
             default:
@@ -141,17 +145,17 @@ struct PasswordResetErrorPresentation: Equatable {
             }
         case .transport:
             return PasswordResetErrorPresentation(
-                message: "Kairo couldn't reach the network. Check your connection and try again.",
+                message: "KairoID couldn't reach the network. Check your connection and try again.",
                 offersNewReset: false
             )
         case .invalidResponse:
             return PasswordResetErrorPresentation(
-                message: "Kairo received an unexpected response. Please try again.",
+                message: "KairoID received an unexpected response. Please try again.",
                 offersNewReset: false
             )
         case .invalidURL:
             return PasswordResetErrorPresentation(
-                message: "Kairo's API configuration is invalid.",
+                message: "KairoID's API configuration is invalid.",
                 offersNewReset: false
             )
         case .unavailableInDemoMode:
@@ -204,6 +208,10 @@ struct PasswordResetFlowView: View {
         _state = State(initialValue: PasswordResetFlowState(emailAddress: initialEmail))
     }
 
+    init(initialToken: String) {
+        _state = State(initialValue: PasswordResetFlowState(token: initialToken))
+    }
+
     var body: some View {
         Group {
             switch state.phase {
@@ -227,7 +235,7 @@ struct PasswordResetFlowView: View {
             layoutMode: .form,
             eyebrow: "Account recovery",
             title: "Reset your password",
-            subtitle: "Enter the email linked to your Kairo account. We’ll send you a password-reset email.",
+            subtitle: "Enter the email linked to your KairoID account. We’ll send you a password-reset email.",
             titleAccessibilityIdentifier: KairoAccessibilityID.passwordResetRequestTitle
         ) {
             EmptyView()

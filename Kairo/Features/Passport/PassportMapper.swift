@@ -16,7 +16,7 @@ nonisolated enum PassportOverviewMapper {
             timeline: .unavailable(
                 PassportUnavailableSectionState(
                     title: "Trust timeline not available yet",
-                    message: "Kairo's owner Passport response does not currently provide a unified activity timeline."
+                    message: "KairoID's owner Passport response does not currently provide a unified activity timeline."
                 )
             )
         )
@@ -34,7 +34,7 @@ nonisolated enum PassportOverviewMapper {
             return .error(
                 header: header,
                 title: "Trust Passport unavailable",
-                message: "Kairo received an unexpected Passport response. Please try again."
+                message: "KairoID received an unexpected Passport response. Please try again."
             )
         }
 
@@ -42,7 +42,7 @@ nonisolated enum PassportOverviewMapper {
             return .error(
                 header: header,
                 title: "You're offline",
-                message: "Kairo couldn't reach your Trust Passport. Check your connection and try again."
+                message: "KairoID couldn't reach your Trust Passport. Check your connection and try again."
             )
         }
 
@@ -58,19 +58,19 @@ nonisolated enum PassportOverviewMapper {
                 return .error(
                     header: header,
                     title: "Trust Passport unavailable",
-                    message: "Kairo received an unexpected Passport response. Please try again."
+                    message: "KairoID received an unexpected Passport response. Please try again."
                 )
             case .invalidURL:
                 return .error(
                     header: header,
                     title: "Trust Passport unavailable",
-                    message: "Kairo's Passport configuration is invalid."
+                    message: "KairoID's Passport configuration is invalid."
                 )
             case .transport, .unavailableInDemoMode:
                 return .error(
                     header: header,
                     title: "You're offline",
-                    message: "Kairo couldn't reach your Trust Passport. Check your connection and try again."
+                    message: "KairoID couldn't reach your Trust Passport. Check your connection and try again."
                 )
             }
         }
@@ -331,13 +331,13 @@ nonisolated enum PassportOverviewMapper {
     ) -> String {
         switch trustScore.status {
         case .consentRequired:
-            return "Kairo needs your consent before it can calculate and share your Trust Score."
+            return "KairoID needs your consent before it can calculate and share your Trust Score."
         case .incompleteVerification:
             return "Verify more of your professional history to unlock your Trust Score."
         case .calculated:
-            return "Kairo has not provided a Trust Score value for this Passport yet."
+            return "KairoID has not provided a Trust Score value for this Passport yet."
         case .criticalManualFraudReview:
-            return trustScore.manualReviewReason ?? "Kairo is reviewing this Trust Score before it can be shared."
+            return trustScore.manualReviewReason ?? "KairoID is reviewing this Trust Score before it can be shared."
         }
     }
 
@@ -361,13 +361,13 @@ nonisolated enum PassportOverviewMapper {
     ) -> String {
         switch trustScore.status {
         case .consentRequired:
-            return "Kairo needs your consent before it can calculate and share your Trust Score."
+            return "KairoID needs your consent before it can calculate and share your Trust Score."
         case .incompleteVerification:
             return "Verify more of your employment, education, and credentials to strengthen your Trust Score."
         case .calculated:
             return "Your Trust Score reflects the verification progress across your identity and professional history."
         case .criticalManualFraudReview:
-            return trustScore.manualReviewReason ?? "Kairo is reviewing this Trust Score before it can be shared."
+            return trustScore.manualReviewReason ?? "KairoID is reviewing this Trust Score before it can be shared."
         }
     }
 

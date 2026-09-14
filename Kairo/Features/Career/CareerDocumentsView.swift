@@ -34,7 +34,7 @@ struct CareerDocumentsView: View {
                     }
 
                     if isLoading {
-                        KairoLoadingStateView(title: "Loading documents", message: "Kairo is fetching private document metadata.")
+                        KairoLoadingStateView(title: "Loading documents", message: "KairoID is fetching private document metadata.")
                     } else if documents.isEmpty {
                         KairoEmptyStateView(
                             title: "No documents attached",

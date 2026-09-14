@@ -197,7 +197,7 @@ struct PassportShareManagementSheet: View {
             Text("Share on your terms")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Each link is created and controlled by Kairo. Choose the visible Passport sections, set an expiry, and revoke access whenever needed.")
+            Text("Each link is created and controlled by KairoID. Choose the visible Passport sections, set an expiry, and revoke access whenever needed.")
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -230,7 +230,7 @@ struct PassportShareManagementSheet: View {
         if model.isLoading, model.shares.isEmpty {
             KairoLoadingStateView(
                 title: "Loading Passport shares",
-                message: "Kairo is fetching your authoritative share history."
+                message: "KairoID is fetching your authoritative share history."
             )
         } else if model.shares.isEmpty {
             KairoEmptyStateView(
@@ -424,7 +424,7 @@ struct PassportShareCreateView: View {
                 Text(creation.share.permissions.conciseSummary)
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
-                Text("The public URL is returned only once. Copy or share it now; Kairo does not reconstruct it from share history.")
+                Text("The public URL is returned only once. Copy or share it now; KairoID does not reconstruct it from share history.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -452,8 +452,8 @@ struct PassportShareCreateView: View {
 
                 ShareLink(
                     item: creation.publicURL,
-                    subject: Text("My Kairo Trust Passport"),
-                    message: Text("Here is my Kairo Trust Passport.")
+                    subject: Text("My KairoID Trust Passport"),
+                    message: Text("Here is my KairoID Trust Passport.")
                 ) {
                     Label("Share", systemImage: "square.and.arrow.up")
                         .font(KairoTypography.headline)
@@ -902,7 +902,7 @@ private struct PassportShareQRCodeView: View {
                 } else {
                     KairoErrorStateView(
                         title: "QR unavailable",
-                        message: "Kairo could not render this public Passport URL as a QR code."
+                        message: "KairoID could not render this public Passport URL as a QR code."
                     )
                 }
                 Text("Scan to open this public Passport. The QR contains only the same public URL shown after creation.")
@@ -959,7 +959,7 @@ struct PassportSharePresentationError: Identifiable, Equatable {
             _ = decodingError
             return .init(
                 title: "Response unavailable",
-                message: "Kairo could not read the authoritative Passport share response. No local share state was created."
+                message: "KairoID could not read the authoritative Passport share response. No local share state was created."
             )
         }
         if let networkError = error as? NetworkError {
@@ -969,11 +969,11 @@ struct PassportSharePresentationError: Identifiable, Equatable {
             case .transport(let message) where message.localizedCaseInsensitiveContains("timed out"):
                 return .init(title: "Request timed out", message: "The server did not confirm the change. Refresh the share list before retrying.")
             case .transport:
-                return .init(title: "Network unavailable", message: "Kairo could not reach Passport sharing. Check your connection and retry.")
+                return .init(title: "Network unavailable", message: "KairoID could not reach Passport sharing. Check your connection and retry.")
             case .invalidResponse:
                 return .init(title: "Invalid response", message: "The server did not return a usable Passport sharing response.")
             case .invalidURL:
-                return .init(title: fallbackTitle, message: "Kairo could not construct the Passport sharing request URL.")
+                return .init(title: fallbackTitle, message: "KairoID could not construct the Passport sharing request URL.")
             case .unavailableInDemoMode:
                 return .init(title: "Demo data unavailable", message: "Demo Mode cannot call staging Passport sharing services.")
             }

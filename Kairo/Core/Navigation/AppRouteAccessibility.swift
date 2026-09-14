@@ -13,6 +13,14 @@ extension CandidateTab {
 }
 
 nonisolated enum KairoAccessibilityID {
+    static let googleAuthenticationStart = "auth.google.start"
+    static let googleAuthenticationHandoff = "auth.google.handoff"
+    static let googleAuthenticationRetry = "auth.google.retry"
+    static let googleAuthenticationCancel = "auth.google.cancel"
+    static let googleAuthenticationError = "auth.google.error"
+    static let googlePhoneCompletionTitle = "auth.google.phone.title"
+    static let googlePhoneCompletionPhone = "auth.google.phone.number"
+    static let googlePhoneCompletionSubmit = "auth.google.phone.submit"
     static let passwordResetForgotPassword = "auth.passwordReset.forgotPassword"
     static let passwordResetRequestScreen = "auth.passwordReset.request.screen"
     static let passwordResetRequestTitle = "auth.passwordReset.request.title"

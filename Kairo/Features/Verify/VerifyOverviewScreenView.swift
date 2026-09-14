@@ -56,7 +56,7 @@ struct VerifyOverviewScreenView: View {
     var body: some View {
         KairoScreenContainer(
             title: "Verify",
-            subtitle: "Track requests Kairo is reviewing, dispatching, or finalizing.",
+            subtitle: "Track requests KairoID is reviewing, dispatching, or finalizing.",
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
             supportLine
@@ -108,7 +108,7 @@ struct VerifyOverviewScreenView: View {
         case .loading:
             KairoLoadingStateView(
                 title: "Preparing your Trust Center",
-                message: "Kairo is assembling your latest verification requests."
+                message: "KairoID is assembling your latest verification requests."
             )
         case .error(let errorState):
             KairoErrorStateView(
@@ -158,7 +158,7 @@ struct VerifyOverviewScreenView: View {
                         .font(KairoTypography.headline)
                         .foregroundStyle(KairoColors.textPrimary)
 
-                    Text("Prepare the part of your profile you want Kairo to verify next, then come back here as live verification requests become available.")
+                    Text("Prepare the part of your profile you want KairoID to verify next, then come back here as live verification requests become available.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -356,7 +356,7 @@ struct VerifyOverviewScreenView: View {
 
             if suggestions.isEmpty {
                 KairoCard {
-                    Text("Kairo will suggest more verification opportunities here as live verification coverage expands.")
+                    Text("KairoID will suggest more verification opportunities here as live verification coverage expands.")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -494,7 +494,7 @@ struct VerifyOverviewScreenView: View {
             focusedRequestPresentedHandler?(focusedRequestID)
             actionError = VerifyActionError(
                 title: "Request no longer available",
-                message: "Kairo opened your current verification list because that request could not be found. Pull to refresh if its status changed recently."
+                message: "KairoID opened your current verification list because that request could not be found. Pull to refresh if its status changed recently."
             )
             return
         }
@@ -590,7 +590,7 @@ struct VerifyOverviewScreenView: View {
             if requestActionHandler == nil {
                 VerifySimpleSheet(
                     title: "Provide information",
-                    message: "This local placeholder confirms where Kairo will request extra evidence or clarification for \(request(for: requestID)?.organization ?? "this verification") in a later milestone."
+                    message: "This local placeholder confirms where KairoID will request extra evidence or clarification for \(request(for: requestID)?.organization ?? "this verification") in a later milestone."
                 )
             } else {
                 VerifyProvideInformationSheet(
@@ -933,7 +933,7 @@ private struct VerifyProvideInformationSheet: View {
                         .font(KairoTypography.title2)
                         .foregroundStyle(KairoColors.textPrimary)
 
-                    Text("Share the clarification Kairo requested for \(organization).")
+                    Text("Share the clarification KairoID requested for \(organization).")
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

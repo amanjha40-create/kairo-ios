@@ -13,6 +13,9 @@ protocol AuthServiceProtocol: Sendable {
     func login(email: String, password: String) async throws -> TokenResponseDTO
     func requestPasswordReset(email: String) async throws -> PasswordResetMessageDTO
     func resetPassword(token: String, newPassword: String, confirmPassword: String) async throws -> PasswordResetMessageDTO
+    func googleAuthorizationURL() async throws -> URL
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO
     func logout() async throws
     func currentUser() async throws -> UserPublicDTO
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO
@@ -163,7 +166,7 @@ actor AuthService: AuthServiceProtocol {
         newPassword: String,
         confirmPassword: String
     ) async throws -> PasswordResetMessageDTO {
-        try await postJSON(
+        let response: PasswordResetMessageDTO = try await postJSON(
             path: "/auth/reset-password",
             body: ResetPasswordRequestDTO(
                 token: token,
@@ -171,6 +174,79 @@ actor AuthService: AuthServiceProtocol {
                 confirmPassword: confirmPassword
             )
         )
+        try await sessionService.clearSession()
+        return response
+    }
+
+    func googleAuthorizationURL() async throws -> URL {
+        let data = try await networkClient.send(
+            NetworkRequest(
+                path: "/auth/google/url",
+                headers: [
+                    "Accept": "application/json",
+                    "Cache-Control": "no-store",
+                    "X-Request-ID": UUID().uuidString,
+                    "X-Correlation-ID": UUID().uuidString
+                ]
+            )
+        )
+        let response = try APIJSONCoder.makeDecoder().decode(
+            GoogleAuthorizationURLResponseDTO.self,
+            from: data
+        )
+        guard
+            response.provider.lowercased() == "google",
+            let url = URL(string: response.authURL),
+            url.scheme?.lowercased() == "https",
+            url.host?.lowercased() == "accounts.google.com"
+        else {
+            throw NetworkError.invalidResponse
+        }
+        return url
+    }
+
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO {
+        let response: GoogleHandoffExchangeResponseDTO = try await postJSON(
+            path: "/auth/google/handoff/exchange",
+            body: GoogleHandoffExchangeRequestDTO(code: code)
+        )
+
+        switch response.outcome {
+        case .loginComplete:
+            guard let tokens = response.tokens, response.signup == nil else {
+                throw NetworkError.invalidResponse
+            }
+            try await sessionService.persistTokens(tokens)
+            try await sessionService.clearSignupSessionID()
+        case .phoneVerificationRequired:
+            guard let signup = response.signup, response.tokens == nil else {
+                throw NetworkError.invalidResponse
+            }
+            try await sessionService.clearSession()
+            try await sessionService.storeSignupSessionID(signup.signupSessionId)
+        case .accountLinkingRequired, .authFailed:
+            guard response.tokens == nil, response.signup == nil else {
+                throw NetworkError.invalidResponse
+            }
+            try await sessionService.clearSession()
+        }
+
+        return response
+    }
+
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        guard let e164Phone = CreateAccountValidation.e164PhoneNumber(phone) else {
+            throw NetworkError.invalidResponse
+        }
+        let response: SignupStartResponseDTO = try await postJSON(
+            path: "/auth/signup/google/phone",
+            body: GooglePhoneStartRequestDTO(
+                signupSessionID: try await requireSignupSessionID(),
+                phone: e164Phone
+            )
+        )
+        try await sessionService.storeSignupSessionID(response.signupSessionId)
+        return response
     }
 
     func logout() async throws {
@@ -416,7 +492,22 @@ actor DemoAuthService: AuthServiceProtocol {
         confirmPassword: String
     ) async throws -> PasswordResetMessageDTO {
         _ = (token, newPassword, confirmPassword)
+        try await sessionService.clearSession()
         return PasswordResetMessageDTO(message: "Password reset successful.")
+    }
+
+    func googleAuthorizationURL() async throws -> URL {
+        throw NetworkError.unavailableInDemoMode
+    }
+
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO {
+        _ = code
+        throw NetworkError.unavailableInDemoMode
+    }
+
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        _ = phone
+        throw NetworkError.unavailableInDemoMode
     }
 
     func logout() async throws {
@@ -646,6 +737,7 @@ actor UITestAuthService: AuthServiceProtocol {
 
         switch configuration.passwordResetCompletionResult {
         case .success:
+            try await sessionService.clearSession()
             return PasswordResetMessageDTO(message: "Password reset successful.")
         case .invalidToken:
             throw NetworkError.api(APIError(
@@ -675,6 +767,43 @@ actor UITestAuthService: AuthServiceProtocol {
                 validationDetails: []
             ))
         }
+    }
+
+    func googleAuthorizationURL() async throws -> URL {
+        URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+    }
+
+    func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO {
+        _ = code
+        let tokens = TokenResponseDTO(
+            accessToken: "ui-test-google-access-token",
+            refreshToken: "ui-test-google-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600
+        )
+        try await sessionService.persistTokens(tokens)
+        try await sessionService.clearSignupSessionID()
+        return GoogleHandoffExchangeResponseDTO(
+            outcome: .loginComplete,
+            message: "Signed in successfully.",
+            tokens: tokens,
+            signup: nil
+        )
+    }
+
+    func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        _ = phone
+        return SignupStartResponseDTO(
+            signupSessionId: "ui-test-google-signup-session",
+            emailMasked: "aa***@example.com",
+            phoneMasked: "+91******3210",
+            emailVerified: true,
+            phoneVerified: false,
+            emailResendAfterSeconds: 0,
+            phoneResendAfterSeconds: 0,
+            expiresInSeconds: 900,
+            message: "Phone number added"
+        )
     }
 
     func logout() async throws {

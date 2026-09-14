@@ -103,7 +103,7 @@ final class APIDecodingTests: XCTestCase {
 
         XCTAssertEqual(error?.statusCode, 503)
         XCTAssertEqual(error?.code, .serviceUnavailable)
-        XCTAssertEqual(error?.message, "Kairo is temporarily unavailable. Please try again.")
+        XCTAssertEqual(error?.message, "KairoID is temporarily unavailable. Please try again.")
         XCTAssertEqual(error?.fieldErrors, [:])
     }
 

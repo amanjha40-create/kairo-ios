@@ -69,7 +69,7 @@ struct TrustScoreDetailView: View {
         if isLoading, score == nil {
             KairoLoadingStateView(
                 title: "Loading Trust Score",
-                message: "Kairo is fetching the current backend-calculated score and explanation."
+                message: "KairoID is fetching the current backend-calculated score and explanation."
             )
         } else if let score {
             scoreSummary(score)
@@ -80,7 +80,7 @@ struct TrustScoreDetailView: View {
         } else {
             KairoErrorStateView(
                 title: "Trust Score unavailable",
-                message: errorMessage ?? "Kairo could not load your Trust Score.",
+                message: errorMessage ?? "KairoID could not load your Trust Score.",
                 retryAction: { Task { await load(showLoading: true) } }
             )
         }
@@ -186,7 +186,7 @@ struct TrustScoreDetailView: View {
                 Text("Your consent is required")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("Kairo calculates your Trust Score from backend verification outcomes. The app never calculates or estimates this score on your device.")
+                Text("KairoID calculates your Trust Score from backend verification outcomes. The app never calculates or estimates this score on your device.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -347,9 +347,9 @@ struct TrustScoreDetailView: View {
         if let networkError = error as? NetworkError {
             switch networkError {
             case .api(let apiError): return apiError.message
-            case .transport: return "Kairo could not reach the Trust Score service. Check your connection and try again."
-            case .invalidResponse: return "Kairo received an unexpected Trust Score response."
-            case .invalidURL: return "Kairo's Trust Score configuration is invalid."
+            case .transport: return "KairoID could not reach the Trust Score service. Check your connection and try again."
+            case .invalidResponse: return "KairoID received an unexpected Trust Score response."
+            case .invalidURL: return "KairoID's Trust Score configuration is invalid."
             case .unavailableInDemoMode: return "This action is unavailable in Demo Mode."
             }
         }
@@ -380,9 +380,9 @@ private enum ConsentConfirmation: Equatable {
     var message: String {
         switch self {
         case .grant:
-            "Kairo will use your verified identity, employment, and education outcomes to calculate an explainable Trust Score."
+            "KairoID will use your verified identity, employment, and education outcomes to calculate an explainable Trust Score."
         case .withdraw:
-            "Kairo will stop showing your Trust Score where consent is required. Existing audit snapshots may be retained for integrity."
+            "KairoID will stop showing your Trust Score where consent is required. Existing audit snapshots may be retained for integrity."
         }
     }
 }

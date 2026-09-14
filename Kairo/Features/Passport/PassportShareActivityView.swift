@@ -133,7 +133,7 @@ struct PassportShareActivitySheet: View {
             Text("Authoritative Passport views")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Counts and last-viewed times come from Kairo's share analytics. Opening management screens never creates or increments a view.")
+            Text("Counts and last-viewed times come from KairoID's share analytics. Opening management screens never creates or increments a view.")
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -145,7 +145,7 @@ struct PassportShareActivitySheet: View {
         if model.isLoading, model.items.isEmpty {
             KairoLoadingStateView(
                 title: "Loading Share Activity",
-                message: "Kairo is fetching the latest share-level view summaries."
+                message: "KairoID is fetching the latest share-level view summaries."
             )
         } else if model.items.isEmpty {
             KairoEmptyStateView(

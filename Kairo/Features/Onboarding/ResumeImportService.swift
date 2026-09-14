@@ -46,13 +46,13 @@ enum ResumeImportServiceError: Error, Equatable, LocalizedError, Sendable {
         case .fileTooLarge:
             "Your resume must be 10 MB or smaller."
         case .inaccessibleFile:
-            "Kairo couldn't read that file. Choose another resume to continue."
+            "KairoID couldn't read that file. Choose another resume to continue."
         case .storageUploadFailed:
-            "Kairo couldn't upload that resume. Check your connection and try again."
+            "KairoID couldn't upload that resume. Check your connection and try again."
         case .importBlocked(let message):
             message
         case .onboardingIncomplete:
-            "Kairo saved your resume import, but onboarding is still incomplete. Please try again."
+            "KairoID saved your resume import, but onboarding is still incomplete. Please try again."
         case .reviewRecovery(let failure):
             failure.errorDescription
         }
@@ -72,21 +72,21 @@ nonisolated enum ResumeReviewRecoveryFailure: Error, Equatable, LocalizedError, 
     var errorDescription: String? {
         switch self {
         case .conflict:
-            "Your resume review changed while Kairo was restoring it. Retry to load the latest review."
+            "Your resume review changed while KairoID was restoring it. Retry to load the latest review."
         case .invalidState:
             "This resume is not ready for review yet. Retry after processing finishes."
         case .rateLimited:
-            "Kairo is restoring too many resume reviews right now. Wait a moment, then retry."
+            "KairoID is restoring too many resume reviews right now. Wait a moment, then retry."
         case .serverUnavailable:
-            "Kairo couldn't restore your resume review right now. Retry in a moment."
+            "KairoID couldn't restore your resume review right now. Retry in a moment."
         case .transport:
-            "Kairo couldn't reach the network while restoring your review. Check your connection and retry."
+            "KairoID couldn't reach the network while restoring your review. Check your connection and retry."
         case .invalidResponse:
-            "Kairo received an unexpected review response. Retry to restore your review."
+            "KairoID received an unexpected review response. Retry to restore your review."
         case .missingItems:
-            "Kairo restored the review session, but its authoritative review items are unavailable. Retry to load them."
+            "KairoID restored the review session, but its authoritative review items are unavailable. Retry to load them."
         case .unexpected:
-            "Kairo couldn't restore your authoritative resume review. Retry to continue."
+            "KairoID couldn't restore your authoritative resume review. Retry to continue."
         }
     }
 }

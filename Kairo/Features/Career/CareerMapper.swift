@@ -23,7 +23,7 @@ enum CareerOverviewMapper {
             return .error(
                 summary: summary,
                 title: "You're offline",
-                message: "Kairo couldn't reach your Career data. Check your connection and try again."
+                message: "KairoID couldn't reach your Career data. Check your connection and try again."
             )
         }
 
@@ -39,19 +39,19 @@ enum CareerOverviewMapper {
                 return .error(
                     summary: summary,
                     title: "Career overview unavailable",
-                    message: "Kairo received an unexpected Career response. Please try again."
+                    message: "KairoID received an unexpected Career response. Please try again."
                 )
             case .invalidURL:
                 return .error(
                     summary: summary,
                     title: "Career overview unavailable",
-                    message: "Kairo's Career configuration is invalid."
+                    message: "KairoID's Career configuration is invalid."
                 )
             case .transport, .unavailableInDemoMode:
                 return .error(
                     summary: summary,
                     title: "You're offline",
-                    message: "Kairo couldn't reach your Career data. Check your connection and try again."
+                    message: "KairoID couldn't reach your Career data. Check your connection and try again."
                 )
             }
         }

@@ -12,6 +12,7 @@ final class AppSessionStore: ObservableObject {
     @Published private(set) var launchPhase: LaunchPhase = .idle
     @Published private(set) var currentUser: AppUser?
     @Published private(set) var signupRecovery: SignupSessionRecoveryResponseDTO?
+    @Published private(set) var pendingGoogleSignup: SignupStartResponseDTO?
 
     private let configuration: AppConfiguration
     private let uiTestConfiguration: UITestLaunchConfiguration
@@ -64,6 +65,7 @@ final class AppSessionStore: ObservableObject {
         } catch {
             if shouldFallBackToSignedOut(for: error) {
                 currentUser = nil
+                pendingGoogleSignup = nil
                 router.showOnboarding()
                 launchPhase = .idle
             } else {
@@ -92,6 +94,7 @@ final class AppSessionStore: ObservableObject {
 
         currentUser = nil
         signupRecovery = nil
+        pendingGoogleSignup = nil
         ManualProfileDraftStore.clear()
         router.showOnboarding()
         launchPhase = .idle
@@ -100,6 +103,7 @@ final class AppSessionStore: ObservableObject {
     func abandonPendingSignup() async {
         try? await sessionService.clearSignupSessionID()
         signupRecovery = nil
+        pendingGoogleSignup = nil
         ManualProfileDraftStore.clear()
         currentUser = nil
         router.navigateToOnboarding(.createAccount)
@@ -109,9 +113,26 @@ final class AppSessionStore: ObservableObject {
     func completeAccountDeletion() async {
         try? await sessionService.clearSession()
         signupRecovery = nil
+        pendingGoogleSignup = nil
         ManualProfileDraftStore.clear()
         currentUser = nil
         router.showOnboarding()
+        launchPhase = .idle
+    }
+
+    func continueGooglePhoneSignup(_ signup: SignupStartResponseDTO) {
+        currentUser = nil
+        signupRecovery = nil
+        pendingGoogleSignup = signup
+        router.showGooglePhoneCompletion()
+        launchPhase = .idle
+    }
+
+    func continueGooglePhoneVerification(_ signup: SignupStartResponseDTO) {
+        currentUser = nil
+        signupRecovery = nil
+        pendingGoogleSignup = signup
+        router.navigateToOnboarding(.verifyIdentity)
         launchPhase = .idle
     }
 
@@ -130,16 +151,22 @@ final class AppSessionStore: ObservableObject {
                             throw AppSessionStoreError.invalidSignupRecoveryState
                         }
                         signupRecovery = recovery
+                        if recovery.nextStep == .verifyPhone,
+                           recovery.phoneMasked.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            return .googlePhoneCompletion
+                        }
                         return .verifyIdentity
                     case .completed, .expired:
                         try? await sessionService.clearSignupSessionID()
                         signupRecovery = nil
+                        pendingGoogleSignup = nil
                         return .signedOut
                     }
                 } catch {
                     if shouldDiscardSignupSession(for: error) {
                         try? await sessionService.clearSignupSessionID()
                         signupRecovery = nil
+                        pendingGoogleSignup = nil
                         return .signedOut
                     }
 
@@ -148,11 +175,13 @@ final class AppSessionStore: ObservableObject {
             }
 
             signupRecovery = nil
+            pendingGoogleSignup = nil
             return .signedOut
         }
 
         _ = try await sessionService.prepareBootstrapSession()
         signupRecovery = nil
+        pendingGoogleSignup = nil
         currentUser = try await authService.currentUser().asDomainModel()
         let onboardingStatus = try await authService.onboardingStatus()
 
@@ -228,6 +257,8 @@ final class AppSessionStore: ObservableObject {
             router.showOnboarding()
         case .verifyIdentity:
             router.navigateToOnboarding(.verifyIdentity)
+        case .googlePhoneCompletion:
+            router.showGooglePhoneCompletion()
         case .completeProfile(let step):
             router.navigateToOnboarding(step)
         case .mainTabs:
@@ -275,18 +306,18 @@ final class AppSessionStore: ObservableObject {
             case .api(let apiError):
                 return apiError.message
             case .transport:
-                return "Kairo couldn't reach the network. Check your connection and try again."
+                return "KairoID couldn't reach the network. Check your connection and try again."
             case .unavailableInDemoMode:
                 return "Demo Mode keeps authentication local."
             case .invalidResponse:
-                return "Kairo received an unexpected response while restoring your session."
+                return "KairoID received an unexpected response while restoring your session."
             case .invalidURL:
-                return "Kairo's API configuration is invalid."
+                return "KairoID's API configuration is invalid."
             }
         case let sessionError as SessionServiceError:
-            return sessionError.errorDescription ?? "Kairo couldn't restore your session."
+            return sessionError.errorDescription ?? "KairoID couldn't restore your session."
         case let appSessionError as AppSessionStoreError:
-            return appSessionError.errorDescription ?? "Kairo couldn't restore your session."
+            return appSessionError.errorDescription ?? "KairoID couldn't restore your session."
         default:
             return error.localizedDescription
         }
@@ -296,6 +327,7 @@ final class AppSessionStore: ObservableObject {
 private enum AppLaunchRoute: Equatable {
     case signedOut
     case verifyIdentity
+    case googlePhoneCompletion
     case completeProfile(OnboardingStep)
     case mainTabs
 }
@@ -307,9 +339,9 @@ private enum AppSessionStoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedOnboardingStep(let step):
-            "Kairo needs an app update before it can continue this onboarding step (\(step))."
+            "KairoID needs an app update before it can continue this onboarding step (\(step))."
         case .invalidSignupRecoveryState:
-            "Kairo received an incomplete signup recovery response. Please try again."
+            "KairoID received an incomplete signup recovery response. Please try again."
         }
     }
 }

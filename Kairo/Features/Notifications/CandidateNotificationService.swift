@@ -142,7 +142,7 @@ actor DemoCandidateNotificationService: CandidateNotificationServiceProtocol {
             type: .unknown("candidate_update"),
             eventType: "candidate_update",
             category: "system",
-            title: "A Kairo update",
+            title: "A KairoID update",
             message: "This deterministic message verifies the generic notification detail fallback.",
             createdAt: Date().addingTimeInterval(-7_200),
             isRead: false,

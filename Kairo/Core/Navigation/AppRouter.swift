@@ -11,6 +11,7 @@ final class AppRouter: ObservableObject {
     @Published private(set) var notificationCenterPresentation: NotificationCenterPresentation?
     @Published private(set) var trustScorePresentation: TrustScorePresentation?
     @Published private(set) var careerDocumentPresentation: CareerDocumentPresentation?
+    @Published private(set) var googleAuthenticationPresentation: GoogleAuthenticationPresentation?
 
     init(
         rootDestination: RootDestination = .onboarding,
@@ -25,6 +26,7 @@ final class AppRouter: ObservableObject {
         notificationCenterPresentation = nil
         trustScorePresentation = nil
         careerDocumentPresentation = nil
+        googleAuthenticationPresentation = nil
     }
 
     func showOnboarding() {
@@ -62,6 +64,22 @@ final class AppRouter: ObservableObject {
         ]
     }
 
+    func showPasswordReset(token: String) {
+        rootDestination = .onboarding
+        onboardingPath = [
+            .loginPlaceholder,
+            .resetPassword(token: token)
+        ]
+    }
+
+    func showGooglePhoneCompletion() {
+        rootDestination = .onboarding
+        onboardingPath = [
+            .loginPlaceholder,
+            .googlePhoneCompletion
+        ]
+    }
+
     func advanceOnboarding(from step: OnboardingStep) {
         let currentPath = OnboardingStep.destinationPath(to: step)
 
@@ -95,27 +113,38 @@ final class AppRouter: ObservableObject {
     @discardableResult
     func handleIncomingURL(
         _ url: URL,
-        allowedPublicPassportHosts: Set<String>,
-        isDemoModeEnabled: Bool
+        configuration: AppConfiguration
     ) -> Bool {
-        guard !isDemoModeEnabled else { return false }
+        guard !configuration.isDemoModeEnabled else { return false }
 
-        switch PublicPassportLinkParser.parse(url, allowedHosts: allowedPublicPassportHosts) {
+        switch PublicPassportLinkParser.parse(url, allowedHosts: configuration.publicPassportHosts) {
         case .success(let destination):
             publicPassportPresentation = PublicPassportPresentation(content: .handoff(destination))
             return true
         case .failure(.unsupportedHost):
-            return false
+            break
         case .failure:
             guard PublicPassportLinkParser.targetsExpectedHost(
                 url,
-                allowedHosts: allowedPublicPassportHosts
+                allowedHosts: configuration.publicPassportHosts
             ) else {
-                return false
+                break
             }
             publicPassportPresentation = PublicPassportPresentation(content: .unavailable)
             return true
         }
+
+        guard let destination = AppLinkParser.parse(url, configuration: configuration) else {
+            return false
+        }
+
+        switch destination {
+        case .googleHandoff(let code):
+            googleAuthenticationPresentation = GoogleAuthenticationPresentation(handoffCode: code)
+        case .passwordReset(let token):
+            showPasswordReset(token: token)
+        }
+        return true
     }
 
     func dismissPublicPassportPresentation() {
@@ -153,5 +182,9 @@ final class AppRouter: ObservableObject {
 
     func dismissCareerDocuments() {
         careerDocumentPresentation = nil
+    }
+
+    func dismissGoogleAuthentication() {
+        googleAuthenticationPresentation = nil
     }
 }

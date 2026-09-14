@@ -46,7 +46,7 @@ struct MoreOverviewState: Equatable, Sendable {
             phase: .error(
                 MoreOverviewErrorState(
                     title: "More unavailable",
-                    message: "Kairo could not prepare your account and settings preview. Try again when local fixture data is available."
+                    message: "KairoID could not prepare your account and settings preview. Try again when local fixture data is available."
                 )
             )
         )
@@ -147,7 +147,7 @@ enum MoreOverviewSection: String, CaseIterable, Equatable, Sendable {
         case .helpSupport:
             "Help & support"
         case .about:
-            "About Kairo"
+            "About KairoID"
         }
     }
 }
@@ -224,7 +224,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "personalInformation",
                     title: "Personal information",
-                    subtitle: "Review the basics of your Kairo identity.",
+                    subtitle: "Review the basics of your KairoID identity.",
                     systemImage: "person.text.rectangle"
                 ),
                 MoreRowItem(
@@ -258,13 +258,13 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "helpCentre",
                     title: "Help centre",
-                    subtitle: "Open Kairo's help resources.",
+                    subtitle: "Open KairoID's help resources.",
                     systemImage: "book.closed"
                 ),
                 MoreRowItem(
                     id: "contactSupport",
                     title: "Contact support",
-                    subtitle: "Reach the Kairo team through the support inbox.",
+                    subtitle: "Reach the KairoID team through the support inbox.",
                     systemImage: "envelope.open"
                 ),
                 MoreRowItem(
@@ -276,27 +276,27 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "giveFeedback",
                     title: "Give feedback",
-                    subtitle: "Help shape the next Kairo candidate experience.",
+                    subtitle: "Help shape the next KairoID candidate experience.",
                     systemImage: "bubble.left.and.text.bubble.right"
                 )
             ],
             aboutRows: [
                 MoreRowItem(
                     id: "aboutKairo",
-                    title: "About Kairo",
+                    title: "About KairoID",
                     subtitle: "Why portable professional trust matters.",
                     systemImage: "sparkles"
                 ),
                 MoreRowItem(
                     id: "termsOfService",
                     title: "Terms of Service",
-                    subtitle: "Open the current Kairo terms when configured.",
+                    subtitle: "Open the current KairoID terms when configured.",
                     systemImage: "doc.text"
                 ),
                 MoreRowItem(
                     id: "privacyPolicy",
                     title: "Privacy Policy",
-                    subtitle: "Open the current Kairo privacy policy when configured.",
+                    subtitle: "Open the current KairoID privacy policy when configured.",
                     systemImage: "lock.doc"
                 )
             ],
@@ -360,7 +360,7 @@ struct MorePreferenceValues: Equatable, Sendable {
                 id: "productUpdates",
                 eventType: "product_updates",
                 title: "Product updates",
-                subtitle: "Hear about calm, helpful improvements to Kairo.",
+                subtitle: "Hear about calm, helpful improvements to KairoID.",
                 isEnabled: false,
                 preferredChannels: [],
                 quietHours: [:],
@@ -420,9 +420,9 @@ enum MoreAppearanceOption: String, CaseIterable, Equatable, Sendable, Identifiab
         case .system:
             "Match your iPhone appearance."
         case .light:
-            "Always use the lighter Kairo palette."
+            "Always use the lighter KairoID palette."
         case .dark:
-            "Always use the darker Kairo palette."
+            "Always use the darker KairoID palette."
         }
     }
 }

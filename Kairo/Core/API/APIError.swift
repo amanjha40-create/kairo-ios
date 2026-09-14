@@ -220,9 +220,9 @@ private extension APIErrorCode {
         case .rateLimited:
             "Too many attempts. Please try again shortly."
         case .internalError:
-            "Kairo ran into an internal error. Please try again."
+            "KairoID ran into an internal error. Please try again."
         case .serviceUnavailable:
-            "Kairo is temporarily unavailable. Please try again."
+            "KairoID is temporarily unavailable. Please try again."
         }
     }
 }

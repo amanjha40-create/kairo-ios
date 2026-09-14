@@ -129,7 +129,7 @@ struct AppConfiguration: Equatable, Sendable {
     let keychainService: String
 
     var supportEmailAddress: String {
-        "contact@kairoid.com"
+        ProductBrand.supportEmailAddress
     }
 
     var helpCenterURL: URL? {
@@ -155,6 +155,20 @@ struct AppConfiguration: Equatable, Sendable {
         case .development, .production:
             []
         }
+    }
+
+    nonisolated var candidateAppLinkHosts: Set<String> {
+        ["app.kairoid.com"]
+    }
+
+    nonisolated var googleHandoffHosts: Set<String> {
+        guard
+            apiBaseURL.scheme?.lowercased() == "https",
+            let host = apiBaseURL.host?.lowercased()
+        else {
+            return []
+        }
+        return [host]
     }
 
     var currentResumeImportConsentVersion: String {

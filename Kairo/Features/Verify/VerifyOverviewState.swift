@@ -38,19 +38,19 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             subjectIDs: ["employment-brightpath-subject"],
                             type: "Employment verification",
                             organization: "BrightPath Technologies",
-                            requester: "Kairo candidate trust team",
+                            requester: "KairoID candidate trust team",
                             requestedItem: "Current role and employment dates",
                             status: .pendingSubjectAcceptance,
                             dateLabel: "Requested 1 Aug 2026",
                             timelineSummary: "Request opened today",
                             requiredAction: "Review and approve the employment request",
-                            supportingNote: "Your approval allows Kairo to begin the local verification preview.",
+                            supportingNote: "Your approval allows KairoID to begin the local verification preview.",
                             evidenceRequirement: "No evidence has been requested in this fixture yet.",
                             timeline: [
                                 VerifyTimelineEvent(
                                     id: "fixture-employment-created",
                                     title: "Employment verification opened",
-                                    source: "Kairo candidate trust team",
+                                    source: "KairoID candidate trust team",
                                     dateLabel: "1 Aug 2026"
                                 )
                             ],
@@ -60,7 +60,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "education-welingkar-pending",
                             type: "Education verification",
                             organization: "Welingkar Institute of Management",
-                            requester: "Kairo education trust team",
+                            requester: "KairoID education trust team",
                             requestedItem: "MBA graduation details",
                             status: .awaitingInformation,
                             dateLabel: "Updated 31 Jul 2026",
@@ -72,7 +72,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                                 VerifyTimelineEvent(
                                     id: "fixture-education-requested",
                                     title: "Additional information requested",
-                                    source: "Kairo education trust team",
+                                    source: "KairoID education trust team",
                                     dateLabel: "31 Jul 2026"
                                 )
                             ],
@@ -82,13 +82,13 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "employment-northstar",
                             type: "Employment verification",
                             organization: "Northstar Labs",
-                            requester: "Kairo candidate trust team",
+                            requester: "KairoID candidate trust team",
                             requestedItem: "Previous role confirmation",
                             status: .inProgress,
                             dateLabel: "Updated 30 Jul 2026",
                             timelineSummary: "Submitted 2 days ago",
                             requiredAction: "Waiting for employer review",
-                            supportingNote: "Kairo will surface the next step when this verification changes.",
+                            supportingNote: "KairoID will surface the next step when this verification changes.",
                             evidenceRequirement: "Employment evidence was already submitted in this fixture.",
                             timeline: [
                                 VerifyTimelineEvent(
@@ -104,7 +104,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "education-welingkar-review",
                             type: "Education verification",
                             organization: "Welingkar Institute of Management",
-                            requester: "Kairo education trust team",
+                            requester: "KairoID education trust team",
                             requestedItem: "MBA degree confirmation",
                             status: .pendingAdminReview,
                             dateLabel: "Updated 31 Jul 2026",
@@ -126,7 +126,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "completed-employment-brightpath",
                             type: "Employment",
                             organization: "BrightPath Technologies",
-                            requester: "Kairo candidate trust team",
+                            requester: "KairoID candidate trust team",
                             requestedItem: "Current employment",
                             status: .verified,
                             dateLabel: "Completed 28 Jul 2026",
@@ -148,7 +148,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "completed-identity-aarav",
                             type: "Identity",
                             organization: "Aarav Mehta",
-                            requester: "Kairo identity trust team",
+                            requester: "KairoID identity trust team",
                             requestedItem: "Identity check",
                             status: .verified,
                             dateLabel: "Completed 1 Aug 2026",
@@ -160,7 +160,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                                 VerifyTimelineEvent(
                                     id: "fixture-identity-verified",
                                     title: "Identity verified",
-                                    source: "Kairo identity trust team",
+                                    source: "KairoID identity trust team",
                                     dateLabel: "1 Aug 2026"
                                 )
                             ],
@@ -170,7 +170,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                             id: "completed-email-aarav",
                             type: "Email",
                             organization: "aarav@example.com",
-                            requester: "Kairo identity trust team",
+                            requester: "KairoID identity trust team",
                             requestedItem: "Email ownership",
                             status: .verified,
                             dateLabel: "Completed 1 Aug 2026",
@@ -182,7 +182,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                                 VerifyTimelineEvent(
                                     id: "fixture-email-verified",
                                     title: "Email ownership verified",
-                                    source: "Kairo identity trust team",
+                                    source: "KairoID identity trust team",
                                     dateLabel: "1 Aug 2026"
                                 )
                             ],
@@ -255,7 +255,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
         error(
             header: .fixture,
             title: "Verify overview unavailable",
-            message: "Kairo could not prepare your Trust Center preview. Try again when local fixture data is available."
+            message: "KairoID could not prepare your Trust Center preview. Try again when local fixture data is available."
         )
     }
 
@@ -497,13 +497,13 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
         switch self {
         case .draft:
             VerifyStatusStyle(
-                title: "Draft",
+                title: ProductStatusLanguage.draft,
                 symbol: "square.and.pencil",
                 tone: .neutral
             )
         case .pendingSubjectAcceptance:
             VerifyStatusStyle(
-                title: "Awaiting your approval",
+                title: ProductStatusLanguage.needsAttention,
                 symbol: "checkmark.circle",
                 tone: .accent
             )
@@ -515,25 +515,25 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .pendingSubjectSubmission:
             VerifyStatusStyle(
-                title: "Awaiting your submission",
+                title: ProductStatusLanguage.needsAttention,
                 symbol: "paperplane",
                 tone: .accent
             )
         case .pendingAdminReview:
             VerifyStatusStyle(
-                title: "Under admin review",
+                title: ProductStatusLanguage.pendingReview,
                 symbol: "hourglass",
                 tone: .warning
             )
         case .awaitingSubjectCorrections:
             VerifyStatusStyle(
-                title: "Corrections requested",
+                title: ProductStatusLanguage.needsAttention,
                 symbol: "arrow.uturn.backward.circle",
                 tone: .warning
             )
         case .pendingAdminReReview:
             VerifyStatusStyle(
-                title: "Under re-review",
+                title: ProductStatusLanguage.pendingReview,
                 symbol: "arrow.clockwise.circle",
                 tone: .warning
             )
@@ -563,19 +563,19 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .awaitingInformation:
             VerifyStatusStyle(
-                title: "Additional information requested",
+                title: ProductStatusLanguage.needsAttention,
                 symbol: "text.badge.plus",
                 tone: .warning
             )
         case .verified:
             VerifyStatusStyle(
-                title: "Verified",
+                title: ProductStatusLanguage.verified,
                 symbol: "checkmark.seal.fill",
                 tone: .success
             )
         case .rejected:
             VerifyStatusStyle(
-                title: "Rejected",
+                title: ProductStatusLanguage.rejected,
                 symbol: "xmark.octagon",
                 tone: .danger
             )
@@ -587,7 +587,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .cancelled:
             VerifyStatusStyle(
-                title: "Cancelled",
+                title: ProductStatusLanguage.withdrawn,
                 symbol: "nosign",
                 tone: .neutral
             )
@@ -599,7 +599,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .unknown:
             VerifyStatusStyle(
-                title: "Status unavailable",
+                title: ProductStatusLanguage.unavailable,
                 symbol: "questionmark.circle",
                 tone: .neutral
             )
@@ -674,7 +674,7 @@ nonisolated struct VerifyOverviewContent: Equatable, Sendable {
         VerifyOverviewEmptyContent(
             dataSourceLabel: dataSourceLabel,
             title: "No verification requests yet.",
-            message: "Kairo will show real employment and education verification requests here as they are created for your records.",
+            message: "KairoID will show real employment and education verification requests here as they are created for your records.",
             primaryActionTitle: "Continue profile",
             primaryAction: .openCareer,
             secondaryActionTitle: "View Trust Passport",

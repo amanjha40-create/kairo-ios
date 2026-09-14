@@ -196,3 +196,36 @@ nonisolated struct ResetPasswordRequestDTO: Encodable, Equatable, Sendable {
 nonisolated struct PasswordResetMessageDTO: Decodable, Equatable, Sendable {
     let message: String
 }
+
+nonisolated struct GoogleAuthorizationURLResponseDTO: Decodable, Equatable, Sendable {
+    let provider: String
+    let authURL: String
+
+    private enum CodingKeys: String, CodingKey {
+        case provider
+        case authURL = "authUrl"
+    }
+}
+
+nonisolated struct GoogleHandoffExchangeRequestDTO: Encodable, Equatable, Sendable {
+    let code: String
+}
+
+nonisolated struct GooglePhoneStartRequestDTO: Encodable, Equatable, Sendable {
+    let signupSessionID: String
+    let phone: String
+}
+
+nonisolated enum GoogleAuthOutcomeDTO: String, Decodable, Equatable, Sendable {
+    case loginComplete = "LOGIN_COMPLETE"
+    case phoneVerificationRequired = "PHONE_VERIFICATION_REQUIRED"
+    case accountLinkingRequired = "ACCOUNT_LINKING_REQUIRED"
+    case authFailed = "AUTH_FAILED"
+}
+
+nonisolated struct GoogleHandoffExchangeResponseDTO: Decodable, Equatable, Sendable {
+    let outcome: GoogleAuthOutcomeDTO
+    let message: String
+    let tokens: TokenResponseDTO?
+    let signup: SignupStartResponseDTO?
+}

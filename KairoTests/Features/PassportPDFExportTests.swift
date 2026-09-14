@@ -212,18 +212,18 @@ final class PassportPDFExportTests: XCTestCase {
     }
 
     func test_filenameFallsBackForMissingUnsafeOrNonPDFServerNames() {
-        XCTAssertEqual(PassportPDFExportService.safeFilename(from: nil), "Kairo-Trust-Passport.pdf")
+        XCTAssertEqual(PassportPDFExportService.safeFilename(from: nil), "KairoID-Trust-Passport.pdf")
         XCTAssertEqual(
             PassportPDFExportService.safeFilename(from: "attachment; filename=\"../../private.pdf\""),
-            "Kairo-Trust-Passport.pdf"
+            "KairoID-Trust-Passport.pdf"
         )
         XCTAssertEqual(
             PassportPDFExportService.safeFilename(from: "attachment; filename=\"passport.json\""),
-            "Kairo-Trust-Passport.pdf"
+            "KairoID-Trust-Passport.pdf"
         )
         XCTAssertEqual(
-            PassportPDFExportService.safeFilename(from: "attachment; filename*=UTF-8''Kairo%20Passport.pdf"),
-            "Kairo Passport.pdf"
+            PassportPDFExportService.safeFilename(from: "attachment; filename*=UTF-8''KairoID%20Passport.pdf"),
+            "KairoID Passport.pdf"
         )
     }
 
@@ -368,7 +368,7 @@ final class PassportPDFExportTests: XCTestCase {
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 320, height: 480))
         return renderer.pdfData { context in
             context.beginPage()
-            let text = "Kairo Trust Passport"
+            let text = "KairoID Trust Passport"
             text.draw(
                 at: CGPoint(x: 24, y: 24),
                 withAttributes: [.font: UIFont.systemFont(ofSize: 18, weight: .semibold)]

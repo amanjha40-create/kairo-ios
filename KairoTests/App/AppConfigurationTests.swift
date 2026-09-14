@@ -259,5 +259,16 @@ final class AppConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.privacyPolicyURL, URL(string: "https://kairoid.com/privacy"))
         XCTAssertEqual(configuration.termsOfServiceURL?.scheme, "https")
         XCTAssertEqual(configuration.privacyPolicyURL?.scheme, "https")
+        XCTAssertEqual(configuration.helpCenterURL, URL(string: "https://kairoid.com/help-center"))
+        XCTAssertEqual(configuration.supportEmailAddress, "contact@kairoid.com")
+        XCTAssertEqual(configuration.candidateAppLinkHosts, ["app.kairoid.com"])
+        XCTAssertEqual(configuration.googleHandoffHosts, ["api.kairoid.com"])
+    }
+
+    func test_canonicalVisibleBrandValuesAreStable() {
+        XCTAssertEqual(ProductBrand.name, "KairoID")
+        XCTAssertEqual(ProductBrand.displayName, "KairoID")
+        XCTAssertEqual(ProductBrand.tagline, "Verify once. Trusted everywhere.")
+        XCTAssertEqual(ProductBrand.supportEmailAddress, "contact@kairoid.com")
     }
 }

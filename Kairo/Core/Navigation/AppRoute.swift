@@ -17,6 +17,8 @@ enum OnboardingDestination: Hashable, Identifiable {
     case step(OnboardingStep)
     case loginPlaceholder
     case forgotPassword(initialEmail: String)
+    case resetPassword(token: String)
+    case googlePhoneCompletion
 
     var id: String {
         switch self {
@@ -26,6 +28,10 @@ enum OnboardingDestination: Hashable, Identifiable {
             "login.placeholder"
         case .forgotPassword:
             "forgot.password"
+        case .resetPassword:
+            "reset.password"
+        case .googlePhoneCompletion:
+            "google.phone.completion"
         }
     }
 }

@@ -31,7 +31,7 @@ enum HomeOverviewMapper {
             return .error(
                 header: header,
                 title: "You're offline",
-                message: "Kairo couldn't reach your Home data. Check your connection and try again."
+                message: "KairoID couldn't reach your Home data. Check your connection and try again."
             )
         }
 
@@ -47,19 +47,19 @@ enum HomeOverviewMapper {
                 return .error(
                     header: header,
                     title: "Home overview unavailable",
-                    message: "Kairo received an unexpected Home response. Please try again."
+                    message: "KairoID received an unexpected Home response. Please try again."
                 )
             case .invalidURL:
                 return .error(
                     header: header,
                     title: "Home overview unavailable",
-                    message: "Kairo's Home configuration is invalid."
+                    message: "KairoID's Home configuration is invalid."
                 )
             case .transport, .unavailableInDemoMode:
                 return .error(
                     header: header,
                     title: "You're offline",
-                    message: "Kairo couldn't reach your Home data. Check your connection and try again."
+                    message: "KairoID couldn't reach your Home data. Check your connection and try again."
                 )
             }
         }
@@ -297,13 +297,13 @@ enum HomeOverviewMapper {
 
         switch trustScore.status {
         case .consentRequired:
-            return "Trust Score consent is required before Kairo can calculate your score."
+            return "Trust Score consent is required before KairoID can calculate your score."
         case .incompleteVerification:
             return "Complete more verifications to unlock your live Trust Score."
         case .calculated:
             return "Your Trust Score reflects the professional trust you've verified so far."
         case .criticalManualFraudReview:
-            return "Kairo is reviewing your Trust Score before it can be used."
+            return "KairoID is reviewing your Trust Score before it can be used."
         }
     }
 
@@ -332,7 +332,7 @@ enum HomeOverviewMapper {
         case "verify_identity":
             return "Finish identity verification to keep your Trust Passport moving."
         default:
-            return "Kairo is using your live onboarding status to guide the next step."
+            return "KairoID is using your live onboarding status to guide the next step."
         }
     }
 
@@ -386,7 +386,7 @@ enum HomeOverviewMapper {
         case .verify:
             return "This step can strengthen your Trust Passport with a reusable trust signal."
         case .career:
-            return "This step can make your professional history more useful across Kairo."
+            return "This step can make your professional history more useful across KairoID."
         case .passport, .home, .more:
             return "This step can strengthen your Trust Passport."
         }

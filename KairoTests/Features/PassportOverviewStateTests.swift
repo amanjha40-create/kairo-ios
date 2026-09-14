@@ -83,13 +83,13 @@ final class PassportOverviewStateTests: XCTestCase {
             tone: .verified
         ))
         XCTAssertEqual(PassportVerificationStatus.pendingVerification.style, PassportStatusStyle(
-            title: "Pending verification",
+            title: "Pending KairoID Review",
             symbol: "clock.badge.checkmark.fill",
             tone: .pending
         ))
         XCTAssertEqual(PassportVerificationStatus.notVerified.style, PassportStatusStyle(
-            title: "Not verified",
-            symbol: "circle.dashed",
+            title: "Candidate-provided",
+            symbol: "person.crop.circle.badge.questionmark",
             tone: .neutral
         ))
     }
@@ -137,14 +137,14 @@ final class PassportOverviewStateTests: XCTestCase {
                 trustScore: .unavailable(
                     PassportTrustScoreUnavailableState(
                         title: "Consent required",
-                        message: "Kairo needs your consent before it can calculate and share your Trust Score."
+                        message: "KairoID needs your consent before it can calculate and share your Trust Score."
                     )
                 ),
                 strengthSummary: [],
                 identity: .fixture,
                 employment: [
                     PassportEmploymentRecord(
-                        company: "Kairo",
+                        company: "KairoID",
                         role: "Lead",
                         dateRange: "Jan 2026 – Present",
                         verificationStatus: .verified,

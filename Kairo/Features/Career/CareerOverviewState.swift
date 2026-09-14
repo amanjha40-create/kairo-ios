@@ -181,7 +181,7 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
             phase: .error(
                 CareerOverviewErrorState(
                     title: "Career overview unavailable",
-                    message: "Kairo could not prepare your professional timeline preview. Try again when local fixture data is available."
+                    message: "KairoID could not prepare your professional timeline preview. Try again when local fixture data is available."
                 )
             )
         )
@@ -336,7 +336,7 @@ nonisolated struct CareerProfessionalSummary: Equatable, Sendable {
 
     nonisolated static let placeholder = CareerProfessionalSummary(
         initials: "KA",
-        name: "Kairo member",
+        name: "KairoID member",
         professionalHeadline: "Preparing your professional history",
         currentCompany: "Current company not added yet",
         currentLocation: "Current location not added yet",

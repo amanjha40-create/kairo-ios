@@ -96,7 +96,7 @@ final class MoreOverviewStateTests: XCTestCase {
         state.apply(
             overview: makeOverview(),
             destinations: MoreExternalDestinations(
-                supportEmailAddress: "support@kairoid.com",
+                supportEmailAddress: "contact@kairoid.com",
                 helpCenterURL: URL(string: "https://help.kairoid.com"),
                 termsOfServiceURL: URL(string: "https://www.kairoid.com/terms"),
                 privacyPolicyURL: URL(string: "https://www.kairoid.com/privacy"),
