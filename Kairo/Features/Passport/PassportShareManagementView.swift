@@ -166,8 +166,8 @@ struct PassportShareManagementSheet: View {
                     createEntry
                     shareContent
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Passport shares")
@@ -193,7 +193,7 @@ struct PassportShareManagementSheet: View {
     }
 
     private var introduction: some View {
-        KairoCard {
+        KairoSection {
             Text("Share on your terms")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -279,7 +279,7 @@ private struct PassportShareRow: View {
     let share: PassportShare
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 Image(systemName: share.state.symbol)
                     .font(.title2)
@@ -349,8 +349,8 @@ struct PassportShareCreateView: View {
                     creationContent
                 }
             }
-            .padding(.horizontal, KairoSpacing.large)
-            .padding(.vertical, KairoSpacing.xLarge)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.large)
         }
         .background(KairoColors.background.ignoresSafeArea())
         .navigationTitle(model.creation == nil ? "Create share" : "Share ready")
@@ -368,7 +368,7 @@ struct PassportShareCreateView: View {
 
     private var creationContent: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
                 Text("Basic public profile")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -380,7 +380,7 @@ struct PassportShareCreateView: View {
 
             PassportShareMutationForm(draft: $model.draft)
 
-            KairoCard {
+            KairoSection {
                 Text("Before creating")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -411,7 +411,7 @@ struct PassportShareCreateView: View {
 
     private func successContent(_ creation: PassportShareCreation) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 38, weight: .semibold))
                     .foregroundStyle(KairoColors.success)
@@ -431,7 +431,7 @@ struct PassportShareCreateView: View {
             }
             .accessibilityIdentifier(KairoAccessibilityID.passportShareSuccess)
 
-            KairoCard {
+            KairoSection {
                 Text(creation.publicURL.absoluteString)
                     .font(.system(.footnote, design: .monospaced))
                     .foregroundStyle(KairoColors.textPrimary)
@@ -500,7 +500,8 @@ private struct PassportShareMutationForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
+                KairoSectionHeading(title: "Purpose")
                 KairoTextField(
                     title: "Label (optional)",
                     prompt: "Recruiter link",
@@ -513,16 +514,7 @@ private struct PassportShareMutationForm: View {
                     .foregroundStyle(KairoColors.textSecondary)
             }
 
-            permissionGroup(
-                title: "Passport sections",
-                options: PassportSharePermissionOption.candidateV1Sections
-            )
-            permissionGroup(
-                title: "Additional details",
-                options: [.userDocuments, .employerNames, .documents, .trustScore]
-            )
-
-            KairoCard {
+            KairoSection {
                 Text("Expiry")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -549,6 +541,15 @@ private struct PassportShareMutationForm: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            permissionGroup(
+                title: "Passport sections",
+                options: PassportSharePermissionOption.candidateV1Sections
+            )
+            permissionGroup(
+                title: "Additional details",
+                options: [.userDocuments, .employerNames, .documents, .trustScore]
+            )
         }
     }
 
@@ -556,7 +557,7 @@ private struct PassportShareMutationForm: View {
         title: String,
         options: [PassportSharePermissionOption]
     ) -> some View {
-        KairoCard {
+        KairoSection {
             Text(title)
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -614,8 +615,8 @@ struct PassportShareDetailView: View {
                 timestampCard
                 actions
             }
-            .padding(.horizontal, KairoSpacing.large)
-            .padding(.vertical, KairoSpacing.xLarge)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.large)
         }
         .background(KairoColors.background.ignoresSafeArea())
         .navigationTitle(model.share.displayLabel)
@@ -646,7 +647,7 @@ struct PassportShareDetailView: View {
     }
 
     private var statusCard: some View {
-        KairoCard {
+        KairoSection {
             Label(model.share.state.title, systemImage: model.share.state.symbol)
                 .font(KairoTypography.title2)
                 .foregroundStyle(statusColor)
@@ -662,7 +663,7 @@ struct PassportShareDetailView: View {
     }
 
     private var publicLinkCard: some View {
-        KairoCard {
+        KairoSection {
             Text("Public link")
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -679,7 +680,7 @@ struct PassportShareDetailView: View {
     }
 
     private var permissionCard: some View {
-        KairoCard {
+        KairoSection {
             Text("Shared content")
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -707,7 +708,7 @@ struct PassportShareDetailView: View {
     }
 
     private var analyticsCard: some View {
-        KairoCard {
+        KairoSection {
             Text("View summary")
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -736,7 +737,7 @@ struct PassportShareDetailView: View {
     }
 
     private var timestampCard: some View {
-        KairoCard {
+        KairoSection {
             Text("Share history")
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -771,7 +772,7 @@ struct PassportShareDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, KairoSpacing.medium)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(KairoActionStyle(role: .destructiveSecondary))
             .disabled(model.share.state != .active || model.isRevoking)
             .accessibilityIdentifier(KairoAccessibilityID.passportShareRevoke)
             .accessibilityHint("Permanently prevents the public Passport link from resolving")
@@ -847,8 +848,8 @@ private struct PassportShareEditView: View {
                     )
                     .disabled(isSaving || draft.validationMessage != nil)
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Update share")

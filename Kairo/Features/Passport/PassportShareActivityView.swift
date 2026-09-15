@@ -102,8 +102,8 @@ struct PassportShareActivitySheet: View {
                     introduction
                     activityContent
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Share Activity")
@@ -129,7 +129,7 @@ struct PassportShareActivitySheet: View {
     }
 
     private var introduction: some View {
-        KairoCard {
+        KairoSection {
             Text("Authoritative Passport views")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -194,7 +194,7 @@ private struct PassportShareActivityRow: View {
     let item: PassportShareActivityItem
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 Image(systemName: item.share.state.symbol)
                     .font(.title2)

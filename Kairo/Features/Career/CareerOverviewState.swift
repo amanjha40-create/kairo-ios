@@ -378,6 +378,11 @@ nonisolated struct CareerOverviewContent: Equatable, Sendable {
     }
 }
 
+nonisolated struct CareerDetailMetadata: Equatable, Sendable {
+    let title: String
+    let value: String
+}
+
 nonisolated struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
     let routeID: String
     let company: String
@@ -386,6 +391,7 @@ nonisolated struct CareerEmploymentItem: Equatable, Identifiable, Sendable {
     let verificationStatus: CareerVerificationStatus
     let allowsEdit: Bool
     let allowsDelete: Bool
+    var detailMetadata: [CareerDetailMetadata] = []
 
     var id: String { routeID }
 }
@@ -396,6 +402,7 @@ nonisolated struct CareerEducationItem: Equatable, Identifiable, Sendable {
     let degree: String
     let dateRange: String
     let verificationStatus: CareerVerificationStatus
+    var detailMetadata: [CareerDetailMetadata] = []
 
     var id: String { routeID }
 }
@@ -407,6 +414,7 @@ nonisolated struct CareerCertificationItem: Equatable, Identifiable, Sendable {
     let issueDate: String
     let verificationStatus: CareerVerificationStatus
     let hasDocument: Bool
+    var detailMetadata: [CareerDetailMetadata] = []
 
     var id: String { routeID }
 }
@@ -418,6 +426,7 @@ nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
     let duration: String
     let portfolioLinkTitle: String
     let verificationStatus: CareerVerificationStatus?
+    var detailMetadata: [CareerDetailMetadata] = []
 
     var id: String { routeID }
 }

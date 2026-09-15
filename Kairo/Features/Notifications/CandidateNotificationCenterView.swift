@@ -215,7 +215,7 @@ private struct CandidateNotificationRow: View {
             VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                 HStack(alignment: .firstTextBaseline, spacing: KairoSpacing.small) {
                     Text(notification.title)
-                        .font(KairoTypography.bodyStrong)
+                        .font(KairoTypography.recordTitle)
                         .foregroundStyle(KairoColors.textPrimary)
                         .multilineTextAlignment(.leading)
 
@@ -250,18 +250,11 @@ private struct CandidateNotificationRow: View {
             }
         }
         .padding(.vertical, KairoSpacing.medium)
-        .padding(.horizontal, KairoSpacing.medium)
+        .padding(.horizontal, KairoSpacing.xxSmall)
         .background(
-            notification.isRead ? KairoColors.surface : KairoColors.brandPrimary.opacity(0.045),
-            in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
+            notification.isRead ? Color.clear : KairoColors.teal.opacity(0.045)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                .stroke(
-                    notification.isRead ? KairoColors.border : KairoColors.brandPrimary.opacity(0.38),
-                    lineWidth: 1
-                )
-        )
+        .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(

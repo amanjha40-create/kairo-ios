@@ -9,6 +9,8 @@ struct HomeOverviewScreenView: View {
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @Environment(\.appConfiguration) private var appConfiguration
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 56.0
 
     var body: some View {
         ZStack {
@@ -23,15 +25,7 @@ struct HomeOverviewScreenView: View {
             }
             .refreshableIfAvailable(action: refreshAction)
         }
-        .background(
-            RadialGradient(
-                colors: [KairoColors.accent.opacity(0.09), KairoColors.background],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 430
-            )
-            .ignoresSafeArea()
-        )
+        .background(KairoColors.background.ignoresSafeArea())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeScreen)
         .task {
@@ -40,7 +34,7 @@ struct HomeOverviewScreenView: View {
     }
 
     private var topContentPadding: CGFloat {
-        appConfiguration.isDemoModeEnabled ? 72 : KairoSpacing.large
+        KairoSpacing.large
     }
 
     @ViewBuilder
@@ -66,7 +60,7 @@ struct HomeOverviewScreenView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
-            HStack(alignment: .top, spacing: KairoSpacing.medium) {
+            headerLayout {
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(ProductBrand.name)
                         .font(KairoTypography.title2)
@@ -78,14 +72,16 @@ struct HomeOverviewScreenView: View {
                         .foregroundStyle(KairoColors.textSecondary)
                 }
 
-                Spacer(minLength: KairoSpacing.medium)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer(minLength: KairoSpacing.medium)
+                }
 
                 HStack(spacing: KairoSpacing.small) {
                     Button(action: { router.showNotificationCenter() }) {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: "bell")
                                 .font(.system(size: 16, weight: .semibold))
-                                .frame(width: 42, height: 42)
+                                .frame(width: 44, height: 44)
                                 .foregroundStyle(KairoColors.textPrimary)
                                 .background(KairoColors.surface, in: Circle())
                                 .overlay(
@@ -116,6 +112,8 @@ struct HomeOverviewScreenView: View {
 
                         Text(state.header.initials)
                             .font(KairoTypography.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                             .foregroundStyle(KairoColors.textPrimary)
                     }
                     .frame(width: 42, height: 42)
@@ -132,13 +130,20 @@ struct HomeOverviewScreenView: View {
                 .font(KairoTypography.title)
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
 
             Text(state.header.supportingCopy)
-                .font(KairoTypography.body)
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
         }
+    }
+
+    private var headerLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: KairoSpacing.small))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: KairoSpacing.medium))
     }
 
     private var notificationBellAccessibilityLabel: String {
@@ -208,12 +213,13 @@ struct HomeOverviewScreenView: View {
                 .padding(.horizontal, KairoSpacing.small)
                 .padding(.vertical, KairoSpacing.xSmall)
                 .background(.white, in: Capsule())
+                .frame(minHeight: 44)
                 .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
             }
 
             HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
                 Text(trustScore.score.map(String.init) ?? "Unavailable")
-                    .font(.system(size: trustScore.score == nil ? 28 : 48, weight: .bold, design: .default))
+                    .font(.system(size: trustScore.score == nil ? scoreSize * 0.5 : scoreSize, weight: .bold, design: .default))
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.7)
 
@@ -246,43 +252,27 @@ struct HomeOverviewScreenView: View {
             .buttonStyle(.plain)
             .font(KairoTypography.footnote.weight(.semibold))
             .foregroundStyle(.white)
+            .frame(minHeight: 44)
             .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
         }
-        .padding(20)
-        .background(
-            LinearGradient(
-                colors: [Color(hex: 0x07122B), Color(hex: 0x12355A)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
-        )
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(KairoColors.accent.opacity(0.14))
-                .frame(width: 160, height: 160)
-                .blur(radius: 34)
-                .offset(x: 44, y: -58)
-                .allowsHitTesting(false)
-        }
-        .kairoShadow(KairoShadow.card)
+        .modifier(KairoTrustSurface())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
     }
 
     private func recommendationCard(_ recommendation: HomeRecommendation) -> some View {
-        KairoCard {
+        KairoSection {
             HomeSectionHeader(
                 title: "Needs your attention",
                 accessibilityIdentifier: KairoAccessibilityID.homeRecommendation
             )
 
             Text(recommendation.title)
-                .font(KairoTypography.title2)
+                .font(KairoTypography.recordTitle)
                 .foregroundStyle(KairoColors.textPrimary)
 
             Text(recommendation.supportingCopy)
-                .font(KairoTypography.body)
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -300,7 +290,7 @@ struct HomeOverviewScreenView: View {
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 
-            KairoCard {
+            KairoSection {
                 ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
                     if index > 0 {
                         Divider()
@@ -354,7 +344,7 @@ struct HomeOverviewScreenView: View {
                 .foregroundStyle(KairoColors.textPrimary)
 
             if let request = requests.first {
-                KairoCard {
+                KairoSection {
                     HStack(alignment: .top, spacing: KairoSpacing.medium) {
                         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
                             Text(request.title)
@@ -400,7 +390,7 @@ struct HomeOverviewScreenView: View {
     }
 
     private func profileCompletionCard(_ profileCompletion: HomeProfileCompletion) -> some View {
-        KairoCard {
+        KairoSection {
             HomeSectionHeader(
                 title: "Profile completion",
                 accessibilityIdentifier: KairoAccessibilityID.homeProfileCompletion
@@ -433,7 +423,7 @@ struct HomeOverviewScreenView: View {
                 .foregroundStyle(KairoColors.textPrimary)
                 .accessibilityIdentifier(KairoAccessibilityID.homeRecentActivity)
 
-            KairoCard {
+            KairoSection {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 {
                         Divider()
@@ -472,7 +462,7 @@ struct HomeOverviewScreenView: View {
                 )
 
                 if let item = items.first {
-                    KairoCard {
+                    KairoSection {
                         Text(item.title)
                             .font(KairoTypography.bodyStrong)
                             .foregroundStyle(KairoColors.textPrimary)
@@ -548,12 +538,7 @@ private struct HomeStatusBadge: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(KairoTypography.caption)
-            .foregroundStyle(KairoColors.textSecondary)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xxSmall)
-            .background(KairoColors.surfaceMuted.opacity(0.85), in: Capsule())
+        KairoStatusChip(title: title, tone: .draft)
     }
 }
 
@@ -597,7 +582,7 @@ private struct HomeCompactEmptyCard: View {
     let message: String
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))

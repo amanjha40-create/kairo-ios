@@ -5,7 +5,7 @@ struct KairoLoadingStateView: View {
     let message: String
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             VStack(spacing: KairoSpacing.small) {
                 ZStack {
                     RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
@@ -17,6 +17,13 @@ struct KairoLoadingStateView: View {
                 .accessibilityHidden(true)
 
                 stateCopy(title: title, message: message)
+                VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                    RoundedRectangle(cornerRadius: 4).frame(height: 12)
+                    RoundedRectangle(cornerRadius: 4).frame(width: 160, height: 12)
+                }
+                .foregroundStyle(KairoColors.surfaceMuted)
+                .padding(.top, KairoSpacing.small)
+                .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, KairoSpacing.small)
@@ -32,7 +39,7 @@ struct KairoEmptyStateView: View {
     let systemImage: String
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             VStack(spacing: KairoSpacing.small) {
                 stateIcon(systemImage, color: KairoColors.brandPrimary)
                 stateCopy(title: title, message: message)
@@ -53,17 +60,17 @@ struct KairoErrorStateView: View {
     var retryAction: (() -> Void)?
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             VStack(spacing: KairoSpacing.small) {
                 stateIcon("exclamationmark.triangle.fill", color: KairoColors.warning)
 
                 VStack(spacing: KairoSpacing.xSmall) {
                     Text(title)
-                        .font(KairoTypography.title2)
+                        .font(KairoTypography.sectionTitle)
                         .foregroundStyle(KairoColors.textPrimary)
                         .multilineTextAlignment(.center)
                     Text(message)
-                        .font(KairoTypography.body)
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -85,11 +92,11 @@ struct KairoErrorStateView: View {
 private func stateCopy(title: String, message: String) -> some View {
     VStack(spacing: KairoSpacing.xSmall) {
         Text(title)
-            .font(KairoTypography.title2)
+            .font(KairoTypography.sectionTitle)
             .foregroundStyle(KairoColors.textPrimary)
             .multilineTextAlignment(.center)
         Text(message)
-            .font(KairoTypography.body)
+            .font(KairoTypography.footnote)
             .foregroundStyle(KairoColors.textSecondary)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)

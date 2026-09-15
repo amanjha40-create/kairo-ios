@@ -24,7 +24,7 @@ struct CareerDocumentsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         Text(presentation.parent.title)
                             .font(KairoTypography.title2)
                             .foregroundStyle(KairoColors.textPrimary)
@@ -60,8 +60,8 @@ struct CareerDocumentsView: View {
                             .accessibilityIdentifier(KairoAccessibilityID.careerDocumentError)
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle(presentation.parent.categoryTitle)
@@ -104,54 +104,45 @@ struct CareerDocumentsView: View {
     }
 
     private var documentList: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Attached documents (\(documents.count))")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+            KairoSectionHeading(title: "Attached documents", count: documents.count)
             ForEach(documents) { document in
-                KairoCard {
-                    Text(document.originalFilename)
-                        .font(KairoTypography.bodyStrong)
-                        .foregroundStyle(KairoColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(typeTitle(document.documentType))
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                    Text("\(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file)) • \(statusTitle(document.verificationStatus))")
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
-
-                    HStack(spacing: KairoSpacing.large) {
-                        Button("View") { view(document) }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(KairoColors.brandPrimary)
-                            .frame(minHeight: 44)
-                        if presentation.parent.canDelete {
-                            Button("Replace") {
-                                selectedType = document.documentType
-                                pendingReplacement = document
-                                isFileImporterPresented = true
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(KairoColors.brandPrimary)
-                            .frame(minHeight: 44)
-
-                            Button("Remove", role: .destructive) { pendingDelete = document }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(KairoColors.danger)
-                                .frame(minHeight: 44)
+                KairoDocumentRow(
+                    filename: document.originalFilename,
+                    metadata: "\(typeTitle(document.documentType)) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))",
+                    source: presentation.parent.title,
+                    status: statusTitle(document.verificationStatus),
+                    details: { EmptyView() },
+                    actions: {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: KairoSpacing.medium) { rowActions(document) }
+                            VStack(alignment: .leading, spacing: KairoSpacing.xSmall) { rowActions(document) }
                         }
                     }
-                    .font(KairoTypography.footnote)
-                }
+                )
                 .accessibilityIdentifier(KairoAccessibilityID.careerDocumentRow(document.id))
             }
         }
     }
 
+    @ViewBuilder
+    private func rowActions(_ document: CareerDocument) -> some View {
+        Button("View") { view(document) }
+            .buttonStyle(KairoActionStyle())
+        if presentation.parent.canDelete {
+            Button("Replace") {
+                selectedType = document.documentType
+                pendingReplacement = document
+                isFileImporterPresented = true
+            }
+            .buttonStyle(KairoActionStyle())
+            Button("Remove", role: .destructive) { pendingDelete = document }
+                .buttonStyle(KairoActionStyle(role: .destructiveSecondary))
+        }
+    }
+
     private var uploadControls: some View {
-        KairoCard {
+        KairoSection {
             Text("Add document")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)

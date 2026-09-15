@@ -22,6 +22,9 @@ struct CareerOverviewScreenView: View {
     var deleteSkillAction: ((CareerSkillItem) -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var selectedDetail: CareerRecordDetailPresentation?
+    @State private var actionAfterDetailDismissal: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -45,6 +48,15 @@ struct CareerOverviewScreenView: View {
             .ignoresSafeArea()
         )
         .accessibilityIdentifier(KairoAccessibilityID.careerScreen)
+        .sheet(item: $selectedDetail, onDismiss: {
+            let action = actionAfterDetailDismissal
+            actionAfterDetailDismissal = nil
+            action?()
+        }) { record in
+            CareerRecordDetailView(record: record, perform: performAfterDetailDismissal, openDocuments: { parent in
+                performAfterDetailDismissal { router.showCareerDocuments(for: parent) }
+            })
+        }
     }
 
     private var titleSection: some View {
@@ -53,6 +65,7 @@ struct CareerOverviewScreenView: View {
                 .font(KairoTypography.screenTitle)
                 .foregroundStyle(KairoColors.textPrimary)
                 .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
+                .accessibilityAddTraits(.isHeader)
 
             Text("Manage your professional history.")
                 .font(KairoTypography.footnote)
@@ -67,7 +80,7 @@ struct CareerOverviewScreenView: View {
                 accessibilityIdentifier: KairoAccessibilityID.careerSummarySection
             )
 
-            KairoCard {
+            KairoSection {
                 summaryHeader
                 summaryDetails
 
@@ -184,7 +197,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func populatedContent(_ content: CareerOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
             employmentSection(content.employment)
             educationSection(content.education)
             certificationsSection(content.certifications)
@@ -247,7 +260,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func employmentSection(_ items: [CareerEmploymentItem]) -> some View {
-        KairoCard {
+        KairoSection {
             CareerSectionHeader(
                 title: CareerOverviewSection.employment.title,
                 systemImage: "briefcase",
@@ -264,9 +277,19 @@ struct CareerOverviewScreenView: View {
                 ForEach(items) { item in
                     CareerRecordCard {
                         careerItemHeader(
-                            title: item.company,
-                            subtitle: item.role,
-                            status: item.verificationStatus
+                            title: item.role,
+                            subtitle: item.company,
+                            status: item.verificationStatus,
+                            openDetail: {
+                                selectedDetail = CareerRecordDetailPresentation(
+                                    id: item.routeID, title: item.role, organization: item.company,
+                                    status: item.verificationStatus, metadata: [("Employment dates", item.dateRange)] + item.detailMetadata.map { ($0.title, $0.value) },
+                                    documents: .employment(id: item.routeID, title: "\(item.role) at \(item.company)", canUpload: item.allowsEdit, canDelete: item.allowsDelete),
+                                    edit: item.allowsEdit ? editEmploymentAction.map { action in { action(item) } } : nil,
+                                    delete: item.allowsDelete ? deleteEmploymentAction.map { action in { action(item) } } : nil,
+                                    verify: item.verificationStatus == .notVerified ? startEmploymentVerificationAction.map { action in { action(item) } } : nil
+                                )
+                            }
                         )
 
                         careerMetadataValue(
@@ -274,27 +297,27 @@ struct CareerOverviewScreenView: View {
                             value: item.dateRange
                         )
 
-                        careerCardActions(
-                            editAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentEditButton(item.routeID),
-                            editAction: item.allowsEdit ? { editEmploymentAction?(item) } : nil,
-                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentDeleteButton(item.routeID),
-                            deleteAction: item.allowsDelete ? { deleteEmploymentAction?(item) } : nil
-                        )
-
-                        Button("Documents") {
-                            router.showCareerDocuments(
-                                for: .employment(
-                                    id: item.routeID,
-                                    title: "\(item.role) at \(item.company)",
-                                    canUpload: item.allowsEdit,
-                                    canDelete: item.allowsDelete
-                                )
+                        CareerActionGroup {
+                            careerCardActions(
+                                editAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentEditButton(item.routeID),
+                                editAction: item.allowsEdit ? { editEmploymentAction?(item) } : nil,
+                                deleteAccessibilityIdentifier: KairoAccessibilityID.careerEmploymentDeleteButton(item.routeID),
+                                deleteAction: item.allowsDelete ? { deleteEmploymentAction?(item) } : nil
                             )
-                        }
-                        .buttonStyle(.plain)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.brandPrimary)
 
+                            Button("Documents") {
+                                router.showCareerDocuments(
+                                    for: .employment(
+                                        id: item.routeID,
+                                        title: "\(item.role) at \(item.company)",
+                                        canUpload: item.allowsEdit,
+                                        canDelete: item.allowsDelete
+                                    )
+                                )
+                            }
+                            .buttonStyle(KairoActionStyle())
+
+                        }
                         if item.verificationStatus == .notVerified,
                            let startEmploymentVerificationAction {
                             Button("Start verification") {
@@ -312,7 +335,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func educationSection(_ items: [CareerEducationItem]) -> some View {
-        KairoCard {
+        KairoSection {
             CareerSectionHeader(
                 title: CareerOverviewSection.education.title,
                 systemImage: "graduationcap",
@@ -329,9 +352,19 @@ struct CareerOverviewScreenView: View {
                 ForEach(items) { item in
                     CareerRecordCard {
                         careerItemHeader(
-                            title: item.institution,
-                            subtitle: item.degree,
-                            status: item.verificationStatus
+                            title: item.degree,
+                            subtitle: item.institution,
+                            status: item.verificationStatus,
+                            openDetail: {
+                                selectedDetail = CareerRecordDetailPresentation(
+                                    id: item.routeID, title: item.degree, organization: item.institution,
+                                    status: item.verificationStatus, metadata: [("Dates", item.dateRange)] + item.detailMetadata.map { ($0.title, $0.value) },
+                                    documents: .education(id: item.routeID, title: item.institution),
+                                    edit: editEducationAction.map { action in { action(item) } },
+                                    delete: deleteEducationAction.map { action in { action(item) } },
+                                    verify: item.verificationStatus == .notVerified ? startEducationVerificationAction.map { action in { action(item) } } : nil
+                                )
+                            }
                         )
 
                         careerMetadataValue(
@@ -339,22 +372,22 @@ struct CareerOverviewScreenView: View {
                             value: item.dateRange
                         )
 
-                        careerCardActions(
-                            editAccessibilityIdentifier: KairoAccessibilityID.careerEducationEditButton(item.routeID),
-                            editAction: { editEducationAction?(item) },
-                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerEducationDeleteButton(item.routeID),
-                            deleteAction: { deleteEducationAction?(item) }
-                        )
-
-                        Button("Documents") {
-                            router.showCareerDocuments(
-                                for: .education(id: item.routeID, title: item.institution)
+                        CareerActionGroup {
+                            careerCardActions(
+                                editAccessibilityIdentifier: KairoAccessibilityID.careerEducationEditButton(item.routeID),
+                                editAction: { editEducationAction?(item) },
+                                deleteAccessibilityIdentifier: KairoAccessibilityID.careerEducationDeleteButton(item.routeID),
+                                deleteAction: { deleteEducationAction?(item) }
                             )
-                        }
-                        .buttonStyle(.plain)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.brandPrimary)
 
+                            Button("Documents") {
+                                router.showCareerDocuments(
+                                    for: .education(id: item.routeID, title: item.institution)
+                                )
+                            }
+                            .buttonStyle(KairoActionStyle())
+
+                        }
                         if item.verificationStatus == .notVerified,
                            let startEducationVerificationAction {
                             Button("Start verification") {
@@ -372,7 +405,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func certificationsSection(_ items: [CareerCertificationItem]) -> some View {
-        KairoCard {
+        KairoSection {
             CareerSectionHeader(
                 title: CareerOverviewSection.certifications.title,
                 systemImage: "checkmark.seal",
@@ -391,7 +424,16 @@ struct CareerOverviewScreenView: View {
                         careerItemHeader(
                             title: item.title,
                             subtitle: item.issuer,
-                            status: item.verificationStatus
+                            status: item.verificationStatus,
+                            openDetail: {
+                                selectedDetail = CareerRecordDetailPresentation(
+                                    id: item.routeID, title: item.title, organization: item.issuer,
+                                    status: item.verificationStatus, metadata: [("Issue date", item.issueDate)] + item.detailMetadata.map { ($0.title, $0.value) },
+                                    documents: item.hasDocument ? .certification(id: item.routeID, title: item.title) : nil,
+                                    edit: editCertificationAction.map { action in { action(item) } },
+                                    delete: deleteCertificationAction.map { action in { action(item) } }
+                                )
+                            }
                         )
 
                         careerMetadataValue(
@@ -399,22 +441,22 @@ struct CareerOverviewScreenView: View {
                             value: item.issueDate
                         )
 
-                        careerCardActions(
-                            editAccessibilityIdentifier: KairoAccessibilityID.careerCertificationEditButton(item.routeID),
-                            editAction: { editCertificationAction?(item) },
-                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerCertificationDeleteButton(item.routeID),
-                            deleteAction: { deleteCertificationAction?(item) }
-                        )
+                        CareerActionGroup {
+                            careerCardActions(
+                                editAccessibilityIdentifier: KairoAccessibilityID.careerCertificationEditButton(item.routeID),
+                                editAction: { editCertificationAction?(item) },
+                                deleteAccessibilityIdentifier: KairoAccessibilityID.careerCertificationDeleteButton(item.routeID),
+                                deleteAction: { deleteCertificationAction?(item) }
+                            )
 
-                        if item.hasDocument {
-                            Button("View certificate document") {
-                                router.showCareerDocuments(
-                                    for: .certification(id: item.routeID, title: item.title)
-                                )
+                            if item.hasDocument {
+                                Button("View certificate document") {
+                                    router.showCareerDocuments(
+                                        for: .certification(id: item.routeID, title: item.title)
+                                    )
+                                }
+                                .buttonStyle(KairoActionStyle())
                             }
-                            .buttonStyle(.plain)
-                            .font(KairoTypography.footnote)
-                            .foregroundStyle(KairoColors.brandPrimary)
                         }
                     }
                 }
@@ -423,7 +465,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func projectsSection(_ items: [CareerProjectItem]) -> some View {
-        KairoCard {
+        KairoSection {
             CareerSectionHeader(
                 title: CareerOverviewSection.projects.title,
                 systemImage: "folder",
@@ -442,7 +484,16 @@ struct CareerOverviewScreenView: View {
                         careerItemHeader(
                             title: item.title,
                             subtitle: item.role,
-                            status: item.verificationStatus
+                            status: item.verificationStatus,
+                            openDetail: {
+                                selectedDetail = CareerRecordDetailPresentation(
+                                    id: item.routeID, title: item.title, organization: item.role,
+                                    status: item.verificationStatus,
+                                    metadata: [("Duration", item.duration), ("Project URL", item.portfolioLinkTitle)].filter { !$0.1.isEmpty } + item.detailMetadata.map { ($0.title, $0.value) },
+                                    edit: editProjectAction.map { action in { action(item) } },
+                                    delete: deleteProjectAction.map { action in { action(item) } }
+                                )
+                            }
                         )
 
                         careerMetadataValue(
@@ -470,7 +521,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func skillsSection(_ skills: [CareerSkillItem]) -> some View {
-        KairoCard {
+        KairoSection {
             CareerSectionHeader(
                 title: CareerOverviewSection.skills.title,
                 systemImage: "sparkles",
@@ -519,43 +570,54 @@ struct CareerOverviewScreenView: View {
     private func careerItemHeader(
         title: String,
         subtitle: String,
-        status: CareerVerificationStatus?
+        status: CareerVerificationStatus?,
+        openDetail: @escaping () -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-            HStack(alignment: .top, spacing: KairoSpacing.small) {
+        Button(action: openDetail) {
+            recordHeaderLayout {
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(title)
-                        .font(KairoTypography.title2)
+                        .font(KairoTypography.recordTitle)
                         .foregroundStyle(KairoColors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(subtitle)
-                        .font(KairoTypography.body)
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer(minLength: KairoSpacing.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let status {
                     CareerVerificationBadge(status: status)
+                        .accessibilityIdentifier("career.record.status.\(title)")
                 }
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("career.record.open.\(title)")
+        .accessibilityHint("Opens record details.")
+    }
+
+    private func performAfterDetailDismissal(_ action: @escaping () -> Void) {
+        actionAfterDetailDismissal = action
+        selectedDetail = nil
+    }
+
+    private var recordHeaderLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: KairoSpacing.small))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: KairoSpacing.small))
     }
 
     private func careerMetadataValue(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-            Text(title)
-                .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
-                .textCase(.uppercase)
-
+        HStack(alignment: .firstTextBaseline, spacing: KairoSpacing.xSmall) {
             Text(value)
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textPrimary)
+                .font(KairoTypography.metadata)
+                .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityLabel("\(title): \(value)")
     }
 
     @ViewBuilder
@@ -566,10 +628,10 @@ struct CareerOverviewScreenView: View {
         deleteAction: (() -> Void)?
     ) -> some View {
         if editAction != nil || deleteAction != nil {
-            HStack(spacing: KairoSpacing.large) {
+            CareerActionGroup {
                 if let editAction {
                     Button("Edit", action: editAction)
-                        .buttonStyle(.plain)
+                        .buttonStyle(KairoActionStyle())
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.brandPrimary)
                         .accessibilityIdentifier(editAccessibilityIdentifier ?? "career.edit")
@@ -577,7 +639,7 @@ struct CareerOverviewScreenView: View {
 
                 if let deleteAction {
                     Button("Delete", action: deleteAction)
-                        .buttonStyle(.plain)
+                        .buttonStyle(KairoActionStyle(role: .destructiveSecondary))
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.danger.opacity(0.9))
                         .accessibilityIdentifier(deleteAccessibilityIdentifier ?? "career.delete")
@@ -668,16 +730,16 @@ private struct CareerSectionHeader: View {
                 .frame(width: 34, height: 34)
                 .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title.uppercased())
-                    .font(KairoTypography.sectionEyebrow)
-                    .tracking(0.8)
-                    .foregroundStyle(KairoColors.textSecondary)
-
-                Text("\(count) \(count == 1 ? "record" : "records")")
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
+            Text(title)
+                .font(KairoTypography.sectionTitle)
+                .foregroundStyle(KairoColors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Text(String(count))
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
+                .padding(.horizontal, KairoSpacing.xSmall)
+                .padding(.vertical, KairoSpacing.xxSmall)
+                .background(KairoColors.surfaceMuted, in: Capsule())
         }
         .accessibilityIdentifier(accessibilityIdentifier)
     }
@@ -692,13 +754,26 @@ private struct CareerSectionInlineAction: View {
         Button(action: action) {
             Image(systemName: "plus")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(KairoColors.background)
-                .frame(width: 34, height: 34)
-                .background(KairoColors.textPrimary, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
+                .foregroundStyle(KairoColors.brandPrimary)
+                .frame(width: 44, height: 44)
+                .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct CareerActionGroup<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) { content }
+        } else {
+            HStack(spacing: KairoSpacing.small) { content }
+        }
     }
 }
 
@@ -713,14 +788,9 @@ private struct CareerRecordCard<Content: View>: View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             content
         }
-        .padding(KairoSpacing.small)
+        .padding(.vertical, KairoSpacing.small)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(KairoColors.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                .stroke(KairoColors.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+        .overlay(alignment: .top) { Rectangle().fill(KairoColors.border).frame(height: 1) }
     }
 }
 
@@ -771,48 +841,16 @@ private struct CareerSummaryRow: View {
 private struct CareerVerificationBadge: View {
     let status: CareerVerificationStatus
 
-    private var colors: (foreground: Color, background: Color, border: Color) {
-        switch status.badgeStyle.tone {
-        case .success:
-            (
-                KairoColors.success,
-                KairoColors.success.opacity(0.12),
-                KairoColors.success.opacity(0.22)
-            )
-        case .pending:
-            (
-                KairoColors.warning,
-                KairoColors.warning.opacity(0.12),
-                KairoColors.warning.opacity(0.22)
-            )
-        case .neutral:
-            (
-                KairoColors.textSecondary,
-                KairoColors.surfaceMuted.opacity(0.9),
-                KairoColors.border
-            )
+    private var tone: KairoStatusTone {
+        switch status {
+        case .verified: .verified
+        case .pendingVerification: .pending
+        case .notVerified: .candidateProvided
         }
     }
 
     var body: some View {
-        let style = status.badgeStyle
-        let resolvedColors = colors
-
-        Label(style.title, systemImage: style.symbol)
-            .font(KairoTypography.caption)
-            .foregroundStyle(resolvedColors.foreground)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xSmall)
-            .background(
-                Capsule()
-                    .fill(resolvedColors.background)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(resolvedColors.border, lineWidth: 1)
-            )
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel(style.title)
+        KairoStatusChip(title: status.badgeStyle.title, tone: tone, systemImage: status.badgeStyle.symbol)
     }
 }
 

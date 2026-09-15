@@ -38,24 +38,17 @@ struct KairoScreenContainer<Content: View>: View {
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .background(
-            RadialGradient(
-                colors: [KairoColors.accent.opacity(0.1), KairoColors.background],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 380
-            )
-            .ignoresSafeArea()
-        )
+        .background(KairoColors.background.ignoresSafeArea())
     }
 
     private var contentStack: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
                 Text(title)
                     .font(KairoTypography.screenTitle)
                     .foregroundStyle(KairoColors.textPrimary)
                     .accessibilityIdentifier(titleAccessibilityIdentifier)
+                    .accessibilityAddTraits(.isHeader)
 
                 if let subtitle {
                     Text(subtitle)
@@ -68,6 +61,6 @@ struct KairoScreenContainer<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, KairoSpacing.medium)
-        .padding(.vertical, KairoSpacing.xLarge)
+        .padding(.vertical, KairoSpacing.large)
     }
 }

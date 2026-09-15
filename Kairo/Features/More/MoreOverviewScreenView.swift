@@ -37,7 +37,7 @@ struct MoreOverviewScreenView: View {
     var body: some View {
         KairoScreenContainer(
             title: "More",
-            subtitle: "Documents, settings, notifications, and support.",
+            subtitle: "Account, preferences, and support.",
             titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
         ) {
             accountSummaryCard
@@ -70,68 +70,46 @@ struct MoreOverviewScreenView: View {
     }
 
     private var accountSummaryCard: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+        KairoSection {
+            HStack(alignment: .top, spacing: KairoSpacing.small) {
+                profilePlaceholder
+                accountCopy
+            }
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                    profilePlaceholder
-                    accountCopy
+                HStack {
+                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
                     Spacer(minLength: KairoSpacing.small)
-                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
+                    viewProfileAction
                 }
-
-                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                    HStack(alignment: .center, spacing: KairoSpacing.medium) {
-                        profilePlaceholder
-                        accountCopy
-                    }
-
+                VStack(alignment: .leading, spacing: KairoSpacing.small) {
                     MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
+                    viewProfileAction
                 }
             }
-
-            Text(state.accountSummary.supportingCopy)
-                .font(KairoTypography.body)
-                .foregroundStyle(Color.white.opacity(0.78))
-                .fixedSize(horizontal: false, vertical: true)
-
-            KairoSecondaryButton(
-                title: "View profile",
-                accessibilityIdentifier: KairoAccessibilityID.moreViewProfile,
-                action: { router.selectTab(.passport) }
-            )
         }
-        .padding(KairoSpacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.03, green: 0.08, blue: 0.19), Color(red: 0.02, green: 0.48, blue: 0.55)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .kairoShadow(KairoShadow.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.moreAccountSummary)
+    }
+
+    private var viewProfileAction: some View {
+        Button("View profile") { router.selectTab(.passport) }
+            .buttonStyle(KairoActionStyle())
+            .accessibilityIdentifier(KairoAccessibilityID.moreViewProfile)
     }
 
     private var profilePlaceholder: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.14))
+                .fill(KairoColors.surfaceMuted)
 
             Text(state.accountSummary.initials)
                 .font(KairoTypography.title2)
-                .foregroundStyle(Color.white)
+                .foregroundStyle(KairoColors.textPrimary)
         }
-        .frame(width: 64, height: 64)
+        .frame(width: 48, height: 48)
         .overlay(
             Circle()
-                .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                .stroke(KairoColors.border, lineWidth: 1)
         )
         .accessibilityElement()
         .accessibilityLabel("Profile placeholder for \(state.accountSummary.name)")
@@ -141,17 +119,17 @@ struct MoreOverviewScreenView: View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             Text(state.accountSummary.name)
                 .font(KairoTypography.title2)
-                .foregroundStyle(Color.white)
+                .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(state.accountSummary.emailAddress)
-                .font(KairoTypography.body)
-                .foregroundStyle(Color.white.opacity(0.78))
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("Trust Passport")
                 .font(KairoTypography.caption)
-                .foregroundStyle(Color.white.opacity(0.72))
+                .foregroundStyle(KairoColors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -176,18 +154,31 @@ struct MoreOverviewScreenView: View {
     }
 
     private func populatedContent(_ content: MoreOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xLarge) {
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
             buttonSection(
                 title: MoreOverviewSection.account.title,
                 sectionAccessibilityIdentifier: KairoAccessibilityID.moreAccountSection,
-                rows: content.accountRows,
+                rows: content.accountRows.filter { $0.id != "documentVault" },
                 action: handleAccountRow
             )
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                KairoSectionHeading(title: "Activity & documents")
+                KairoSection {
+                    MoreNavigationRow(
+                        item: MoreRowItem(id: "notifications", title: "Notifications", subtitle: "Your latest account and verification updates.", systemImage: "bell"),
+                        action: { router.showNotificationCenter() }
+                    )
+                    ForEach(content.accountRows.filter { $0.id == "documentVault" }) { row in
+                        Divider()
+                        MoreNavigationRow(item: row, accessibilityIdentifier: accessibilityIdentifier(for: row), action: { handleAccountRow(row) })
+                    }
+                }
+            }
             preferencesSection(content)
             buttonSection(
                 title: MoreOverviewSection.privacyData.title,
                 sectionAccessibilityIdentifier: KairoAccessibilityID.morePrivacyDataSection,
-                rows: content.privacyRows,
+                rows: content.privacyRows.filter { $0.id != "deleteAccount" },
                 action: handlePrivacyRow
             )
             buttonSection(
@@ -197,6 +188,12 @@ struct MoreOverviewScreenView: View {
                 action: handleSupportRow
             )
             aboutSection(content)
+            buttonSection(
+                title: "Danger Zone",
+                sectionAccessibilityIdentifier: "candidate.more.dangerZone",
+                rows: content.privacyRows.filter { $0.id == "deleteAccount" },
+                action: handlePrivacyRow
+            )
             signOutSection
         }
     }
@@ -204,11 +201,11 @@ struct MoreOverviewScreenView: View {
     private func preferencesSection(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(
-                title: MoreOverviewSection.preferences.title,
+                title: "Settings",
                 accessibilityIdentifier: KairoAccessibilityID.morePreferencesSection
             )
 
-            KairoCard {
+            KairoSection {
                 MorePreferenceGroup(title: "Notifications", systemImage: "bell.badge") {
                     if content.notificationPreferences.isEmpty {
                         KairoEmptyStateView(
@@ -323,7 +320,7 @@ struct MoreOverviewScreenView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle(isSelected ? Color.white : KairoColors.textSecondary)
+            .foregroundStyle(isSelected ? KairoColors.onPrimary : KairoColors.textSecondary)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, KairoSpacing.small)
             .padding(.vertical, KairoSpacing.medium)
@@ -353,7 +350,7 @@ struct MoreOverviewScreenView: View {
                 accessibilityIdentifier: sectionAccessibilityIdentifier
             )
 
-            KairoCard {
+            KairoSection {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 {
                         Divider()
@@ -376,7 +373,7 @@ struct MoreOverviewScreenView: View {
                 accessibilityIdentifier: KairoAccessibilityID.moreAboutSection
             )
 
-            KairoCard {
+            KairoSection {
                 ForEach(Array(content.aboutRows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 {
                         Divider()
@@ -414,7 +411,7 @@ struct MoreOverviewScreenView: View {
 
     private var signOutSection: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            KairoCard {
+            KairoSection {
                 Text("Sign out")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -866,7 +863,7 @@ struct MoreOverviewScreenView: View {
     }
 
     private func successCard(message: String) -> some View {
-        KairoCard {
+        KairoSection {
             Text(message)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.success)
@@ -975,10 +972,9 @@ private struct MoreSectionTitle: View {
 
     var body: some View {
         Text(title)
-            .font(KairoTypography.sectionEyebrow)
-            .foregroundStyle(KairoColors.textSecondary)
-            .textCase(.uppercase)
-            .tracking(0.8)
+            .font(KairoTypography.sectionTitle)
+            .foregroundStyle(KairoColors.textPrimary)
+            .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
@@ -987,15 +983,7 @@ private struct MoreStatusBadge: View {
     let title: String
 
     var body: some View {
-        Label(title, systemImage: "checkmark.circle.fill")
-            .font(KairoTypography.caption)
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xSmall)
-            .background(
-                Color.white.opacity(0.14),
-                in: Capsule()
-            )
+        KairoStatusChip(title: title, tone: .candidateProvided)
     }
 }
 
@@ -1054,7 +1042,7 @@ private struct MoreNavigationRow: View {
 
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(item.title)
-                        .font(KairoTypography.bodyStrong)
+                        .font(KairoTypography.recordTitle)
                         .foregroundStyle(KairoColors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -1149,7 +1137,7 @@ private struct MoreProfileSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         MoreStaticRow(
                             title: "Email",
                             subtitle: verificationMessage(isVerified: user.emailVerifiedAt != nil),
@@ -1167,7 +1155,7 @@ private struct MoreProfileSheetView: View {
                         )
                     }
 
-                    KairoCard {
+                    KairoSection {
                         VStack(spacing: KairoSpacing.medium) {
                             KairoTextField(
                                 title: "Full Name",
@@ -1270,8 +1258,8 @@ private struct MoreProfileSheetView: View {
                         .disabled(isSaving)
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(
                 LinearGradient(
@@ -1383,7 +1371,7 @@ private struct MoreChangePasswordSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         VStack(spacing: KairoSpacing.medium) {
                             KairoTextField(
                                 title: "Current Password",
@@ -1450,8 +1438,8 @@ private struct MoreChangePasswordSheetView: View {
                         .disabled(isSubmitting)
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(
                 LinearGradient(
@@ -1572,7 +1560,7 @@ private struct MoreSessionsSheetView: View {
                             systemImage: "desktopcomputer.trianglebadge.exclamationmark"
                         )
                     } else {
-                        KairoCard {
+                        KairoSection {
                             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                                 ForEach(sessions) { session in
                                     VStack(alignment: .leading, spacing: KairoSpacing.small) {
@@ -1614,8 +1602,8 @@ private struct MoreSessionsSheetView: View {
                         }
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(
                 LinearGradient(
@@ -1720,7 +1708,7 @@ private struct MoreConsentManagementSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         MoreStaticRow(
                             title: "Trust Score consent",
                             subtitle: "Current backend consent status.",
@@ -1778,8 +1766,8 @@ private struct MoreConsentManagementSheetView: View {
                     }
                     .disabled(isSubmitting)
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(
                 LinearGradient(
@@ -1872,7 +1860,7 @@ private struct MoreInformationSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         Text(model.primaryMessage)
                             .font(KairoTypography.body)
                             .foregroundStyle(KairoColors.textSecondary)
@@ -1880,7 +1868,7 @@ private struct MoreInformationSheetView: View {
                     }
 
                     if let supportEmailAddress = model.supportEmailAddress {
-                        KairoCard {
+                        KairoSection {
                             Text("Support email")
                                 .font(KairoTypography.headline)
                                 .foregroundStyle(KairoColors.textPrimary)
@@ -1893,7 +1881,7 @@ private struct MoreInformationSheetView: View {
                     }
 
                     if !model.metadataRows.isEmpty {
-                        KairoCard {
+                        KairoSection {
                             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                                 ForEach(Array(model.metadataRows.enumerated()), id: \.element.id) { index, row in
                                     if index > 0 {
@@ -1911,8 +1899,8 @@ private struct MoreInformationSheetView: View {
                         }
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(
                 LinearGradient(
@@ -1952,7 +1940,7 @@ private struct MoreDeleteAccountSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoCard {
+                    KairoSection {
                         Label("Permanent account deletion", systemImage: "exclamationmark.triangle.fill")
                             .font(KairoTypography.title2)
                             .foregroundStyle(KairoColors.danger)
@@ -1967,7 +1955,7 @@ private struct MoreDeleteAccountSheetView: View {
                             .foregroundStyle(KairoColors.danger)
                     }
 
-                    KairoCard {
+                    KairoSection {
                         KairoTextField(
                             title: "Type DELETE to confirm",
                             prompt: "DELETE",
@@ -2046,8 +2034,8 @@ private struct MoreDeleteAccountSheetView: View {
                         .disabled(isSubmitting)
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Delete account")
@@ -2117,7 +2105,7 @@ private struct MoreConfirmationSheetView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                KairoCard {
+                KairoSection {
                     Text(message)
                         .font(KairoTypography.body)
                         .foregroundStyle(KairoColors.textSecondary)
@@ -2151,8 +2139,8 @@ private struct MoreConfirmationSheetView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, KairoSpacing.large)
-            .padding(.vertical, KairoSpacing.xLarge)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.large)
             .background(
                 LinearGradient(
                     colors: [KairoColors.background, KairoColors.surfaceMuted.opacity(0.35)],

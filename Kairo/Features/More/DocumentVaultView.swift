@@ -51,8 +51,8 @@ struct DocumentVaultView: View {
                         KairoErrorStateView(title: "Vault action failed", message: errorMessage)
                     }
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Document Vault")
@@ -105,7 +105,7 @@ struct DocumentVaultView: View {
     }
 
     private var privacyCard: some View {
-        KairoCard {
+        KairoSection {
             Label("Private by default", systemImage: "lock.shield")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -117,7 +117,7 @@ struct DocumentVaultView: View {
     }
 
     private var uploadCard: some View {
-        KairoCard {
+        KairoSection {
             Text("Add document")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
@@ -171,49 +171,36 @@ struct DocumentVaultView: View {
     }
 
     private func documentCard(_ document: VaultDocument) -> some View {
-        KairoCard {
-            HStack(alignment: .top, spacing: KairoSpacing.small) {
-                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Text(document.documentType.title)
-                        .font(KairoTypography.headline)
-                        .foregroundStyle(KairoColors.textPrimary)
-                    Text(document.originalFilename)
-                        .font(KairoTypography.body)
+        KairoDocumentRow(
+            filename: document.originalFilename,
+            metadata: "\(document.documentType.title) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))",
+            source: document.isCurrent ? "Documents · Current" : "Documents · Replaced",
+            status: statusTitle(document.verificationStatus),
+            isHistorical: !document.isCurrent,
+            details: {
+                if let number = document.documentNumber, !number.isEmpty {
+                    Text("Document number: \(number)")
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: KairoSpacing.small)
-                Text(document.isCurrent ? "Current" : "Replaced")
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(document.isCurrent ? KairoColors.brandPrimary : KairoColors.textSecondary)
+                if let expiresAt = document.expiresAt {
+                    Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                }
+                if let note = document.reviewerNote, !note.isEmpty {
+                    Text(note)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                }
+            },
+            actions: {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: KairoSpacing.small) { documentActions(document) }
+                    VStack(alignment: .leading, spacing: KairoSpacing.xSmall) { documentActions(document) }
+                }
             }
-
-            Text("\(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file)) • \(statusTitle(document.verificationStatus))")
-                .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
-
-            if let number = document.documentNumber, !number.isEmpty {
-                Text("Document number: \(number)")
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
-            if let expiresAt = document.expiresAt {
-                Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
-            if let reviewerNote = document.reviewerNote, !reviewerNote.isEmpty {
-                Text(reviewerNote)
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: KairoSpacing.large) { documentActions(document) }
-                VStack(alignment: .leading, spacing: KairoSpacing.small) { documentActions(document) }
-            }
-            .font(KairoTypography.footnote)
-        }
+        )
         .accessibilityIdentifier("candidate.more.documentVault.document.\(document.id)")
     }
 

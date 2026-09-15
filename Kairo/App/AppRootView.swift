@@ -8,7 +8,13 @@ struct AppRootView: View {
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
 
     var body: some View {
-        ZStack(alignment: .top) {
+        VStack(spacing: 0) {
+            if appConfiguration.isDemoModeEnabled {
+                DemoModeBanner(environment: appConfiguration.environment)
+                    .padding(.horizontal, KairoSpacing.large)
+                    .padding(.vertical, KairoSpacing.small)
+            }
+
             switch sessionStore.launchPhase {
             case .idle:
                 RootShellView()
@@ -25,11 +31,6 @@ struct AppRootView: View {
                 )
             }
 
-            if appConfiguration.isDemoModeEnabled {
-                DemoModeBanner(environment: appConfiguration.environment)
-                    .padding(.horizontal, KairoSpacing.large)
-                    .padding(.top, KairoSpacing.small)
-            }
         }
         .background(KairoColors.background.ignoresSafeArea())
         .task {

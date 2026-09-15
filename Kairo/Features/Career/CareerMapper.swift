@@ -97,7 +97,11 @@ enum CareerOverviewMapper {
             ),
             verificationStatus: verificationStatus(from: record.verificationStatus),
             allowsEdit: record.allowsCandidateEditing,
-            allowsDelete: record.allowsCandidateDeletion
+            allowsDelete: record.allowsCandidateDeletion,
+            detailMetadata: detailMetadata([
+                ("Employment type", record.employmentType?.replacingOccurrences(of: "_", with: " ").capitalized),
+                ("Location", [record.workLocationRegion, record.workLocationCountry].compactMap { $0 }.joined(separator: ", "))
+            ])
         )
     }
 
@@ -121,7 +125,12 @@ enum CareerOverviewMapper {
                 endPrecision: record.endDatePrecision,
                 isCurrent: record.isCurrentlyStudying
             ),
-            verificationStatus: verificationStatus(from: record.verificationStatus)
+            verificationStatus: verificationStatus(from: record.verificationStatus),
+            detailMetadata: detailMetadata([
+                ("Field of study", record.fieldOfStudy),
+                ("Education level", record.educationLevel?.replacingOccurrences(of: "_", with: " ").capitalized),
+                ("Grade", record.grade)
+            ])
         )
     }
 
@@ -132,7 +141,11 @@ enum CareerOverviewMapper {
             issuer: record.issuer,
             issueDate: monthYear(record.issueDate) ?? "Issue date unavailable",
             verificationStatus: verificationStatus(from: record.verificationStatus),
-            hasDocument: record.originalFilename?.isEmpty == false
+            hasDocument: record.originalFilename?.isEmpty == false,
+            detailMetadata: detailMetadata([
+                ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate)),
+                ("Credential ID", record.credentialID)
+            ])
         )
     }
 
@@ -147,8 +160,19 @@ enum CareerOverviewMapper {
                 isCurrent: record.isOngoing
             ),
             portfolioLinkTitle: portfolioLinkTitle(for: record.portfolioURL),
-            verificationStatus: record.verificationStatus.map(verificationStatus(from:))
+            verificationStatus: record.verificationStatus.map(verificationStatus(from:)),
+            detailMetadata: detailMetadata([
+                ("Organization", record.organizationName),
+                ("Description", record.description)
+            ])
         )
+    }
+
+    private nonisolated static func detailMetadata(_ fields: [(String, String?)]) -> [CareerDetailMetadata] {
+        fields.compactMap { title, value in
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return CareerDetailMetadata(title: title, value: value)
+        }
     }
 
     private nonisolated static func makeSkillItem(_ record: CareerSkillRecord) -> CareerSkillItem {

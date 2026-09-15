@@ -119,8 +119,8 @@ struct VerificationInitiationSheet: View {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
                     content
                 }
-                .padding(.horizontal, KairoSpacing.large)
-                .padding(.vertical, KairoSpacing.xLarge)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
             }
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Start verification")
@@ -149,7 +149,7 @@ struct VerificationInitiationSheet: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             if let error = model.error {
-                KairoCard {
+                KairoSection {
                     Text(error.title)
                         .font(KairoTypography.headline)
                         .foregroundStyle(KairoColors.textPrimary)
@@ -178,7 +178,7 @@ struct VerificationInitiationSheet: View {
 
     private var selectionContent: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
                 Text("Choose a Career record")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -260,7 +260,7 @@ struct VerificationInitiationSheet: View {
 
     private func detailsContent(_ draft: Binding<VerificationInitiationDraft>) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
                 Text(draft.wrappedValue.subject.kind.title + " verification")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -272,7 +272,7 @@ struct VerificationInitiationSheet: View {
                     .foregroundStyle(KairoColors.textSecondary)
             }
 
-            KairoCard {
+            KairoSection {
                 Text("Supporting evidence")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -303,7 +303,7 @@ struct VerificationInitiationSheet: View {
                 }
             }
 
-            KairoCard {
+            KairoSection {
                 Text("Verification contact")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -325,7 +325,7 @@ struct VerificationInitiationSheet: View {
                 KairoTextField(title: "Note (optional)", prompt: "Context for the verifier", text: draft.candidateNote)
             }
 
-            KairoCard {
+            KairoSection {
                 Text("Your consent")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -358,7 +358,7 @@ struct VerificationInitiationSheet: View {
 
     private func successContent(_ result: VerificationInitiationResult) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoCard {
+            KairoSection {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.system(size: 36, weight: .semibold))
                     .foregroundStyle(KairoColors.success)

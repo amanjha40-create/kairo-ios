@@ -11,4 +11,8 @@ enum KairoTypography {
     static let footnote = Font.system(.footnote, design: .default)
     static let caption = Font.system(.caption, design: .default).weight(.semibold)
     static let sectionEyebrow = Font.system(.caption2, design: .default).weight(.semibold)
+    static let sectionTitle = Font.system(.headline, design: .default).weight(.semibold)
+    static let recordTitle = Font.system(.subheadline, design: .default).weight(.semibold)
+    static let metadata = Font.system(.footnote, design: .default)
+    static let action = Font.system(.subheadline, design: .default).weight(.semibold)
 }

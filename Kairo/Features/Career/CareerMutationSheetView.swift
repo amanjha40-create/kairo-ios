@@ -137,7 +137,7 @@ struct CareerEmploymentEditorSheet: View {
                     CareerMutationErrorCard(error: presentationError)
                 }
 
-                KairoCard {
+                KairoSection {
                     KairoTextField(
                         title: "Employer legal name",
                         prompt: "Northstar Analytics Private Limited",
@@ -286,7 +286,7 @@ struct CareerEducationEditorSheet: View {
                     CareerMutationErrorCard(error: presentationError)
                 }
 
-                KairoCard {
+                KairoSection {
                     KairoTextField(
                         title: "Institution",
                         prompt: "Riverdale Institute of Technology",
@@ -461,7 +461,7 @@ struct CareerCertificationEditorSheet: View {
                     CareerMutationErrorCard(error: presentationError)
                 }
 
-                KairoCard {
+                KairoSection {
                     KairoTextField(
                         title: "Certification title",
                         prompt: "Certified Scrum Product Owner",
@@ -654,7 +654,7 @@ struct CareerProjectEditorSheet: View {
                     CareerMutationErrorCard(error: presentationError)
                 }
 
-                KairoCard {
+                KairoSection {
                     KairoTextField(
                         title: "Project title",
                         prompt: "Vendor Intelligence Platform",
@@ -817,7 +817,7 @@ struct CareerSkillEditorSheet: View {
                     CareerMutationErrorCard(error: presentationError)
                 }
 
-                KairoCard {
+                KairoSection {
                     KairoTextField(
                         title: "Skill name",
                         prompt: "SQL",
@@ -900,7 +900,7 @@ private struct CareerMutationErrorCard: View {
     let error: CareerMutationPresentationError
 
     var body: some View {
-        KairoCard {
+        KairoSection {
             Text(error.title)
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.danger)
