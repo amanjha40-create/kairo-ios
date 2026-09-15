@@ -509,6 +509,8 @@ struct VerifyOverviewScreenView: View {
         response: String? = nil,
         consent: VerificationSubmissionConsent? = nil
     ) {
+        guard actionInFlight == nil else { return }
+        if action == .withdraw, request(for: requestID)?.status.canCandidateWithdraw != true { return }
         if let requestActionHandler {
             guard let routeRequestID = request(for: requestID)?.routeRequestID else {
                 actionError = VerifyActionError(
@@ -546,7 +548,7 @@ struct VerifyOverviewScreenView: View {
             presentedSheet = nil
         case .submitInformation:
             presentedSheet = .provideInformation(requestID)
-        case .submitForReview, .resubmitForReview:
+        case .submitForReview, .resubmitForReview, .withdraw:
             actionError = VerifyActionError(
                 title: "Local preview only",
                 message: "This fixture session only supports accept and provide-information previews."
@@ -580,6 +582,7 @@ struct VerifyOverviewScreenView: View {
                     onProvideInformation: { presentedSheet = .provideInformation(requestID) },
                     onSubmitForReview: { presentedSheet = .submissionConsent(requestID) },
                     onResubmitForReview: { performRequestAction(.resubmitForReview, requestID: requestID) },
+                    onWithdraw: { performRequestAction(.withdraw, requestID: requestID) },
                     onOpenCareer: {
                         presentedSheet = nil
                         router.selectTab(.career)
@@ -780,7 +783,10 @@ private struct VerifyRequestDetailSheet: View {
     let onProvideInformation: () -> Void
     let onSubmitForReview: () -> Void
     let onResubmitForReview: () -> Void
+    let onWithdraw: () -> Void
     let onOpenCareer: () -> Void
+
+    @State private var confirmsWithdrawal = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -894,11 +900,24 @@ private struct VerifyRequestDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .accessibilityIdentifier(KairoAccessibilityID.verifyRequestDetail)
+        .confirmationDialog("Withdraw this verification request?", isPresented: $confirmsWithdrawal, titleVisibility: .visible) {
+            Button("Withdraw request", role: .destructive) { onWithdraw() }
+            Button("Keep request", role: .cancel) { }
+        } message: {
+            Text("This is available only before verification outreach progresses. The request stays in history; the linked record returns to an editable draft. Verifying again creates a new request.")
+        }
+        .interactiveDismissDisabled(actionInFlight != nil)
         .presentationDetents([.large])
     }
 
     @ViewBuilder
     private var actionButtons: some View {
+        if request.availableActions.contains(.withdraw), request.status.canCandidateWithdraw {
+            Button("Withdraw request", role: .destructive) { confirmsWithdrawal = true }
+                .buttonStyle(KairoActionStyle(role: .destructiveSecondary))
+                .disabled(actionInFlight != nil)
+                .accessibilityIdentifier("verify.request.withdraw")
+        }
         if request.availableActions.contains(.accept) {
             KairoPrimaryButton(
                 title: "Accept request",

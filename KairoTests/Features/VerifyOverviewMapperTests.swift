@@ -209,7 +209,7 @@ final class VerifyOverviewMapperTests: XCTestCase {
         XCTAssertTrue(content.inProgressRequests.contains(where: { $0.id == "quality" }))
         XCTAssertTrue(content.request(id: "rejected")?.showsCareerRecovery == true)
         XCTAssertTrue(content.request(id: "cancelled")?.showsCareerRecovery == true)
-        XCTAssertEqual(content.request(id: "cancelled")?.status.style.title, "Withdrawn")
+        XCTAssertEqual(content.request(id: "cancelled")?.status.style.title, "Cancelled")
         XCTAssertTrue(content.completedRequests.contains(where: { $0.id == "verified" }))
     }
 

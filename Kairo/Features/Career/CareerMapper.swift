@@ -6,7 +6,13 @@ enum CareerOverviewMapper {
             employment: overview.employments.map(makeEmploymentItem),
             education: overview.educations.map(makeEducationItem),
             certifications: overview.certifications.map(makeCertificationItem),
-            projects: overview.projects.map(makeProjectItem),
+            projects: overview.projects.map(makeProjectItem) + overview.legacyPortfolio.map { item in
+                CareerProjectItem(routeID: "legacy.\(item.id)", title: item.title,
+                    role: "Legacy Portfolio origin", duration: "", portfolioLinkTitle: item.url?.host ?? "",
+                    verificationStatus: .init(rawBackendValue: item.verificationStatus),
+                    detailMetadata: detailMetadata([("Description", item.description), ("Origin", "Legacy Portfolio; Project migration pending")]),
+                    legacyPortfolioID: item.id)
+            },
             skills: overview.skills.map(makeSkillItem)
         )
 
@@ -95,7 +101,7 @@ enum CareerOverviewMapper {
                 endDate: record.endDate,
                 isCurrent: record.currentlyWorking
             ),
-            verificationStatus: verificationStatus(from: record.verificationStatus),
+            verificationStatus: .init(rawBackendValue: record.rawVerificationStatus),
             allowsEdit: record.allowsCandidateEditing,
             allowsDelete: record.allowsCandidateDeletion,
             detailMetadata: detailMetadata([
@@ -125,7 +131,7 @@ enum CareerOverviewMapper {
                 endPrecision: record.endDatePrecision,
                 isCurrent: record.isCurrentlyStudying
             ),
-            verificationStatus: verificationStatus(from: record.verificationStatus),
+            verificationStatus: .init(rawBackendValue: record.rawVerificationStatus),
             detailMetadata: detailMetadata([
                 ("Field of study", record.fieldOfStudy),
                 ("Education level", record.educationLevel?.replacingOccurrences(of: "_", with: " ").capitalized),
@@ -140,7 +146,7 @@ enum CareerOverviewMapper {
             title: record.title,
             issuer: record.issuer,
             issueDate: monthYear(record.issueDate) ?? "Issue date unavailable",
-            verificationStatus: verificationStatus(from: record.verificationStatus),
+            verificationStatus: .init(rawBackendValue: record.rawVerificationStatus),
             hasDocument: record.originalFilename?.isEmpty == false,
             detailMetadata: detailMetadata([
                 ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate)),
@@ -160,7 +166,7 @@ enum CareerOverviewMapper {
                 isCurrent: record.isOngoing
             ),
             portfolioLinkTitle: portfolioLinkTitle(for: record.portfolioURL),
-            verificationStatus: record.verificationStatus.map(verificationStatus(from:)),
+            verificationStatus: record.rawVerificationStatus.map(CareerVerificationStatus.init(rawBackendValue:)),
             detailMetadata: detailMetadata([
                 ("Organization", record.organizationName),
                 ("Description", record.description)
@@ -179,7 +185,7 @@ enum CareerOverviewMapper {
         CareerSkillItem(
             routeID: record.id,
             name: record.name,
-            verificationStatus: verificationStatus(from: record.verificationStatus)
+            verificationStatus: .init(rawBackendValue: record.rawVerificationStatus)
         )
     }
 
@@ -191,6 +197,8 @@ enum CareerOverviewMapper {
             return .pendingVerification
         case .notVerified:
             return .notVerified
+        case .unavailable:
+            return .precise("unknown")
         }
     }
 

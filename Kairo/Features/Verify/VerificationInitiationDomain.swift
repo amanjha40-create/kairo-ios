@@ -25,6 +25,7 @@ nonisolated struct VerificationInitiationSubject: Identifiable, Equatable, Senda
     }
 
     var eligibilityMessage: String? {
+        if verificationStatus == .unavailable { return "Status unavailable" }
         if verificationStatus == .verified {
             return "Already verified"
         }

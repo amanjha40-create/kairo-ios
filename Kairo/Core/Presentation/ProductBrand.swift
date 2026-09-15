@@ -17,4 +17,17 @@ nonisolated enum ProductStatusLanguage {
     static let candidateProvided = "Candidate-provided"
     static let unavailable = "Status unavailable"
     static let verificationIncomplete = "Verification incomplete"
+
+    static func title(for rawValue: String) -> String {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch value {
+        case "verified", "approved": return verified
+        case "pending", "pending_review", "pending_verification", "awaiting_verification", "submitted", "under_review", "in_review": return pendingReview
+        case "additional_info_requested": return needsAttention
+        case "withdrawn": return withdrawn
+        case "pending_upload": return draft
+        case "self_declared", "not_verified", "unverified", "missing": return candidateProvided
+        default: return VerifyVerificationStatus(rawBackendValue: value).style.title
+        }
+    }
 }

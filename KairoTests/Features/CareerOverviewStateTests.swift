@@ -69,7 +69,7 @@ final class CareerOverviewStateTests: XCTestCase {
         XCTAssertEqual(
             CareerVerificationStatus.pendingVerification.badgeStyle,
             CareerVerificationBadgeStyle(
-                title: "Pending Verification",
+                title: "Pending KairoID Review",
                 symbol: "clock.badge.checkmark.fill",
                 tone: .pending
             )
@@ -77,7 +77,7 @@ final class CareerOverviewStateTests: XCTestCase {
         XCTAssertEqual(
             CareerVerificationStatus.notVerified.badgeStyle,
             CareerVerificationBadgeStyle(
-                title: "Not Verified",
+                title: "Candidate-provided",
                 symbol: "circle.dashed",
                 tone: .neutral
             )

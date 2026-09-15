@@ -282,6 +282,8 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
 
     private nonisolated static func overviewResponse(for request: URLRequest) async throws -> (HTTPURLResponse, Data) {
         switch request.url?.absoluteString {
+        case "https://staging-api.kairoid.com/api/v1/portfolio?offset=0&limit=100":
+            return (try response(for: request, statusCode: 200), Data("[]".utf8))
         case "https://staging-api.kairoid.com/api/v1/users/me":
             return (try response(for: request, statusCode: 200), userPayload)
         case "https://staging-api.kairoid.com/api/v1/employments/":

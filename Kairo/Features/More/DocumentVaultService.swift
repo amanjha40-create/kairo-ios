@@ -73,14 +73,7 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
     }
 
     func listDocuments() async throws -> [VaultDocument] {
-        let data = try await sessionService.sendAuthenticated(
-            NetworkRequest(
-                path: "/user-documents",
-                headers: ["Accept": "application/json"],
-                queryItems: [URLQueryItem(name: "limit", value: "100")]
-            )
-        )
-        return try decoder.decode(VaultDocumentPageDTO.self, from: data).items.map(\.domain)
+        try await loadOwnerCollection(VaultDocumentDTO.self, path: "/user-documents", session: sessionService).map(\.domain)
     }
 
     func uploadDocument(

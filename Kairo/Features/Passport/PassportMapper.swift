@@ -277,8 +277,8 @@ nonisolated enum PassportOverviewMapper {
         PassportProjectRecord(
             title: record.title,
             role: record.role ?? "Role not added yet",
-            date: monthYearRange(startDate: record.startDate, endDate: record.endDate, isCurrent: record.isOngoing),
-            evidenceStatus: projectEvidenceSummary(for: record),
+            date: record.id.hasPrefix("legacy.") ? "Project migration pending" : monthYearRange(startDate: record.startDate, endDate: record.endDate, isCurrent: record.isOngoing),
+            evidenceStatus: record.verificationStatus.map { presentationStatus(from: $0).style.title } ?? ProductStatusLanguage.candidateProvided,
             portfolioLinkTitle: projectLinkTitle(for: record)
         )
     }
@@ -308,6 +308,8 @@ nonisolated enum PassportOverviewMapper {
             .pendingVerification
         case .notVerified:
             .notVerified
+        case .precise(let value):
+            .precise(value)
         }
     }
 
@@ -380,7 +382,7 @@ nonisolated enum PassportOverviewMapper {
                 counts.verified += entry.value
             case .pending:
                 counts.pending += entry.value
-            case .notVerified:
+            case .notVerified, .precise:
                 counts.notVerified += entry.value
             }
         }

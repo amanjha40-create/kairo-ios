@@ -23,7 +23,7 @@ final class MoreOverviewStateTests: XCTestCase {
             "Personal information",
             "Login & security",
             "Sessions & devices",
-            "Document Vault"
+            "Documents"
         ])
         XCTAssertEqual(content.appVersion, "1.0.0 (1)")
         XCTAssertEqual(content.supportEmailAddress, "contact@kairoid.com")

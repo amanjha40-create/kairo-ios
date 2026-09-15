@@ -42,6 +42,7 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
     }
 
     func loadOverview() async throws -> CareerOverview {
+        async let legacy = loadOwnerCollection(LegacyPortfolioItem.self, path: "/portfolio", session: sessionService)
         async let currentUserResult = captureResult { [self] in try await self.loadCurrentUser() }
         async let employmentsResult = captureResult { [self] in
             try await self.loadCollection([CareerEmploymentDTO].self, path: "/employments/")
@@ -71,7 +72,8 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             educations: educationRecords.map(CareerEducationRecord.init(dto:)),
             certifications: certificationRecords.map(CareerCertificationRecord.init(dto:)),
             projects: projectRecords.map(CareerProjectRecord.init(dto:)),
-            skills: skillRecords.map(CareerSkillRecord.init(dto:))
+            skills: skillRecords.map(CareerSkillRecord.init(dto:)),
+            legacyPortfolio: try await legacy
         )
     }
 
@@ -305,58 +307,9 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
     }
 
     private func loadCollection<Element: Decodable & Equatable & Sendable>(
-        _ type: [Element].Type,
-        path: String
+        _ type: [Element].Type, path: String
     ) async throws -> [Element] {
-        let data: Data
-        do {
-            data = try await sessionService.sendAuthenticated(
-                NetworkRequest(
-                    path: path,
-                    headers: ["Accept": "application/json"]
-                )
-            )
-        } catch {
-            #if DEBUG
-            NetworkDiagnostics.logCareerLoadFailure(path: path, error: error)
-            #endif
-            throw error
-        }
-
-        let decoder = APIJSONCoder.makeDecoder()
-
-        do {
-            let decoded = try decoder.decode([Element].self, from: data)
-            #if DEBUG
-            NetworkDiagnostics.logCareerDecodeSuccess(
-                path: path,
-                shape: "array",
-                itemCount: decoded.count
-            )
-            #endif
-            return decoded
-        } catch let arrayDecodeError {
-            do {
-                let decoded = try decoder.decode(CareerCollectionEnvelopeDTO<Element>.self, from: data).items
-                #if DEBUG
-                NetworkDiagnostics.logCareerDecodeSuccess(
-                    path: path,
-                    shape: "envelope",
-                    itemCount: decoded.count
-                )
-                #endif
-                return decoded
-            } catch let envelopeDecodeError {
-                #if DEBUG
-                NetworkDiagnostics.logCareerDecodeFailure(
-                    path: path,
-                    primaryError: arrayDecodeError,
-                    envelopeError: envelopeDecodeError
-                )
-                #endif
-                throw envelopeDecodeError
-            }
-        }
+        try await loadOwnerCollection(Element.self, path: path, session: sessionService, startsWithPaging: false)
     }
 
     private func mutate<Body: Encodable, Response: Decodable>(

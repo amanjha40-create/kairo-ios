@@ -84,6 +84,10 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
         consent: VerificationSubmissionConsent?
     ) async throws {
         switch action {
+        case .withdraw:
+            _ = try await send(
+                NetworkRequest(path: "/verification-requests/\(requestID)/withdraw", method: .post, headers: ["Accept": "application/json"])
+            ) as VerificationRequestResponseDTO
         case .accept:
             _ = try await send(
                 NetworkRequest(

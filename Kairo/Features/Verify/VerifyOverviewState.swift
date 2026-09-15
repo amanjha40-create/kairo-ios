@@ -120,7 +120,7 @@ nonisolated struct VerifyOverviewState: Equatable, Sendable {
                                     dateLabel: "31 Jul 2026"
                                 )
                             ],
-                            availableActions: []
+                            availableActions: [.withdraw]
                         ),
                         VerifyRequest(
                             id: "completed-employment-brightpath",
@@ -361,6 +361,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
     case rejected
     case unableToVerify
     case cancelled
+    case withdrawnByCandidate
     case expired
     case unknown(String)
 
@@ -382,6 +383,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
         .rejected,
         .unableToVerify,
         .cancelled,
+        .withdrawnByCandidate,
         .expired
     ]
 
@@ -423,6 +425,8 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             self = .unableToVerify
         case "cancelled":
             self = .cancelled
+        case "withdrawn_by_candidate":
+            self = .withdrawnByCandidate
         case "expired":
             self = .expired
         default:
@@ -466,6 +470,8 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             "unable_to_verify"
         case .cancelled:
             "cancelled"
+        case .withdrawnByCandidate:
+            "withdrawn_by_candidate"
         case .expired:
             "expired"
         case .unknown(let rawValue):
@@ -495,6 +501,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
              .rejected,
              .unableToVerify,
              .cancelled,
+             .withdrawnByCandidate,
              .expired:
             .completed
         }
@@ -552,19 +559,19 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .pendingOrganizationResolution:
             VerifyStatusStyle(
-                title: "Pending organization resolution",
+                title: "Awaiting verifier",
                 symbol: "building.2",
                 tone: .warning
             )
         case .pendingOrganizationAcceptance:
             VerifyStatusStyle(
-                title: "Pending organization acceptance",
+                title: "Awaiting verifier",
                 symbol: "building.columns",
                 tone: .warning
             )
         case .inProgress:
             VerifyStatusStyle(
-                title: "In progress",
+                title: "Verifier reviewing",
                 symbol: "clock.arrow.circlepath",
                 tone: .accent
             )
@@ -576,7 +583,7 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
             )
         case .pendingAdminQualityReview:
             VerifyStatusStyle(
-                title: "Quality review",
+                title: "KairoID Reviewing Verifier Response",
                 symbol: "checkmark.magnifyingglass",
                 tone: .warning
             )
@@ -599,6 +606,8 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
                 tone: .neutral
             )
         case .cancelled:
+            VerifyStatusStyle(title: "Cancelled", symbol: "nosign", tone: .neutral)
+        case .withdrawnByCandidate:
             VerifyStatusStyle(
                 title: ProductStatusLanguage.withdrawn,
                 symbol: "nosign",
@@ -622,6 +631,10 @@ nonisolated enum VerifyVerificationStatus: Equatable, Sendable {
     var rank: Int {
         Self.displayOrder.firstIndex(of: self) ?? Self.displayOrder.count
     }
+
+    var canCandidateWithdraw: Bool {
+        self == .pendingAdminReview || self == .pendingAdminReReview
+    }
 }
 
 nonisolated enum VerifyRequestActionTransition: Equatable, Sendable {
@@ -640,6 +653,7 @@ nonisolated enum VerifyRequestAction: Equatable, Hashable, Sendable {
     case submitInformation
     case submitForReview
     case resubmitForReview
+    case withdraw
 
     var buttonTitle: String {
         switch self {
@@ -651,6 +665,8 @@ nonisolated enum VerifyRequestAction: Equatable, Hashable, Sendable {
             "Submit for review"
         case .resubmitForReview:
             "Resubmit for review"
+        case .withdraw:
+            "Withdraw request"
         }
     }
 }
@@ -860,7 +876,7 @@ nonisolated struct VerifyRequest: Equatable, Identifiable, Sendable {
 
     var showsCareerRecovery: Bool {
         switch status {
-        case .rejected, .cancelled:
+        case .rejected, .cancelled, .withdrawnByCandidate:
             true
         default:
             false

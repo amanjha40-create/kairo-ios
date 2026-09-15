@@ -100,7 +100,7 @@ nonisolated enum VerifyOverviewMapper {
     }
 
     private nonisolated static func makePriorityAction(from requests: [VerifyRequestRecord]) -> VerifyPriorityAction {
-        if let actionable = requests.first(where: { !$0.availableActions.isEmpty }) {
+        if let actionable = requests.first(where: { $0.availableActions.contains { $0 != .withdraw } }) {
             return VerifyPriorityAction(
                 title: priorityTitle(for: actionable),
                 organization: actionable.organizationName,
@@ -300,6 +300,8 @@ nonisolated enum VerifyOverviewMapper {
              .pendingAdminQualityReview,
              .unknown:
             return "No action is needed from you right now."
+        case .withdrawnByCandidate:
+            return "Withdrawn before outreach. Edit the linked draft in Career and start a new verification when ready. This request remains in history."
         case .verified, .rejected, .unableToVerify, .cancelled, .expired:
             return "No further action is needed."
         }
@@ -347,6 +349,8 @@ private extension VerifyRequestRecord {
             return [.submitForReview]
         case .awaitingSubjectCorrections:
             return [.resubmitForReview]
+        case .pendingAdminReview, .pendingAdminReReview:
+            return [.withdraw]
         default:
             return []
         }

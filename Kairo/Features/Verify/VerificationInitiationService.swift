@@ -110,6 +110,7 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
                 throw error
             }
             created = try await loadExistingRequest(for: draft.subject)
+            guard !Self.terminalStatuses.contains(created.status.lowercased()) else { throw error }
             reusedExistingRequest = true
         }
 
@@ -232,7 +233,7 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
     }
 
     private nonisolated static let terminalStatuses: Set<String> = [
-        "verified", "rejected", "unable_to_verify", "cancelled", "expired"
+        "verified", "rejected", "unable_to_verify", "cancelled", "expired", "withdrawn_by_candidate"
     ]
 }
 

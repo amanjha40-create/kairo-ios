@@ -572,6 +572,10 @@ private struct DocumentVaultServiceKey: EnvironmentKey {
     static let defaultValue: any DocumentVaultServiceProtocol = MissingDocumentVaultService()
 }
 
+private struct DocumentsHubServiceKey: EnvironmentKey {
+    static let defaultValue: any DocumentsHubServiceProtocol = PreviewDocumentsHubService()
+}
+
 private struct ManualProfileServiceKey: EnvironmentKey {
     static let defaultValue: any ManualProfileServiceProtocol = MissingManualProfileService()
 }
@@ -648,6 +652,11 @@ extension EnvironmentValues {
     var documentVaultService: any DocumentVaultServiceProtocol {
         get { self[DocumentVaultServiceKey.self] }
         set { self[DocumentVaultServiceKey.self] = newValue }
+    }
+
+    var documentsHubService: any DocumentsHubServiceProtocol {
+        get { self[DocumentsHubServiceKey.self] }
+        set { self[DocumentsHubServiceKey.self] = newValue }
     }
 
     var manualProfileService: any ManualProfileServiceProtocol {

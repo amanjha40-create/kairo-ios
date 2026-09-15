@@ -7,6 +7,7 @@ struct CareerOverview: Equatable, Sendable {
     let certifications: [CareerCertificationRecord]
     let projects: [CareerProjectRecord]
     let skills: [CareerSkillRecord]
+    var legacyPortfolio: [LegacyPortfolioItem] = []
 }
 
 struct CareerEmploymentRecord: Identifiable, Equatable, Sendable {
@@ -101,6 +102,7 @@ enum CareerRecordVerificationStatus: String, Equatable, Sendable {
     case verified
     case pending
     case notVerified
+    case unavailable
 
     nonisolated init(rawBackendValue: String) {
         switch rawBackendValue
@@ -108,13 +110,15 @@ enum CareerRecordVerificationStatus: String, Equatable, Sendable {
             .lowercased() {
         case "verified", "approved":
             self = .verified
-        case "pending", "pending_verification", "awaiting_verification", "in_review",
-             "submitted", "under_review", "additional_info_requested":
+        case "pending", "pending_review", "pending_verification", "awaiting_verification", "in_review",
+             "submitted", "under_review", "additional_info_requested", "pending_admin_review",
+             "pending_admin_re_review", "pending_organization_acceptance", "accepted", "in_progress",
+             "awaiting_information", "awaiting_quality_review":
             self = .pending
-        case "not_verified", "unverified", "missing", "draft", "rejected", "cancelled":
+        case "not_verified", "unverified", "self_declared", "candidate_provided", "missing", "draft", "rejected", "cancelled", "withdrawn_by_candidate", "expired", "unable_to_verify":
             self = .notVerified
         default:
-            self = .notVerified
+            self = .unavailable
         }
     }
 }

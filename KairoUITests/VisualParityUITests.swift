@@ -104,12 +104,19 @@ final class VisualParityUITests: XCTestCase {
     func testCertificationAndProjectDetails() {
         let app = launch()
         app.tabBars.buttons["Career"].tap()
-        for (sectionID, screenshotName) in [("candidate.career.certifications", "Certification"), ("candidate.career.projects", "Project")] {
-            let section = app.descendants(matching: .any)[sectionID].firstMatch
-            reveal(section, app: app)
-            let visibleRecord = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "career.record.open.")).allElementsBoundByIndex.first { $0.isHittable && $0.frame.minY >= section.frame.minY }
-            XCTAssertNotNil(visibleRecord)
-            visibleRecord?.tap()
+        for (title, screenshotName) in [("People Operations Foundations", "Certification"), ("Career Trust Onboarding Pilot", "Project")] {
+            let record = app.buttons["career.record.open.\(title)"]
+            // Section-header visibility does not mean its record is clear of the tab bar.
+            for _ in 0..<25 {
+                if record.exists && record.isHittable && record.frame.minY > 120 && record.frame.maxY < app.frame.height - 120 { break }
+                let earlier = record.exists && record.frame.minY <= 120
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.40 : 0.70))
+                    .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.60 : 0.45)))
+            }
+            XCTAssertTrue(record.isHittable)
+            XCTAssertGreaterThan(record.frame.minY, 120)
+            XCTAssertLessThan(record.frame.maxY, app.frame.height - 120)
+            record.tap()
             XCTAssertTrue(app.otherElements["career.record.detail"].waitForExistence(timeout: 10))
             capture(screenshotName + " detail")
             app.buttons["Done"].tap()
@@ -152,7 +159,7 @@ final class VisualParityUITests: XCTestCase {
         let documents = app.buttons["documentVault"]
         reveal(documents, app: app)
         documents.tap()
-        XCTAssertTrue(app.navigationBars["Document Vault"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Documents"].waitForExistence(timeout: 10))
         capture("Documents")
         app.buttons["Done"].tap()
         let settings = app.staticTexts["candidate.more.preferences"]

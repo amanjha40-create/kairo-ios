@@ -275,10 +275,20 @@ nonisolated struct CareerVerificationBadgeStyle: Equatable, Sendable {
     let tone: CareerVerificationTone
 }
 
-nonisolated enum CareerVerificationStatus: String, CaseIterable, Equatable, Sendable {
+nonisolated enum CareerVerificationStatus: Equatable, Sendable {
     case verified
     case pendingVerification
     case notVerified
+    case precise(String)
+
+    init(rawBackendValue: String) {
+        switch rawBackendValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "verified", "approved": self = .verified
+        case "pending", "pending_review", "pending_verification", "awaiting_verification", "submitted", "under_review", "in_review": self = .pendingVerification
+        case "self_declared", "not_verified", "unverified", "missing": self = .notVerified
+        default: self = .precise(rawBackendValue)
+        }
+    }
 
     var badgeStyle: CareerVerificationBadgeStyle {
         switch self {
@@ -290,21 +300,31 @@ nonisolated enum CareerVerificationStatus: String, CaseIterable, Equatable, Send
             )
         case .pendingVerification:
             CareerVerificationBadgeStyle(
-                title: "Pending Verification",
+                title: ProductStatusLanguage.pendingReview,
                 symbol: "clock.badge.checkmark.fill",
                 tone: .pending
             )
         case .notVerified:
             CareerVerificationBadgeStyle(
-                title: "Not Verified",
+                title: ProductStatusLanguage.candidateProvided,
                 symbol: "circle.dashed",
                 tone: .neutral
             )
+        case .precise(let value):
+            CareerVerificationBadgeStyle(title: ProductStatusLanguage.title(for: value), symbol: "info.circle", tone: .neutral)
         }
     }
 
     var accessibilityLabel: String {
         badgeStyle.title
+    }
+
+    var canStartVerification: Bool {
+        switch self {
+        case .notVerified: true
+        case .precise(let raw): CareerRecordVerificationStatus(rawBackendValue: raw) == .notVerified
+        case .verified, .pendingVerification: false
+        }
     }
 }
 
@@ -427,6 +447,7 @@ nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
     let portfolioLinkTitle: String
     let verificationStatus: CareerVerificationStatus?
     var detailMetadata: [CareerDetailMetadata] = []
+    var legacyPortfolioID: String? = nil
 
     var id: String { routeID }
 }

@@ -12,6 +12,7 @@ struct AppDependencies: Sendable {
     let careerOverviewService: any CareerOverviewServiceProtocol
     let careerDocumentService: any CareerDocumentServiceProtocol
     let documentVaultService: any DocumentVaultServiceProtocol
+    let documentsHubService: any DocumentsHubServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
     let verificationInitiationService: any VerificationInitiationServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
@@ -153,6 +154,9 @@ struct AppDependencies: Sendable {
             careerOverviewService: careerOverviewService,
             careerDocumentService: careerDocumentService,
             documentVaultService: documentVaultService,
+            documentsHubService: configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
+                ? PreviewDocumentsHubService()
+                : DocumentsHubService(career: careerOverviewService, documents: careerDocumentService, vault: documentVaultService, session: sessionService),
             verifyOverviewService: verifyOverviewService,
             verificationInitiationService: verificationInitiationService,
             passportOverviewService: passportOverviewService,

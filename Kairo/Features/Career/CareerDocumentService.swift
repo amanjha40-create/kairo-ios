@@ -4,18 +4,20 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
     case employment(id: String, title: String, canUpload: Bool, canDelete: Bool)
     case education(id: String, title: String)
     case certification(id: String, title: String)
+    case legacyPortfolio(id: String, title: String)
 
     var id: String {
         switch self {
         case .employment(let id, _, _, _): "employment.\(id)"
         case .education(let id, _): "education.\(id)"
         case .certification(let id, _): "certification.\(id)"
+        case .legacyPortfolio(let id, _): "legacyPortfolio.\(id)"
         }
     }
 
     var title: String {
         switch self {
-        case .employment(_, let title, _, _), .education(_, let title), .certification(_, let title): title
+        case .employment(_, let title, _, _), .education(_, let title), .certification(_, let title), .legacyPortfolio(_, let title): title
         }
     }
 
@@ -24,6 +26,7 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
         case .employment: "Employment documents"
         case .education: "Education documents"
         case .certification: "Certification document"
+        case .legacyPortfolio: "Project document · Legacy Portfolio origin"
         }
     }
 
@@ -31,7 +34,8 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
         switch self {
         case .employment(_, _, let canUpload, _): canUpload
         case .education: true
-        case .certification: false
+        case .certification: true
+        case .legacyPortfolio: true
         }
     }
 
@@ -39,8 +43,16 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
         switch self {
         case .employment(_, _, _, let canDelete): canDelete
         case .education: true
-        case .certification: false
+        case .certification: true
+        case .legacyPortfolio: true
         }
+    }
+}
+
+extension CareerDocumentParent {
+    var isCertification: Bool {
+        if case .certification = self { return true }
+        return false
     }
 }
 
@@ -85,6 +97,13 @@ extension CareerDocumentServiceProtocol {
         documentType: String,
         parent: CareerDocumentParent
     ) async throws -> [CareerDocument] {
+        if case .certification = parent {
+            // Completion atomically swaps the attachment; never detach afterward.
+            return try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+        }
+        if case .legacyPortfolio = parent {
+            return try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+        }
         _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
         return try await deleteDocument(document, parent: parent)
     }
@@ -127,7 +146,9 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
                 .init(id: "other", label: "Other")
             ]
         case .certification:
-            []
+            [.init(id: "certificate", label: "Certificate")]
+        case .legacyPortfolio:
+            [.init(id: "project", label: "Project attachment")]
         }
     }
 
@@ -153,6 +174,10 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
                     verificationStatus: certification.verificationStatus
                 )
             ]
+        case .legacyPortfolio(let id, _):
+            let data = try await sessionService.sendAuthenticated(NetworkRequest(path: "/portfolio/\(id)", headers: ["Accept": "application/json"]))
+            let record = try decoder.decode(LegacyPortfolioItem.self, from: data)
+            return record.document.map { [$0] } ?? []
         }
     }
 
@@ -162,6 +187,12 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         to parent: CareerDocumentParent
     ) async throws -> [CareerDocument] {
         guard parent.canUpload else { throw CareerDocumentServiceError.uploadUnavailable }
+        if case .certification(let id, _) = parent {
+            return try await uploadCertificationDocument(fileURL: fileURL, id: id, parent: parent)
+        }
+        if case .legacyPortfolio(let id, _) = parent {
+            return try await uploadLegacyProjectDocument(fileURL: fileURL, id: id, parent: parent)
+        }
         let selection = try await transferClient.prepare(
             fileURL: fileURL,
             maximumBytes: 20 * 1_024 * 1_024,
@@ -177,7 +208,7 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         case .education(let id, _):
             intentPath = "/educations/\(id)/documents/upload-intent"
             completionPath = { "/educations/\(id)/documents/\($0)/complete-upload" }
-        case .certification:
+        case .certification, .legacyPortfolio:
             throw CareerDocumentServiceError.uploadUnavailable
         }
 
@@ -230,6 +261,8 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             path = "/educations/\(id)/documents/\(document.id)/download-url"
         case .certification(let id, _):
             path = "/certifications/\(id)/download-url"
+        case .legacyPortfolio(let id, _):
+            path = "/portfolio/\(id)/download-url"
         }
         let data = try await sessionService.sendAuthenticated(
             NetworkRequest(path: path, headers: ["Accept": "application/json"])
@@ -246,8 +279,10 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             path = "/employments/\(id)/documents/\(document.id)"
         case .education(let id, _):
             path = "/educations/\(id)/documents/\(document.id)"
-        case .certification:
-            throw CareerDocumentServiceError.deleteUnavailable
+        case .certification(let id, _):
+            path = "/certifications/\(id)/document"
+        case .legacyPortfolio(let id, _):
+            path = "/portfolio/\(id)/document"
         }
         _ = try await sessionService.sendAuthenticated(
             NetworkRequest(path: path, method: .delete, headers: ["Accept": "application/json"])
@@ -256,15 +291,38 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
     }
 
     private func list(path: String) async throws -> [CareerDocument] {
-        let data = try await sessionService.sendAuthenticated(
-            NetworkRequest(
-                path: path,
-                headers: ["Accept": "application/json"],
-                queryItems: [URLQueryItem(name: "limit", value: "100")]
-            )
-        )
-        let page = try decoder.decode(CareerDocumentPageDTO.self, from: data)
-        return page.items.map(\.domain)
+        try await loadOwnerCollection(CareerDocumentDTO.self, path: path, session: sessionService).map(\.domain)
+    }
+
+    private func uploadLegacyProjectDocument(fileURL: URL, id: String, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        let selection = try await transferClient.prepare(fileURL: fileURL, maximumBytes: 20 * 1_024 * 1_024, allowedContentTypes: SecureDocumentTransferClient.careerContentTypes)
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(path: "/portfolio/\(id)/upload-intent", method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try encoder.encode(LegacyProjectIntentDTO(originalFilename: selection.filename, contentType: selection.contentType, byteSize: selection.data.count))))
+        let intent = try decoder.decode(LegacyProjectIntentResponseDTO.self, from: data)
+        try await transferClient.upload(selection, to: intent.uploadUrl, requiredHeaders: intent.headersRequired)
+        _ = try await sessionService.sendAuthenticated(NetworkRequest(path: "/portfolio/\(id)/complete-upload", method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try encoder.encode(CareerDocumentCompleteRequestDTO(checksumSHA256: selection.checksumSHA256))))
+        return try await listDocuments(for: parent)
+    }
+
+    private func uploadCertificationDocument(fileURL: URL, id: String, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        let selection = try await transferClient.prepare(fileURL: fileURL, maximumBytes: 50 * 1_024 * 1_024, allowedContentTypes: SecureDocumentTransferClient.careerContentTypes)
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/certifications/\(id)/document/upload-intent", method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try encoder.encode(CertificationDocumentIntentDTO(originalFilename: selection.filename, contentType: selection.contentType, byteSize: selection.data.count, checksumSha256: selection.checksumSHA256))
+        ))
+        let intent = try decoder.decode(CertificationDocumentIntentResponseDTO.self, from: data)
+        // The one-use token stays in memory. Incomplete intents expire server-side.
+        try await transferClient.upload(selection, to: intent.uploadUrl, requiredHeaders: intent.headersRequired)
+        _ = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/certifications/\(id)/document/complete-upload", method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try encoder.encode(CertificationDocumentCompletionDTO(uploadToken: intent.uploadToken, checksumSha256: selection.checksumSHA256))
+        ))
+        return try await listDocuments(for: parent)
     }
 
     private func discardIncompleteUpload(documentID: String, parent: CareerDocumentParent) async throws {
@@ -274,7 +332,7 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             path = "/employments/\(id)/documents/\(documentID)"
         case .education(let id, _):
             path = "/educations/\(id)/documents/\(documentID)"
-        case .certification:
+        case .certification, .legacyPortfolio:
             return
         }
         _ = try await sessionService.sendAuthenticated(
@@ -282,6 +340,16 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         )
     }
 
+}
+
+private nonisolated struct LegacyProjectIntentDTO: Encodable {
+    let originalFilename: String
+    let contentType: String
+    let byteSize: Int
+}
+private nonisolated struct LegacyProjectIntentResponseDTO: Decodable {
+    let uploadUrl: URL
+    let headersRequired: [String: String]
 }
 
 actor DemoCareerDocumentService: CareerDocumentServiceProtocol {
@@ -386,4 +454,22 @@ private nonisolated struct CareerDocumentCompleteRequestDTO: Encodable {
 
 private nonisolated struct CareerDocumentDownloadResponseDTO: Decodable {
     let downloadUrl: URL
+}
+
+private nonisolated struct CertificationDocumentIntentDTO: Encodable {
+    let originalFilename: String
+    let contentType: String
+    let byteSize: Int
+    let checksumSha256: String
+}
+
+private nonisolated struct CertificationDocumentIntentResponseDTO: Decodable {
+    let uploadUrl: URL
+    let uploadToken: String
+    let headersRequired: [String: String]
+}
+
+private nonisolated struct CertificationDocumentCompletionDTO: Encodable {
+    let uploadToken: String
+    let checksumSha256: String
 }

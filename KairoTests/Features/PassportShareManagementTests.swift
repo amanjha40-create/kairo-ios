@@ -105,10 +105,14 @@ final class PassportShareManagementTests: XCTestCase {
         )
 
         await MockURLProtocolStorage.shared.setHandler { request in
+            if request.url?.path == "/api/v1/passport-shares/capabilities" {
+                return (try Self.response(request, 200), Self.capabilitiesPayload)
+            }
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.url?.path, "/api/v1/passport-shares")
             let body = try requestJSONBody(from: request)
-            XCTAssertEqual(Set(body.keys), ["label", "expires_at", "track_views", "permissions"])
+            XCTAssertEqual(Set(body.keys), ["label", "expires_at", "track_views", "permissions", "sharing_mode"])
+            XCTAssertEqual(body["sharing_mode"] as? String, "verified_only")
             XCTAssertEqual(body["label"] as? String, "Recruiter access")
             XCTAssertEqual(body["track_views"] as? Bool, true)
             XCTAssertTrue((body["expires_at"] as? String)?.hasPrefix("2030-03-04T05:06:07") == true)
@@ -165,14 +169,15 @@ final class PassportShareManagementTests: XCTestCase {
             case ("PATCH", "/api/v1/passport-shares/\(shareID)"):
                 let body = try requestJSONBody(from: request)
                 XCTAssertTrue(body["expires_at"] is NSNull)
-                XCTAssertTrue(body["label"] is NSNull)
+                XCTAssertNil(body["label"])
                 XCTAssertNotNil(body["permissions"])
                 XCTAssertNil(body["track_views"])
                 return (try Self.response(request, 200), Self.sharePayload(id: shareID, state: "active"))
             case ("GET", "/api/v1/passport-shares/\(shareID)"):
+                let saved = await MockURLProtocolStorage.shared.requests().contains { $0.httpMethod == "PATCH" }
                 return (
                     try Self.response(request, 200),
-                    Self.sharePayload(id: shareID, state: "active", label: nil, expiresAt: nil)
+                    Self.sharePayload(id: shareID, state: "active", label: nil, expiresAt: saved ? nil : "2030-03-04T05:06:07Z")
                 )
             default:
                 XCTFail("Unexpected request: \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
@@ -185,13 +190,15 @@ final class PassportShareManagementTests: XCTestCase {
             input: PassportShareMutationInput(
                 label: nil,
                 permissions: .privacyPreserving,
-                expiresAt: nil
+                expiresAt: nil,
+                sharingMode: .legacyMixed
             )
         )
         let requests = await MockURLProtocolStorage.shared.requests()
 
+        XCTAssertEqual(updated.id, shareID)
         XCTAssertNil(updated.expiresAt)
-        XCTAssertEqual(requests.map(\.httpMethod), ["PATCH", "GET"])
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH", "GET"])
     }
 
     func test_revokePostsThenRefetchesAuthoritativeRevokedState() async throws {
@@ -223,7 +230,10 @@ final class PassportShareManagementTests: XCTestCase {
         let model = PassportShareCreateViewModel(service: service)
 
         await MockURLProtocolStorage.shared.setHandler { request in
-            (
+            if request.url?.path == "/api/v1/passport-shares/capabilities" {
+                return (try Self.response(request, 200), Self.capabilitiesPayload)
+            }
+            return (
                 try Self.response(request, 422),
                 Data(
                     """
@@ -233,6 +243,8 @@ final class PassportShareManagementTests: XCTestCase {
             )
         }
 
+        await model.loadCapabilities()
+        model.draft.label = "Contract QA"
         let succeeded = await model.create()
 
         XCTAssertFalse(succeeded)
@@ -245,7 +257,10 @@ final class PassportShareManagementTests: XCTestCase {
         let service = try await makeService()
 
         await MockURLProtocolStorage.shared.setHandler { request in
-            (
+            if request.url?.path == "/api/v1/passport-shares/capabilities" {
+                return (try Self.response(request, 200), Self.capabilitiesPayload)
+            }
+            return (
                 try Self.response(request, 201),
                 Self.createPayload(
                     id: "00000000-0000-0000-0000-000000000051",
@@ -257,7 +272,7 @@ final class PassportShareManagementTests: XCTestCase {
         do {
             _ = try await service.createShare(
                 PassportShareMutationInput(
-                    label: nil,
+                    label: "Contract QA",
                     permissions: .privacyPreserving,
                     expiresAt: nil
                 )
@@ -285,7 +300,7 @@ final class PassportShareManagementTests: XCTestCase {
         let permissions = PassportSharePermissions.privacyPreserving
 
         XCTAssertTrue(permissions.enabledOptions.isEmpty)
-        XCTAssertEqual(permissions.conciseSummary, "Basic public profile only")
+        XCTAssertEqual(permissions.conciseSummary, "No optional sections shared")
     }
 
     func test_demoDependenciesUseDeterministicLocalShareServiceWithoutNetwork() async throws {
@@ -449,7 +464,8 @@ final class PassportShareManagementTests: XCTestCase {
 
     private nonisolated static func createPayload(id: String, shareURL: String) -> Data {
         let base = String(data: sharePayload(id: id, state: "active"), encoding: .utf8)!
-        let withURL = base.dropLast().appending(",\"share_url\":\"\(shareURL)\"}")
+        let withURL = base.replacingOccurrences(of: "\"include_certifications\": true", with: "\"include_certifications\": false")
+            .dropLast().appending(",\"policy_version\":2,\"sharing_mode\":\"verified_only\",\"share_url\":\"\(shareURL)\"}")
         return Data(withURL.utf8)
     }
 
@@ -468,7 +484,9 @@ final class PassportShareManagementTests: XCTestCase {
           "include_user_documents": false,
           "show_employer_names": true,
           "show_documents": false,
-          "show_trust_score": true
+          "show_trust_score": true,
+          "include_profile": false,
+          "show_photo": false
         }
         """
 
@@ -485,8 +503,10 @@ final class PassportShareManagementTests: XCTestCase {
         "include_user_documents",
         "show_employer_names",
         "show_documents",
-        "show_trust_score"
+        "show_trust_score", "include_profile", "show_photo"
     ]
+
+    private nonisolated static let capabilitiesPayload = Data(#"{"policy_version":2,"default_mode":"verified_only","modes":["verified_only","verified_and_candidate_provided"],"verified_only_sections":["include_employments","include_educations"],"mixed_sections":["include_employments","include_educations","include_certifications","include_skills","include_projects","include_user_documents","include_profile","show_photo"],"derived_trust_score":true,"narrow_only_updates":true}"#.utf8)
 
     private nonisolated static func apiError(status: Int, message: String) -> APIError {
         APIError(

@@ -179,6 +179,57 @@ final class CareerDocumentServiceTests: XCTestCase {
         )
     }
 
+    func testParity3ACertificationFullAttachmentLifecycleUsesSameRecord() async throws {
+        let service = try await makeService()
+        let backend = CertificationAttachmentFixture()
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+        let parent = CareerDocumentParent.certification(id: "cert", title: "Synthetic certificate")
+        let initial = try await service.listDocuments(for: parent)
+        XCTAssertTrue(initial.isEmpty)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("parity3a-certificate-\(UUID().uuidString).pdf")
+        try Data("%PDF-synthetic-local-fixture".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let added = try await service.uploadDocument(fileURL: file, documentType: "certificate", to: parent)
+        XCTAssertEqual(added.count, 1)
+        let reopened = try await service.listDocuments(for: parent)
+        XCTAssertEqual(added, reopened)
+        let url = try await service.downloadURL(for: XCTUnwrap(reopened.first), parent: parent)
+        XCTAssertEqual(url, URL(string: "https://storage.example/certificate"))
+        let replaced = try await service.replaceDocument(XCTUnwrap(reopened.first), with: file, documentType: "certificate", parent: parent)
+        XCTAssertEqual(replaced.count, 1)
+        let requestsBeforeRemoval = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requestsBeforeRemoval.filter { $0.httpMethod == "DELETE" }.count, 0, "Replacement must not detach the newly completed file")
+        let reopenedReplacement = try await service.listDocuments(for: parent)
+        XCTAssertEqual(reopenedReplacement, replaced)
+        let removed = try await service.deleteDocument(XCTUnwrap(replaced.first), parent: parent)
+        XCTAssertTrue(removed.isEmpty)
+        let reopenedEmpty = try await service.listDocuments(for: parent)
+        XCTAssertTrue(reopenedEmpty.isEmpty)
+        let readded = try await service.uploadDocument(fileURL: file, documentType: "certificate", to: parent)
+        XCTAssertEqual(readded.count, 1)
+        let counts = await backend.counts()
+        XCTAssertEqual(counts.completions, 3)
+        XCTAssertEqual(counts.detaches, 1)
+        let allRequests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertFalse(allRequests.contains { $0.url?.path == "/api/v1/certifications" && $0.httpMethod == "POST" })
+    }
+
+    func testParity3ACertificationFailedReplacementNeverDetachesOldAttachment() async throws {
+        let service = try await makeService()
+        let backend = CertificationAttachmentFixture(failUpload: true)
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("parity3a-failed-\(UUID().uuidString).pdf")
+        try Data("%PDF-local".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let doc = CareerDocument(id: "cert", documentType: "certificate", originalFilename: "old.pdf", contentType: "application/pdf", byteSize: 10, verificationStatus: "draft")
+        do {
+            _ = try await service.replaceDocument(doc, with: file, documentType: "certificate", parent: .certification(id: "cert", title: "Certificate"))
+            XCTFail("Expected failed upload")
+        } catch { XCTAssertEqual(error as? SecureDocumentTransferError, .storageUploadFailed) }
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertFalse(requests.contains { $0.httpMethod == "DELETE" || $0.url?.path.contains("complete-upload") == true })
+    }
+
     private nonisolated static func response(for request: URLRequest, statusCode: Int) throws -> HTTPURLResponse {
         try XCTUnwrap(HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: statusCode, httpVersion: nil, headerFields: nil))
     }
@@ -194,6 +245,43 @@ final class CareerDocumentServiceTests: XCTestCase {
     private nonisolated static let pagePayload = Data(
         #"{"items":[{"id":"document-1","document_type":"transcript","original_filename":"evidence.pdf","content_type":"application/pdf","byte_size":20,"verification_status":"pending_review"}],"total":1,"offset":0,"limit":100}"#.utf8
     )
+}
+
+private actor CertificationAttachmentFixture {
+    private var attached = false
+    private var completions = 0
+    private var detaches = 0
+    private let failUpload: Bool
+    init(failUpload: Bool = false) { self.failUpload = failUpload }
+    func counts() -> (completions: Int, detaches: Int) { (completions, detaches) }
+    func respond(_ request: URLRequest) throws -> (HTTPURLResponse, Data) {
+        let url = try XCTUnwrap(request.url)
+        var status = 200
+        var json: [String: Any] = [:]
+        switch (request.httpMethod, url.path) {
+        case ("GET", "/api/v1/certifications/cert"):
+            json = ["id": "cert", "title": "Synthetic certificate", "verification_status": "draft", "does_not_expire": true]
+            if attached { json.merge(["original_filename": "certificate.pdf", "content_type": "application/pdf", "byte_size": 40]) { _, new in new } }
+        case ("POST", "/api/v1/certifications/cert/document/upload-intent"):
+            let body = try requestJSONBody(from: request)
+            XCTAssertEqual((body["checksum_sha256"] as? String)?.count, 64)
+            XCTAssertEqual(body["content_type"] as? String, "application/pdf")
+            json = ["upload_url": "https://storage.example/put", "upload_token": String(repeating: "fixture-only", count: 4), "headers_required": ["Content-Type": "application/pdf"]]
+        case ("PUT", "/put"):
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            if failUpload { status = 500 }
+        case ("POST", "/api/v1/certifications/cert/document/complete-upload"):
+            let body = try requestJSONBody(from: request)
+            XCTAssertEqual(Set(body.keys), ["upload_token", "checksum_sha256"])
+            completions += 1; attached = true
+        case ("DELETE", "/api/v1/certifications/cert/document"):
+            detaches += 1; attached = false
+        case ("GET", "/api/v1/certifications/cert/download-url"):
+            json = ["download_url": "https://storage.example/certificate"]
+        default: XCTFail("Unexpected fixture endpoint"); throw URLError(.badURL)
+        }
+        return (try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)), try JSONSerialization.data(withJSONObject: json))
+    }
 }
 
 private actor CareerDocumentReplacementSpy: CareerDocumentServiceProtocol {

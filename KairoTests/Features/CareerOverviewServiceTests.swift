@@ -37,6 +37,8 @@ final class CareerOverviewServiceTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
 
             switch request.url?.absoluteString {
+            case "https://staging-api.kairoid.com/api/v1/portfolio?offset=0&limit=100":
+                return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
             case "https://staging-api.kairoid.com/api/v1/users/me":
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case "https://staging-api.kairoid.com/api/v1/employments/":
@@ -66,14 +68,14 @@ final class CareerOverviewServiceTests: XCTestCase {
                 "/api/v1/educations",
                 "/api/v1/certifications",
                 "/api/v1/projects",
-                "/api/v1/skills"
+                "/api/v1/skills", "/api/v1/portfolio"
             ]
         )
         XCTAssertEqual(
             requests.first(where: { $0.url?.absoluteString.contains("/api/v1/employments") == true })?.url?.absoluteString,
             "https://staging-api.kairoid.com/api/v1/employments/"
         )
-        XCTAssertEqual(requests.count, 6)
+        XCTAssertEqual(requests.count, 7)
         XCTAssertEqual(overview.user.email, "aarav@example.com")
         XCTAssertEqual(overview.employments.first?.company, "Northline Career Services")
         XCTAssertTrue(overview.employments.first?.currentlyWorking ?? false)
@@ -113,6 +115,8 @@ final class CareerOverviewServiceTests: XCTestCase {
 
         await MockURLProtocolStorage.shared.setHandler { request in
             switch request.url?.absoluteString {
+            case "https://staging-api.kairoid.com/api/v1/portfolio?offset=0&limit=100":
+                return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
             case "https://staging-api.kairoid.com/api/v1/users/me":
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case "https://staging-api.kairoid.com/api/v1/employments/":
@@ -155,7 +159,7 @@ final class CareerOverviewServiceTests: XCTestCase {
                 "/api/v1/educations",
                 "/api/v1/certifications",
                 "/api/v1/projects",
-                "/api/v1/skills"
+                "/api/v1/skills", "/api/v1/portfolio"
             ]
         )
         XCTAssertEqual(
@@ -190,6 +194,8 @@ final class CareerOverviewServiceTests: XCTestCase {
         let failureGate = FailureGate()
         await MockURLProtocolStorage.shared.setHandler { request in
             switch request.url?.absoluteString {
+            case "https://staging-api.kairoid.com/api/v1/portfolio?offset=0&limit=100":
+                return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
             case "https://staging-api.kairoid.com/api/v1/users/me":
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case "https://staging-api.kairoid.com/api/v1/employments/":
@@ -255,6 +261,8 @@ final class CareerOverviewServiceTests: XCTestCase {
 
         await MockURLProtocolStorage.shared.setHandler { request in
             switch request.url?.absoluteString {
+            case "https://staging-api.kairoid.com/api/v1/portfolio?offset=0&limit=100":
+                return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
             case "https://staging-api.kairoid.com/api/v1/users/me":
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case "https://staging-api.kairoid.com/api/v1/employments/":

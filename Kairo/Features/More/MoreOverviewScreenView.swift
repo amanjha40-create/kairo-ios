@@ -470,7 +470,7 @@ struct MoreOverviewScreenView: View {
         case .sessions:
             MoreSessionsSheetView()
         case .documentVault:
-            DocumentVaultView()
+            DocumentsHubView()
         case .consent:
             if case .populated(let content) = state.phase {
                 MoreConsentManagementSheetView(

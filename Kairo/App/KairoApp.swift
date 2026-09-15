@@ -70,6 +70,7 @@ struct KairoApp: App {
                 .environment(\.careerOverviewService, dependencies.careerOverviewService)
                 .environment(\.careerDocumentService, dependencies.careerDocumentService)
                 .environment(\.documentVaultService, dependencies.documentVaultService)
+                .environment(\.documentsHubService, dependencies.documentsHubService)
                 .environment(\.verifyOverviewService, dependencies.verifyOverviewService)
                 .environment(\.verificationInitiationService, dependencies.verificationInitiationService)
                 .environment(\.passportOverviewService, dependencies.passportOverviewService)

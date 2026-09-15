@@ -79,7 +79,8 @@ final class VerifyOverviewStateTests: XCTestCase {
             .verified,
             .rejected,
             .unableToVerify,
-            .cancelled,
+                .cancelled,
+                .withdrawnByCandidate,
             .expired
         ])
         XCTAssertTrue(VerifyVerificationStatus.pendingSubjectAcceptance.rank < VerifyVerificationStatus.verified.rank)

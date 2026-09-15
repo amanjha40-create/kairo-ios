@@ -5,7 +5,7 @@ struct CareerDocumentsView: View {
     let presentation: CareerDocumentPresentation
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
+    @State private var preview: SecureDocumentPreview?
     @Environment(\.careerDocumentService) private var service
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var sessionStore: AppSessionStore
@@ -94,11 +94,12 @@ struct CareerDocumentsView: View {
             }
         }
         .accessibilityIdentifier(KairoAccessibilityID.careerDocuments)
+        .sheet(item: $preview) { SecureDocumentPreviewSheet(preview: $0) }
     }
 
     private var emptyMessage: String {
         if case .certification = presentation.parent {
-            return "This certification does not have an uploaded certificate. The current backend only accepts a certificate file when a certification is first created."
+            return "Add a certificate to this existing record. You can replace or remove the attachment without recreating the certification."
         }
         return "Add a PDF, JPEG, or PNG when you are ready."
     }
@@ -115,8 +116,8 @@ struct CareerDocumentsView: View {
                     details: { EmptyView() },
                     actions: {
                         ViewThatFits(in: .horizontal) {
-                            HStack(spacing: KairoSpacing.medium) { rowActions(document) }
-                            VStack(alignment: .leading, spacing: KairoSpacing.xSmall) { rowActions(document) }
+                            HStack(spacing: KairoSpacing.medium) { rowActions(document) }.disabled(isMutating)
+                            VStack(alignment: .leading, spacing: KairoSpacing.xSmall) { rowActions(document) }.disabled(isMutating)
                         }
                     }
                 )
@@ -159,7 +160,7 @@ struct CareerDocumentsView: View {
             )
             .disabled(isMutating)
 
-            Text("PDF, JPEG, or PNG • up to 20 MB")
+            Text(presentation.parent.isCertification ? "PDF, JPEG, or PNG • up to 50 MB" : "PDF, JPEG, or PNG • up to 20 MB")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
         }
@@ -184,6 +185,7 @@ struct CareerDocumentsView: View {
     }
 
     private func handleFileSelection(_ result: Result<[URL], Error>) {
+        guard !isMutating else { return }
         let replacement = pendingReplacement
         pendingReplacement = nil
         switch result {
@@ -226,15 +228,14 @@ struct CareerDocumentsView: View {
             do {
                 let url = try await service.downloadURL(for: document, parent: presentation.parent)
                 await MainActor.run {
-                    openURL(url) { accepted in
-                        if !accepted { errorMessage = "This device could not open the secure document preview." }
-                    }
+                    preview = SecureDocumentPreview(url: url, filename: document.originalFilename)
                 }
             } catch { await present(error) }
         }
     }
 
     private func deletePendingDocument() {
+        guard !isMutating else { return }
         guard let document = pendingDelete else { return }
         pendingDelete = nil
         isMutating = true
@@ -267,14 +268,6 @@ struct CareerDocumentsView: View {
     }
 
     private func statusTitle(_ value: String) -> String {
-        switch value.lowercased() {
-        case "approved", "verified": "Verified"
-        case "pending_review", "pending", "submitted", "under_review": "Pending KairoID Review"
-        case "rejected": "Rejected"
-        case "withdrawn", "cancelled": "Withdrawn"
-        case "draft", "pending_upload": "Draft"
-        case "self_declared", "not_verified": "Candidate-provided"
-        default: "Candidate-provided"
-        }
+        ProductStatusLanguage.title(for: value)
     }
 }

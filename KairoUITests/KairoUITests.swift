@@ -490,7 +490,7 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
         XCTAssertTrue(app.staticTexts["Northline Career Services"].exists)
-        XCTAssertTrue(app.staticTexts["Pending Verification"].exists)
+        XCTAssertTrue(app.staticTexts["Pending KairoID Review"].exists)
     }
 
     @MainActor

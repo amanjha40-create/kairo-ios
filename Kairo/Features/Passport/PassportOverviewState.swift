@@ -210,12 +210,13 @@ nonisolated struct PassportStatusStyle: Equatable, Sendable {
     let tone: PassportStatusTone
 }
 
-nonisolated enum PassportVerificationStatus: String, CaseIterable, Equatable, Sendable {
+nonisolated enum PassportVerificationStatus: Equatable, Sendable {
     case verified
     case pendingVerification
     case notVerified
     case complete
     case active
+    case precise(String)
 
     var style: PassportStatusStyle {
         switch self {
@@ -229,6 +230,8 @@ nonisolated enum PassportVerificationStatus: String, CaseIterable, Equatable, Se
             PassportStatusStyle(title: "Complete", symbol: "checkmark.circle.fill", tone: .accent)
         case .active:
             PassportStatusStyle(title: "Active", symbol: "sparkles", tone: .accent)
+        case .precise(let value):
+            PassportStatusStyle(title: ProductStatusLanguage.title(for: value), symbol: "info.circle", tone: .neutral)
         }
     }
 }

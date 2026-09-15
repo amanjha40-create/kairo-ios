@@ -1,12 +1,17 @@
 import Foundation
 
 protocol PassportShareServiceProtocol: Sendable {
+    func capabilities() async throws -> PassportShareCapabilities
     func listShares() async throws -> [PassportShare]
     func getShare(id: String) async throws -> PassportShare
     func getAnalytics(shareID: String) async throws -> PassportShareAnalytics
     func createShare(_ input: PassportShareMutationInput) async throws -> PassportShareCreation
     func updateShare(id: String, input: PassportShareMutationInput) async throws -> PassportShare
     func revokeShare(id: String) async throws -> PassportShare
+}
+
+extension PassportShareServiceProtocol {
+    func capabilities() async throws -> PassportShareCapabilities { throw PassportShareServiceError.capabilitiesUnavailable }
 }
 
 actor PassportShareService: PassportShareServiceProtocol {
@@ -21,6 +26,12 @@ actor PassportShareService: PassportShareServiceProtocol {
     ) {
         self.sessionService = sessionService
         environment = configuration.environment
+    }
+
+    func capabilities() async throws -> PassportShareCapabilities {
+        let result: PassportShareCapabilities = try await get(path: "/passport-shares/capabilities")
+        guard result.supportsV2 else { throw PassportShareServiceError.capabilitiesUnavailable }
+        return result
     }
 
     func listShares() async throws -> [PassportShare] {
@@ -61,23 +72,38 @@ actor PassportShareService: PassportShareServiceProtocol {
 
     func createShare(_ input: PassportShareMutationInput) async throws -> PassportShareCreation {
         try validate(input)
+        let policy = try await capabilities()
+        try policy.validate(input)
         let response: PassportShareCreateResponseDTO = try await send(
             path: "/passport-shares",
             method: .post,
             body: PassportShareCreateRequestDTO(input: input)
         )
-        guard let publicURL = validatedPublicURL(from: response.shareURL) else {
+        guard response.share.policyVersion == 2, response.share.sharingMode == input.sharingMode,
+              response.share.permissions == input.permissions,
+              let publicURL = validatedPublicURL(from: response.shareURL) else {
             throw PassportShareServiceError.invalidPublicURL
         }
         return PassportShareCreation(share: response.share, publicURL: publicURL)
     }
 
     func updateShare(id: String, input: PassportShareMutationInput) async throws -> PassportShare {
-        try validate(input)
+        let current = try await getShare(id: id)
+        guard current.state == .active, current.policyEditable else { throw PassportShareServiceError.newLinkRequired }
+        var mutation = input
+        if mutation.originalShare == nil { mutation.originalShare = current }
+        guard mutation.originalShare?.id == id, mutation.sharingMode == current.sharingMode else {
+            throw PassportShareServiceError.newLinkRequired
+        }
+        for option in PassportSharePermissionOption.allCases {
+            let changed = mutation.originalShare?.permissions.isEnabled(option) != mutation.permissions.isEnabled(option)
+            if changed && mutation.permissions.isEnabled(option) { throw PassportShareServiceError.newLinkRequired }
+        }
+        try validate(mutation)
         let _: PassportShareResponseDTO = try await send(
             path: "/passport-shares/\(id)",
             method: .patch,
-            body: PassportShareUpdateRequestDTO(input: input)
+            body: PassportShareUpdateRequestDTO(input: mutation)
         )
         return try await getShare(id: id)
     }
@@ -90,7 +116,9 @@ actor PassportShareService: PassportShareServiceProtocol {
     }
 
     private func validate(_ input: PassportShareMutationInput) throws {
-        if let label = input.label, label.count > 120 {
+        let purposeCount = input.label?.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count ?? 0
+        let preservesEmptyLegacy = input.originalShare?.policyVersion == 1 && input.originalShare?.label == nil && input.label == nil
+        if !preservesEmptyLegacy && !(1...120).contains(purposeCount) {
             throw PassportShareServiceError.invalidDraft
         }
         if let expiresAt = input.expiresAt, expiresAt <= Date() {
@@ -165,6 +193,7 @@ actor PassportShareService: PassportShareServiceProtocol {
 actor DemoPassportShareService: PassportShareServiceProtocol {
     private var shares: [PassportShare]
     private var nextID = 2
+    func capabilities() async throws -> PassportShareCapabilities { .demoV2 }
 
     init(now: Date = Date(timeIntervalSince1970: 1_785_600_000)) {
         shares = [
@@ -225,7 +254,9 @@ actor DemoPassportShareService: PassportShareServiceProtocol {
             lastViewedAt: nil,
             createdAt: now,
             updatedAt: now,
-            state: .active
+            state: .active,
+            policyVersion: 2,
+            sharingMode: input.sharingMode
         )
         shares.insert(share, at: 0)
         return PassportShareCreation(
@@ -256,7 +287,9 @@ actor DemoPassportShareService: PassportShareServiceProtocol {
             lastViewedAt: current.lastViewedAt,
             createdAt: current.createdAt,
             updatedAt: Date(timeIntervalSince1970: 1_785_600_100),
-            state: .active
+            state: .active,
+            policyVersion: current.policyVersion,
+            sharingMode: current.sharingMode
         )
         replace(updated)
         return updated
@@ -275,7 +308,9 @@ actor DemoPassportShareService: PassportShareServiceProtocol {
             lastViewedAt: current.lastViewedAt,
             createdAt: current.createdAt,
             updatedAt: now,
-            state: .revoked
+            state: .revoked,
+            policyVersion: current.policyVersion,
+            sharingMode: current.sharingMode
         )
         replace(revoked)
         return revoked

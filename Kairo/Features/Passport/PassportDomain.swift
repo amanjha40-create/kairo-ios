@@ -148,10 +148,11 @@ struct PassportDocumentRecordDomain: Identifiable, Equatable, Sendable {
     let verificationStatus: PassportRecordVerificationStatus
 }
 
-enum PassportRecordVerificationStatus: String, Equatable, Sendable {
+enum PassportRecordVerificationStatus: Equatable, Sendable {
     case verified
     case pending
     case notVerified
+    case precise(String)
 
     nonisolated init(rawBackendValue: String) {
         switch rawBackendValue
@@ -160,12 +161,12 @@ enum PassportRecordVerificationStatus: String, Equatable, Sendable {
         case "verified", "approved":
             self = .verified
         case "pending", "pending_verification", "awaiting_verification", "in_review",
-             "submitted", "under_review", "additional_info_requested":
+             "submitted", "under_review", "pending_review":
             self = .pending
-        case "not_verified", "unverified", "missing", "draft", "rejected", "cancelled":
+        case "not_verified", "unverified", "missing", "self_declared":
             self = .notVerified
         default:
-            self = .notVerified
+            self = .precise(rawBackendValue)
         }
     }
 }
@@ -262,7 +263,12 @@ extension PassportOverview.Vault {
             employments: dto.employments.map(PassportEmploymentRecordDomain.init(dto:)),
             educations: dto.educations.map(PassportEducationRecordDomain.init(dto:)),
             certifications: dto.certifications.map(PassportCertificationRecordDomain.init(dto:)),
-            projects: dto.projects.map(PassportProjectRecordDomain.init(dto:)),
+            projects: dto.projects.map(PassportProjectRecordDomain.init(dto:)) + dto.portfolio.map { item in
+                PassportProjectRecordDomain(id: "legacy.\(item.id)", title: item.title,
+                    role: "Legacy Portfolio origin", description: item.description, startDate: nil, endDate: nil,
+                    isOngoing: false, projectURL: item.url, repositoryURL: nil, organizationName: nil,
+                    verificationStatus: .init(rawBackendValue: item.verificationStatus))
+            },
             skills: dto.skills.map(PassportSkillRecordDomain.init(dto:)),
             userDocuments: dto.userDocuments.map(PassportDocumentRecordDomain.init(dto:))
         )

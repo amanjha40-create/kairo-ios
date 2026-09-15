@@ -241,8 +241,8 @@ struct MoreOverviewContent: Equatable, Sendable {
                 ),
                 MoreRowItem(
                     id: "documentVault",
-                    title: "Document Vault",
-                    subtitle: "Manage private identity documents and replacement history.",
+                    title: "Documents",
+                    subtitle: "Career attachments, verification evidence, and private Vault documents.",
                     systemImage: "lock.doc"
                 )
             ],

@@ -46,6 +46,9 @@ final class PassportShareCreateViewModel: ObservableObject {
     @Published private(set) var creation: PassportShareCreation?
     @Published private(set) var isSubmitting = false
     @Published var error: PassportSharePresentationError?
+    @Published private(set) var capabilities: PassportShareCapabilities?
+    @Published private(set) var loadingCapabilities = false
+    @Published private(set) var submissionAttempted = false
 
     private let service: any PassportShareServiceProtocol
 
@@ -57,8 +60,27 @@ final class PassportShareCreateViewModel: ObservableObject {
         self.draft = draft
     }
 
+    func loadCapabilities() async {
+        guard capabilities == nil, !loadingCapabilities else { return }
+        loadingCapabilities = true
+        defer { loadingCapabilities = false }
+        do {
+            let value = try await service.capabilities()
+            guard value.supportsV2 else { throw PassportShareServiceError.capabilitiesUnavailable }
+            capabilities = value
+            draft.selectMode(.verifiedOnly, capabilities: value)
+        } catch {
+            self.error = .map(error, fallbackTitle: "Sharing policy unavailable")
+        }
+    }
+
     func create(now: Date = Date()) async -> Bool {
-        guard !isSubmitting, let input = draft.mutationInput(now: now) else {
+        guard !isSubmitting, !submissionAttempted, creation == nil else { return false }
+        guard let capabilities else {
+            error = .map(PassportShareServiceError.capabilitiesUnavailable, fallbackTitle: "Sharing policy unavailable")
+            return false
+        }
+        guard let input = draft.mutationInput(now: now), draft.validationMessage == nil else {
             error = .init(
                 title: "Check sharing choices",
                 message: draft.validationMessage ?? PassportShareServiceError.invalidDraft.localizedDescription
@@ -71,10 +93,12 @@ final class PassportShareCreateViewModel: ObservableObject {
         defer { isSubmitting = false }
 
         do {
+            try capabilities.validate(input)
+            submissionAttempted = true
             creation = try await service.createShare(input)
             return true
         } catch {
-            self.error = .map(error, fallbackTitle: "Share not created")
+            self.error = .map(error, fallbackTitle: "Share result unavailable")
             return false
         }
     }
@@ -364,21 +388,35 @@ struct PassportShareCreateView: View {
             }
         }
         .interactiveDismissDisabled(model.isSubmitting)
+        .task { await model.loadCapabilities() }
     }
 
     private var creationContent: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             KairoSection {
-                Text("Basic public profile")
+                Text("Choose what to share")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("Every share includes your public name, headline, location, profile image, and profile slug. Email, phone, and private account data are never included by this share contract.")
+                Text("Verified only includes eligible records verified by the backend. Sharing never makes a candidate-provided record verified. Owner attribution is not verified identity; private email and phone are excluded.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            PassportShareMutationForm(draft: $model.draft)
+            if let capabilities = model.capabilities {
+                PassportShareMutationForm(draft: $model.draft, capabilities: capabilities)
+            } else {
+                KairoSection {
+                    Text("Sharing is disabled until the server policy is confirmed.")
+                    if model.loadingCapabilities { ProgressView("Loading sharing policy") }
+                    else { Button("Retry sharing policy") { Task { await model.loadCapabilities() } } }
+                }
+            }
+            if model.submissionAttempted, model.creation == nil, !model.isSubmitting {
+                Text("Do not create another link after an uncertain response. Return to share history and refresh to check the server result.")
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.textSecondary)
+            }
 
             KairoSection {
                 Text("Before creating")
@@ -387,7 +425,7 @@ struct PassportShareCreateView: View {
                 Text(model.draft.permissions.conciseSummary)
                     .font(KairoTypography.bodyStrong)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("The current sharing service records privacy-preserving aggregate view analytics for public views. This release does not offer a tracking opt-out because the deployed service does not honor that preference yet.")
+                Text("Aggregate view tracking is enabled for this link. Only backend-reported views appear in Share Activity; creating or copying a link does not imply a recipient view.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -405,7 +443,7 @@ struct PassportShareCreateView: View {
                     }
                 }
             )
-            .disabled(model.isSubmitting || model.draft.validationMessage != nil)
+            .disabled(model.isSubmitting || model.submissionAttempted || model.capabilities == nil || model.draft.validationMessage != nil)
         }
     }
 
@@ -473,6 +511,14 @@ struct PassportShareCreateView: View {
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier(KairoAccessibilityID.passportShareQRCode)
+
+                Link(destination: creation.publicURL) {
+                    Label("Preview public Passport", systemImage: "safari")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, KairoSpacing.medium)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("passport.share.preview")
             }
 
             KairoPrimaryButton(
@@ -497,16 +543,33 @@ struct PassportShareCreateView: View {
 
 private struct PassportShareMutationForm: View {
     @Binding var draft: PassportShareDraft
+    var capabilities: PassportShareCapabilities? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             KairoSection {
+                Text(draft.sharingMode.title).font(KairoTypography.headline)
+                if draft.originalShare != nil {
+                    Text("Existing links can only be narrowed. To share more information, create a new link. The existing policy will not be converted.")
+                        .font(KairoTypography.footnote)
+                } else if let capabilities {
+                    Toggle("Include candidate-provided records (explicit opt-in)", isOn: Binding(
+                        get: { draft.sharingMode == .mixed },
+                        set: { draft.selectMode($0 ? .mixed : .verifiedOnly, capabilities: capabilities) }
+                    ))
+                    .disabled(!capabilities.modes.contains(PassportSharingMode.mixed.rawValue))
+                    .accessibilityIdentifier("passport.share.mixedOptIn")
+                    Text("Changing mode clears optional disclosures. Candidate-provided content stays labelled as such.")
+                        .font(KairoTypography.footnote)
+                }
+            }
+            KairoSection {
                 KairoSectionHeading(title: "Purpose")
                 KairoTextField(
-                    title: "Label (optional)",
+                    title: "Purpose (required)",
                     prompt: "Recruiter link",
                     text: $draft.label,
-                    errorMessage: draft.label.count > 120 ? "Use 120 characters or fewer." : nil,
+                    errorMessage: draft.purposeValidationMessage,
                     accessibilityIdentifier: KairoAccessibilityID.passportShareLabel
                 )
                 Text("A private management label. The backend also includes it in public share metadata, so avoid sensitive notes.")
@@ -542,15 +605,13 @@ private struct PassportShareMutationForm: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            permissionGroup(
-                title: "Passport sections",
-                options: PassportSharePermissionOption.candidateV1Sections
-            )
-            permissionGroup(
-                title: "Additional details",
-                options: [.userDocuments, .employerNames, .documents, .trustScore]
-            )
+            permissionGroup(title: "Shared sections and details", options: options)
         }
+    }
+
+    private var options: [PassportSharePermissionOption] {
+        if let original = draft.originalShare { return original.permissions.enabledOptions }
+        return capabilities?.options(for: draft.sharingMode) ?? []
     }
 
     private func permissionGroup(
@@ -582,7 +643,12 @@ private struct PassportShareMutationForm: View {
     private func permissionBinding(_ option: PassportSharePermissionOption) -> Binding<Bool> {
         Binding(
             get: { draft.permissions.isEnabled(option) },
-            set: { draft.permissions.set($0, for: option) }
+            set: { enabled in
+                if enabled, let original = draft.originalShare, !original.permissions.isEnabled(option) { return }
+                draft.permissions.set(enabled, for: option)
+                if !enabled && option == .profile { draft.permissions.showPhoto = false }
+                if !enabled && option == .documents { draft.permissions.includeUserDocuments = false }
+            }
         )
     }
 }
@@ -657,6 +723,8 @@ struct PassportShareDetailView: View {
             Text(model.share.permissions.conciseSummary)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
+            Text(model.share.sharingMode.title)
+                .font(KairoTypography.bodyStrong)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Share status \(model.share.state.title). \(expiryText). Permissions: \(model.share.permissions.conciseSummary)")
@@ -684,10 +752,10 @@ struct PassportShareDetailView: View {
             Text("Shared content")
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Basic public profile")
+            Text(model.share.sharingMode.title)
                 .font(KairoTypography.bodyStrong)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Name, headline, location, profile image, and profile slug")
+            Text("Only the enabled permissions below are shared. Candidate attribution does not verify identity.")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
 
@@ -704,7 +772,7 @@ struct PassportShareDetailView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Permissions: basic public profile, \(model.share.permissions.conciseSummary)")
+        .accessibilityLabel("\(model.share.sharingMode.title). Permissions: \(model.share.permissions.conciseSummary)")
     }
 
     private var analyticsCard: some View {
@@ -762,7 +830,7 @@ struct PassportShareDetailView: View {
                 accessibilityIdentifier: KairoAccessibilityID.passportShareUpdate,
                 action: { showsEdit = true }
             )
-            .disabled(model.share.state != .active)
+            .disabled(model.share.state != .active || !model.share.policyEditable)
 
             Button(role: .destructive) {
                 showsRevokeConfirmation = true

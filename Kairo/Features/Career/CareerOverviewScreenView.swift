@@ -287,7 +287,7 @@ struct CareerOverviewScreenView: View {
                                     documents: .employment(id: item.routeID, title: "\(item.role) at \(item.company)", canUpload: item.allowsEdit, canDelete: item.allowsDelete),
                                     edit: item.allowsEdit ? editEmploymentAction.map { action in { action(item) } } : nil,
                                     delete: item.allowsDelete ? deleteEmploymentAction.map { action in { action(item) } } : nil,
-                                    verify: item.verificationStatus == .notVerified ? startEmploymentVerificationAction.map { action in { action(item) } } : nil
+                                    verify: item.verificationStatus.canStartVerification ? startEmploymentVerificationAction.map { action in { action(item) } } : nil
                                 )
                             }
                         )
@@ -318,7 +318,7 @@ struct CareerOverviewScreenView: View {
                             .buttonStyle(KairoActionStyle())
 
                         }
-                        if item.verificationStatus == .notVerified,
+                        if item.verificationStatus.canStartVerification,
                            let startEmploymentVerificationAction {
                             Button("Start verification") {
                                 startEmploymentVerificationAction(item)
@@ -362,7 +362,7 @@ struct CareerOverviewScreenView: View {
                                     documents: .education(id: item.routeID, title: item.institution),
                                     edit: editEducationAction.map { action in { action(item) } },
                                     delete: deleteEducationAction.map { action in { action(item) } },
-                                    verify: item.verificationStatus == .notVerified ? startEducationVerificationAction.map { action in { action(item) } } : nil
+                                    verify: item.verificationStatus.canStartVerification ? startEducationVerificationAction.map { action in { action(item) } } : nil
                                 )
                             }
                         )
@@ -388,7 +388,7 @@ struct CareerOverviewScreenView: View {
                             .buttonStyle(KairoActionStyle())
 
                         }
-                        if item.verificationStatus == .notVerified,
+                        if item.verificationStatus.canStartVerification,
                            let startEducationVerificationAction {
                             Button("Start verification") {
                                 startEducationVerificationAction(item)
@@ -429,7 +429,7 @@ struct CareerOverviewScreenView: View {
                                 selectedDetail = CareerRecordDetailPresentation(
                                     id: item.routeID, title: item.title, organization: item.issuer,
                                     status: item.verificationStatus, metadata: [("Issue date", item.issueDate)] + item.detailMetadata.map { ($0.title, $0.value) },
-                                    documents: item.hasDocument ? .certification(id: item.routeID, title: item.title) : nil,
+                                    documents: .certification(id: item.routeID, title: item.title),
                                     edit: editCertificationAction.map { action in { action(item) } },
                                     delete: deleteCertificationAction.map { action in { action(item) } }
                                 )
@@ -490,8 +490,9 @@ struct CareerOverviewScreenView: View {
                                     id: item.routeID, title: item.title, organization: item.role,
                                     status: item.verificationStatus,
                                     metadata: [("Duration", item.duration), ("Project URL", item.portfolioLinkTitle)].filter { !$0.1.isEmpty } + item.detailMetadata.map { ($0.title, $0.value) },
-                                    edit: editProjectAction.map { action in { action(item) } },
-                                    delete: deleteProjectAction.map { action in { action(item) } }
+                                    documents: item.legacyPortfolioID.map { .legacyPortfolio(id: $0, title: item.title) },
+                                    edit: item.legacyPortfolioID == nil ? editProjectAction.map { action in { action(item) } } : nil,
+                                    delete: item.legacyPortfolioID == nil ? deleteProjectAction.map { action in { action(item) } } : nil
                                 )
                             }
                         )
@@ -508,12 +509,14 @@ struct CareerOverviewScreenView: View {
                             )
                         }
 
-                        careerCardActions(
-                            editAccessibilityIdentifier: KairoAccessibilityID.careerProjectEditButton(item.routeID),
-                            editAction: { editProjectAction?(item) },
-                            deleteAccessibilityIdentifier: KairoAccessibilityID.careerProjectDeleteButton(item.routeID),
-                            deleteAction: { deleteProjectAction?(item) }
-                        )
+                        if item.legacyPortfolioID == nil {
+                            careerCardActions(
+                                editAccessibilityIdentifier: KairoAccessibilityID.careerProjectEditButton(item.routeID),
+                                editAction: { editProjectAction?(item) },
+                                deleteAccessibilityIdentifier: KairoAccessibilityID.careerProjectDeleteButton(item.routeID),
+                                deleteAction: { deleteProjectAction?(item) }
+                            )
+                        }
                     }
                 }
             }
@@ -846,6 +849,7 @@ private struct CareerVerificationBadge: View {
         case .verified: .verified
         case .pendingVerification: .pending
         case .notVerified: .candidateProvided
+        case .precise: .draft
         }
     }
 

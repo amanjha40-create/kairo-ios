@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct DocumentVaultView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
+    @State private var preview: SecureDocumentPreview?
     @Environment(\.documentVaultService) private var service
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
@@ -94,6 +94,7 @@ struct DocumentVaultView: View {
             }
         }
         .accessibilityIdentifier("candidate.more.documentVault")
+        .sheet(item: $preview) { SecureDocumentPreviewSheet(preview: $0) }
     }
 
     private var currentDocuments: [VaultDocument] {
@@ -301,11 +302,7 @@ struct DocumentVaultView: View {
             do {
                 let url = try await service.downloadURL(documentID: document.id)
                 await MainActor.run {
-                    openURL(url) { accepted in
-                        if !accepted {
-                            errorMessage = "This device could not open the secure document preview."
-                        }
-                    }
+                    preview = SecureDocumentPreview(url: url, filename: document.originalFilename)
                 }
             } catch {
                 await present(error)
@@ -343,15 +340,7 @@ struct DocumentVaultView: View {
     }
 
     private func statusTitle(_ value: String) -> String {
-        switch value.lowercased() {
-        case "approved", "verified": "Verified"
-        case "pending_review", "pending", "submitted", "under_review": "Pending KairoID Review"
-        case "rejected": "Rejected"
-        case "withdrawn", "cancelled": "Withdrawn"
-        case "draft", "pending_upload": "Draft"
-        case "self_declared", "not_verified": "Candidate-provided"
-        default: "Candidate-provided"
-        }
+        ProductStatusLanguage.title(for: value)
     }
 }
 
