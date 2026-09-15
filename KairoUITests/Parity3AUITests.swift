@@ -4,6 +4,46 @@ import XCTest
 final class Parity3AUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testAttachedCertificationEditorGuidanceAndCanonicalDocumentActions() {
+        let app = launch(attachedCertification: true)
+        app.tabBars.buttons["Career"].tap()
+        app.buttons["Edit Certification"].tap()
+        XCTAssertTrue(app.staticTexts["candidate.career.mutation.title"].waitForExistence(timeout: 10))
+        let helper = app.staticTexts["Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."]
+        reveal(helper, app)
+        XCTAssertTrue(helper.isHittable)
+        for stale in ["backend does not support", "backend only accepts", "file at creation"] {
+            XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", stale)).firstMatch.exists)
+        }
+        XCTAssertFalse(app.buttons["Replace"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
+        let title = app.textFields["candidate.career.certification.field.title"]
+        reveal(title, app)
+        title.tap()
+        title.typeText(" updated\n")
+        let save = app.buttons["candidate.career.mutation.save"]
+        reveal(save, app)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        XCTAssertTrue(app.buttons["Edit Certification"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["fixture.certification.attachment"].label, "demo-evidence.pdf")
+        app.buttons["Edit Certification"].tap()
+        reveal(helper, app)
+        XCTAssertTrue(app.staticTexts["demo-evidence.pdf"].exists)
+        let cancel = app.buttons["candidate.career.mutation.cancel"]
+        reveal(cancel, app)
+        cancel.tap()
+        app.buttons["Documents"].tap()
+        let view = app.buttons["View"]
+        XCTAssertTrue(view.waitForExistence(timeout: 10))
+        reveal(view, app)
+        for action in ["View", "Replace", "Remove"] {
+            XCTAssertTrue(app.buttons[action].exists)
+            XCTAssertTrue(app.buttons[action].isEnabled)
+        }
+        app.buttons["Done"].tap()
+    }
+
     func testSharingDefaultsRequiredPurposeAndExplicitMixedMode() {
         let app = launch()
         openShareCreate(app)
@@ -89,13 +129,14 @@ final class Parity3AUITests: XCTestCase {
         XCTAssertTrue(create.waitForExistence(timeout: 10)); create.tap()
     }
 
-    private func launch() -> XCUIApplication {
+    private func launch(attachedCertification: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging",
             "KAIRO_UI_TEST_HOME_STATE": "populated", "KAIRO_UI_TEST_CAREER_STATE": "populated",
             "KAIRO_UI_TEST_VERIFY_STATE": "populated", "KAIRO_UI_TEST_PASSPORT_STATE": "populated", "KAIRO_UI_TEST_MORE_STATE": "populated"]
+        if attachedCertification { app.launchEnvironment["KAIRO_UI_TEST_ATTACHED_CERTIFICATION"] = "1" }
         app.launch()
         return app
     }

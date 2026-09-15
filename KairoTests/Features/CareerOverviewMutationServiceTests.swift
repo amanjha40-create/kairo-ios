@@ -172,12 +172,27 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
                 XCTAssertNil(body["original_filename"])
                 XCTAssertNil(body["content_type"])
                 XCTAssertNil(body["byte_size"])
+                XCTAssertNil(body["upload_token"])
                 return (try Self.response(for: request, statusCode: 200), Self.createdCertificationWithDocumentPayload)
+            }
+            if request.url?.path == "/api/v1/certifications/certification_1", request.httpMethod == "GET" {
+                var record = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.createdCertificationWithDocumentPayload) as? [String: Any])
+                record["id"] = "certification_1"
+                record["title"] = "Updated title"
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: record))
             }
             return try await Self.overviewResponse(for: request)
         }
 
         _ = try await service.updateCertification(id: "certification_1", request: update)
+        let reopened = try await service.loadCertification(id: "certification_1")
+        XCTAssertEqual(reopened.id, "certification_1")
+        XCTAssertEqual(reopened.title, "Updated title")
+        XCTAssertEqual(reopened.originalFilename, "certificate.pdf")
+        let writes = await MockURLProtocolStorage.shared.requests().filter { $0.httpMethod != "GET" }
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes.first?.httpMethod, "PATCH")
+        XCTAssertEqual(writes.first?.url?.path, "/api/v1/certifications/certification_1")
     }
 
     func test_deleteOperationsUseCanonicalRoutesAndRefetchOverview() async throws {

@@ -46,7 +46,9 @@ struct CandidateTabShellView: View {
                 HomeOverviewContainerView()
             }
         case .career:
-            if let uiTestState = uiTestCareerConfiguration.state {
+            if uiTestCareerConfiguration.showsAttachedCertificationEditor {
+                AttachedCertificationFixtureHostView()
+            } else if let uiTestState = uiTestCareerConfiguration.state {
                 CareerOverviewScreenView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {
                 CareerOverviewScreenView(state: .default(isDemoMode: true))

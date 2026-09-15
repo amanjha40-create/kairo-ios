@@ -554,7 +554,7 @@ struct CareerCertificationEditorSheet: View {
                         Text(filename)
                             .font(KairoTypography.body)
                             .foregroundStyle(KairoColors.textSecondary)
-                        Text("Metadata edits preserve this file. The current backend does not support replacing or detaching a certificate file while preserving this certification record.")
+                        Text("Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment.")
                             .font(KairoTypography.caption)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)

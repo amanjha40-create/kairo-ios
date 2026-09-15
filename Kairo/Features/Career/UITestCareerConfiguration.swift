@@ -1,9 +1,10 @@
-import Foundation
+import SwiftUI
 
 struct UITestCareerConfiguration {
     static let stateEnvironmentKey = "KAIRO_UI_TEST_CAREER_STATE"
 
     let state: CareerOverviewState?
+    var showsAttachedCertificationEditor = false
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -32,6 +33,44 @@ struct UITestCareerConfiguration {
             .errorFixture()
         }
 
-        return UITestCareerConfiguration(state: state)
+        return UITestCareerConfiguration(
+            state: state,
+            showsAttachedCertificationEditor: environment["KAIRO_UI_TEST_ATTACHED_CERTIFICATION"] == "1"
+        )
+    }
+}
+
+/// Isolated UI-test host for the real metadata editor and canonical Documents view.
+/// The existing launch-argument/route guard above is required; no live service writes.
+struct AttachedCertificationFixtureHostView: View {
+    @State private var draft = CareerCertificationDraft(record: CareerCertificationRecord(
+        id: "attached-certification-fixture", title: "Synthetic attached Certification",
+        issuer: "Synthetic QA issuer", issueDate: Date(timeIntervalSince1970: 1_735_689_600),
+        expiryDate: nil, doesNotExpire: true, credentialID: nil, credentialURL: nil,
+        originalFilename: "demo-evidence.pdf", contentType: "application/pdf", byteSize: 128_000,
+        verificationStatus: .notVerified, rawVerificationStatus: "draft"
+    ))
+    @State private var editsPresented = false
+    @State private var documentsPresented = false
+
+    var body: some View {
+        VStack(spacing: KairoSpacing.medium) {
+            Text(draft.title)
+            Text(draft.existingDocumentFilename ?? "No attachment")
+                .accessibilityIdentifier("fixture.certification.attachment")
+            Button("Edit Certification") { editsPresented = true }
+            Button("Documents") { documentsPresented = true }
+        }
+        .sheet(isPresented: $editsPresented) {
+            CareerCertificationEditorSheet(mode: .edit, draft: draft) { updated, _ in
+                draft = updated
+            }
+        }
+        .sheet(isPresented: $documentsPresented) {
+            CareerDocumentsView(presentation: .init(parent: .certification(
+                id: "attached-certification-fixture", title: draft.title
+            )))
+            .environment(\.careerDocumentService, DemoCareerDocumentService())
+        }
     }
 }

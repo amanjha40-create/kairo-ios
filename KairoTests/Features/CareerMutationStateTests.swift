@@ -83,6 +83,12 @@ final class CareerMutationStateTests: XCTestCase {
         XCTAssertFalse(draft.doesNotExpire)
         XCTAssertEqual(draft.title, "Certified Scrum Product Owner")
         XCTAssertEqual(draft.issuingOrganization, "Scrum Alliance")
+        XCTAssertEqual(draft.existingDocumentFilename, "resume.pdf")
+    }
+
+    func test_attachedCertificationFixtureRequiresExplicitUITestLaunchGuard() {
+        let environment = ["KAIRO_UI_TEST_CAREER_STATE": "populated", "KAIRO_UI_TEST_ATTACHED_CERTIFICATION": "1"]
+        XCTAssertFalse(UITestCareerConfiguration.current(arguments: [], environment: environment).showsAttachedCertificationEditor)
     }
 
     func test_projectUpdateRequestOmitsEndDateForOngoingProject() {
