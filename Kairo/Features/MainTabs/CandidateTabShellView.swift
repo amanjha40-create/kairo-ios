@@ -56,7 +56,9 @@ struct CandidateTabShellView: View {
                 CareerOverviewContainerView()
             }
         case .verify:
-            if let uiTestState = uiTestVerifyConfiguration.state {
+            if uiTestVerifyConfiguration.showsNavigationRecovery {
+                VerifyNavigationFixtureHostView()
+            } else if let uiTestState = uiTestVerifyConfiguration.state {
                 VerifyOverviewFixtureHostView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {
                 VerifyOverviewFixtureHostView(state: .default(isDemoMode: true))

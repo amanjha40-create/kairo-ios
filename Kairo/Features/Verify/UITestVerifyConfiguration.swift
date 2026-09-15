@@ -4,6 +4,7 @@ struct UITestVerifyConfiguration {
     static let stateEnvironmentKey = "KAIRO_UI_TEST_VERIFY_STATE"
 
     let state: VerifyOverviewState?
+    var showsNavigationRecovery = false
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -32,6 +33,7 @@ struct UITestVerifyConfiguration {
             .errorFixture()
         }
 
-        return UITestVerifyConfiguration(state: state)
+        return UITestVerifyConfiguration(state: state,
+            showsNavigationRecovery: environment["KAIRO_UI_TEST_VERIFY_NAVIGATION"] == "1")
     }
 }

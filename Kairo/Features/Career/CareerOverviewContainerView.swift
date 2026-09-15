@@ -91,15 +91,9 @@ struct CareerOverviewContainerView: View {
         .sheet(item: $presentedSheet) { sheet in
             mutationSheet(for: sheet)
         }
-        .sheet(item: $verificationPreset) { preset in
-            VerificationInitiationSheet(
-                service: verificationInitiationService,
-                preset: preset,
-                onSuccess: { requestID in
-                    refreshStore.verificationRequested(requestID: requestID)
-                    router.selectTab(.verify)
-                }
-            )
+        .verificationInitiationSheet(preset: $verificationPreset, service: verificationInitiationService) { requestID in
+            refreshStore.verificationRequested(requestID: requestID)
+            router.selectTab(.verify)
         }
         .onChange(of: refreshStore.revision) { _, _ in
             Task { await load(showLoading: false) }

@@ -6,18 +6,19 @@ struct VerifyOverviewContainerView: View {
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
 
-    @State private var state = VerifyOverviewState.loading()
+    @StateObject private var loadState = VerifyOverviewLoadState()
     @State private var hasLoaded = false
     @State private var initiationPreset: VerificationInitiationPreset?
 
     var body: some View {
         VerifyOverviewScreenView(
-            state: $state,
+            state: $loadState.state,
             retryAction: {
                 Task {
                     await load(showLoading: true)
                 }
             },
+            refreshAction: { await load(showLoading: false) },
             requestActionHandler: { requestID, action, response, consent in
                 try await performAction(
                     requestID: requestID,
@@ -30,6 +31,7 @@ struct VerifyOverviewContainerView: View {
                 initiationPreset = preset
             },
             focusedRequestID: refreshStore.focusedVerificationRequestID,
+            authoritativeFocusedRequestID: loadState.authoritativeFocusID,
             focusedRequestPresentedHandler: { requestID in
                 refreshStore.clearVerificationFocus(requestID: requestID)
             }
@@ -40,44 +42,27 @@ struct VerifyOverviewContainerView: View {
             }
 
             hasLoaded = true
-            state = .loading()
             await load(showLoading: true)
         }
         .onChange(of: refreshStore.revision) { _, _ in
             Task { await load(showLoading: false) }
         }
-        .sheet(item: $initiationPreset) { preset in
-            VerificationInitiationSheet(
-                service: verificationInitiationService,
-                preset: preset,
-                onSuccess: { requestID in
-                    refreshStore.verificationRequested(requestID: requestID)
-                }
-            )
+        .onChange(of: refreshStore.focusedVerificationRequestID) { _, requestID in
+            guard requestID != nil else { return }
+            Task { await load(showLoading: false) }
+        }
+        .verificationInitiationSheet(preset: $initiationPreset, service: verificationInitiationService) { requestID in
+            refreshStore.verificationRequested(requestID: requestID)
         }
     }
 
     private func load(showLoading: Bool) async {
-        let previousState = state
-
-        if showLoading || !hasRenderableContent(previousState) {
-            state = .loading()
-        }
-
-        do {
-            state = VerifyOverviewMapper.map(try await verifyOverviewService.loadOverview())
-        } catch {
-            if VerifyOverviewMapper.requiresSessionRecovery(for: error) {
-                await sessionStore.refreshLaunchRoute()
-                return
-            }
-
-            if hasRenderableContent(previousState), !showLoading {
-                state = previousState
-                return
-            }
-
-            state = VerifyOverviewMapper.errorState(for: error)
+        if await loadState.load(
+            service: verifyOverviewService,
+            focusedRequestID: refreshStore.focusedVerificationRequestID,
+            showLoading: showLoading
+        ) {
+            await sessionStore.refreshLaunchRoute()
         }
     }
 
@@ -106,12 +91,4 @@ struct VerifyOverviewContainerView: View {
         }
     }
 
-    private func hasRenderableContent(_ state: VerifyOverviewState) -> Bool {
-        switch state.phase {
-        case .populated, .empty:
-            return true
-        case .loading, .error:
-            return false
-        }
-    }
 }

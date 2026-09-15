@@ -12,6 +12,7 @@ struct VerifyOverviewFixtureHostView: View {
         VerifyOverviewScreenView(
             state: $state,
             focusedRequestID: refreshStore.focusedVerificationRequestID,
+            authoritativeFocusedRequestID: refreshStore.focusedVerificationRequestID,
             focusedRequestPresentedHandler: { requestID in
                 refreshStore.clearVerificationFocus(requestID: requestID)
             }
@@ -28,6 +29,7 @@ struct VerifyOverviewScreenView: View {
     private let requestActionHandler: VerifyRequestActionHandler?
     private let startVerificationHandler: ((VerificationInitiationPreset) -> Void)?
     private let focusedRequestID: String?
+    private let authoritativeFocusedRequestID: String?
     private let focusedRequestPresentedHandler: ((String) -> Void)?
 
     @State private var presentedSheet: VerifyPresentedSheet?
@@ -42,6 +44,7 @@ struct VerifyOverviewScreenView: View {
         requestActionHandler: VerifyRequestActionHandler? = nil,
         startVerificationHandler: ((VerificationInitiationPreset) -> Void)? = nil,
         focusedRequestID: String? = nil,
+        authoritativeFocusedRequestID: String? = nil,
         focusedRequestPresentedHandler: ((String) -> Void)? = nil
     ) {
         _state = state
@@ -50,6 +53,7 @@ struct VerifyOverviewScreenView: View {
         self.requestActionHandler = requestActionHandler
         self.startVerificationHandler = startVerificationHandler
         self.focusedRequestID = focusedRequestID
+        self.authoritativeFocusedRequestID = authoritativeFocusedRequestID
         self.focusedRequestPresentedHandler = focusedRequestPresentedHandler
     }
 
@@ -81,6 +85,13 @@ struct VerifyOverviewScreenView: View {
         .onChange(of: focusedRequestID) { _, _ in
             presentFocusedRequestIfAvailable()
         }
+        .onChange(of: authoritativeFocusedRequestID) { _, _ in
+            presentFocusedRequestIfAvailable()
+        }
+        .onChange(of: router.selectedTab) { _, _ in
+            presentFocusedRequestIfAvailable()
+        }
+        .onAppear { presentFocusedRequestIfAvailable() }
     }
 
     private var supportLine: some View {
@@ -488,19 +499,20 @@ struct VerifyOverviewScreenView: View {
     }
 
     private func presentFocusedRequestIfAvailable() {
-        guard let focusedRequestID, let activeContent else { return }
-
-        guard let request = activeContent.request(matchingAuthoritativeIdentifier: focusedRequestID) else {
+        guard router.selectedTab == .verify, let focusedRequestID else { return }
+        switch VerifyFocusedDestination.resolve(target: focusedRequestID,
+                                                authoritativeFocusID: authoritativeFocusedRequestID, state: state) {
+        case .pending:
+            return
+        case .unavailable:
             focusedRequestPresentedHandler?(focusedRequestID)
             actionError = VerifyActionError(
                 title: "Request no longer available",
                 message: "KairoID opened your current verification list because that request could not be found. Pull to refresh if its status changed recently."
             )
-            return
+        case .request(let requestID):
+            presentedSheet = .requestDetail(requestID)
         }
-
-        presentedSheet = .requestDetail(request.id)
-        focusedRequestPresentedHandler?(focusedRequestID)
     }
 
     private func performRequestAction(
@@ -588,6 +600,13 @@ struct VerifyOverviewScreenView: View {
                         router.selectTab(.career)
                     }
                 )
+                .onAppear {
+                    // A requested sheet is not yet a successfully presented destination.
+                    guard let focusedRequestID,
+                          VerifyFocusedDestination.resolve(target: focusedRequestID,
+                              authoritativeFocusID: authoritativeFocusedRequestID, state: state) == .request(requestID) else { return }
+                    focusedRequestPresentedHandler?(focusedRequestID)
+                }
             } else {
                 VerifySimpleSheet(
                     title: "Request unavailable",
@@ -900,6 +919,7 @@ private struct VerifyRequestDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .accessibilityIdentifier(KairoAccessibilityID.verifyRequestDetail)
+        .accessibilityValue(request.routeRequestID ?? request.id)
         .confirmationDialog("Withdraw this verification request?", isPresented: $confirmsWithdrawal, titleVisibility: .visible) {
             Button("Withdraw request", role: .destructive) { onWithdraw() }
             Button("Keep request", role: .cancel) { }
