@@ -157,7 +157,7 @@ struct HomeOverviewScreenView: View {
     private func populatedContent(_ content: HomeOverviewContent) -> some View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
         recommendationCard(content.recommendation)
-        verificationRequestsSection(content.verificationRequests)
+        verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         trustTasksSection(content.visibleTrustTasks)
         profileCompletionCard(content.profileCompletion)
         recentActivitySection(content.recentActivity)
@@ -178,7 +178,7 @@ struct HomeOverviewScreenView: View {
         )
 
         recommendationCard(content.recommendation)
-        verificationRequestsSection(content.verificationRequests)
+        verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         trustTasksSection(content.visibleTrustTasks)
         profileCompletionCard(content.profileCompletion)
         recentActivitySection(content.recentActivity)
@@ -337,7 +337,7 @@ struct HomeOverviewScreenView: View {
         }
     }
 
-    private func verificationRequestsSection(_ requests: [HomeVerificationRequest]) -> some View {
+    private func verificationRequestsSection(_ requests: [HomeVerificationRequest], available: Bool) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             Text("In progress")
                 .font(KairoTypography.title2)
@@ -355,14 +355,11 @@ struct HomeOverviewScreenView: View {
                                 .font(KairoTypography.body)
                                 .foregroundStyle(KairoColors.textPrimary)
 
-                            Text(request.status)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.warning)
                         }
 
                         Spacer(minLength: KairoSpacing.medium)
 
-                        HomeStatusBadge(title: "Awaiting approval")
+                        HomeStatusBadge(title: request.status)
                     }
 
                     KairoSecondaryButton(
@@ -378,13 +375,19 @@ struct HomeOverviewScreenView: View {
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
-            } else {
+            } else if available {
                 HomeCompactEmptyCard(
                     systemImage: "tray",
-                    title: "No verification requests yet",
-                    message: "When organisations ask you to approve a verification, you'll see it here."
+                    title: "No active verification requests",
+                    message: "Current verification requests will appear here when they need attention or are in progress."
                 )
                 .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
+            } else {
+                HomeCompactEmptyCard(
+                    systemImage: "exclamationmark.circle",
+                    title: "Verification status unavailable",
+                    message: "Pull to refresh to check your current verification requests."
+                )
             }
         }
     }

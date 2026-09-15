@@ -33,6 +33,7 @@ struct AppRootView: View {
 
         }
         .background(KairoColors.background.ignoresSafeArea())
+        .modifier(KairoStatusBarProtection())
         .task {
             await sessionStore.bootstrapIfNeeded()
         }

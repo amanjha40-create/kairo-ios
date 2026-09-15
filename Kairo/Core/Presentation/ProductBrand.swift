@@ -16,4 +16,5 @@ nonisolated enum ProductStatusLanguage {
     static let draft = "Draft"
     static let candidateProvided = "Candidate-provided"
     static let unavailable = "Status unavailable"
+    static let verificationIncomplete = "Verification incomplete"
 }

@@ -34,9 +34,8 @@ final class HomeOverviewMapperTests: XCTestCase {
             "Add your employment history",
             "Verify your email"
         ])
-        XCTAssertEqual(content.verificationRequests.first?.title, "Employment verification")
-        XCTAssertEqual(content.verificationRequests.first?.destinationTab, .verify)
-        XCTAssertEqual(content.verificationRequests.first?.authoritativeDestinationID, "subject_0")
+        XCTAssertTrue(content.verificationRequests.isEmpty)
+        XCTAssertFalse(content.verificationRequestsAvailable)
         XCTAssertEqual(content.profileCompletion.destinationTab, .career)
         XCTAssertEqual(content.recentActivity.count, 2)
         XCTAssertEqual(content.recentPassportViews.count, 1)
@@ -86,6 +85,89 @@ final class HomeOverviewMapperTests: XCTestCase {
         XCTAssertTrue(HomeOverviewMapper.requiresSessionRecovery(for: SessionServiceError.sessionExpired))
         XCTAssertFalse(HomeOverviewMapper.requiresSessionRecovery(for: SessionServiceError.missingAccessToken))
         XCTAssertFalse(HomeOverviewMapper.requiresSessionRecovery(for: NetworkError.transport("offline")))
+    }
+
+    func test_historicalEmploymentCreatedNeverBecomesARequest() throws {
+        let overview = baseline(activity: [.verification])
+        let state = HomeOverviewMapper.map(overview, verificationOverview: .init(requests: []))
+        let content = try content(state)
+        XCTAssertTrue(content.verificationRequests.isEmpty)
+        XCTAssertTrue(content.verificationRequestsAvailable)
+        XCTAssertEqual(content.recentActivity.count, 1)
+        XCTAssertNotNil(overview.recentActivity.first?.subjectID)
+    }
+
+    func test_allKnownActiveStatusesUseAuthoritativeRouteAndStatus() throws {
+        for status in VerifyVerificationStatus.displayOrder where status.group != .completed && status != .draft {
+            let state = HomeOverviewMapper.map(baseline(), verificationOverview: .init(requests: [request(status: status)]))
+            let item = try XCTUnwrap(try content(state).verificationRequests.first)
+            XCTAssertEqual(item.authoritativeDestinationID, "public-request-id")
+            XCTAssertEqual(item.status, status.style.title)
+            XCTAssertEqual(item.destinationTab, .verify)
+        }
+    }
+
+    func test_completedDraftUnknownAndUnrouteableRequestsNeverBecomeActiveCards() throws {
+        let statuses: [VerifyVerificationStatus] = [.verified, .rejected, .unableToVerify, .cancelled, .expired, .draft, .unknown("new_state")]
+        for status in statuses {
+            XCTAssertTrue(try content(HomeOverviewMapper.map(baseline(), verificationOverview: .init(requests: [request(status: status)]))).verificationRequests.isEmpty)
+        }
+        for route in [nil, "", "  "] as [String?] {
+            XCTAssertTrue(try content(HomeOverviewMapper.map(baseline(), verificationOverview: .init(requests: [request(status: .inProgress, route: route)]))).verificationRequests.isEmpty)
+        }
+    }
+
+    func test_loaderUsesExistingVerifyCollectionRatherThanDashboardActivity() async throws {
+        let state = try await HomeOverviewLoader.load(dashboardService: DashboardStub(value: baseline(activity: [.verification])), verificationService: VerifyStub(result: .success(.init(requests: [request(status: .pendingAdminReview)]))))
+        XCTAssertEqual(try content(state).verificationRequests.first?.authoritativeDestinationID, "public-request-id")
+    }
+
+    func test_requestLoadFailureIsUnknownNotZeroOrHistoricalFallback() async throws {
+        let state = try await HomeOverviewLoader.load(dashboardService: DashboardStub(value: baseline(activity: [.verification])), verificationService: VerifyStub(result: .failure(NetworkError.invalidResponse)))
+        let content = try content(state)
+        XCTAssertFalse(content.verificationRequestsAvailable)
+        XCTAssertTrue(content.verificationRequests.isEmpty)
+        XCTAssertEqual(content.recentActivity.count, 1)
+    }
+
+    func test_requestSessionExpiryIsNotSwallowed() async throws {
+        do {
+            _ = try await HomeOverviewLoader.load(dashboardService: DashboardStub(value: baseline()), verificationService: VerifyStub(result: .failure(SessionServiceError.sessionExpired)))
+            XCTFail("Expected session recovery")
+        } catch { XCTAssertEqual(error as? SessionServiceError, .sessionExpired) }
+    }
+
+    func test_incompleteTrustScoreDoesNotClaimWorkflowProgress() throws {
+        let overview = makeOverview(trustScoreOverall: nil, missingRequirements: [], nextRecommendedStep: nil, totalVaultItems: 0, analyticsCount: 0, activityCategories: [])
+        XCTAssertEqual(try content(HomeOverviewMapper.map(overview, verificationOverview: .init(requests: []))).trustScore.status, "Verification incomplete")
+    }
+
+    private func content(_ state: HomeOverviewState) throws -> HomeOverviewContent {
+        switch state.phase {
+        case .populated(let content), .empty(let content): return content
+        default: throw XCTUnwrapError()
+        }
+    }
+
+    private struct XCTUnwrapError: Error {}
+
+    private func baseline(activity: [DashboardOverview.ActivityItem.Category] = []) -> DashboardOverview {
+        makeOverview(trustScoreOverall: 78, missingRequirements: [], nextRecommendedStep: nil, totalVaultItems: 2, analyticsCount: 0, activityCategories: activity)
+    }
+
+    private func request(status: VerifyVerificationStatus, route: String? = "public-request-id") -> VerifyRequestRecord {
+        .init(id: "internal-id", routeID: route, subjectIDs: ["employment-id"], kind: .employment, typeTitle: "Employment verification", organizationName: "Synthetic employer", requesterName: "Synthetic requester", requestedItem: "Synthetic role", status: status, priority: "normal", dueDate: nil, createdAt: .distantPast, updatedAt: .distantPast, candidateResponse: nil, candidateResponseSubmittedAt: nil, acceptedAt: nil, consentedFields: [], consentedEvidenceScope: [], evidenceSummary: .init(totalItems: 0, documentItems: 0, fieldKeys: []), timeline: [])
+    }
+
+    private struct DashboardStub: HomeOverviewServiceProtocol {
+        let value: DashboardOverview
+        func loadOverview() async throws -> DashboardOverview { value }
+    }
+
+    private struct VerifyStub: VerifyOverviewServiceProtocol {
+        let result: Result<VerifyOverview, Error>
+        func loadOverview() async throws -> VerifyOverview { try result.get() }
+        func performAction(requestID: String, action: VerifyRequestAction, response: String?, consent: VerificationSubmissionConsent?) async throws { XCTFail("No mutations allowed") }
     }
 
     private func makeOverview(
@@ -205,8 +287,8 @@ final class HomeOverviewMapperTests: XCTestCase {
                 DashboardOverview.ActivityItem(
                     occurredAt: Date(timeIntervalSince1970: 1_722_700_000 + Double(index)),
                     category: category,
-                    action: category == .verification ? "awaiting_approval" : "viewed",
-                    title: category == .verification ? "Employment verification" : "Passport viewed",
+                    action: category == .verification ? "employment_created" : "viewed",
+                    title: category == .verification ? "Employment Created" : "Passport viewed",
                     detail: category == .verification ? "Northstar Labs" : "Public passport share",
                     subjectID: "subject_\(index)"
                 )

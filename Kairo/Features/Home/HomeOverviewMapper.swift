@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 enum HomeOverviewMapper {
-    static func map(_ overview: DashboardOverview) -> HomeOverviewState {
+    static func map(_ overview: DashboardOverview, verificationOverview: VerifyOverview? = nil) -> HomeOverviewState {
         let trustScore = makeTrustScore(from: overview.trustScore)
         let recommendation = makeRecommendation(from: overview)
         let content = HomeOverviewContent(
@@ -10,19 +10,20 @@ enum HomeOverviewMapper {
             trustScore: trustScore,
             recommendation: recommendation,
             trustTasks: makeTrustTasks(from: overview),
-            verificationRequests: makeVerificationRequests(from: overview),
+            verificationRequests: makeVerificationRequests(from: verificationOverview),
             profileCompletion: makeProfileCompletion(from: overview),
             recentActivity: makeRecentActivity(from: overview.recentActivity),
             recentPassportViews: makePassportViews(
                 analytics: overview.recentShareAnalytics,
                 activeShares: overview.activePassportShares.items
-            )
+            ),
+            verificationRequestsAvailable: verificationOverview != nil
         )
 
         return .live(
             header: makeHeader(from: overview.user, trustScore: trustScore),
             content: content,
-            isEmpty: isEmpty(overview: overview)
+            isEmpty: isEmpty(overview: overview) && content.verificationRequests.isEmpty
         )
     }
 
@@ -164,17 +165,28 @@ enum HomeOverviewMapper {
     }
 
     private static func makeVerificationRequests(
-        from overview: DashboardOverview
+        from overview: VerifyOverview?
     ) -> [HomeVerificationRequest] {
-        overview.recentActivity
-            .filter { $0.category == .verification }
+        (overview?.requests ?? [])
+            .filter { request in
+                guard let routeID = request.routeID, !routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+                switch request.status {
+                case .draft, .unknown: return false
+                default: return request.status.group != .completed
+                }
+            }
+            .sorted { lhs, rhs in
+                if lhs.status.rank != rhs.status.rank { return lhs.status.rank < rhs.status.rank }
+                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+                return lhs.id < rhs.id
+            }
             .prefix(1)
-            .map { activity in
+            .map { request in
                 HomeVerificationRequest(
-                    title: activity.title,
-                    organization: activity.detail ?? "Trust Center",
-                    status: humanizedAction(activity.action),
-                    authoritativeDestinationID: activity.subjectID,
+                    title: request.typeTitle,
+                    organization: request.organizationName,
+                    status: request.status.style.title,
+                    authoritativeDestinationID: request.routeID,
                     destinationTab: .verify
                 )
             }
@@ -267,7 +279,7 @@ enum HomeOverviewMapper {
         case .consentRequired:
             "Consent required"
         case .incompleteVerification:
-            "Incomplete verification"
+            ProductStatusLanguage.verificationIncomplete
         case .calculated:
             "Calculated"
         case .criticalManualFraudReview:

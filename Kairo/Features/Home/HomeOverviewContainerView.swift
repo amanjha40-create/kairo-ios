@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeOverviewContainerView: View {
     @Environment(\.homeOverviewService) private var homeOverviewService
+    @Environment(\.verifyOverviewService) private var verifyOverviewService
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
 
@@ -58,18 +59,17 @@ struct HomeOverviewContainerView: View {
         }
 
         do {
-            state = HomeOverviewMapper.map(try await homeOverviewService.loadOverview())
+            state = try await HomeOverviewLoader.load(
+                dashboardService: homeOverviewService,
+                verificationService: verifyOverviewService
+            )
         } catch {
             if HomeOverviewMapper.requiresSessionRecovery(for: error) {
                 await sessionStore.refreshLaunchRoute()
                 return
             }
 
-            if hasRenderableContent(previousState), !showLoading {
-                state = previousState
-                return
-            }
-
+            // Do not preserve an old active-request claim after a failed refresh.
             state = HomeOverviewMapper.errorState(for: error, header: cachedHeader)
         }
     }

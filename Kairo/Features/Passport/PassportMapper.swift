@@ -318,7 +318,7 @@ nonisolated enum PassportOverviewMapper {
         case .consentRequired:
             return "Consent required"
         case .incompleteVerification:
-            return "Verification in progress"
+            return ProductStatusLanguage.verificationIncomplete
         case .calculated:
             return "Trust Score unavailable"
         case .criticalManualFraudReview:
@@ -348,7 +348,7 @@ nonisolated enum PassportOverviewMapper {
         case .consentRequired:
             return "Consent required"
         case .incompleteVerification:
-            return "Verification in progress"
+            return ProductStatusLanguage.verificationIncomplete
         case .calculated:
             return "Actively strengthening"
         case .criticalManualFraudReview:

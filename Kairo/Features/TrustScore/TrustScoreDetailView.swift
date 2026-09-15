@@ -359,7 +359,7 @@ struct TrustScoreDetailView: View {
     private func statusTitle(_ status: TrustScoreResponseDTO.Status) -> String {
         switch status {
         case .consentRequired: "Consent required"
-        case .incompleteVerification: "Verification in progress"
+        case .incompleteVerification: ProductStatusLanguage.verificationIncomplete
         case .calculated: "Calculated"
         case .criticalManualFraudReview: "Under review"
         }

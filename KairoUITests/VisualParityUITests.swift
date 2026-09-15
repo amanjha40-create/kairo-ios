@@ -1,8 +1,64 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class VisualParityUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    func testScrolledStatusBarProtectionLight() { checkScrolledStatusBarProtection(appearance: "light") }
+    func testScrolledStatusBarProtectionDark() { checkScrolledStatusBarProtection(appearance: "dark") }
+
+    func testZeroRequestsHasNoViewRequestAction() {
+        let app = launch(homeState: "empty")
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.home.screen"].firstMatch.waitForExistence(timeout: 10))
+        for _ in 0..<5 {
+            XCTAssertFalse(app.buttons["candidate.home.verificationRequest.action"].exists)
+            XCTAssertFalse(app.staticTexts["Awaiting approval"].exists)
+            app.swipeUp()
+        }
+    }
+
+    private func checkScrolledStatusBarProtection(appearance: String) {
+        // Hide the Demo banner while retaining isolated UI-test fixtures. The
+        // banner otherwise masks the exact no-header layout that failed live.
+        let app = launch(appearance: appearance, demoMode: false)
+        for tab in ["Home", "Career", "Passport", "More", "Verify"] {
+            app.tabBars.buttons[tab].tap()
+            XCTAssertTrue(app.tabBars.buttons[tab].isSelected)
+            let before = statusBarBackgroundSamples(app)
+            for index in 1...3 {
+                app.swipeUp()
+                XCTAssertEqual(app.state, .runningForeground)
+                let after = statusBarBackgroundSamples(app)
+                XCTAssertEqual(before.count, after.count)
+                if !before.isEmpty, before.count == after.count {
+                    let difference = zip(before, after).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(before.count)
+                    XCTAssertLessThan(difference, 2, "\(tab) scroll changed the protected status-bar background")
+                }
+                capture("\(tab) scrolled \(index) \(appearance) status-bar")
+            }
+        }
+    }
+
+    private func statusBarBackgroundSamples(_ app: XCUIApplication) -> [UInt8] {
+        let bar = XCUIApplication(bundleIdentifier: "com.apple.springboard").statusBars.firstMatch
+        let nativeFrame = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.statusBarManager?.statusBarFrame }
+            .first { !$0.isEmpty }
+        let frame = bar.exists ? bar.frame : (nativeFrame ?? .zero)
+        XCTAssertFalse(frame.isEmpty, "Use the system status-bar frame, never a guessed device inset")
+        guard !frame.isEmpty, let image = app.screenshot().image.cgImage else { return [] }
+        let scale = CGFloat(image.width) / app.frame.width
+        var samples = [UInt8]()
+        // Narrow background strips avoid changing clock digits and connectivity
+        // indicators. All vertical bounds come from the OS-reported bar frame.
+        for x in [0.02, 0.26, 0.96] {
+            let rect = CGRect(x: frame.width * x * scale, y: frame.minY * scale, width: frame.width * 0.02 * scale, height: frame.height * scale).integral
+            guard let crop = image.cropping(to: rect), let data = crop.dataProvider?.data else { XCTFail("Missing status-bar pixels"); return [] }
+            samples.append(contentsOf: Data(referencing: data))
+        }
+        return samples
+    }
 
     func testHomeHierarchyAndScreenshot() {
         let app = launch()
@@ -137,13 +193,13 @@ final class VisualParityUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(heading.frame.minY, banner.frame.maxY)
     }
 
-    private func launch(arguments: [String] = []) -> XCUIApplication {
+    private func launch(arguments: [String] = [], appearance: String = "light", homeState: String = "populated", demoMode: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", "light"] + arguments
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", appearance] + arguments
         app.launchEnvironment = [
             "KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
-            "KAIRO_DEMO_MODE": "true", "KAIRO_APP_ENVIRONMENT": "staging",
-            "KAIRO_UI_TEST_HOME_STATE": "populated", "KAIRO_UI_TEST_CAREER_STATE": "populated",
+            "KAIRO_DEMO_MODE": demoMode ? "true" : "false", "KAIRO_APP_ENVIRONMENT": "staging",
+            "KAIRO_UI_TEST_HOME_STATE": homeState, "KAIRO_UI_TEST_CAREER_STATE": "populated",
             "KAIRO_UI_TEST_VERIFY_STATE": "populated", "KAIRO_UI_TEST_PASSPORT_STATE": "populated",
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"
         ]

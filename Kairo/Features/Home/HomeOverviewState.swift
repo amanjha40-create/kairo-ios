@@ -251,6 +251,7 @@ struct HomeOverviewContent: Equatable, Sendable {
     let profileCompletion: HomeProfileCompletion
     let recentActivity: [HomeActivityItem]
     let recentPassportViews: [HomePassportViewItem]
+    var verificationRequestsAvailable: Bool = true
 
     var visibleTrustTasks: [HomeTrustTask] {
         Array(trustTasks.sorted { lhs, rhs in
