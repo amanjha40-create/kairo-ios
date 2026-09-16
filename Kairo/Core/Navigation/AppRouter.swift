@@ -12,6 +12,11 @@ final class AppRouter: ObservableObject {
     @Published private(set) var trustScorePresentation: TrustScorePresentation?
     @Published private(set) var careerDocumentPresentation: CareerDocumentPresentation?
     @Published private(set) var googleAuthenticationPresentation: GoogleAuthenticationPresentation?
+    @Published var documentPackPresentation: DocumentPackPresentation?
+
+    func showDocumentPacks(history: Bool = false) {
+        documentPackPresentation = DocumentPackPresentation(history: history)
+    }
 
     init(
         rootDestination: RootDestination = .onboarding,

@@ -13,6 +13,7 @@ struct AppDependencies: Sendable {
     let careerDocumentService: any CareerDocumentServiceProtocol
     let documentVaultService: any DocumentVaultServiceProtocol
     let documentsHubService: any DocumentsHubServiceProtocol
+    let documentPackService: any DocumentPackServiceProtocol
     let verifyOverviewService: any VerifyOverviewServiceProtocol
     let verificationInitiationService: any VerificationInitiationServiceProtocol
     let passportOverviewService: any PassportOverviewServiceProtocol
@@ -157,6 +158,9 @@ struct AppDependencies: Sendable {
             documentsHubService: configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
                 ? PreviewDocumentsHubService()
                 : DocumentsHubService(career: careerOverviewService, documents: careerDocumentService, vault: documentVaultService, session: sessionService),
+            documentPackService: configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
+                ? DemoDocumentPackService(scenario: uiTestConfiguration.isEnabled ? ProcessInfo.processInfo.environment["KAIRO_UI_TEST_PACK_STATE"] ?? "populated" : "populated")
+                : DocumentPackService(session: sessionService, publicClient: networkClient, allowedHosts: configuration.documentPackHosts),
             verifyOverviewService: verifyOverviewService,
             verificationInitiationService: verificationInitiationService,
             passportOverviewService: passportOverviewService,

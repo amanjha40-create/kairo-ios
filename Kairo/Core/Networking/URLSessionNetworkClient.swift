@@ -10,6 +10,9 @@ struct URLSessionNetworkClient: NetworkClient {
 
     func sendResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
         let urlRequest = try makeURLRequest(for: request)
+        if request.requiresPrivateJSONTransport {
+            return try await PrivateDocumentPackTransport.send(urlRequest, protocolClasses: session.configuration.protocolClasses)
+        }
         if request.requiresProtectedDocumentTransport {
             // Binary owner content never uses JSON decoding, cookies, URL caching, or redirects.
             return try await ProtectedDocumentTransport.send(

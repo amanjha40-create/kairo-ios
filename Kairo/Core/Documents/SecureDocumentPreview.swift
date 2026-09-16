@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SecureDocumentPreview: Identifiable {
     let id = UUID()
-    enum Source { case authorizedCareerURL(URL), vault(documentID: String) }
+    enum Source { case authorizedCareerURL(URL), vault(documentID: String), documentPack(DocumentPackCapability, itemID: String) }
     let source: Source
     let filename: String
 
@@ -17,12 +17,18 @@ struct SecureDocumentPreview: Identifiable {
         source = .vault(documentID: vaultDocumentID)
         self.filename = filename
     }
+
+    init(documentPack: DocumentPackCapability, itemID: String, filename: String) {
+        source = .documentPack(documentPack, itemID: itemID)
+        self.filename = filename
+    }
 }
 
 /// No browser address bar, bearer header, persistent URL cache, or capability logging.
 struct SecureDocumentPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.documentVaultService) private var vault
+    @Environment(\.documentPackService) private var documentPacks
     @EnvironmentObject private var sessionStore: AppSessionStore
     let preview: SecureDocumentPreview
     @State private var localURL: URL?
@@ -47,6 +53,7 @@ struct SecureDocumentPreviewSheet: View {
                 let content: ProtectedDocumentContent
                 switch preview.source {
                 case .vault(let id): content = try await vault.content(documentID: id)
+                case .documentPack(let capability, let itemID): content = try await documentPacks.content(capability, itemID: itemID)
                 case .authorizedCareerURL(let url):
                     content = try await ProtectedDocumentContent(response: ProtectedDocumentTransport.send(URLRequest(url: url)))
                 }

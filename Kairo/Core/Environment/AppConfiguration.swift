@@ -157,6 +157,13 @@ struct AppConfiguration: Equatable, Sendable {
         }
     }
 
+    var documentPackHosts: Set<String> {
+        switch environment {
+        case .staging: ["d3kpvsn9kfajzc.cloudfront.net"]
+        case .development, .production: ["app.kairoid.com"]
+        }
+    }
+
     nonisolated var candidateAppLinkHosts: Set<String> {
         ["app.kairoid.com"]
     }

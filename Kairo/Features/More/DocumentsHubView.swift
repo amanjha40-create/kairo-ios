@@ -7,6 +7,7 @@ struct DocumentsHubView: View {
     @Environment(\.careerDocumentService) private var documents
     @Environment(\.documentVaultService) private var vault
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var router: AppRouter
     @State private var rows: [DocumentsHubRow] = []
     @State private var category: DocumentsHubCategory = .all
     @State private var loading = true
@@ -27,6 +28,10 @@ struct DocumentsHubView: View {
                     Text("Current attachments and immutable verification history, from your authorized records. Project items may retain a legacy Portfolio origin until the shared migration is complete.")
                         .font(KairoTypography.footnote)
                     Button("Manage Vault / identity documents") { showsVault = true }
+                    Button("Share documents") { router.showDocumentPacks() }
+                        .accessibilityIdentifier("documents.shareDocuments")
+                    Button("Shared document packs") { router.showDocumentPacks(history: true) }
+                        .accessibilityIdentifier("documents.sharedPacks")
                     if loading { ProgressView("Loading document sources") }
                     else if let message {
                         KairoErrorStateView(title: "Documents unavailable", message: message)
@@ -71,6 +76,7 @@ struct DocumentsHubView: View {
             .refreshable { if !mutating { await load() } }
             .sheet(isPresented: $showsVault, onDismiss: { Task { await load() } }) { DocumentVaultView() }
             .sheet(item: $preview) { SecureDocumentPreviewSheet(preview: $0) }
+            .sheet(item: $router.documentPackPresentation) { DocumentPackView(history: $0.history) }
             .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.pdf, .jpeg, .png], allowsMultipleSelection: false) { result in
                 guard let row = replacement else { return }
                 replacement = nil

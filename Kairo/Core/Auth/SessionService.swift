@@ -227,7 +227,8 @@ actor SessionService: SessionServiceProtocol {
             queryItems: request.queryItems,
             body: request.body,
             allowsSessionRefreshOnUnauthorized: request.allowsSessionRefreshOnUnauthorized,
-            requiresProtectedDocumentTransport: request.requiresProtectedDocumentTransport
+            requiresProtectedDocumentTransport: request.requiresProtectedDocumentTransport,
+            requiresPrivateJSONTransport: request.requiresPrivateJSONTransport
         )
     }
 
