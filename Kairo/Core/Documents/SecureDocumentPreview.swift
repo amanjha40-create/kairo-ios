@@ -4,16 +4,30 @@ import UniformTypeIdentifiers
 
 struct SecureDocumentPreview: Identifiable {
     let id = UUID()
-    let url: URL
+    enum Source { case authorizedCareerURL(URL), vault(documentID: String) }
+    let source: Source
     let filename: String
+
+    init(url: URL, filename: String) {
+        source = .authorizedCareerURL(url)
+        self.filename = filename
+    }
+
+    init(vaultDocumentID: String, filename: String) {
+        source = .vault(documentID: vaultDocumentID)
+        self.filename = filename
+    }
 }
 
 /// No browser address bar, bearer header, persistent URL cache, or capability logging.
 struct SecureDocumentPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.documentVaultService) private var vault
+    @EnvironmentObject private var sessionStore: AppSessionStore
     let preview: SecureDocumentPreview
     @State private var localURL: URL?
     @State private var failed = false
+    @State private var lifecycle = UUID()
 
     var body: some View {
         NavigationStack {
@@ -27,37 +41,33 @@ struct SecureDocumentPreviewSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .task {
+            let lifecycle = lifecycle
+            let generation = DocumentPreviewFileStore.shared.generation
             do {
-                let url = try SecureDocumentTransferClient.validatedDownloadURL(preview.url)
-                let configuration = URLSessionConfiguration.ephemeral
-                configuration.urlCache = nil
-                configuration.httpCookieStorage = nil
-                configuration.timeoutIntervalForResource = 60
-                let session = URLSession(configuration: configuration, delegate: NoDocumentRedirect(), delegateQueue: nil)
-                defer { session.invalidateAndCancel() }
-                let (data, response) = try await session.data(from: url)
-                guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-                      !data.isEmpty, data.count <= 50 * 1_024 * 1_024,
-                      let mime = response.mimeType, SecureDocumentTransferClient.vaultContentTypes.contains(mime)
-                else { throw SecureDocumentTransferError.invalidDownloadURL }
+                let content: ProtectedDocumentContent
+                switch preview.source {
+                case .vault(let id): content = try await vault.content(documentID: id)
+                case .authorizedCareerURL(let url):
+                    content = try await ProtectedDocumentContent(response: ProtectedDocumentTransport.send(URLRequest(url: url)))
+                }
                 try Task.checkCancellation()
-                let suffix = UTType(mimeType: mime)?.preferredFilenameExtension ?? "pdf"
-                let file = FileManager.default.temporaryDirectory.appendingPathComponent("kairoid-document-\(UUID().uuidString).\(suffix)")
-                try data.write(to: file, options: [.atomic, .completeFileProtection])
-                localURL = file
-            } catch { failed = true }
+                guard lifecycle == self.lifecycle else { return }
+                localURL = try DocumentPreviewFileStore.shared.write(content, generation: generation)
+            } catch is CancellationError { }
+            catch { if lifecycle == self.lifecycle { failed = true } }
         }
-        .onDisappear {
-            if let localURL { try? FileManager.default.removeItem(at: localURL) }
-            localURL = nil
+        .onDisappear { cleanup() }
+        .onChange(of: sessionStore.currentUser?.id) { _, _ in
+            cleanup()
+            dismiss()
         }
     }
-}
 
-private final class NoDocumentRedirect: NSObject, URLSessionTaskDelegate {
-    func urlSession(_ session: URLSession, task: URLSessionTask,
-                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
-                    completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+    private func cleanup() {
+        lifecycle = UUID()
+        if let localURL { DocumentPreviewFileStore.shared.remove(localURL) }
+        localURL = nil
+    }
 }
 
 private struct LocalDocumentQuickLook: UIViewControllerRepresentable {

@@ -236,7 +236,7 @@ final class VerificationInitiationTests: XCTestCase {
 
         await model.load()
 
-        let loadCount = await service.loadCount()
+        let loadCount = service.loadCount()
         XCTAssertEqual(model.eligibility?.eligibleSubjects.map(\.id), ["employment_retry"])
         XCTAssertNil(model.error)
         XCTAssertNil(model.result)
@@ -392,7 +392,8 @@ final class VerificationInitiationTests: XCTestCase {
     }
 }
 
-private actor RetryVerificationInitiationService: VerificationInitiationServiceProtocol {
+@MainActor
+private final class RetryVerificationInitiationService: VerificationInitiationServiceProtocol {
     private var loads = 0
 
     func loadEligibility() async throws -> VerificationInitiationEligibility {

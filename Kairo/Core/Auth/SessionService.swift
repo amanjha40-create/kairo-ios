@@ -81,6 +81,7 @@ actor SessionService: SessionServiceProtocol {
     }
 
     func clearSession() async throws {
+        await DocumentPreviewFileStore.shared.clear()
         try await tokenStore.deleteAllTokens()
     }
 
@@ -224,7 +225,9 @@ actor SessionService: SessionServiceProtocol {
             method: request.method,
             headers: headers,
             queryItems: request.queryItems,
-            body: request.body
+            body: request.body,
+            allowsSessionRefreshOnUnauthorized: request.allowsSessionRefreshOnUnauthorized,
+            requiresProtectedDocumentTransport: request.requiresProtectedDocumentTransport
         )
     }
 

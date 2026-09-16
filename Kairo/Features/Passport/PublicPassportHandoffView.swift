@@ -64,7 +64,7 @@ struct PublicPassportHandoffView: View {
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                Text("The public web page is the authoritative recipient view. It enforces the owner's permissions and shows verified or self-declared information truthfully.")
+                Text("The public web page is the authoritative recipient view. It enforces the owner's permissions and shows verified or Candidate-provided information truthfully.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

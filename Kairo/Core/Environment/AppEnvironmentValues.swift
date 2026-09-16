@@ -274,7 +274,7 @@ private struct MissingDocumentVaultService: DocumentVaultServiceProtocol {
         fatalError("Missing Document Vault service injection.")
     }
 
-    func downloadURL(documentID: String) async throws -> URL {
+    func content(documentID: String) async throws -> ProtectedDocumentContent {
         _ = documentID
         fatalError("Missing Document Vault service injection.")
     }

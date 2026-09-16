@@ -151,7 +151,7 @@ final class CareerDocumentServiceTests: XCTestCase {
             parent: parent
         )
 
-        let events = await spy.events()
+        let events = spy.events()
         XCTAssertEqual(events, ["upload:transcript", "delete:old-document"])
     }
 
@@ -284,7 +284,8 @@ private actor CertificationAttachmentFixture {
     }
 }
 
-private actor CareerDocumentReplacementSpy: CareerDocumentServiceProtocol {
+@MainActor
+private final class CareerDocumentReplacementSpy: CareerDocumentServiceProtocol {
     private var recordedEvents: [String] = []
 
     func events() -> [String] { recordedEvents }

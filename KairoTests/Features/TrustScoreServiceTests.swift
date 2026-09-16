@@ -73,6 +73,9 @@ final class TrustScoreServiceTests: XCTestCase {
         let restored = try await service.grantConsent(version: "v1")
 
         XCTAssertEqual(initial.overall, 72)
+        XCTAssertEqual(initial.scoreVersion, "v2")
+        XCTAssertEqual(withdrawn.scoreVersion, "v2")
+        XCTAssertEqual(restored.scoreVersion, "v2")
         XCTAssertEqual(withdrawn.status, .consentRequired)
         XCTAssertNil(withdrawn.overall)
         XCTAssertEqual(restored.overall, 72)

@@ -277,7 +277,7 @@ final class PassportPDFExportTests: XCTestCase {
         model.startExport(using: service)
 
         try await Task.sleep(nanoseconds: 50_000_000)
-        let exportCount = await service.exportCount()
+        let exportCount = service.exportCount()
         XCTAssertTrue(model.isDownloading)
         XCTAssertEqual(exportCount, 1)
 
@@ -294,7 +294,7 @@ final class PassportPDFExportTests: XCTestCase {
         try await Task.sleep(nanoseconds: 30_000_000)
         await model.endLifecycle(using: service)
         try await Task.sleep(nanoseconds: 30_000_000)
-        let removeAllCount = await service.removeAllCount()
+        let removeAllCount = service.removeAllCount()
 
         XCTAssertFalse(model.isDownloading)
         XCTAssertNil(model.artifact)
@@ -377,7 +377,8 @@ final class PassportPDFExportTests: XCTestCase {
     }
 }
 
-private actor DelayedPassportPDFExportService: PassportPDFExportServiceProtocol {
+@MainActor
+private final class DelayedPassportPDFExportService: PassportPDFExportServiceProtocol {
     private var exports = 0
     private var removeAllCalls = 0
 

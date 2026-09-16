@@ -17,7 +17,7 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         await service.waitForCalls(1)
         XCTAssertEqual(resolve(model, store), .pending)
         XCTAssertEqual(store.focusedVerificationRequestID, newID)
-        await service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate), record(newID, .pendingAdminReview)])))
+        service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate), record(newID, .pendingAdminReview)])))
         _ = await load.value
         XCTAssertEqual(resolve(model, store), .request(newID))
         // Data resolution alone does not consume the destination; sheet appearance does.
@@ -44,7 +44,7 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         let model = VerifyOverviewLoadState(), service = ControlledVerifyNavigationService()
         let load = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: false) }
         await service.waitForCalls(1)
-        await service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate)])))
+        service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate)])))
         _ = await load.value
         XCTAssertEqual(VerifyFocusedDestination.resolve(target: newID, authoritativeFocusID: model.authoritativeFocusID, state: model.state), .unavailable)
     }
@@ -53,7 +53,7 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         let model = VerifyOverviewLoadState(), service = ControlledVerifyNavigationService()
         let load = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: true) }
         await service.waitForCalls(1)
-        await service.finish(0, with: .success(VerifyOverview(requests: [])))
+        service.finish(0, with: .success(VerifyOverview(requests: [])))
         _ = await load.value
         XCTAssertEqual(VerifyFocusedDestination.resolve(target: newID, authoritativeFocusID: model.authoritativeFocusID, state: model.state), .unavailable)
     }
@@ -64,14 +64,14 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         store.verificationRequested(requestID: newID)
         let failed = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: false) }
         await service.waitForCalls(1)
-        await service.finish(0, with: .failure(URLError(.notConnectedToInternet)))
+        service.finish(0, with: .failure(URLError(.notConnectedToInternet)))
         _ = await failed.value
         XCTAssertEqual(resolve(model, store), .pending)
         XCTAssertEqual(store.focusedVerificationRequestID, newID)
         guard case .error = model.state.phase else { return XCTFail("Retry must be available") }
         let retry = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: true) }
         await service.waitForCalls(2)
-        await service.finish(1, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
+        service.finish(1, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
         _ = await retry.value
         XCTAssertEqual(resolve(model, store), .request(newID))
     }
@@ -82,9 +82,9 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         await service.waitForCalls(1)
         let new = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: false) }
         await service.waitForCalls(2)
-        await service.finish(1, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
+        service.finish(1, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
         _ = await new.value
-        await service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate)])))
+        service.finish(0, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate)])))
         _ = await old.value
         XCTAssertEqual(VerifyFocusedDestination.resolve(target: newID, authoritativeFocusID: model.authoritativeFocusID, state: model.state), .request(newID))
     }
@@ -96,7 +96,7 @@ final class VerifyFocusedNavigationTests: XCTestCase {
             XCTAssertEqual(resolve(model, store), .pending)
             let load = Task { await model.load(service: service, focusedRequestID: id, showLoading: false) }
             await service.waitForCalls(index + 1)
-            await service.finish(index, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate), record(id, .pendingAdminReview)])))
+            service.finish(index, with: .success(VerifyOverview(requests: [record(oldID, .withdrawnByCandidate), record(id, .pendingAdminReview)])))
             _ = await load.value
             XCTAssertEqual(resolve(model, store), .request(id))
             store.clearVerificationFocus(requestID: oldID)
@@ -110,7 +110,7 @@ final class VerifyFocusedNavigationTests: XCTestCase {
         let load = Task { await model.load(service: service, focusedRequestID: self.newID, showLoading: false) }
         await service.waitForCalls(1)
         load.cancel()
-        await service.finish(0, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
+        service.finish(0, with: .success(VerifyOverview(requests: [record(newID, .pendingAdminReview)])))
         _ = await load.value
         XCTAssertNil(model.authoritativeFocusID)
     }
@@ -134,7 +134,8 @@ final class VerifyFocusedNavigationTests: XCTestCase {
     }
 }
 
-private actor ControlledVerifyNavigationService: VerifyOverviewServiceProtocol {
+@MainActor
+private final class ControlledVerifyNavigationService: VerifyOverviewServiceProtocol {
     private var calls: [CheckedContinuation<VerifyOverview, Error>?] = []
     private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
     func loadOverview() async throws -> VerifyOverview {

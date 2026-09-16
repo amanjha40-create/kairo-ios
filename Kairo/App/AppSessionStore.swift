@@ -10,7 +10,11 @@ final class AppSessionStore: ObservableObject {
     }
 
     @Published private(set) var launchPhase: LaunchPhase = .idle
-    @Published private(set) var currentUser: AppUser?
+    @Published private(set) var currentUser: AppUser? {
+        didSet {
+            if oldValue?.id != currentUser?.id { DocumentPreviewFileStore.shared.clear() }
+        }
+    }
     @Published private(set) var signupRecovery: SignupSessionRecoveryResponseDTO?
     @Published private(set) var pendingGoogleSignup: SignupStartResponseDTO?
 

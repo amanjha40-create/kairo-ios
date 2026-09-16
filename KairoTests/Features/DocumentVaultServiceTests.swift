@@ -9,6 +9,48 @@ final class DocumentVaultServiceTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testNewUploadTaxonomyIsExactlyCanonicalSevenWithNoLegacyChoices() {
+        let types = VaultDocumentType.newUploadTypes
+        XCTAssertEqual(types.map(\.rawValue), ["aadhaar", "pan", "passport", "driving_license", "voter_id", "birth_certificate", "address_proof"])
+        XCTAssertEqual(types.map(\.title), ["Aadhaar", "PAN", "Passport", "Driving Licence", "Voter ID", "Birth Certificate", "Address Proof"])
+        XCTAssertFalse(types.contains(.governmentID))
+        XCTAssertFalse(types.contains(.other))
+        XCTAssertFalse(VaultDocumentType(rawValue: "future_identity").allowsNewUpload)
+    }
+
+    func testLegacyAndUnknownValuesPreserveRawIdentifierAndPreciseHubLabels() async throws {
+        let service = try await makeService()
+        let expected = ["birth_certificate": "Birth Certificate", "address_proof": "Address Proof",
+                        "government_id": "Government ID", "other": "Other", "future_identity": "Identity document"]
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let objects = expected.keys.sorted().map { raw in
+                ["id": raw, "document_type": raw, "original_filename": "fixture.pdf", "content_type": "application/pdf",
+                 "byte_size": 8, "verification_status": "draft", "created_at": "2030-01-01T00:00:00Z", "updated_at": "2030-01-01T00:00:00Z"] as [String: Any]
+            }
+            return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: ["items": objects]))
+        }
+        let docs = try await service.listDocuments()
+        XCTAssertEqual(docs.count, 5)
+        for doc in docs {
+            XCTAssertEqual(doc.documentType.rawValue, doc.id)
+            XCTAssertEqual(doc.documentType.title, expected[doc.id])
+        }
+    }
+
+    func testLegacyOrFutureValueCannotBeSubmittedAsNewUpload() async throws {
+        let service = try await makeService()
+        for type in [VaultDocumentType.governmentID, .other, .init(rawValue: "future_identity")] {
+            do {
+                _ = try await service.uploadDocument(fileURL: URL(fileURLWithPath: "/not-read.pdf"), type: type,
+                    documentNumber: nil, expiresAt: nil, replacing: nil)
+                XCTFail("Legacy value must not be a new-upload choice")
+            } catch { XCTAssertEqual(error as? SecureDocumentTransferError, .unsupportedFileType) }
+        }
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(requests.isEmpty)
+    }
+
     func test_listMapsCurrentAndImmutableReplacementHistoryWithoutStoragePaths() async throws {
         let service = try await makeService()
         await MockURLProtocolStorage.shared.setHandler { request in
@@ -70,14 +112,16 @@ final class DocumentVaultServiceTests: XCTestCase {
         XCTAssertEqual(requests.filter { $0.httpMethod == "PUT" }.count, 1)
     }
 
-    func test_downloadRequiresHTTPSAndDeleteUsesExactDocumentID() async throws {
+    func test_ownerContentUsesAuthenticatedBytesAndDeleteUsesExactDocumentID() async throws {
         let service = try await makeService()
         await MockURLProtocolStorage.shared.setHandler { request in
             switch (request.httpMethod, request.url?.path) {
-            case ("GET", "/api/v1/user-documents/document-current/download-url"):
+            case ("GET", "/api/v1/user-documents/document-current/content"):
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
                 return (
-                    try Self.response(for: request, statusCode: 200),
-                    Data(#"{"document_id":"document-current","download_url":"https://storage.example/private","expires_in_seconds":300}"#.utf8)
+                    try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                        headerFields: ["Content-Type": "application/pdf", "Content-Disposition": "inline; filename*=UTF-8''Private%20Document.pdf"])),
+                    Data("%PDF-private-fixture".utf8)
                 )
             case ("DELETE", "/api/v1/user-documents/document-current"):
                 return (try Self.response(for: request, statusCode: 204), Data())
@@ -89,10 +133,14 @@ final class DocumentVaultServiceTests: XCTestCase {
             }
         }
 
-        let url = try await service.downloadURL(documentID: "document-current")
+        let content = try await service.content(documentID: "document-current")
         let remaining = try await service.deleteDocument(documentID: "document-current")
 
-        XCTAssertEqual(url.scheme, "https")
+        XCTAssertEqual(content.filename, "Private Document.pdf")
+        XCTAssertEqual(content.contentType, "application/pdf")
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertFalse(requests.contains { $0.url?.path.contains("download-url") == true })
+        XCTAssertTrue(requests.allSatisfy { $0.url?.host == "staging-api.kairoid.com" })
         XCTAssertTrue(remaining.isEmpty)
     }
 

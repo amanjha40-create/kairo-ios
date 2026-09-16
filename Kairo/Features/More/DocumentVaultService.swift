@@ -1,13 +1,22 @@
 import Foundation
 
-nonisolated enum VaultDocumentType: String, CaseIterable, Identifiable, Sendable {
-    case aadhaar
-    case pan
-    case drivingLicense = "driving_license"
-    case passport
-    case voterID = "voter_id"
-    case governmentID = "government_id"
-    case other
+/// Server values are open-ended; upload choices are deliberately closed.
+nonisolated struct VaultDocumentType: RawRepresentable, Hashable, Identifiable, Sendable {
+    let rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+    static let aadhaar = Self(rawValue: "aadhaar")
+    static let pan = Self(rawValue: "pan")
+    static let passport = Self(rawValue: "passport")
+    static let drivingLicense = Self(rawValue: "driving_license")
+    static let voterID = Self(rawValue: "voter_id")
+    static let birthCertificate = Self(rawValue: "birth_certificate")
+    static let addressProof = Self(rawValue: "address_proof")
+    static let governmentID = Self(rawValue: "government_id")
+    static let other = Self(rawValue: "other")
+    static let newUploadTypes: [Self] = [
+        .aadhaar, .pan, .passport, .drivingLicense, .voterID, .birthCertificate, .addressProof
+    ]
+    var allowsNewUpload: Bool { Self.newUploadTypes.contains(self) }
 
     var id: String { rawValue }
 
@@ -15,11 +24,14 @@ nonisolated enum VaultDocumentType: String, CaseIterable, Identifiable, Sendable
         switch self {
         case .aadhaar: "Aadhaar"
         case .pan: "PAN"
-        case .drivingLicense: "Driving licence"
+        case .drivingLicense: "Driving Licence"
         case .passport: "Passport"
         case .voterID: "Voter ID"
         case .governmentID: "Government ID"
         case .other: "Other"
+        case .birthCertificate: "Birth Certificate"
+        case .addressProof: "Address Proof"
+        default: "Identity document"
         }
     }
 }
@@ -54,7 +66,7 @@ protocol DocumentVaultServiceProtocol: Sendable {
         replacing documentID: String?
     ) async throws -> [VaultDocument]
     func updateMetadata(documentID: String, documentNumber: String?, expiresAt: Date?) async throws -> [VaultDocument]
-    func downloadURL(documentID: String) async throws -> URL
+    func content(documentID: String) async throws -> ProtectedDocumentContent
     func deleteDocument(documentID: String) async throws -> [VaultDocument]
 }
 
@@ -83,6 +95,9 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
         expiresAt: Date?,
         replacing documentID: String?
     ) async throws -> [VaultDocument] {
+        guard documentID != nil || type.allowsNewUpload else {
+            throw SecureDocumentTransferError.unsupportedFileType
+        }
         let selection = try await transferClient.prepare(
             fileURL: fileURL,
             maximumBytes: 50 * 1_024 * 1_024,
@@ -153,15 +168,15 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
         return try await listDocuments()
     }
 
-    func downloadURL(documentID: String) async throws -> URL {
-        let data = try await sessionService.sendAuthenticated(
+    func content(documentID: String) async throws -> ProtectedDocumentContent {
+        let response = try await sessionService.sendAuthenticatedResponse(
             NetworkRequest(
-                path: "/user-documents/\(documentID)/download-url",
-                headers: ["Accept": "application/json"]
+                path: "/user-documents/\(documentID)/content",
+                headers: ["Accept": "application/pdf, image/jpeg, image/png, image/webp"],
+                requiresProtectedDocumentTransport: true
             )
         )
-        let response = try decoder.decode(VaultDownloadResponseDTO.self, from: data)
-        return try SecureDocumentTransferClient.validatedDownloadURL(response.downloadUrl)
+        return try ProtectedDocumentContent(response: response)
     }
 
     func deleteDocument(documentID: String) async throws -> [VaultDocument] {
@@ -223,7 +238,7 @@ actor DemoDocumentVaultService: DocumentVaultServiceProtocol {
         throw NetworkError.unavailableInDemoMode
     }
 
-    func downloadURL(documentID: String) async throws -> URL {
+    func content(documentID: String) async throws -> ProtectedDocumentContent {
         _ = documentID
         throw NetworkError.unavailableInDemoMode
     }
@@ -258,7 +273,7 @@ private nonisolated struct VaultDocumentDTO: Decodable {
     var domain: VaultDocument {
         VaultDocument(
             id: id,
-            documentType: VaultDocumentType(rawValue: documentType) ?? .other,
+            documentType: VaultDocumentType(rawValue: documentType),
             documentNumber: documentNumber,
             originalFilename: originalFilename,
             contentType: contentType,
@@ -299,8 +314,4 @@ private nonisolated struct VaultCompleteUploadRequestDTO: Encodable {
 private nonisolated struct VaultUpdateRequestDTO: Encodable {
     let documentNumber: String?
     let expiresAt: String?
-}
-
-private nonisolated struct VaultDownloadResponseDTO: Decodable {
-    let downloadUrl: URL
 }

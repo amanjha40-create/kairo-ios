@@ -107,13 +107,14 @@ struct DocumentsHubView: View {
 
     private func view(_ row: DocumentsHubRow) async {
         do {
-            let url: URL
             switch row.source {
-            case .career(let parent, let doc): url = try await documents.downloadURL(for: doc, parent: parent)
-            case .vault(let doc): url = try await vault.downloadURL(documentID: doc.id)
+            case .career(let parent, let doc):
+                let url = try await documents.downloadURL(for: doc, parent: parent)
+                preview = SecureDocumentPreview(url: url, filename: row.filename)
+            case .vault(let doc):
+                preview = SecureDocumentPreview(vaultDocumentID: doc.id, filename: row.filename)
             case .unavailable: return
             }
-            preview = SecureDocumentPreview(url: url, filename: row.filename)
         } catch { message = "The backend could not authorize a current document preview." }
     }
 

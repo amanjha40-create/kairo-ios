@@ -84,7 +84,7 @@ actor DemoTrustScoreService: TrustScoreServiceProtocol {
               "negative_contributors": [],
               "critical_overrides": [],
               "manual_review_reason": "Mandatory verification checks remain incomplete.",
-              "score_version": "v1",
+              "score_version": "v2",
               "last_calculated_at": "2026-08-01T10:00:00Z",
               "verification_completeness_percentage": 72,
               "week_change": 0
@@ -101,7 +101,7 @@ actor DemoTrustScoreService: TrustScoreServiceProtocol {
               "negative_contributors": [],
               "critical_overrides": [],
               "manual_review_reason": "Explicit Trust Score consent is required before screening starts.",
-              "score_version": "v1",
+              "score_version": "v2",
               "last_calculated_at": "2026-08-01T10:00:00Z",
               "verification_completeness_percentage": 0,
               "week_change": 0

@@ -308,6 +308,33 @@ final class Parity3AContractTests: XCTestCase {
         guard case .populated(let content) = mapped.phase else { return XCTFail("Legacy content must remain visible") }
         XCTAssertEqual(content.projects.first?.legacyPortfolioID, "legacy")
     }
+    func testHubKeepsPreciseVaultTaxonomyAndLegacyRawValues() async throws {
+        let (session, _) = try await makeSession()
+        let hub = DocumentsHubService(
+            career: CareerOverviewService(authService: DemoAuthService(sessionService: session), sessionService: session),
+            documents: CareerDocumentService(sessionService: session), vault: DocumentVaultService(sessionService: session), session: session)
+        let types = ["birth_certificate": "Birth Certificate", "address_proof": "Address Proof", "government_id": "Government ID",
+                     "other": "Other", "future_identity": "Identity document"]
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            if request.url?.path == "/api/v1/user-documents" {
+                let records = types.keys.map { raw in
+                    ["id": raw, "document_type": raw, "original_filename": "fixture.pdf", "content_type": "application/pdf",
+                     "byte_size": 8, "verification_status": "draft", "created_at": "2030-01-01T00:00:00Z", "updated_at": "2030-01-01T00:00:00Z"] as [String: Any]
+                }
+                return (try Self.response(request), try JSONSerialization.data(withJSONObject: ["items": records]))
+            }
+            return (try Self.response(request), Data("[]".utf8))
+        }
+        let rows = try await hub.load()
+        XCTAssertEqual(rows.count, types.count)
+        for row in rows {
+            guard case .vault(let document) = row.source else { return XCTFail("Vault source lost") }
+            XCTAssertEqual(document.documentType.rawValue, document.id)
+            XCTAssertEqual(row.context, "Vault · \(types[document.id]!) · Current")
+        }
+    }
+
     private nonisolated static func response(_ request: URLRequest, status: Int = 200) throws -> HTTPURLResponse {
         try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: status, httpVersion: nil, headerFields: nil))
     }

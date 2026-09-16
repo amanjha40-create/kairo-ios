@@ -94,8 +94,8 @@ final class PassportShareActivityTests: XCTestCase {
         await model.reload()
         await model.reload()
 
-        let mutationCalls = await service.mutationCalls()
-        let analyticsCalls = await service.analyticsCalls()
+        let mutationCalls = service.mutationCalls()
+        let analyticsCalls = service.analyticsCalls()
 
         XCTAssertEqual(model.items.first?.analytics, analytics)
         XCTAssertEqual(mutationCalls, 0)
@@ -137,7 +137,8 @@ final class PassportShareActivityTests: XCTestCase {
     }
 }
 
-private actor PassportShareActivityServiceSpy: PassportShareServiceProtocol {
+@MainActor
+private final class PassportShareActivityServiceSpy: PassportShareServiceProtocol {
     private let shares: [PassportShare]
     private let analytics: [String: PassportShareAnalytics]
     private var requestedAnalytics: [String] = []

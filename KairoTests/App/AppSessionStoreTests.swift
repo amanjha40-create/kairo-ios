@@ -136,7 +136,7 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath, [])
         XCTAssertNil(store.signupRecovery)
-        let signupSessionID = await sessionService.signupSessionID
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertNil(signupSessionID)
     }
 
@@ -167,7 +167,7 @@ final class AppSessionStoreTests: XCTestCase {
 
         await store.refreshLaunchRoute()
 
-        let signupSessionID = await sessionService.signupSessionID
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertNil(signupSessionID)
         XCTAssertEqual(authService.recoveryCallCount, 1)
         XCTAssertNil(store.signupRecovery)
@@ -195,7 +195,7 @@ final class AppSessionStoreTests: XCTestCase {
 
         await store.refreshLaunchRoute()
 
-        let signupSessionID = await sessionService.signupSessionID
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertNil(signupSessionID)
         XCTAssertEqual(authService.recoveryCallCount, 1)
         XCTAssertNil(store.signupRecovery)
@@ -227,7 +227,7 @@ final class AppSessionStoreTests: XCTestCase {
             return XCTFail("Expected recovery to remain retryable after a transport failure.")
         }
         XCTAssertTrue(message.contains("network"))
-        let signupSessionID = await sessionService.signupSessionID
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertEqual(signupSessionID, "recoverable-signup-session")
         XCTAssertNil(store.signupRecovery)
     }
@@ -251,7 +251,7 @@ final class AppSessionStoreTests: XCTestCase {
         await store.refreshLaunchRoute()
         await store.abandonPendingSignup()
 
-        let signupSessionID = await sessionService.signupSessionID
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertNil(signupSessionID)
         XCTAssertNil(store.signupRecovery)
         XCTAssertEqual(router.rootDestination, .onboarding)
@@ -276,8 +276,8 @@ final class AppSessionStoreTests: XCTestCase {
 
         await store.completeAccountDeletion()
 
-        let didClearSession = await sessionService.didClearSession
-        let signupSessionID = await sessionService.signupSessionID
+        let didClearSession = sessionService.didClearSession
+        let signupSessionID = sessionService.signupSessionID
         XCTAssertTrue(didClearSession)
         XCTAssertNil(signupSessionID)
         XCTAssertNil(store.currentUser)
@@ -459,15 +459,15 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath.last, .step(.resumeImportOrQuickProfile))
         XCTAssertEqual(ManualProfileDraftStore.load(), preparedDraft)
-        let prepareDraftCallCount = await manualProfileService.prepareDraftCallCount
+        let prepareDraftCallCount = manualProfileService.prepareDraftCallCount
         XCTAssertEqual(prepareDraftCallCount, 1)
-        let restoreWorkflowCallCount = await resumeImportService.restoreWorkflowCallCount
-        let reconcileCallCount = await resumeImportService.reconcileCallCount
+        let restoreWorkflowCallCount = resumeImportService.restoreWorkflowCallCount
+        let reconcileCallCount = resumeImportService.reconcileCallCount
         XCTAssertEqual(restoreWorkflowCallCount, 1)
         XCTAssertEqual(reconcileCallCount, 1)
     }
 
-    func test_signOutReturnsToOnboarding() async {
+    func test_signOutReturnsToOnboarding() async throws {
         let router = AppRouter(rootDestination: .mainTabs, selectedTab: .more, onboardingPath: [])
         let authService = StubAuthService(
             user: .fixture,
@@ -493,7 +493,18 @@ final class AppSessionStoreTests: XCTestCase {
             resumeImportService: StubResumeImportService()
         )
 
+        store.replaceCurrentUser(UserPublicDTO.fixture.asDomainModel())
+        let previewFiles = DocumentPreviewFileStore.shared
+        let previewGeneration = previewFiles.generation
+        let previewContent = try ProtectedDocumentContent(response: .init(
+            data: Data("%PDF-test".utf8), statusCode: 200, headers: ["Content-Type": "application/pdf"]))
+        let previewFile = try previewFiles.write(previewContent, generation: previewGeneration)
+        defer { previewFiles.clear() }
+
         await store.signOut()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: previewFile.path))
+        XCTAssertThrowsError(try previewFiles.write(previewContent, generation: previewGeneration))
 
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath, [])
@@ -605,7 +616,8 @@ private extension UITestLaunchConfiguration {
     )
 }
 
-private actor StubSessionService: SessionServiceProtocol {
+@MainActor
+private final class StubSessionService: SessionServiceProtocol {
     let hasAccessToken: Bool
     let hasRefreshToken: Bool
     var signupSessionID: String?
@@ -819,7 +831,8 @@ private extension SignupChannelSendResponseDTO {
     }
 }
 
-private actor StubManualProfileService: ManualProfileServiceProtocol {
+@MainActor
+private final class StubManualProfileService: ManualProfileServiceProtocol {
     private let preparedDraftValue: ManualProfileFlowState
     private(set) var prepareDraftCallCount = 0
 
@@ -839,7 +852,8 @@ private actor StubManualProfileService: ManualProfileServiceProtocol {
     }
 }
 
-private actor StubResumeImportService: ResumeImportServiceProtocol {
+@MainActor
+private final class StubResumeImportService: ResumeImportServiceProtocol {
     let workflowSnapshot: ResumeImportWorkflowSnapshot?
     let recoveryState: ResumeImportRecoveryState?
     private(set) var restoreWorkflowCallCount = 0

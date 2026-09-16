@@ -14,7 +14,7 @@ struct DocumentVaultView: View {
     @State private var errorMessage: String?
     @State private var isFileImporterPresented = false
     @State private var uploadMode: VaultUploadMode = .new
-    @State private var selectedType: VaultDocumentType = .other
+    @State private var selectedType: VaultDocumentType = .aadhaar
     @State private var documentNumber = ""
     @State private var includesExpiry = false
     @State private var expiryDate = Date()
@@ -110,7 +110,7 @@ struct DocumentVaultView: View {
             Label("Private by default", systemImage: "lock.shield")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Vault documents stay private unless you explicitly select them as verification evidence. KairoID uses short-lived secure URLs for upload and viewing; storage locations are never shown here.")
+            Text("Vault documents stay private unless you explicitly select them as verification evidence. Private previews use your authenticated KairoID connection; storage locations are never shown here.")
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -124,10 +124,11 @@ struct DocumentVaultView: View {
                 .foregroundStyle(KairoColors.textPrimary)
 
             Picker("Document type", selection: $selectedType) {
-                ForEach(VaultDocumentType.allCases) { type in
+                ForEach(VaultDocumentType.newUploadTypes) { type in
                     Text(type.title).tag(type)
                 }
             }
+            .accessibilityIdentifier("candidate.more.documentVault.type")
 
             KairoTextField(
                 title: "Document number",
@@ -298,16 +299,7 @@ struct DocumentVaultView: View {
 
     private func view(_ document: VaultDocument) {
         errorMessage = nil
-        Task {
-            do {
-                let url = try await service.downloadURL(documentID: document.id)
-                await MainActor.run {
-                    preview = SecureDocumentPreview(url: url, filename: document.originalFilename)
-                }
-            } catch {
-                await present(error)
-            }
-        }
+        preview = SecureDocumentPreview(vaultDocumentID: document.id, filename: document.originalFilename)
     }
 
     private func deletePendingDocument() {
