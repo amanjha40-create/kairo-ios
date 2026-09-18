@@ -5,6 +5,7 @@ struct UITestCareerConfiguration {
 
     let state: CareerOverviewState?
     var showsAttachedCertificationEditor = false
+    var showsHierarchyFixture = false
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -35,9 +36,37 @@ struct UITestCareerConfiguration {
 
         return UITestCareerConfiguration(
             state: state,
-            showsAttachedCertificationEditor: environment["KAIRO_UI_TEST_ATTACHED_CERTIFICATION"] == "1"
+            showsAttachedCertificationEditor: environment["KAIRO_UI_TEST_ATTACHED_CERTIFICATION"] == "1",
+            showsHierarchyFixture: environment["KAIRO_UI_TEST_CAREER_HIERARCHY"] == "1"
         )
     }
+}
+
+/// Explicitly guarded UI-test fixture. Add and verification use canonical sheets;
+/// saves/submissions are unavailable and no live record or service is involved.
+struct CareerHierarchyFixtureHostView: View {
+    let state: CareerOverviewState
+    @State private var addingEmployment = false
+    @State private var verificationPreset: VerificationInitiationPreset?
+
+    var body: some View {
+        CareerOverviewScreenView(state: state,
+            addEmploymentAction: { addingEmployment = true },
+            startEmploymentVerificationAction: { verificationPreset = .employment(id: $0.routeID) })
+            .sheet(isPresented: $addingEmployment) {
+                CareerEmploymentEditorSheet(mode: .create, draft: .init()) { _ in throw URLError(.unsupportedURL) }
+            }
+            .verificationInitiationSheet(preset: $verificationPreset, service: CareerHierarchyVerificationFixture()) { _ in }
+    }
+}
+
+private struct CareerHierarchyVerificationFixture: VerificationInitiationServiceProtocol {
+    func loadEligibility() async throws -> VerificationInitiationEligibility {
+        .init(subjects: [.init(id: "fixture_employment_3", kind: .employment,
+            title: "Horizon Works", subtitle: "Operations Analyst", verificationStatus: .notVerified, hasActiveRequest: false)])
+    }
+    func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument] { [] }
+    func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult { throw URLError(.unsupportedURL) }
 }
 
 /// Isolated UI-test host for the real metadata editor and canonical Documents view.

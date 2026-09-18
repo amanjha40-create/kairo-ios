@@ -1,7 +1,20 @@
 import SwiftUI
 
-/// Read-only presentation of the already-loaded Career record. Existing actions are
-/// handed back to the owner after dismissal, so mutations keep their canonical flow.
+nonisolated enum CareerRecordKind { case employment, education, certification, project }
+
+/// Only supplied web links become destinations; display labels are never URLs.
+nonisolated struct CareerRecordLink: Equatable, Sendable {
+    let title: String
+    let url: URL
+    init?(title: String, url: URL?) {
+        guard let url, ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty, url.user == nil, url.password == nil else { return nil }
+        self.title = title
+        self.url = url
+    }
+}
+
+/// Callbacks return to the canonical owner after dismissal, preserving confirmations.
 struct CareerRecordDetailPresentation: Identifiable {
     let id: String
     let title: String
@@ -12,6 +25,44 @@ struct CareerRecordDetailPresentation: Identifiable {
     var edit: (() -> Void)? = nil
     var delete: (() -> Void)? = nil
     var verify: (() -> Void)? = nil
+    var kind: CareerRecordKind = .employment
+    var supportingMetadata: [(title: String, value: String)] = []
+    var links: [CareerRecordLink] = []
+    var attachmentPresent: Bool? = nil
+
+    var showsVerification: Bool { kind == .employment || kind == .education }
+
+    static func employment(_ item: CareerEmploymentItem, edit: (() -> Void)?, delete: (() -> Void)?, verify: (() -> Void)?) -> Self {
+        Self(id: item.routeID, title: item.role, organization: item.company, status: item.verificationStatus,
+            metadata: [("Employment dates", item.dateRange)] + item.detailMetadata.map { ($0.title, $0.value) },
+            documents: .employment(id: item.routeID, title: "\(item.role) at \(item.company)", canUpload: item.allowsEdit, canDelete: item.allowsDelete),
+            edit: item.allowsEdit ? edit : nil, delete: item.allowsDelete ? delete : nil,
+            verify: item.verificationStatus.canStartVerification ? verify : nil)
+    }
+
+    static func education(_ item: CareerEducationItem, edit: (() -> Void)?, delete: (() -> Void)?, verify: (() -> Void)?) -> Self {
+        Self(id: item.routeID, title: item.degree, organization: item.institution, status: item.verificationStatus,
+            metadata: [("Dates", item.dateRange)] + item.detailMetadata.filter { $0.title == "Field of study" }.map { ($0.title, $0.value) },
+            documents: .education(id: item.routeID, title: item.institution), edit: edit, delete: delete,
+            verify: item.verificationStatus.canStartVerification ? verify : nil, kind: .education,
+            supportingMetadata: item.detailMetadata.filter { $0.title != "Field of study" }.map { ($0.title, $0.value) })
+    }
+
+    static func certification(_ item: CareerCertificationItem, edit: (() -> Void)?, delete: (() -> Void)?) -> Self {
+        Self(id: item.routeID, title: item.title, organization: item.issuer, status: item.verificationStatus,
+            metadata: [("Issue date", item.issueDate)] + item.detailMetadata.map { ($0.title, $0.value) },
+            documents: .certification(id: item.routeID, title: item.title), edit: edit, delete: delete, kind: .certification,
+            links: [CareerRecordLink(title: "Credential URL", url: item.credentialURL)].compactMap { $0 }, attachmentPresent: item.hasDocument)
+    }
+
+    static func project(_ item: CareerProjectItem, edit: (() -> Void)?, delete: (() -> Void)?) -> Self {
+        Self(id: item.routeID, title: item.title, organization: item.role, status: item.verificationStatus ?? .notVerified,
+            metadata: item.detailMetadata.filter { $0.title != "Origin" }.map { ($0.title, $0.value) }
+                + (item.duration.isEmpty ? [] : [("Dates", item.duration)]),
+            documents: item.legacyPortfolioID.map { .legacyPortfolio(id: $0, title: item.title) },
+            edit: item.legacyPortfolioID == nil ? edit : nil, delete: item.legacyPortfolioID == nil ? delete : nil, kind: .project,
+            supportingMetadata: item.detailMetadata.filter { $0.title == "Origin" }.map { ($0.title, $0.value) }, links: item.links)
+    }
 }
 
 struct CareerRecordDetailView: View {
@@ -23,45 +74,76 @@ struct CareerRecordDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                        Text(record.title)
-                            .font(KairoTypography.title2)
-                            .foregroundStyle(KairoColors.textPrimary)
-                            .accessibilityAddTraits(.isHeader)
-                        Text(record.organization)
-                            .font(KairoTypography.body)
-                            .foregroundStyle(KairoColors.textSecondary)
-                        status
+                        Text(record.title).font(KairoTypography.title2).foregroundStyle(KairoColors.textPrimary)
+                            .accessibilityAddTraits(.isHeader).accessibilityIdentifier("career.detail.title")
+                        if !record.organization.isEmpty {
+                            Text(record.organization).font(KairoTypography.body).foregroundStyle(KairoColors.textSecondary)
+                        }
+                        if record.kind != .project { status }
                     }
-                    KairoSection {
-                        KairoSectionHeading(title: "Details")
-                        ForEach(Array(record.metadata.enumerated()), id: \.offset) { _, item in
-                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                                Text(item.title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
-                                Text(item.value).font(KairoTypography.body).foregroundStyle(KairoColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    if !record.metadata.isEmpty || !record.links.isEmpty {
+                        KairoSection(compact: true) {
+                            KairoSectionHeading(title: "Details")
+                            metadata(record.metadata)
+                            ForEach(record.links, id: \.title) { link in
+                                Link(destination: link.url) {
+                                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                        Label(link.title, systemImage: "arrow.up.right")
+                                        Text(link.url.absoluteString).font(KairoTypography.footnote)
+                                    }
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .foregroundStyle(KairoColors.brandPrimary)
+                                .accessibilityIdentifier("career.detail.link.\(link.title)")
+                                .accessibilityHint("Opens the supplied website in your browser.")
                             }
-                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     if let documents = record.documents {
-                        KairoSection {
+                        KairoSection(compact: true) {
                             KairoSectionHeading(title: "Documents")
-                            Button { openDocuments(documents) } label: {
-                                Label("View documents", systemImage: "doc.text")
+                            if let present = record.attachmentPresent {
+                                Text(present ? "Attachment added" : "No attachment")
+                                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                Text(present
+                                    ? "Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."
+                                    : "Use Documents to add an attachment. Uploading a file does not verify this record.")
+                                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .buttonStyle(KairoActionStyle())
-                            .accessibilityIdentifier("career.detail.documents")
+                            if record.kind == .education {
+                                Text("Historical verification evidence may not be available to view. Documents shows only supported actions.")
+                                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("career.detail.educationEvidenceNotice")
+                            }
+                            KairoCompactDestinationRow(title: "View documents", systemImage: "doc.text",
+                                accessibilityIdentifier: "career.detail.documents") { openDocuments(documents) }
                         }
                     }
-                    if record.status != nil || record.verify != nil {
-                        KairoSection {
+                    if record.showsVerification {
+                        KairoSection(compact: true) {
                             KairoSectionHeading(title: "Verification")
-                            status
                             if let verify = record.verify {
                                 Button("Start verification") { perform(verify) }
-                                    .buttonStyle(KairoActionStyle())
+                                    .buttonStyle(KairoActionStyle()).accessibilityIdentifier("career.detail.verify")
+                            } else {
+                                Text("Verification actions depend on this record’s current status.")
+                                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                        }
+                    }
+                    if record.kind == .project { status }
+                    if !record.supportingMetadata.isEmpty {
+                        KairoSection(compact: true) {
+                            KairoSectionHeading(title: "Additional details")
+                            metadata(record.supportingMetadata)
                         }
                     }
                     if record.edit != nil || record.delete != nil {
@@ -74,34 +156,36 @@ struct CareerRecordDetailView: View {
                 .padding(KairoSpacing.medium)
             }
             .background(KairoColors.background.ignoresSafeArea())
-            .navigationTitle("Record details")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Record details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         }
         .accessibilityIdentifier("career.record.detail")
     }
 
-    @ViewBuilder
-    private var status: some View {
-        if let status = record.status {
-            KairoStatusChip(
-                title: status.badgeStyle.title,
-                tone: status == .verified ? .verified : status == .pendingVerification ? .pending : .candidateProvided,
-                systemImage: status.badgeStyle.symbol
-            )
+    private func metadata(_ items: [(title: String, value: String)]) -> some View {
+        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text(item.title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                Text(item.value).font(KairoTypography.body).foregroundStyle(KairoColors.textPrimary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine).accessibilityIdentifier("career.detail.field.\(item.title)")
         }
     }
 
-    @ViewBuilder
-    private var actions: some View {
+    @ViewBuilder private var status: some View {
+        if let status = record.status {
+            CareerRecordStatus(status: status).accessibilityIdentifier("career.detail.status")
+        }
+    }
+
+    @ViewBuilder private var actions: some View {
         if let edit = record.edit {
-            Button("Edit") { perform(edit) }.buttonStyle(KairoActionStyle())
-                .accessibilityIdentifier("career.detail.edit")
+            Button("Edit") { perform(edit) }.buttonStyle(KairoActionStyle()).accessibilityIdentifier("career.detail.edit")
         }
         if let delete = record.delete {
             Button("Delete", role: .destructive) { perform(delete) }
-                .buttonStyle(KairoActionStyle(role: .destructiveSecondary))
-                .accessibilityIdentifier("career.detail.delete")
+                .buttonStyle(KairoActionStyle(role: .destructiveSecondary)).accessibilityIdentifier("career.detail.delete")
         }
     }
 }

@@ -48,6 +48,8 @@ struct CandidateTabShellView: View {
         case .career:
             if uiTestCareerConfiguration.showsAttachedCertificationEditor {
                 AttachedCertificationFixtureHostView()
+            } else if uiTestCareerConfiguration.showsHierarchyFixture, let state = uiTestCareerConfiguration.state {
+                CareerHierarchyFixtureHostView(state: state)
             } else if let uiTestState = uiTestCareerConfiguration.state {
                 CareerOverviewScreenView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {

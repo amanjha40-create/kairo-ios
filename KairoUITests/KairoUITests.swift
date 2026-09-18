@@ -466,8 +466,8 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerEducationSection], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerCertificationsSection], in: app))
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
     }
 
     @MainActor
@@ -494,7 +494,8 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: careerEnvironment())
 
         openCareerTab(in: app)
-        let documents = app.buttons["Documents"].firstMatch
+        app.buttons["career.record.open.Trust & Operations Associate"].tap()
+        let documents = app.buttons["career.detail.documents"]
         XCTAssertTrue(documents.waitForExistence(timeout: 10))
         documents.tap()
 

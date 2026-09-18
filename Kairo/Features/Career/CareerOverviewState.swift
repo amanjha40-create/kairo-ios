@@ -435,6 +435,7 @@ nonisolated struct CareerCertificationItem: Equatable, Identifiable, Sendable {
     let verificationStatus: CareerVerificationStatus
     let hasDocument: Bool
     var detailMetadata: [CareerDetailMetadata] = []
+    var credentialURL: URL? = nil
 
     var id: String { routeID }
 }
@@ -448,6 +449,13 @@ nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
     let verificationStatus: CareerVerificationStatus?
     var detailMetadata: [CareerDetailMetadata] = []
     var legacyPortfolioID: String? = nil
+    var projectURL: URL? = nil
+    var repositoryURL: URL? = nil
+
+    var links: [CareerRecordLink] {
+        [CareerRecordLink(title: "Project URL", url: projectURL),
+         CareerRecordLink(title: "Repository URL", url: repositoryURL)].compactMap { $0 }
+    }
 
     var id: String { routeID }
 }

@@ -11,7 +11,7 @@ enum CareerOverviewMapper {
                     role: "Legacy Portfolio origin", duration: "", portfolioLinkTitle: item.url?.host ?? "",
                     verificationStatus: .init(rawBackendValue: item.verificationStatus),
                     detailMetadata: detailMetadata([("Description", item.description), ("Origin", "Legacy Portfolio; Project migration pending")]),
-                    legacyPortfolioID: item.id)
+                    legacyPortfolioID: item.id, projectURL: item.url)
             },
             skills: overview.skills.map(makeSkillItem)
         )
@@ -151,7 +151,8 @@ enum CareerOverviewMapper {
             detailMetadata: detailMetadata([
                 ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate)),
                 ("Credential ID", record.credentialID)
-            ])
+            ]),
+            credentialURL: record.credentialURL
         )
     }
 
@@ -170,7 +171,9 @@ enum CareerOverviewMapper {
             detailMetadata: detailMetadata([
                 ("Organization", record.organizationName),
                 ("Description", record.description)
-            ])
+            ]),
+            projectURL: record.projectURL,
+            repositoryURL: record.repositoryURL
         )
     }
 

@@ -52,7 +52,7 @@ final class CareerOverviewMapperTests: XCTestCase {
                     expiryDate: nil,
                     doesNotExpire: false,
                     credentialID: nil,
-                    credentialURL: nil,
+                    credentialURL: URL(string: "https://example.invalid/credential"),
                     originalFilename: nil,
                     contentType: nil,
                     byteSize: nil,
@@ -70,7 +70,7 @@ final class CareerOverviewMapperTests: XCTestCase {
                     endDate: makeUTCTimestamp(year: 2025, month: 6, day: 1),
                     isOngoing: false,
                     projectURL: URL(string: "https://portfolio.example.com/projects/1"),
-                    repositoryURL: nil,
+                    repositoryURL: URL(string: "https://example.invalid/repository"),
                     organizationName: "KairoID",
                     verificationStatus: .verified,
                     rawVerificationStatus: "approved"
@@ -113,8 +113,11 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.education.first?.verificationStatus, .pendingVerification)
         XCTAssertEqual(content.certifications.first?.routeID, "certification_1")
         XCTAssertEqual(content.certifications.first?.issueDate, "Mar 2025")
+        XCTAssertEqual(content.certifications.first?.credentialURL, URL(string: "https://example.invalid/credential"))
         XCTAssertEqual(content.projects.first?.routeID, "project_1")
         XCTAssertEqual(content.projects.first?.portfolioLinkTitle, "portfolio.example.com")
+        XCTAssertEqual(content.projects.first?.projectURL, URL(string: "https://portfolio.example.com/projects/1"))
+        XCTAssertEqual(content.projects.first?.repositoryURL, URL(string: "https://example.invalid/repository"))
         XCTAssertEqual(content.projects.first?.verificationStatus, .verified)
         XCTAssertEqual(content.skills.map(\.routeID), ["skill_1", "skill_2"])
         XCTAssertEqual(content.skills.map(\.name), ["Trust Operations", "Employment Verification"])
