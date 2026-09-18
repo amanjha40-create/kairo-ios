@@ -726,8 +726,8 @@ final class KairoUITests: XCTestCase {
         openVerifyTab(in: app)
 
         XCTAssertTrue(verifyScreenElement(in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)[verifyPriorityRecommendation].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Verify your current employment"].exists)
+        XCTAssertTrue(app.buttons["verify.filter"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["verify.filter"].value as? String, "Selected: All verification requests")
     }
 
     @MainActor
@@ -739,26 +739,23 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testVerifyPriorityRecommendationIsVisible() throws {
+    func testVerifyFilterReplacesRepeatedPriorityRecommendation() throws {
         let app = launchApp(environment: verifyEnvironment())
 
         openVerifyTab(in: app)
 
-        XCTAssertTrue(app.descendants(matching: .any)[verifyPriorityRecommendation].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["verify.filter"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)[verifyPriorityRecommendation].exists)
     }
 
     @MainActor
-    func testVerifyStartVerificationIsTruthfullyUnavailableInFixtureMode() throws {
+    func testVerifyListDoesNotInventAnInlineStartAction() throws {
         let app = launchApp(environment: verifyEnvironment())
 
         openVerifyTab(in: app)
 
-        XCTAssertTrue(app.buttons[verifyStartVerificationButton].waitForExistence(timeout: 10))
-        app.buttons[verifyStartVerificationButton].tap()
-
-        XCTAssertTrue(app.alerts["Unavailable in preview"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Demo and UI-test sessions do not create live verification requests."].exists)
+        XCTAssertTrue(app.buttons["verify.filter"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[verifyStartVerificationButton].exists)
     }
 
     @MainActor
@@ -782,10 +779,11 @@ final class KairoUITests: XCTestCase {
         openVerifyTab(in: app)
 
         app.buttons[verifyRequestActionButton(id: "employment-brightpath")].tap()
-        XCTAssertTrue(app.buttons[verifyAcceptRequest].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons[verifyAcceptRequest], in: app))
         app.buttons[verifyAcceptRequest].tap()
 
-        XCTAssertTrue(app.staticTexts["Pending KairoID Review"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons[verifyRequestActionButton(id: "employment-brightpath")], in: app))
+        XCTAssertTrue(app.buttons[verifyRequestActionButton(id: "employment-brightpath")].label.contains("Pending KairoID Review"))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyInProgressSection], in: app))
     }
 
@@ -796,7 +794,7 @@ final class KairoUITests: XCTestCase {
         openVerifyTab(in: app)
 
         app.buttons[verifyRequestActionButton(id: "education-welingkar-pending")].tap()
-        XCTAssertTrue(app.buttons[verifyProvideInformation].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons[verifyProvideInformation], in: app))
         app.buttons[verifyProvideInformation].tap()
 
         XCTAssertTrue(app.staticTexts["Provide information"].waitForExistence(timeout: 10))
@@ -820,7 +818,7 @@ final class KairoUITests: XCTestCase {
         openVerifyTab(in: app)
 
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyInProgressSection], in: app))
-        XCTAssertTrue(app.staticTexts["Northstar Labs"].exists)
+        XCTAssertTrue(app.buttons[verifyRequestActionButton(id: "employment-northstar")].label.contains("Northstar Labs"))
     }
 
     @MainActor
@@ -830,17 +828,19 @@ final class KairoUITests: XCTestCase {
         openVerifyTab(in: app)
 
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifyCompletedSection], in: app))
-        XCTAssertTrue(app.staticTexts["aarav@example.com"].exists)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+            "candidate.verify.request.action.", "aarav@example.com")).firstMatch.exists)
     }
 
     @MainActor
-    func testVerifySuggestedNextSectionRenders() throws {
+    func testVerifyListDoesNotRepeatSuggestedNextCards() throws {
         let app = launchApp(environment: verifyEnvironment())
 
         openVerifyTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[verifySuggestedNextSection], in: app))
-        XCTAssertTrue(app.staticTexts["Verify your highest education"].exists)
+        XCTAssertTrue(app.buttons["verify.filter"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts[verifySuggestedNextSection].exists)
+        XCTAssertFalse(app.staticTexts["Verify your highest education"].exists)
     }
 
     @MainActor

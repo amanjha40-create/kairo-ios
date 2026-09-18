@@ -60,6 +60,8 @@ struct CandidateTabShellView: View {
         case .verify:
             if uiTestVerifyConfiguration.showsNavigationRecovery {
                 VerifyNavigationFixtureHostView()
+            } else if uiTestVerifyConfiguration.showsHierarchy, let state = uiTestVerifyConfiguration.state {
+                VerifyHierarchyFixtureHostView(state: state)
             } else if let uiTestState = uiTestVerifyConfiguration.state {
                 VerifyOverviewFixtureHostView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {

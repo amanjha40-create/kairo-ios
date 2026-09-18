@@ -197,7 +197,10 @@ nonisolated enum VerifyOverviewMapper {
             consentedFields: record.consentedFields,
             consentedEvidenceScope: record.consentedEvidenceScope,
             reviewStatus: record.reviewStatus,
-            timeline: record.timeline.map(makeTimelineEvent),
+            timeline: record.timeline.sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id < $1.id
+            }.map(makeTimelineEvent),
             availableActions: record.availableActions
         )
     }
@@ -247,7 +250,7 @@ nonisolated enum VerifyOverviewMapper {
     private nonisolated static func makeTimelineEvent(_ record: VerifyTimelineEventRecord) -> VerifyTimelineEvent {
         VerifyTimelineEvent(
             id: record.id,
-            title: record.newStatus?.style.title ?? humanizeTimelineEvent(record.eventType),
+            title: humanizeTimelineEvent(record.eventType),
             source: humanizeEventSource(record.eventSource),
             dateLabel: fullDateFormatter.string(from: record.createdAt)
         )

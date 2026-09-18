@@ -22,6 +22,7 @@ struct VerifyOverviewFixtureHostView: View {
 
 struct VerifyOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding private var state: VerifyOverviewState
     private let retryAction: (() -> Void)?
@@ -32,6 +33,7 @@ struct VerifyOverviewScreenView: View {
     private let authoritativeFocusedRequestID: String?
     private let focusedRequestPresentedHandler: ((String) -> Void)?
 
+    @State private var selectedFilter: VerifyRequestFilter = .all
     @State private var presentedSheet: VerifyPresentedSheet?
     @State private var provideInformationText = ""
     @State private var actionError: VerifyActionError?
@@ -60,10 +62,9 @@ struct VerifyOverviewScreenView: View {
     var body: some View {
         KairoScreenContainer(
             title: "Verify",
-            subtitle: "Track requests KairoID is reviewing, dispatching, or finalizing.",
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
-            supportLine
+            filterControl
             phaseContent
         }
         .refreshableIfAvailable(action: refreshAction)
@@ -94,22 +95,64 @@ struct VerifyOverviewScreenView: View {
         .onAppear { presentFocusedRequestIfAvailable() }
     }
 
-    private var supportLine: some View {
-        HStack(alignment: .top, spacing: KairoSpacing.small) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(KairoColors.accent)
+    private var loadedRequests: [VerifyRequest]? {
+        switch state.phase {
+        case .populated(let content): content.requests
+        case .empty: []
+        case .loading, .error: nil
+        }
+    }
 
-            Text(state.header.supportingLine)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: KairoSpacing.small)
-
-            if let dataSourceLabel {
-                VerifyDataSourceBadge(title: dataSourceLabel)
+    private var filterControl: some View {
+        Menu {
+            Picker("Filter verification requests", selection: $selectedFilter) {
+                ForEach(VerifyRequestFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                        .accessibilityIdentifier("verify.filter.option.\(filter.rawValue)")
+                }
             }
+        } label: {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                        Text(selectedFilter.title).fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack {
+                            Image(systemName: "line.3.horizontal.decrease").accessibilityHidden(true)
+                            filterCount
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.down").accessibilityHidden(true)
+                        }
+                        .font(KairoTypography.caption)
+                    }
+                } else {
+                    HStack(spacing: KairoSpacing.small) {
+                        Image(systemName: "line.3.horizontal.decrease").accessibilityHidden(true)
+                        Text(selectedFilter.title).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        filterCount
+                        Image(systemName: "chevron.down").accessibilityHidden(true)
+                    }
+                }
+            }
+            .font(KairoTypography.bodyStrong)
+            .multilineTextAlignment(.leading)
+            .foregroundStyle(KairoColors.textPrimary)
+            .padding(KairoSpacing.small)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Filter verification requests")
+        .accessibilityValue("Selected: \(selectedFilter.title)")
+        .accessibilityIdentifier("verify.filter")
+    }
+
+    @ViewBuilder
+    private var filterCount: some View {
+        if let requests = loadedRequests {
+            Text("\(selectedFilter.requests(in: requests).count)").monospacedDigit()
+                .accessibilityIdentifier("verify.filter.count")
         }
     }
 
@@ -117,326 +160,71 @@ struct VerifyOverviewScreenView: View {
     private var phaseContent: some View {
         switch state.phase {
         case .loading:
-            KairoLoadingStateView(
-                title: "Preparing your Trust Center",
-                message: "KairoID is assembling your latest verification requests."
-            )
-        case .error(let errorState):
-            KairoErrorStateView(
-                title: errorState.title,
-                message: errorState.message,
-                retryAction: retryAction
-            )
+            ProgressView("Loading verification requests")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("verify.loading")
+        case .error(let error):
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                Text(error.title).font(KairoTypography.headline)
+                Text(error.message).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                if let retryAction {
+                    Button("Retry", action: retryAction).buttonStyle(KairoActionStyle())
+                        .accessibilityIdentifier("verify.retry")
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("verify.error")
         case .empty(let content):
-            emptyStateView(content)
+            filteredList([])
+            if selectedFilter == .all {
+                if let title = content.primaryActionTitle, let action = content.primaryAction {
+                    Button(title) { handle(callToAction: action) }.buttonStyle(KairoActionStyle())
+                        .accessibilityIdentifier(KairoAccessibilityID.verifyStartVerification)
+                }
+                if let title = content.secondaryActionTitle, let action = content.secondaryAction {
+                    Button(title) { handle(callToAction: action) }.buttonStyle(KairoActionStyle())
+                        .accessibilityIdentifier(KairoAccessibilityID.verifyViewTrustPassport)
+                }
+            }
         case .populated(let content):
-            populatedStateView(content)
+            filteredList(content.requests)
         }
     }
 
-    private func populatedStateView(_ content: VerifyOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            priorityActionCard(content.priorityAction)
-            requestsSection(
-                title: "Needs your attention",
-                identifier: KairoAccessibilityID.verifyPendingRequestsSection,
-                requests: content.pendingRequests,
-                emptyMessage: "No pending requests right now."
-            )
-            requestsSection(
-                title: "In progress",
-                identifier: KairoAccessibilityID.verifyInProgressSection,
-                requests: content.inProgressRequests,
-                emptyMessage: "No verifications are currently in progress."
-            )
-            completedSection(content.completedRequests)
-            suggestedNextSection(content.suggestions)
-        }
-    }
-
-    private func emptyStateView(_ content: VerifyOverviewEmptyContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoEmptyStateView(
-                title: content.title,
-                message: content.message,
-                systemImage: "checkmark.shield"
-            )
-            .accessibilityIdentifier(KairoAccessibilityID.verifyEmptyState)
-
-            if content.primaryAction != nil || content.secondaryAction != nil {
-                KairoSection {
-                    Text("Suggested next step")
-                        .font(KairoTypography.headline)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    Text("Prepare the part of your profile you want KairoID to verify next, then come back here as live verification requests become available.")
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let title = content.primaryActionTitle,
-                       let action = content.primaryAction {
-                        KairoPrimaryButton(
-                            title: title,
-                            accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
-                            action: { handle(callToAction: action) }
-                        )
-                    }
-
-                    if let title = content.secondaryActionTitle,
-                       let action = content.secondaryAction {
-                        KairoSecondaryButton(
-                            title: title,
-                            accessibilityIdentifier: KairoAccessibilityID.verifyViewTrustPassport,
-                            action: { handle(callToAction: action) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private func priorityActionCard(_ action: VerifyPriorityAction) -> some View {
-        KairoSection {
-            VerifySectionEyebrow(title: "Priority action")
-
-            Text(action.title)
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(action.organization)
-                .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(action.supportingCopy)
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: KairoSpacing.small) {
-                    VerifyMetaPill(title: action.trustImpact, systemImage: "waveform.path.ecg")
-                    VerifyMetaPill(title: action.estimatedCompletionTime, systemImage: "clock")
-                    VerifyMetaPill(title: action.statusTitle, systemImage: "checkmark.circle")
-                }
-
-                VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                    VerifyMetaPill(title: action.trustImpact, systemImage: "waveform.path.ecg")
-                    VerifyMetaPill(title: action.estimatedCompletionTime, systemImage: "clock")
-                    VerifyMetaPill(title: action.statusTitle, systemImage: "checkmark.circle")
-                }
-            }
-
-            if let title = action.actionTitle,
-               let callToAction = action.action {
-                KairoPrimaryButton(
-                    title: title,
-                    accessibilityIdentifier: KairoAccessibilityID.verifyStartVerification,
-                    action: { handle(callToAction: callToAction) }
-                )
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.verifyPriorityRecommendation)
-    }
-
-    private func requestsSection(
-        title: String,
-        identifier: String,
-        requests: [VerifyRequest],
-        emptyMessage: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            VerifySectionTitle(title: title, accessibilityIdentifier: identifier)
-
-            if requests.isEmpty {
-                KairoSection {
-                    Text(emptyMessage)
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                }
-            } else {
-                ForEach(requests) { request in
-                    requestCard(request)
-                }
-            }
-        }
-    }
-
-    private func requestCard(_ request: VerifyRequest) -> some View {
-        KairoSection {
-            HStack(alignment: .center, spacing: KairoSpacing.small) {
-                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                    Text(request.type)
-                        .font(KairoTypography.bodyStrong)
-                        .foregroundStyle(KairoColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(request.organization)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: KairoSpacing.small)
-
-                VerifyStatusBadge(status: request.status)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+    private func filteredList(_ requests: [VerifyRequest]) -> some View {
+        let visible = selectedFilter.requests(in: requests)
+        return VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            if visible.isEmpty {
+                Text(selectedFilter.emptyMessage).font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
-            }
-
-            Text(request.dateLabel)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-
-            VerifyInlineButton(
-                title: "View request",
-                accessibilityIdentifier: KairoAccessibilityID.verifyRequestAction(request.id),
-                action: { presentedSheet = .requestDetail(request.id) }
-            )
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.verifyRequestCard(request.id))
-    }
-
-    private func completedSection(_ requests: [VerifyRequest]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            VerifySectionTitle(
-                title: "Completed",
-                accessibilityIdentifier: KairoAccessibilityID.verifyCompletedSection
-            )
-
-            if requests.isEmpty {
-                KairoSection {
-                    Text("No completed verifications yet.")
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(KairoAccessibilityID.verifyEmptyState)
             } else {
-                KairoSection {
-                    ForEach(Array(requests.enumerated()), id: \.element.id) { index, request in
-                        if index > 0 {
-                            Divider()
-                        }
-
-                        Button {
-                            presentedSheet = .requestDetail(request.id)
-                        } label: {
-                            HStack(alignment: .center, spacing: KairoSpacing.medium) {
-                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                                    Text(request.type)
-                                        .font(KairoTypography.bodyStrong)
-                                        .foregroundStyle(KairoColors.textPrimary)
-
-                                    Text(request.organization)
-                                        .font(KairoTypography.footnote)
-                                        .foregroundStyle(KairoColors.textSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-
-                                    Text(request.dateLabel)
-                                        .font(KairoTypography.caption)
-                                        .foregroundStyle(KairoColors.textSecondary)
-                                }
-
+                ForEach(VerifyListGroup.allCases) { group in
+                    let rows = visible.filter { group.includes($0.status) }
+                    if !rows.isEmpty {
+                        KairoSection(compact: true) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(group.title).font(KairoTypography.sectionTitle)
+                                    .accessibilityAddTraits(.isHeader)
+                                    .accessibilityIdentifier(group.accessibilityIdentifier)
                                 Spacer(minLength: KairoSpacing.small)
-
-                                VerifyStatusBadge(status: request.status)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
+                                Text("\(rows.count)").font(KairoTypography.footnote).monospacedDigit()
                                     .foregroundStyle(KairoColors.textSecondary)
+                                    .accessibilityLabel("\(group.title): \(rows.count) requests")
+                                    .accessibilityIdentifier("\(group.accessibilityIdentifier).count")
                             }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier(KairoAccessibilityID.verifyRequestAction(request.id))
-                    }
-                }
-            }
-        }
-    }
-
-    private func suggestedNextSection(_ suggestions: [VerifySuggestion]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            VerifySectionTitle(
-                title: "Suggested next",
-                accessibilityIdentifier: KairoAccessibilityID.verifySuggestedNextSection
-            )
-
-            if suggestions.isEmpty {
-                KairoSection {
-                    Text("KairoID will suggest more verification opportunities here as live verification coverage expands.")
-                        .font(KairoTypography.body)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                KairoSection {
-                    ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                        if index > 0 {
-                            Divider()
-                        }
-
-                        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                            HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                                        .fill(KairoColors.surfaceMuted)
-
-                                    Image(systemName: suggestion.kind?.systemImage ?? "sparkles")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundStyle(KairoColors.accent)
+                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, request in
+                                if index > 0 { Divider() }
+                                VerifyCompactRequestRow(request: request) {
+                                    presentedSheet = .requestDetail(request.id)
                                 }
-                                .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                                    Text(suggestion.title)
-                                        .font(KairoTypography.headline)
-                                        .foregroundStyle(KairoColors.textPrimary)
-                                        .fixedSize(horizontal: false, vertical: true)
-
-                                    Text(suggestion.valueStatement)
-                                        .font(KairoTypography.body)
-                                        .foregroundStyle(KairoColors.textSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-
-                                Spacer(minLength: KairoSpacing.small)
-                            }
-
-                            if let actionTitle = suggestion.actionTitle,
-                               let action = suggestion.action {
-                                VerifyInlineButton(
-                                    title: actionTitle,
-                                    accessibilityIdentifier: suggestion.kind.map { KairoAccessibilityID.verifySuggestedAction($0.rawValue) },
-                                    action: { handle(callToAction: action) }
-                                )
-                                .disabled(!suggestion.isEnabled)
-                            }
-
-                            if let availabilityNote = suggestion.availabilityNote {
-                                Text(availabilityNote)
-                                    .font(KairoTypography.footnote)
-                                    .foregroundStyle(KairoColors.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    private var dataSourceLabel: String? {
-        switch state.phase {
-        case .populated(let content):
-            content.dataSourceLabel
-        case .empty(let content):
-            content.dataSourceLabel
-        case .loading, .error:
-            nil
         }
     }
 
@@ -698,19 +486,6 @@ private enum VerifyPresentedSheet: Identifiable {
     }
 }
 
-private struct VerifySectionTitle: View {
-    let title: String
-    let accessibilityIdentifier: String
-
-    var body: some View {
-        Text(title)
-            .font(KairoTypography.sectionTitle)
-            .foregroundStyle(KairoColors.textPrimary)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier(accessibilityIdentifier)
-    }
-}
-
 private struct VerifySectionEyebrow: View {
     let title: String
 
@@ -723,38 +498,7 @@ private struct VerifySectionEyebrow: View {
     }
 }
 
-private struct VerifyDataSourceBadge: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(KairoTypography.caption)
-            .foregroundStyle(KairoColors.textSecondary)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xSmall)
-            .background(KairoColors.surface, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(KairoColors.border, lineWidth: 1)
-            )
-    }
-}
-
-private struct VerifyMetaPill: View {
-    let title: String
-    let systemImage: String
-
-    var body: some View {
-        Label(title, systemImage: systemImage)
-            .font(KairoTypography.footnote)
-            .foregroundStyle(KairoColors.textSecondary)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xSmall)
-            .background(KairoColors.surfaceMuted.opacity(0.85), in: Capsule())
-    }
-}
-
-private struct VerifyStatusBadge: View {
+struct VerifyStatusBadge: View {
     let status: VerifyVerificationStatus
 
     private var tone: KairoStatusTone {
@@ -769,28 +513,6 @@ private struct VerifyStatusBadge: View {
 
     var body: some View {
         KairoStatusChip(title: status.style.title, tone: tone, systemImage: status.style.symbol)
-    }
-}
-
-private struct VerifyInlineButton: View {
-    let title: String
-    let accessibilityIdentifier: String?
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: KairoSpacing.xSmall) {
-                Text(title)
-                    .font(KairoTypography.headline)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(KairoColors.brandPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, KairoSpacing.xSmall)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(accessibilityIdentifier ?? title)
     }
 }
 
@@ -813,101 +535,90 @@ private struct VerifyRequestDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                    KairoSection {
-                        VerifySectionEyebrow(title: "Verification request")
-
-                        Text(request.type)
-                            .font(KairoTypography.title2)
-                            .foregroundStyle(KairoColors.textPrimary)
-
-                        Text(request.organization)
-                            .font(KairoTypography.headline)
-                            .foregroundStyle(KairoColors.textSecondary)
-
-                        VerifyStatusBadge(status: request.status)
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                    VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                        Text(request.type).font(KairoTypography.title2).foregroundStyle(KairoColors.textPrimary)
+                            .accessibilityAddTraits(.isHeader)
+                        VerifyStatusBadge(status: request.status).accessibilityIdentifier("verify.detail.status")
                     }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("verify.detail.header")
 
-                    KairoSection {
-                        KairoSectionHeading(title: "Next action")
-                        Text(request.requiredAction)
-                            .font(KairoTypography.body)
-                            .foregroundStyle(KairoColors.textPrimary)
-                        if !request.availableActions.isEmpty {
-                            actionButtons
-                        }
-                    }
-
-                    KairoSection {
-                        KairoSectionHeading(title: "Claim")
-                        detailRow(title: "Requester", value: request.requester)
+                    KairoSection(compact: true) {
+                        sectionHeading("Claim", id: "claim")
                         detailRow(title: "Requested item", value: request.requestedItem)
-                        detailRow(title: "Current status", value: request.status.style.title)
-                        detailRow(title: "Timeline", value: request.timelineSummary)
-                        detailRow(title: "Evidence requirements", value: request.evidenceRequirement)
-                        detailRow(title: "Supporting note", value: request.supportingNote)
-                        if let reviewStatus = request.reviewStatus {
-                            detailRow(title: "Review status", value: humanized(reviewStatus))
-                        }
-                        if let consentedAt = request.consentedAt {
-                            detailRow(
-                                title: "Consent recorded",
-                                value: consentedAt.formatted(date: .abbreviated, time: .shortened)
-                            )
-                        }
+                        detailRow(title: "Organization", value: request.organization)
+                        detailRow(title: "Requester", value: request.requester)
                     }
 
-                    if !request.evidence.isEmpty {
-                        evidenceCard
+                    KairoSection(compact: true) {
+                        sectionHeading("Consent", id: "consent")
+                        detailRow(title: "Shared fields", value: request.consentedFields.isEmpty
+                            ? "No field consent scope supplied." : request.consentedFields.joined(separator: ", "))
+                        detailRow(title: "Evidence scope", value: request.consentedEvidenceScope.isEmpty
+                            ? "No evidence consent scope supplied." : request.consentedEvidenceScope.joined(separator: ", "))
+                        if let date = request.consentedAt {
+                            detailRow(title: "Consent recorded", value: date.formatted(date: .abbreviated, time: .shortened))
+                        }
+                        if let version = request.consentVersion, !version.isEmpty {
+                            detailRow(title: "Consent version", value: version)
+                        }
                     }
 
                     if let contact = request.verificationContact {
                         contactCard(contact)
-                    }
-
-                    if !request.corrections.isEmpty {
-                        correctionsCard
-                    }
-
-                    if !request.timeline.isEmpty {
-                        KairoSection {
-                            VerifySectionEyebrow(title: "Timeline")
-
-                            ForEach(Array(request.timeline.enumerated()), id: \.element.id) { index, event in
-                                if index > 0 {
-                                    Divider()
-                                }
-
-                                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                                    Text(event.title)
-                                        .font(KairoTypography.headline)
-                                        .foregroundStyle(KairoColors.textPrimary)
-
-                                    Text(event.source)
-                                        .font(KairoTypography.body)
-                                        .foregroundStyle(KairoColors.textSecondary)
-
-                                    Text(event.dateLabel)
-                                        .font(KairoTypography.footnote)
-                                        .foregroundStyle(KairoColors.textSecondary)
-                                }
-                            }
+                    } else {
+                        KairoSection(compact: true) {
+                            sectionHeading("Verification contact", id: "contact")
+                            detailRow(title: "Organization", value: request.organization)
+                            Text("No verification contact available.").font(KairoTypography.footnote)
+                                .foregroundStyle(KairoColors.textSecondary)
                         }
                     }
 
-                    if request.showsCareerRecovery {
-                        KairoSection {
-                            Text("Update the source record")
-                                .font(KairoTypography.headline)
-                                .foregroundStyle(KairoColors.textPrimary)
-                            Text("Review the linked Career record, make any needed correction, then start a new verification when it is ready.")
-                                .font(KairoTypography.body)
+                    evidenceCard
+
+                    KairoSection(compact: true) {
+                        sectionHeading("Timeline", id: "timeline")
+                        if request.timeline.isEmpty {
+                            Text("No timeline events available.").font(KairoTypography.footnote)
                                 .foregroundStyle(KairoColors.textSecondary)
+                        }
+                        ForEach(Array(request.timeline.enumerated()), id: \.element.id) { index, event in
+                            if index > 0 { Divider() }
+                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                Text(event.title).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
+                                Text(event.dateLabel).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                Text(event.source).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("verify.detail.event.\(event.id)")
+                        }
+                    }
+
+                    if !request.corrections.isEmpty { correctionsCard }
+                    KairoSection(compact: true) {
+                        sectionHeading("Next action", id: "actions")
+                        Text(request.requiredAction).font(KairoTypography.body).foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        actionButtons
+                        if request.showsCareerRecovery {
+                            Text("Review the linked Career record, make any needed correction, then start a new verification when it is ready.")
+                                .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
-                            KairoSecondaryButton(
-                                title: "Open Career record",
-                                action: onOpenCareer
-                            )
+                            KairoSecondaryButton(title: "Open Career record", action: onOpenCareer)
+                        }
+                    }
+
+                    KairoSection(compact: true) {
+                        sectionHeading("Additional details", id: "metadata")
+                        detailRow(title: "Updated / due", value: request.dateLabel)
+                        detailRow(title: "Latest activity", value: request.timelineSummary)
+                        detailRow(title: "Supporting note", value: request.supportingNote)
+                        if let reviewStatus = request.reviewStatus {
+                            detailRow(title: "Review status", value: humanized(reviewStatus))
                         }
                     }
                 }
@@ -917,6 +628,9 @@ private struct VerifyRequestDetailSheet: View {
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle("Request detail")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }.disabled(actionInFlight != nil)
+            } }
         }
         .accessibilityIdentifier(KairoAccessibilityID.verifyRequestDetail)
         .accessibilityValue(request.routeRequestID ?? request.id)
@@ -986,8 +700,8 @@ private struct VerifyRequestDetailSheet: View {
     }
 
     private func contactCard(_ contact: VerifyContactRecord) -> some View {
-        KairoSection {
-            VerifySectionEyebrow(title: "Verification contact")
+        KairoSection(compact: true) {
+            sectionHeading("Verification contact", id: "contact")
             detailRow(title: "Name", value: contact.name ?? "Not provided")
             detailRow(title: "Email", value: contact.email)
             detailRow(title: "Role", value: contact.role ?? "Not provided")
@@ -1003,8 +717,14 @@ private struct VerifyRequestDetailSheet: View {
     }
 
     private var evidenceCard: some View {
-        KairoSection {
-            KairoSectionHeading(title: "Evidence", count: request.evidence.count)
+        KairoSection(compact: true) {
+            sectionHeading("Evidence", id: "evidence")
+            Text(request.evidenceRequirement).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if request.evidence.isEmpty {
+                Text("No evidence is available to view for this request.").font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.textSecondary)
+            }
             ForEach(request.evidence) { evidence in
                 KairoDocumentRow(
                     filename: evidence.originalFilename ?? humanized(evidence.fieldKey),
@@ -1023,6 +743,10 @@ private struct VerifyRequestDetailSheet: View {
                         if let url = evidence.downloadURL {
                             Button("View evidence") { openURL(url) }
                                 .buttonStyle(KairoActionStyle())
+                        } else {
+                            Text("Historical evidence download is unavailable.")
+                                .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 )
@@ -1031,7 +755,7 @@ private struct VerifyRequestDetailSheet: View {
     }
 
     private var correctionsCard: some View {
-        KairoSection {
+        KairoSection(compact: true) {
             VerifySectionEyebrow(title: "Requested corrections")
             ForEach(Array(request.corrections.enumerated()), id: \.element.id) { index, correction in
                 if index > 0 { Divider() }
@@ -1054,6 +778,11 @@ private struct VerifyRequestDetailSheet: View {
                 }
             }
         }
+    }
+
+    private func sectionHeading(_ title: String, id: String) -> some View {
+        Text(title).font(KairoTypography.sectionTitle).foregroundStyle(KairoColors.textPrimary)
+            .accessibilityAddTraits(.isHeader).accessibilityIdentifier("verify.detail.section.\(id)")
     }
 
     private func detailRow(title: String, value: String) -> some View {

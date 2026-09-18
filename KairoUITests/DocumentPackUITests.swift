@@ -56,10 +56,34 @@ final class DocumentPackUITests: XCTestCase {
         let app = launch(); prepareReview(app); tap("pack.create", app)
         XCTAssertTrue(app.staticTexts["pack.ready"].waitForExistence(timeout: 10))
         tap("pack.share", app)
-        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 8) || app.buttons["Close"].exists)
-        let close = app.buttons.matching(identifier: "Close").allElementsBoundByIndex.first(where: \.isHittable)
-        if let close { close.tap() } else { app.swipeDown() }
+        let activity = app.otherElements["ActivityListView"].firstMatch
+        XCTAssertTrue(activity.waitForExistence(timeout: 8))
+        let popover = app.popovers.containing(.other, identifier: "ActivityListView").firstMatch
+        let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
+        let nativeSheet = app.sheets.containing(.other, identifier: "ActivityListView").firstMatch
+        let container = nativeSheet.exists ? nativeSheet : activity
+        let dismissButtons = container.buttons.matching(
+            NSPredicate(format: "label IN %@", ["Close", "Cancel"])
+        )
+        let dismissReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                (popover.exists && dismissRegion.exists && dismissRegion.isHittable)
+                    || dismissButtons.allElementsBoundByIndex.contains(where: \.isHittable)
+            }, object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissReady], timeout: 8), .completed)
+        if popover.exists && dismissRegion.exists && dismissRegion.isHittable {
+            dismissRegion.tap()
+            XCTAssertTrue(popover.waitForNonExistence(timeout: 5))
+        } else if let dismiss = dismissButtons.allElementsBoundByIndex.first(where: \.isHittable) {
+            dismiss.tap()
+        } else {
+            XCTFail("Native Share has no supported dismissal control")
+            return
+        }
+        XCTAssertTrue(activity.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["pack.ready"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Document packs"].exists)
     }
     func testRejectedCreateThenExplicitRetry() {
         let app = launch("create-rejected"); prepareReview(app); tap("pack.create", app)

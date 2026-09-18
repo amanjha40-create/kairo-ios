@@ -29,13 +29,9 @@ final class VerifyOverviewLoadState: ObservableObject {
         } catch {
             guard attempt == generation, !Task.isCancelled else { return false }
             if VerifyOverviewMapper.requiresSessionRecovery(for: error) { return true }
-            if focusedRequestID == nil, Self.isRenderable(previous), !showLoading {
-                state = previous
-            } else {
-                // Keep the destination pending. Existing Retry UI can resolve it;
-                // a failed request must never become an authoritative "not found".
-                state = VerifyOverviewMapper.errorState(for: error)
-            }
+            // Never present cached filter counts as current after a failed refresh.
+            // Keep focused navigation pending: an error is not authoritative absence.
+            state = VerifyOverviewMapper.errorState(for: error)
         }
         return false
     }

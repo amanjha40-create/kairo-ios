@@ -5,6 +5,7 @@ struct UITestVerifyConfiguration {
 
     let state: VerifyOverviewState?
     var showsNavigationRecovery = false
+    var showsHierarchy = false
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -22,9 +23,10 @@ struct UITestVerifyConfiguration {
             return UITestVerifyConfiguration(state: nil)
         }
 
+        let hierarchy = environment["KAIRO_UI_TEST_VERIFY_HIERARCHY"] == "1"
         let state: VerifyOverviewState = switch kind {
         case .populated:
-            .populatedFixture()
+            hierarchy ? VerifyHierarchyFixtures.state : .populatedFixture()
         case .empty:
             .emptyFixture()
         case .loading:
@@ -34,6 +36,6 @@ struct UITestVerifyConfiguration {
         }
 
         return UITestVerifyConfiguration(state: state,
-            showsNavigationRecovery: environment["KAIRO_UI_TEST_VERIFY_NAVIGATION"] == "1")
+            showsNavigationRecovery: environment["KAIRO_UI_TEST_VERIFY_NAVIGATION"] == "1", showsHierarchy: hierarchy)
     }
 }
