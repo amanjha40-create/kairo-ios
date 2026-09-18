@@ -4,6 +4,27 @@ import SwiftUI
 
 @MainActor
 final class VisualParityTests: XCTestCase {
+    func testCompactDestinationExpandsForLongMetadataAndAccessibilityType() {
+        let row = KairoCompactDestinationRow(
+            title: "Documents and supporting professional records",
+            metadata: "Candidate-provided records remain unverified until authoritatively confirmed.",
+            systemImage: "doc.on.doc", action: {}
+        )
+        let standard = size(row)
+        let accessible = size(row, dynamicType: .accessibility3)
+        XCTAssertGreaterThanOrEqual(standard.height, 44)
+        XCTAssertGreaterThan(accessible.height, standard.height)
+        // Hosting measurement rounds fractional text layout to device pixels.
+        XCTAssertLessThanOrEqual(accessible.width, 320 + 1 / UITraitCollection.current.displayScale)
+    }
+
+    func testCompactSectionIsOptInAndDoesNotChangeDefaultSpacing() {
+        let regular = size(KairoSection { Text("Section") })
+        let compact = size(KairoSection(compact: true) { Text("Section") })
+        XCTAssertEqual(regular.height - compact.height,
+                       2 * (KairoSpacing.medium - KairoSpacing.xSmall), accuracy: 0.5)
+    }
+
     func testLongDocumentRowsExpandAtAccessibilitySizes() {
         let view = KairoDocumentRow(
             filename: "Employment-confirmation-and-supporting-evidence-with-a-long-filename.pdf",

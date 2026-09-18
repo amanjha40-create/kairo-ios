@@ -2,17 +2,65 @@ import SwiftUI
 
 /// Flat, divided groups keep the hierarchy in the content, rather than nested card borders.
 struct KairoSection<Content: View>: View {
+    var compact: Bool
     @ViewBuilder let content: Content
 
-    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    init(compact: Bool = false, @ViewBuilder content: () -> Content) {
+        self.compact = compact
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, KairoSpacing.medium)
+        .padding(.vertical, compact ? KairoSpacing.xSmall : KairoSpacing.medium)
         .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
+    }
+}
+
+/// One full-width destination, with no nested action or fixed content height.
+/// Callers supply authoritative metadata; this component never infers status/counts.
+struct KairoCompactDestinationRow: View {
+    let title: String
+    var metadata: String? = nil
+    let systemImage: String
+    var accessibilityIdentifier: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: KairoSpacing.small) {
+                Image(systemName: systemImage)
+                    .font(KairoTypography.headline)
+                    .foregroundStyle(KairoColors.brandPrimary)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    Text(title)
+                        .font(KairoTypography.recordTitle)
+                        .foregroundStyle(KairoColors.textPrimary)
+                    if let metadata, !metadata.isEmpty {
+                        Text(metadata)
+                            .font(KairoTypography.metadata)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, KairoSpacing.small)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier ?? title)
     }
 }
 
