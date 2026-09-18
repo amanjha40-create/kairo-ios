@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WelcomeScreenView: View {
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedPage: IntroPage = .trust
 
     var body: some View {
@@ -36,9 +37,10 @@ struct WelcomeScreenView: View {
 
                 Button(action: advance) {
                     Text(selectedPage.primaryButtonTitle)
-                        .font(.system(size: 15, weight: .semibold, design: .default))
+                        .font(KairoTypography.action)
+                        .padding(.vertical, KairoSpacing.xSmall)
                         .frame(maxWidth: .infinity)
-                        .frame(height: metrics.primaryButtonHeight)
+                        .frame(minHeight: metrics.primaryButtonHeight)
                 }
                 .buttonStyle(IntroPrimaryButtonStyle())
                 .accessibilityIdentifier(
@@ -47,17 +49,17 @@ struct WelcomeScreenView: View {
                         : KairoAccessibilityID.onboardingContinue
                 )
 
-                if selectedPage == .trust {
-                    Button(action: { router.showLogin() }) {
-                        Text("I already have an account")
-                            .font(.system(size: 15, weight: .semibold, design: .default))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: metrics.secondaryButtonHeight)
-                    }
-                    .buttonStyle(IntroSecondaryButtonStyle())
-                    .accessibilityIdentifier(KairoAccessibilityID.onboardingExistingAccount)
-                    .padding(.top, 12)
+                Button(action: { router.showLogin() }) {
+                    Text("I already have an account")
+                        .font(KairoTypography.action)
+                        .padding(.vertical, KairoSpacing.xSmall)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: metrics.secondaryButtonHeight)
                 }
+                .buttonStyle(IntroSecondaryButtonStyle())
+                .accessibilityIdentifier(KairoAccessibilityID.onboardingExistingAccount)
+                .accessibilityHint("Log in without completing the introduction.")
+                .padding(.top, KairoSpacing.xSmall)
             }
             .padding(.horizontal, metrics.horizontalPadding)
             .padding(.top, geometry.safeAreaInsets.top + metrics.topInset)
@@ -70,7 +72,7 @@ struct WelcomeScreenView: View {
 
     private func advance() {
         if let nextPage = selectedPage.next {
-            withAnimation(.easeInOut(duration: 0.24)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) {
                 selectedPage = nextPage
             }
         } else {
@@ -125,18 +127,18 @@ private enum IntroPage: Int, CaseIterable, Identifiable {
             ]
         case .betterWay:
             [
-                "KairoID helps you build a complete, verified profile that grows with your career.",
-                "No repetition. No hassle."
+                "Build a profile that grows with your career.",
+                "Only confirmed records are presented as verified."
             ]
         case .solution:
             [
-                "Build your verified profile once.",
-                "Share it anywhere. Anytime."
+                "Choose what to share from your Trust Passport.",
+                "Stay in control of access."
             ]
         case .outcome:
             [
-                "Share your professional trust instantly",
-                "with recruiters and organisations."
+                "Bring your professional records together",
+                "in one reusable Trust Passport."
             ]
         }
     }
@@ -171,9 +173,9 @@ private struct IntroMetrics {
 
     var heroHeight: CGFloat {
         if isLandscape {
-            206
+            150
         } else {
-            isCompactHeight ? 252 : 312
+            isCompactHeight ? 200 : 264
         }
     }
 
@@ -224,7 +226,7 @@ private struct IntroMetrics {
     }
 
     var indicatorBottomSpacing: CGFloat {
-        isCompactHeight ? 18 : 22
+        isCompactHeight ? 8 : 12
     }
 
     var bottomContentSpacing: CGFloat {
@@ -261,14 +263,12 @@ private struct IntroPageView: View {
             hero
                 .frame(maxWidth: .infinity)
                 .frame(height: metrics.heroHeight)
+                .accessibilityHidden(true)
 
             VStack(spacing: metrics.heroToCopySpacing) {
-                if let eyebrow = page.eyebrow {
-                    IntroEyebrow(text: eyebrow)
-                }
-
                 headline
                     .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
 
                 VStack(spacing: metrics.supportSpacing) {
                     ForEach(Array(page.supportLines.enumerated()), id: \.offset) { offset, line in
@@ -295,13 +295,8 @@ private struct IntroPageView: View {
         HStack(alignment: .top) {
             if page == .trust {
                 Text(ProductBrand.name)
-                    .font(.system(size: 28, weight: .bold, design: .default))
+                    .font(KairoTypography.title2)
                     .foregroundStyle(IntroPalette.navy)
-                    .frame(
-                        width: metrics.wordmarkWidth,
-                        height: metrics.wordmarkHeight,
-                        alignment: .leading
-                    )
                     .accessibilityLabel(ProductBrand.name)
                     .accessibilityIdentifier("onboarding.welcome.wordmark")
 
@@ -310,8 +305,9 @@ private struct IntroPageView: View {
                 Spacer(minLength: 0)
 
                 Button("Skip", action: onSkip)
-                    .font(.system(size: 13, weight: .semibold, design: .default))
+                    .font(KairoTypography.action)
                     .foregroundStyle(IntroPalette.teal)
+                    .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("onboarding.intro.skip")
             }
         }
@@ -334,8 +330,8 @@ private struct IntroPageView: View {
             .accessibilityIdentifier(OnboardingStep.welcome.titleAccessibilityIdentifier)
         case .betterWay:
             VStack(spacing: metrics.titleSpacing) {
-                Text("Your career journey")
-                Text("deserves more.")
+                Text("Your verified career")
+                Text("comes with you.")
                     .foregroundStyle(IntroPalette.teal)
             }
             .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
@@ -343,8 +339,8 @@ private struct IntroPageView: View {
             .fixedSize(horizontal: false, vertical: true)
         case .solution:
             VStack(spacing: metrics.titleSpacing) {
-                Text("Your professional trust,")
-                Text("in one place.")
+                Text("Share with confidence.")
+                Text("Wherever you need.")
                     .foregroundStyle(IntroPalette.teal)
             }
             .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
@@ -352,8 +348,8 @@ private struct IntroPageView: View {
             .fixedSize(horizontal: false, vertical: true)
         case .outcome:
             VStack(spacing: metrics.titleSpacing) {
-                Text("Opportunities")
-                Text("find you faster.")
+                Text("One identity.")
+                Text("All your trust.")
                     .foregroundStyle(IntroPalette.teal)
             }
             .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
@@ -368,11 +364,11 @@ private struct IntroPageView: View {
         case .trust:
             IntroTrustHero()
         case .betterWay:
-            IntroRecordsHero()
+            IntroOutcomeHero()
         case .solution:
             IntroSolutionHero()
         case .outcome:
-            IntroOutcomeHero()
+            IntroRecordsHero()
         }
     }
 }
@@ -407,6 +403,7 @@ private struct IntroEyebrow: View {
 private struct IntroPageIndicator: View {
     let pages: [IntroPage]
     let selectedPage: IntroPage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -414,9 +411,13 @@ private struct IntroPageIndicator: View {
                 Capsule()
                     .fill(page == selectedPage ? IntroPalette.teal : IntroPalette.dot)
                     .frame(width: page == selectedPage ? 24 : 6, height: 6)
-                    .animation(.easeOut(duration: 0.2), value: selectedPage)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selectedPage)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Introduction")
+        .accessibilityValue("Page \(selectedPage.rawValue + 1) of \(pages.count)")
+        .accessibilityIdentifier("onboarding.intro.pageIndicator")
     }
 }
 

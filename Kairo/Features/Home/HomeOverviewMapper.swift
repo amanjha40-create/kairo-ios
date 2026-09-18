@@ -17,7 +17,8 @@ enum HomeOverviewMapper {
                 analytics: overview.recentShareAnalytics,
                 activeShares: overview.activePassportShares.items
             ),
-            verificationRequestsAvailable: verificationOverview != nil
+            verificationRequestsAvailable: verificationOverview != nil,
+            careerSummary: "\(overview.vaultSummary.employments) Employment · \(overview.vaultSummary.educations) Education · \(overview.vaultSummary.certifications) Certifications · \(overview.vaultSummary.projects) Projects · \(overview.vaultSummary.skills) Skills"
         )
 
         return .live(
@@ -180,14 +181,15 @@ enum HomeOverviewMapper {
                 if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
                 return lhs.id < rhs.id
             }
-            .prefix(1)
             .map { request in
                 HomeVerificationRequest(
                     title: request.typeTitle,
                     organization: request.organizationName,
                     status: request.status.style.title,
                     authoritativeDestinationID: request.routeID,
-                    destinationTab: .verify
+                    destinationTab: .verify,
+                    needsAttention: [.pendingSubjectAcceptance, .pendingSubjectSubmission,
+                                     .awaitingSubjectCorrections, .awaitingInformation].contains(request.status)
                 )
             }
     }

@@ -8,602 +8,299 @@ struct HomeOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
-    @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 56.0
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 46.0
+    @State private var showsDocuments = false
 
     var body: some View {
-        ZStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                    header
-                    content
-                }
-                .padding(.horizontal, KairoSpacing.medium)
-                .padding(.top, topContentPadding)
-                .padding(.bottom, KairoSpacing.xxLarge)
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                header
+                content
             }
-            .refreshableIfAvailable(action: refreshAction)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.top, KairoSpacing.medium)
+            .padding(.bottom, KairoSpacing.xxLarge)
         }
+        .refreshableIfAvailable(action: refreshAction)
         .background(KairoColors.background.ignoresSafeArea())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeScreen)
-        .task {
-            await notificationStore.refreshUnreadCount()
-        }
-    }
-
-    private var topContentPadding: CGFloat {
-        KairoSpacing.large
+        .task { await notificationStore.refreshUnreadCount() }
+        .sheet(isPresented: $showsDocuments) { DocumentsHubView() }
     }
 
     @ViewBuilder
     private var content: some View {
         switch state.phase {
         case .loading:
-            KairoLoadingStateView(
-                title: "Preparing your Home overview",
-                message: "KairoID is assembling your latest trust snapshot."
-            )
-        case .error(let errorState):
-            KairoErrorStateView(
-                title: errorState.title,
-                message: errorState.message,
-                retryAction: retryAction
-            )
+            KairoLoadingStateView(title: "Preparing your Home overview",
+                                  message: "KairoID is assembling your latest trust snapshot.")
+        case .error(let error):
+            KairoErrorStateView(title: error.title, message: error.message, retryAction: retryAction)
         case .populated(let content):
-            populatedContent(content)
+            dashboard(content, isEmpty: false)
         case .empty(let content):
-            emptyContent(content)
+            dashboard(content, isEmpty: true)
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.small) {
-            headerLayout {
-                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Text(ProductBrand.name)
-                        .font(KairoTypography.title2)
+        HStack(alignment: .top, spacing: KairoSpacing.small) {
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text(ProductBrand.name)
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+                Text("\(state.header.greeting) \(state.header.firstName)")
+                    .font(KairoTypography.screenTitle)
+                    .foregroundStyle(KairoColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("candidate.home.greeting")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: { router.showNotificationCenter() }) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(KairoTypography.headline)
                         .foregroundStyle(KairoColors.textPrimary)
-                        .accessibilityLabel(ProductBrand.name)
-
-                    Text(ProductBrand.tagline)
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
-                }
-
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Spacer(minLength: KairoSpacing.medium)
-                }
-
-                HStack(spacing: KairoSpacing.small) {
-                    Button(action: { router.showNotificationCenter() }) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: "bell")
-                                .font(.system(size: 16, weight: .semibold))
-                                .frame(width: 44, height: 44)
-                                .foregroundStyle(KairoColors.textPrimary)
-                                .background(KairoColors.surface, in: Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(KairoColors.border, lineWidth: 1)
-                                )
-
-                            if let badge = notificationStore.unreadBadgeText {
-                                Text(badge)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(minWidth: 18, minHeight: 18)
-                                    .padding(.horizontal, badge.count > 1 ? 2 : 0)
-                                    .background(KairoColors.danger, in: Capsule())
-                                    .offset(x: 3, y: -3)
-                                    .accessibilityIdentifier(KairoAccessibilityID.notificationsUnreadBadge)
-                            }
-                        }
+                        .frame(width: 44, height: 44)
+                        .background(KairoColors.surfaceMuted, in: Circle())
+                    if let badge = notificationStore.unreadBadgeText {
+                        Text(badge)
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(KairoColors.danger, in: Capsule())
+                            .accessibilityIdentifier(KairoAccessibilityID.notificationsUnreadBadge)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(KairoAccessibilityID.homeNotificationsButton)
-                    .accessibilityLabel(notificationBellAccessibilityLabel)
-                    .accessibilityHint("Opens Notifications.")
-
-                    ZStack {
-                        Circle()
-                            .fill(KairoColors.surface)
-
-                        Text(state.header.initials)
-                            .font(KairoTypography.caption)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .foregroundStyle(KairoColors.textPrimary)
-                    }
-                    .frame(width: 42, height: 42)
-                    .overlay(
-                        Circle()
-                            .stroke(KairoColors.border, lineWidth: 1)
-                    )
-                    .accessibilityElement()
-                    .accessibilityLabel("Profile placeholder for \(state.header.firstName)")
                 }
             }
-
-            Text("\(state.header.greeting) \(state.header.firstName)")
-                .font(KairoTypography.title)
-                .foregroundStyle(KairoColors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-
-            Text(state.header.supportingCopy)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(KairoAccessibilityID.homeNotificationsButton)
+            .accessibilityLabel(notificationBellAccessibilityLabel)
+            .accessibilityHint("Opens Notifications.")
         }
     }
 
-    private var headerLayout: AnyLayout {
+    private var adaptiveLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: KairoSpacing.small))
-            : AnyLayout(HStackLayout(alignment: .top, spacing: KairoSpacing.medium))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: KairoSpacing.small))
     }
 
     private var notificationBellAccessibilityLabel: String {
-        guard let count = notificationStore.unreadCount, count > 0 else {
-            return "Notifications"
-        }
+        guard let count = notificationStore.unreadCount, count > 0 else { return "Notifications" }
         return "Notifications, \(count) unread"
     }
 
     @ViewBuilder
-    private func populatedContent(_ content: HomeOverviewContent) -> some View {
+    private func dashboard(_ content: HomeOverviewContent, isEmpty: Bool) -> some View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
-        recommendationCard(content.recommendation)
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
-        trustTasksSection(content.visibleTrustTasks)
-        profileCompletionCard(content.profileCompletion)
+        careerSection(content, isEmpty: isEmpty)
+        KairoCompactDestinationRow(
+            title: "Documents", metadata: "Career attachments and private Vault documents",
+            systemImage: "doc.on.doc", accessibilityIdentifier: "candidate.home.documents",
+            action: { showsDocuments = true }
+        )
+        KairoCompactDestinationRow(
+            title: "Passport", metadata: "View your Trust Passport",
+            systemImage: "person.text.rectangle",
+            accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
+            action: { router.selectTab(.passport) }
+        )
         recentActivitySection(content.recentActivity)
-        recentPassportViewsSection(
-            content.recentPassportViews,
-            emptyMessage: "No Passport views yet. When organisations start reviewing your Trust Passport, you'll see a preview here."
-        )
-    }
-
-    @ViewBuilder
-    private func emptyContent(_ content: HomeOverviewContent) -> some View {
-        trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
-
-        KairoEmptyStateView(
-            title: "Your Home is ready to grow",
-            message: "KairoID will keep turning your verified career milestones into reusable professional trust.",
-            systemImage: "sparkles"
-        )
-
-        recommendationCard(content.recommendation)
-        verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
-        trustTasksSection(content.visibleTrustTasks)
-        profileCompletionCard(content.profileCompletion)
-        recentActivitySection(content.recentActivity)
-        recentPassportViewsSection(
-            content.recentPassportViews,
-            emptyMessage: "No Passport views yet. Once visibility insights are available, you'll see them here."
-        )
+        recentPassportViewsSection(content.recentPassportViews)
     }
 
     private func trustScoreCard(_ trustScore: HomeTrustScore, dataSourceLabel: String) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                    Text("TRUST SCORE")
-                        .font(.system(.caption2, design: .default).weight(.semibold))
-                        .tracking(1.2)
-                        .foregroundStyle(.white.opacity(0.68))
-                        .accessibilityLabel("Trust Score")
-
-                    Text(dataSourceLabel)
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.accent)
-                }
-
-                Spacer(minLength: KairoSpacing.medium)
-
-                Button("View Passport") {
-                    router.selectTab(.passport)
-                }
-                .font(KairoTypography.caption)
-                .foregroundStyle(Color(hex: 0x07122B))
-                .padding(.horizontal, KairoSpacing.small)
-                .padding(.vertical, KairoSpacing.xSmall)
-                .background(.white, in: Capsule())
-                .frame(minHeight: 44)
-                .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            HStack {
+                Text("TRUST SCORE")
+                    .font(KairoTypography.caption)
+                    .accessibilityLabel("Trust Score")
+                Spacer()
+                Text(dataSourceLabel).font(KairoTypography.caption)
             }
-
-            HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
-                Text(trustScore.score.map(String.init) ?? "Unavailable")
-                    .font(.system(size: trustScore.score == nil ? scoreSize * 0.5 : scoreSize, weight: .bold, design: .default))
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.7)
-
-                if trustScore.score != nil {
-                    Text("/ 100")
-                        .font(KairoTypography.body)
-                        .foregroundStyle(.white.opacity(0.62))
+            .foregroundStyle(.white.opacity(0.74))
+            adaptiveLayout {
+                HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
+                    Text(trustScore.score.map(String.init) ?? "Unavailable")
+                        .font(.system(size: trustScore.score == nil ? scoreSize * 0.5 : scoreSize, weight: .bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if trustScore.score != nil {
+                        Text("/ 100").font(KairoTypography.body).foregroundStyle(.white.opacity(0.74))
+                    }
                 }
+                .foregroundStyle(.white)
+                Text(trustScore.status)
+                    .font(KairoTypography.headline)
+                    .foregroundStyle(KairoColors.accent)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Text(trustScore.status)
-                .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.accent)
-                .fixedSize(horizontal: false, vertical: true)
-
             Text(trustScore.supportingCopy)
                 .font(KairoTypography.footnote)
-                .foregroundStyle(.white.opacity(0.74))
+                .foregroundStyle(.white.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)
-
             if let progress = trustScore.progress {
-                ProgressView(value: progress)
-                    .tint(KairoColors.accent)
-                    .progressViewStyle(.linear)
+                ProgressView(value: progress).tint(KairoColors.accent)
             }
-
-            Button("View score details") {
-                router.showTrustScoreDetails()
-            }
-            .buttonStyle(.plain)
-            .font(KairoTypography.footnote.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(minHeight: 44)
-            .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
+            Button("View score details") { router.showTrustScoreDetails() }
+                .buttonStyle(.plain)
+                .font(KairoTypography.action)
+                .foregroundStyle(.white)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
         }
         .modifier(KairoTrustSurface())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
     }
 
-    private func recommendationCard(_ recommendation: HomeRecommendation) -> some View {
-        KairoSection {
-            HomeSectionHeader(
-                title: "Needs your attention",
-                accessibilityIdentifier: KairoAccessibilityID.homeRecommendation
-            )
-
-            Text(recommendation.title)
-                .font(KairoTypography.recordTitle)
-                .foregroundStyle(KairoColors.textPrimary)
-
-            Text(recommendation.supportingCopy)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HomeInlineButton(
-                title: recommendation.actionTitle,
-                accessibilityIdentifier: KairoAccessibilityID.homeStartVerification,
-                action: { router.selectTab(recommendation.destinationTab) }
-            )
-        }
-    }
-
-    private func trustTasksSection(_ tasks: [HomeTrustTask]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Career & profile progress")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
-            KairoSection {
-                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
-                    if index > 0 {
-                        Divider()
-                    }
-
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        Image(systemName: task.systemImage)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(KairoColors.brandPrimary)
-                            .frame(width: 28, height: 28)
-                            .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
-
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            HStack(alignment: .center, spacing: KairoSpacing.xSmall) {
-                                Text(task.title)
-                                    .font(KairoTypography.bodyStrong)
-                                    .foregroundStyle(KairoColors.textPrimary)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                HomeStatusBadge(title: task.status.title)
-                            }
-
-                            Text(task.valueStatement)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if let destinationTab = task.destinationTab {
-                                HomeInlineButton(
-                                    title: "Open \(destinationTab.title)",
-                                    action: { router.selectTab(destinationTab) }
-                                )
-                            } else {
-                                Text("Available soon")
-                                    .font(KairoTypography.caption)
-                                    .foregroundStyle(KairoColors.textSecondary)
-                                    .padding(.top, KairoSpacing.xxSmall)
-                            }
-                        }
-                    }
-                    .padding(.vertical, index == tasks.count - 1 ? 0 : KairoSpacing.xxSmall)
-                }
-            }
-        }
-    }
-
+    @ViewBuilder
     private func verificationRequestsSection(_ requests: [HomeVerificationRequest], available: Bool) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("In progress")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+        if !available {
+            KairoSection(compact: true) {
+                KairoSectionHeading(title: "Verification status unavailable")
+                Text("Pull to refresh to check your current verification requests.")
+                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+            }
+        } else if requests.isEmpty {
+            KairoSection(compact: true) {
+                Label("No active verification requests", systemImage: "tray")
+                    .font(KairoTypography.recordTitle).foregroundStyle(KairoColors.textSecondary)
+            }
+            .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
+        } else {
+            requestGroup(requests.filter(\.needsAttention), title: "Needs your attention")
+            requestGroup(requests.filter { !$0.needsAttention }, title: "In progress")
+        }
+    }
 
-            if let request = requests.first {
-                KairoSection {
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                            Text(request.title)
-                                .font(KairoTypography.bodyStrong)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                            Text(request.organization)
-                                .font(KairoTypography.body)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                        }
-
-                        Spacer(minLength: KairoSpacing.medium)
-
-                        HomeStatusBadge(title: request.status)
-                    }
-
-                    KairoSecondaryButton(
-                        title: "View request",
-                        accessibilityIdentifier: KairoAccessibilityID.homeVerificationRequestAction,
-                        action: {
-                            if let identifier = request.authoritativeDestinationID {
-                                refreshStore.focusVerificationRequest(identifier: identifier)
+    @ViewBuilder
+    private func requestGroup(_ requests: [HomeVerificationRequest], title: String) -> some View {
+        if !requests.isEmpty {
+            KairoSection(compact: true) {
+                KairoSectionHeading(title: title)
+                ForEach(Array(requests.prefix(3))) { request in
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        KairoCompactDestinationRow(
+                            title: request.title,
+                            metadata: "\(request.organization) · \(request.status)",
+                            systemImage: request.needsAttention ? "exclamationmark.circle" : "clock",
+                            accessibilityIdentifier: KairoAccessibilityID.homeVerificationRequestAction,
+                            action: {
+                                if let identifier = request.authoritativeDestinationID {
+                                    refreshStore.focusVerificationRequest(identifier: identifier)
+                                }
+                                router.selectTab(request.destinationTab)
                             }
-                            router.selectTab(request.destinationTab)
-                        }
-                    )
+                        )
+                        .accessibilityHint("View request")
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
-            } else if available {
-                HomeCompactEmptyCard(
-                    systemImage: "tray",
-                    title: "No active verification requests",
-                    message: "Current verification requests will appear here when they need attention or are in progress."
-                )
-                .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
-            } else {
-                HomeCompactEmptyCard(
-                    systemImage: "exclamationmark.circle",
-                    title: "Verification status unavailable",
-                    message: "Pull to refresh to check your current verification requests."
-                )
+                if requests.count > 3 {
+                    Button("View all \(requests.count) requests") { router.selectTab(.verify) }
+                        .buttonStyle(KairoActionStyle())
+                }
             }
         }
     }
 
-    private func profileCompletionCard(_ profileCompletion: HomeProfileCompletion) -> some View {
-        KairoSection {
-            HomeSectionHeader(
-                title: "Profile completion",
-                accessibilityIdentifier: KairoAccessibilityID.homeProfileCompletion
+    private func careerSection(_ content: HomeOverviewContent, isEmpty: Bool) -> some View {
+        KairoSection(compact: true) {
+            KairoSectionHeading(title: "Build your Career")
+                .accessibilityIdentifier("candidate.home.career")
+            if isEmpty {
+                Text("Your Home is ready to grow")
+                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+            }
+            if let summary = content.careerSummary {
+                Text(summary)
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .accessibilityIdentifier("candidate.home.career.counts")
+            }
+            VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+                Text("\(content.profileCompletion.percentage)% profile complete")
+                    .font(KairoTypography.metadata).foregroundStyle(KairoColors.textSecondary)
+                ProgressView(value: content.profileCompletion.progress).tint(KairoColors.accent)
+            }
+            .accessibilityIdentifier(KairoAccessibilityID.homeProfileCompletion)
+
+            KairoCompactDestinationRow(
+                title: content.recommendation.title,
+                metadata: content.recommendation.supportingCopy,
+                systemImage: "arrow.right.circle",
+                accessibilityIdentifier: content.recommendation.destinationTab == .career
+                    ? KairoAccessibilityID.homeContinueProfile : KairoAccessibilityID.homeStartVerification,
+                action: { router.selectTab(content.recommendation.destinationTab) }
             )
+            .accessibilityHint(content.recommendation.actionTitle)
 
-            Text("\(profileCompletion.percentage)% complete")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
-            ProgressView(value: profileCompletion.progress)
-                .tint(KairoColors.accent)
-
-            Text(profileCompletion.supportingCopy)
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HomeInlineButton(
-                title: "Continue profile",
-                accessibilityIdentifier: KairoAccessibilityID.homeContinueProfile,
-                action: { router.selectTab(profileCompletion.destinationTab) }
-            )
+            // Keep distinct useful task metadata, without another button for the same destination.
+            ForEach(content.compactTrustTasks) { task in
+                adaptiveLayout {
+                    Text(task.title).font(KairoTypography.metadata)
+                    Text(task.status.title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if content.recommendation.destinationTab != .career {
+                Button("Continue profile") { router.selectTab(content.profileCompletion.destinationTab) }
+                    .buttonStyle(KairoActionStyle())
+                    .accessibilityIdentifier(KairoAccessibilityID.homeContinueProfile)
+            }
         }
     }
 
     private func recentActivitySection(_ items: [HomeActivityItem]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Recent trust changes")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
+        KairoSection(compact: true) {
+            KairoSectionHeading(title: "Recent trust changes")
                 .accessibilityIdentifier(KairoAccessibilityID.homeRecentActivity)
-
-            KairoSection {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    if index > 0 {
-                        Divider()
+            if items.isEmpty {
+                Text("No recent trust changes")
+                    .font(KairoTypography.metadata).foregroundStyle(KairoColors.textSecondary)
+            }
+            ForEach(items) { item in
+                HStack(alignment: .top, spacing: KairoSpacing.small) {
+                    Image(systemName: "clock")
+                        .foregroundStyle(KairoColors.textSecondary).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        Text(item.title).font(KairoTypography.metadata).foregroundStyle(KairoColors.textPrimary)
+                        Text(item.relativeTime).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
                     }
-
-                    HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(KairoColors.success)
-
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            Text(item.title)
-                                .font(KairoTypography.bodyStrong)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                            Text(item.relativeTime)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.textSecondary)
-                        }
-                    }
-                    .padding(.vertical, index == items.count - 1 ? 0 : KairoSpacing.xxSmall)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
             }
         }
     }
 
-    private func recentPassportViewsSection(
-        _ items: [HomePassportViewItem],
-        emptyMessage: String
-    ) -> some View {
-        Button(action: { router.showPassportActivity() }) {
-            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                HomeSectionHeader(
-                    title: "Recent Passport views",
-                    subtitle: "Open Views & Share Activity",
-                    accessibilityIdentifier: KairoAccessibilityID.homeRecentPassportViews
-                )
-
-                if let item = items.first {
-                    KairoSection {
-                        Text(item.title)
-                            .font(KairoTypography.bodyStrong)
-                            .foregroundStyle(KairoColors.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text(item.relativeTime)
-                            .font(KairoTypography.footnote)
-                            .foregroundStyle(KairoColors.textSecondary)
-                    }
-                } else {
-                    HomeCompactEmptyCard(
-                        systemImage: "eye",
-                        title: "No recent Passport views yet",
-                        message: emptyMessage
-                    )
-                }
-            }
+    private func recentPassportViewsSection(_ items: [HomePassportViewItem]) -> some View {
+        KairoSection(compact: true) {
+            KairoSectionHeading(title: "Recent Passport views")
+                .accessibilityIdentifier(KairoAccessibilityID.homeRecentPassportViews)
+            KairoCompactDestinationRow(
+                title: items.first?.title ?? "No recent Passport views yet",
+                metadata: items.first?.relativeTime ?? "Open Views & Share Activity",
+                systemImage: "eye",
+                accessibilityIdentifier: KairoAccessibilityID.homeRecentPassportViewsOpen,
+                action: { router.showPassportActivity() }
+            )
+            .accessibilityHint("Opens the authoritative Passport view and share history")
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(KairoAccessibilityID.homeRecentPassportViewsOpen)
-        .accessibilityHint("Opens the authoritative Passport view and share history")
     }
 }
 
 private extension View {
     @ViewBuilder
     func refreshableIfAvailable(action: (() async -> Void)?) -> some View {
-        if let action {
-            refreshable {
-                await action()
-            }
-        } else {
-            self
-        }
-    }
-}
-
-private struct HomeSectionHeader: View {
-    let title: String
-    var subtitle: String?
-    var accessibilityIdentifier: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-            Text(title)
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
-        }
-        .accessibilityIdentifier(accessibilityIdentifier ?? title)
-    }
-}
-
-private struct HomeBadge: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(KairoTypography.caption)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .padding(.horizontal, KairoSpacing.small)
-            .padding(.vertical, KairoSpacing.xxSmall)
-            .background(KairoColors.surfaceMuted, in: Capsule())
-    }
-}
-
-private struct HomeStatusBadge: View {
-    let title: String
-
-    var body: some View {
-        KairoStatusChip(title: title, tone: .draft)
-    }
-}
-
-private struct HomeInlineButton: View {
-    let title: String
-    var accessibilityIdentifier: String?
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: KairoSpacing.xSmall) {
-                Text(title)
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .font(KairoTypography.headline)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .padding(.horizontal, KairoSpacing.medium)
-            .padding(.vertical, KairoSpacing.small)
-            .background(KairoColors.surface, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(KairoColors.border, lineWidth: 1)
-            )
-        }
-        .contentShape(Rectangle())
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(title)
-        .accessibilityIdentifier(accessibilityIdentifier ?? title)
-        .accessibilityRepresentation {
-            Button(title, action: action)
-                .accessibilityIdentifier(accessibilityIdentifier ?? title)
-        }
-    }
-}
-
-private struct HomeCompactEmptyCard: View {
-    let systemImage: String
-    let title: String
-    let message: String
-
-    var body: some View {
-        KairoSection {
-            HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(KairoColors.accent)
-                    .frame(width: 28, height: 28)
-                    .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
-
-                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    Text(title)
-                        .font(KairoTypography.bodyStrong)
-                        .foregroundStyle(KairoColors.textPrimary)
-
-                    Text(message)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
+        if let action { refreshable { await action() } }
+        else { self }
     }
 }

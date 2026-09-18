@@ -371,13 +371,9 @@ final class KairoUITests: XCTestCase {
     @MainActor
     func testHomeViewTrustPassportRoutesToPassportTab() throws {
         let app = launchApp(environment: homeEnvironment())
-        let trustScoreCard = homeTrustScoreCardElement(in: app)
-        let action = trustScoreCard.descendants(matching: .any)
-            .matching(identifier: homeViewTrustPassportButton)
-            .firstMatch
-
-        XCTAssertTrue(trustScoreCard.waitForExistence(timeout: 10))
-        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        // 4C.1 keeps one Passport destination after Documents, not a duplicate hero CTA.
+        let action = app.buttons[homeViewTrustPassportButton]
+        XCTAssertTrue(waitForElementAfterScrolling(action, in: app))
         action.tap()
 
         XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
@@ -400,7 +396,7 @@ final class KairoUITests: XCTestCase {
     func testHomeStartVerificationRoutesToVerifyTab() throws {
         let app = launchApp(environment: homeEnvironment())
 
-        XCTAssertTrue(app.buttons[homeStartVerificationButton].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons[homeStartVerificationButton], in: app))
         app.buttons[homeStartVerificationButton].tap()
 
         XCTAssertTrue(app.staticTexts["candidate.screen.verify"].waitForExistence(timeout: 10))
@@ -454,7 +450,7 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
         XCTAssertTrue(homeTrustScoreCardElement(in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Your Home is ready to grow"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts["Your Home is ready to grow"], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(profileCompletionCard, in: app))
         XCTAssertTrue(waitForElementAfterScrolling(recentActivitySection, in: app))
         XCTAssertTrue(waitForElementAfterScrolling(recentPassportViewsSection, in: app))

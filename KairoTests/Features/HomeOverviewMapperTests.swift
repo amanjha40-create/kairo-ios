@@ -4,6 +4,40 @@ import XCTest
 
 @MainActor
 final class HomeOverviewMapperTests: XCTestCase {
+    func testCompactHomeUsesOnlyAuthoritativeCareerCounts() throws {
+        let overview = baseline()
+        let result = try content(HomeOverviewMapper.map(overview))
+        XCTAssertEqual(result.careerSummary, "\(overview.vaultSummary.employments) Employment · \(overview.vaultSummary.educations) Education · \(overview.vaultSummary.certifications) Certifications · \(overview.vaultSummary.projects) Projects · \(overview.vaultSummary.skills) Skills")
+        XCTAssertEqual(result.profileCompletion.percentage, overview.profileCompletion.completionPercentage)
+    }
+
+    func testHomeAttentionPresentationDoesNotRewriteStatusOrRoute() throws {
+        let attention: [VerifyVerificationStatus] = [.pendingSubjectAcceptance, .pendingSubjectSubmission,
+                                                    .awaitingSubjectCorrections, .awaitingInformation]
+        for status in VerifyVerificationStatus.displayOrder where status.group != .completed && status != .draft {
+            let item = try XCTUnwrap(try content(HomeOverviewMapper.map(baseline(), verificationOverview: .init(requests: [request(status: status)]))).verificationRequests.first)
+            XCTAssertEqual(item.needsAttention, attention.contains(status))
+            XCTAssertEqual(item.status, status.style.title)
+            XCTAssertEqual(item.authoritativeDestinationID, "public-request-id")
+        }
+    }
+
+    func testHomeDoesNotDropOtherCurrentRequestsWhenOneNeedsAttention() throws {
+        let requests = [request(status: .inProgress, route: "progress"),
+                        request(status: .awaitingInformation, route: "attention"),
+                        request(status: .withdrawnByCandidate, route: "history")]
+        let result = try content(HomeOverviewMapper.map(baseline(), verificationOverview: .init(requests: requests)))
+        XCTAssertEqual(Set(result.verificationRequests.compactMap(\.authoritativeDestinationID)), ["progress", "attention"])
+        XCTAssertEqual(result.verificationRequests.filter(\.needsAttention).count, 1)
+    }
+
+    func testCompactTasksConsolidateRecommendationWithoutInventingState() throws {
+        let result = try content(HomeOverviewState.populatedFixture())
+        XCTAssertFalse(result.compactTrustTasks.contains { $0.title == result.recommendation.title })
+        XCTAssertTrue(result.compactTrustTasks.allSatisfy { result.visibleTrustTasks.contains($0) })
+        XCTAssertNil(result.careerSummary, "Fixture must not fabricate live record counts")
+    }
+
     func test_mapCreatesPopulatedHomeStateFromLiveDashboardOverview() {
         let overview = makeOverview(
             trustScoreOverall: 78,

@@ -75,7 +75,8 @@ struct HomeOverviewState: Equatable, Sendable {
                             organization: "BrightPath Technologies",
                             status: "Awaiting your approval",
                             authoritativeDestinationID: "employment-brightpath-subject",
-                            destinationTab: .verify
+                            destinationTab: .verify,
+                            needsAttention: true
                         )
                     ],
                     profileCompletion: HomeProfileCompletion(
@@ -252,6 +253,11 @@ struct HomeOverviewContent: Equatable, Sendable {
     let recentActivity: [HomeActivityItem]
     let recentPassportViews: [HomePassportViewItem]
     var verificationRequestsAvailable: Bool = true
+    var careerSummary: String? = nil
+
+    var compactTrustTasks: [HomeTrustTask] {
+        visibleTrustTasks.filter { $0.title != recommendation.title }
+    }
 
     var visibleTrustTasks: [HomeTrustTask] {
         Array(trustTasks.sorted { lhs, rhs in
@@ -312,19 +318,22 @@ struct HomeVerificationRequest: Equatable, Identifiable, Sendable {
     let status: String
     let authoritativeDestinationID: String?
     let destinationTab: CandidateTab
+    let needsAttention: Bool
 
     init(
         title: String,
         organization: String,
         status: String,
         authoritativeDestinationID: String? = nil,
-        destinationTab: CandidateTab
+        destinationTab: CandidateTab,
+        needsAttention: Bool = false
     ) {
         self.title = title
         self.organization = organization
         self.status = status
         self.authoritativeDestinationID = authoritativeDestinationID
         self.destinationTab = destinationTab
+        self.needsAttention = needsAttention
     }
 
     var id: String { authoritativeDestinationID ?? "\(title)-\(organization)" }
