@@ -743,7 +743,7 @@ private struct OrbitPath: Shape {
     let trimStart: CGFloat
     let trimEnd: CGFloat
 
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addEllipse(in: rect)
         return path.trimmedPath(from: trimStart, to: trimEnd)
