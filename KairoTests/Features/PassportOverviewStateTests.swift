@@ -29,13 +29,16 @@ final class PassportOverviewStateTests: XCTestCase {
         XCTAssertEqual(timeline.count, 5)
         XCTAssertEqual(content.visibleSections, [
             .trustScore,
-            .passportStrength,
-            .identity,
+            .share,
+            .verifiedSummary,
+            .candidateProvidedSummary,
             .employment,
             .education,
             .certifications,
-            .projects,
             .skills,
+            .projects,
+            .passportStrength,
+            .identity,
             .trustTimeline,
             .actions
         ])

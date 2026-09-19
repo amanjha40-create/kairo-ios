@@ -12,7 +12,7 @@ struct PassportOverviewScreenView: View {
     @Environment(\.passportPDFExportService) private var passportPDFExportService
     @State private var modalDestination: PassportModalDestination?
     @StateObject private var pdfExportModel = PassportPDFExportViewModel()
-    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 56.0
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 40.0
 
     var body: some View {
         screenContent
@@ -196,7 +196,7 @@ struct PassportOverviewScreenView: View {
 
     private var headerCopy: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-            Text(state.header.identityTreatment.uppercased())
+            Text("Passport owner")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
 
@@ -239,19 +239,45 @@ struct PassportOverviewScreenView: View {
     }
 
     private func populatedContent(_ content: PassportOverviewContent) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xLarge) {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
-            strengthSummarySection(content.strengthSummary)
-            identitySection(content.identity)
+            KairoPrimaryButton(
+                title: "Share",
+                accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
+                action: { modalDestination = .sharePassport }
+            )
+            disclosureSummary(content, verified: true)
+            disclosureSummary(content, verified: false)
             employmentSection(content.employment)
             educationSection(content.education)
             certificationsSection(content.certifications)
             skillsSection(content.skills)
             projectsSection(content.projects)
+            strengthSummarySection(content.strengthSummary)
+            identitySection(content.identity)
             if case .available = content.timeline {
                 trustTimelineSection(content.timeline)
             }
             actionsSection
+        }
+    }
+
+    private func disclosureSummary(_ content: PassportOverviewContent, verified: Bool) -> some View {
+        let counts = PassportHierarchyCounts(content: content)
+        return KairoSection {
+            PassportSectionTitle(
+                title: verified ? "Verified" : "Candidate-provided",
+                accessibilityIdentifier: verified ? "passport.summary.verified" : "passport.summary.candidateProvided"
+            )
+            Text(verified ? "\(counts.verified) verified career records" : "\(counts.candidateProvided) career records not verified")
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.textPrimary)
+            Text(verified
+                 ? "Only records marked Verified by KairoID are counted here."
+                 : "Useful information you supplied. Pending and unavailable statuses remain shown on each record; sharing does not verify them.")
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -334,11 +360,14 @@ struct PassportOverviewScreenView: View {
                     .foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("View score details") { router.showTrustScoreDetails() }
-                .font(KairoTypography.action)
-                .foregroundStyle(.white)
-                .buttonStyle(.plain)
-                .frame(minHeight: 44)
+            Button { router.showTrustScoreDetails() } label: {
+                Text("View score details")
+                    .font(KairoTypography.action)
+                    .foregroundStyle(.white)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .modifier(KairoTrustSurface())
         .accessibilityElement(children: .contain)
@@ -348,7 +377,7 @@ struct PassportOverviewScreenView: View {
     private func strengthSummarySection(_ items: [PassportStrengthItem]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             PassportSectionTitle(
-                title: "Passport strength",
+                title: "Completeness & trust signals",
                 accessibilityIdentifier: KairoAccessibilityID.passportStrengthSummary
             )
 
@@ -500,10 +529,10 @@ struct PassportOverviewScreenView: View {
                 ForEach(items) { item in
                     PassportRecordCard {
                         Text(item.title)
-                            .font(KairoTypography.title2)
+                            .font(KairoTypography.bodyStrong)
                             .foregroundStyle(KairoColors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
-
+                        PassportBadge(status: .notVerified)
                         passportRecordMeta(title: "Role", value: item.role)
                         passportRecordMeta(title: "Date", value: item.date)
                         if !item.evidenceStatus.isEmpty {
@@ -600,26 +629,9 @@ struct PassportOverviewScreenView: View {
 
     private var actionsSection: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Passport actions")
+            Text("Export & activity")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
-
-            KairoPrimaryButton(
-                title: "Share Passport",
-                accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
-                action: { modalDestination = .sharePassport }
-            )
-
-            KairoSecondaryButton(
-                title: "Views & Share Activity",
-                accessibilityIdentifier: KairoAccessibilityID.passportShareActivityEntry,
-                action: { modalDestination = .shareActivity }
-            )
-
-            Text("Public preview, Copy, Share, and QR are available from the authoritative URL immediately after a share is created.")
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if pdfExportModel.isDownloading {
                 KairoLoadingStateView(
@@ -650,6 +662,11 @@ struct PassportOverviewScreenView: View {
                     )
                 }
             }
+            KairoSecondaryButton(
+                title: "Views & Share Activity",
+                accessibilityIdentifier: KairoAccessibilityID.passportShareActivityEntry,
+                action: { modalDestination = .shareActivity }
+            )
         }
     }
 
@@ -714,7 +731,7 @@ struct PassportOverviewScreenView: View {
     }
 
     private func emptySectionCard(message: String) -> some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
             Text(message)
                 .font(KairoTypography.body)
                 .foregroundStyle(KairoColors.textSecondary)

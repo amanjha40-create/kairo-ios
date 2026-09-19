@@ -672,10 +672,15 @@ final class KairoUITests: XCTestCase {
         openPassportTab(in: app)
 
         XCTAssertFalse(app.buttons[passportPreviewAction].exists)
-        XCTAssertTrue(waitForElementAfterScrolling(
-            app.staticTexts["Public preview, Copy, Share, and QR are available from the authoritative URL immediately after a share is created."],
-            in: app
-        ))
+        let share = app.buttons["candidate.passport.share"]
+        XCTAssertTrue(waitForElementAfterScrolling(share, in: app))
+        share.tap()
+        let create = app.buttons["candidate.passport.share.createEntry"]
+        XCTAssertTrue(create.waitForExistence(timeout: 10))
+        create.tap()
+        XCTAssertTrue(app.staticTexts["1. Sharing mode"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons[passportPreviewAction].exists)
+        XCTAssertFalse(app.buttons["candidate.passport.share.copyLink"].exists)
     }
 
     @MainActor

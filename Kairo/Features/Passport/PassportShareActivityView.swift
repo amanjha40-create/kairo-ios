@@ -98,7 +98,7 @@ struct PassportShareActivitySheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     introduction
                     activityContent
                 }
@@ -129,12 +129,12 @@ struct PassportShareActivitySheet: View {
     }
 
     private var introduction: some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Text("Authoritative Passport views")
-                .font(KairoTypography.title2)
+                .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Counts and last-viewed times come from KairoID's share analytics. Opening management screens never creates or increments a view.")
-                .font(KairoTypography.body)
+            Text("Backend-reported views only. Opening history does not add a view.")
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -185,6 +185,7 @@ struct PassportShareActivitySheet: View {
                     .accessibilityIdentifier(KairoAccessibilityID.passportShareActivityRow(item.id))
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.passportShareActivityList)
         }
     }
@@ -194,7 +195,7 @@ private struct PassportShareActivityRow: View {
     let item: PassportShareActivityItem
 
     var body: some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 Image(systemName: item.share.state.symbol)
                     .font(.title2)
@@ -205,11 +206,15 @@ private struct PassportShareActivityRow: View {
                         Text(item.share.displayLabel)
                             .font(KairoTypography.bodyStrong)
                             .foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: KairoSpacing.small)
                         Text(item.share.state.title)
                             .font(KairoTypography.caption)
                             .foregroundStyle(statusColor)
                     }
+                    Text(PassportShareHierarchy.modeTitle(item.share.sharingMode))
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
 
                     if let totalViews = item.totalViews, let uniqueViews = item.uniqueViews {
                         Text("\(totalViews) total · \(uniqueViews) unique")
@@ -233,6 +238,10 @@ private struct PassportShareActivityRow: View {
                 }
             }
         }
+        .padding(.vertical, KairoSpacing.small)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Opens this share's management detail")
@@ -257,7 +266,7 @@ private struct PassportShareActivityRow: View {
         } else {
             counts = "View summary unavailable"
         }
-        return "\(item.share.displayLabel), \(item.share.state.title), \(counts), \(lastViewedText), \(expiryText)"
+        return "\(item.share.displayLabel), \(PassportShareHierarchy.modeTitle(item.share.sharingMode)), \(item.share.state.title), \(counts), \(lastViewedText), \(expiryText), created \(item.share.createdAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
     private var statusColor: Color {

@@ -185,7 +185,7 @@ struct PassportShareManagementSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     introduction
                     createEntry
                     shareContent
@@ -217,12 +217,12 @@ struct PassportShareManagementSheet: View {
     }
 
     private var introduction: some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Text("Share on your terms")
-                .font(KairoTypography.title2)
+                .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Each link is created and controlled by KairoID. Choose the visible Passport sections, set an expiry, and revoke access whenever needed.")
-                .font(KairoTypography.body)
+            Text("Choose a mode, sections, Purpose and expiry. Review before creating a link.")
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -294,6 +294,7 @@ struct PassportShareManagementSheet: View {
                     .accessibilityIdentifier(KairoAccessibilityID.passportShareRow(share.id))
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.passportShareList(title.lowercased()))
         }
     }
@@ -303,7 +304,7 @@ private struct PassportShareRow: View {
     let share: PassportShare
 
     var body: some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
                 Image(systemName: share.state.symbol)
                     .font(.title2)
@@ -313,11 +314,18 @@ private struct PassportShareRow: View {
                     Text(share.displayLabel)
                         .font(KairoTypography.bodyStrong)
                         .foregroundStyle(KairoColors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(PassportShareHierarchy.modeTitle(share.sharingMode))
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
                     Text(share.permissions.conciseSummary)
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(expiryText)
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    Text("Created \(share.createdAt.formatted(date: .abbreviated, time: .omitted))")
                         .font(KairoTypography.caption)
                         .foregroundStyle(KairoColors.textSecondary)
                 }
@@ -328,8 +336,12 @@ private struct PassportShareRow: View {
                     .foregroundStyle(statusColor)
             }
         }
+        .padding(.vertical, KairoSpacing.small)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(share.displayLabel), \(share.state.title), \(expiryText), \(share.permissions.conciseSummary)")
+        .accessibilityLabel("\(share.displayLabel), \(PassportShareHierarchy.modeTitle(share.sharingMode)), \(share.state.title), created \(share.createdAt.formatted(date: .abbreviated, time: .omitted)), \(expiryText), \(share.permissions.conciseSummary)")
     }
 
     private var expiryText: String {
@@ -393,16 +405,6 @@ struct PassportShareCreateView: View {
 
     private var creationContent: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoSection {
-                Text("Choose what to share")
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(KairoColors.textPrimary)
-                Text("Verified only includes eligible records verified by the backend. Sharing never makes a candidate-provided record verified. Owner attribution is not verified identity; private email and phone are excluded.")
-                    .font(KairoTypography.body)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             if let capabilities = model.capabilities {
                 PassportShareMutationForm(draft: $model.draft, capabilities: capabilities)
             } else {
@@ -419,17 +421,18 @@ struct PassportShareCreateView: View {
             }
 
             KairoSection {
-                Text("Before creating")
+                Text(PassportShareHierarchy.stages[3])
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text(model.draft.permissions.conciseSummary)
-                    .font(KairoTypography.bodyStrong)
-                    .foregroundStyle(KairoColors.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                PassportShareReview(draft: model.draft)
                 Text("Aggregate view tracking is enabled for this link. Only backend-reported views appear in Share Activity; creating or copying a link does not imply a recipient view.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("passport.share.review")
 
             KairoPrimaryButton(
                 title: model.isSubmitting ? "Creating share…" : "Create share",
@@ -450,16 +453,21 @@ struct PassportShareCreateView: View {
     private func successContent(_ creation: PassportShareCreation) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             KairoSection {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundStyle(KairoColors.success)
+                Text(PassportShareHierarchy.stages[4])
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
                 Text("Passport share ready")
                     .font(KairoTypography.title2)
                     .foregroundStyle(KairoColors.textPrimary)
+                Text(creation.share.displayLabel)
+                    .font(KairoTypography.bodyStrong)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(PassportShareHierarchy.modeTitle(creation.share.sharingMode))
+                    .font(KairoTypography.footnote)
                 Text(expiryText(creation.share))
                     .font(KairoTypography.bodyStrong)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text(creation.share.permissions.conciseSummary)
+                Text(creation.share.permissions.enabledOptions.map(\.title).joined(separator: ", "))
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                 Text("The public URL is returned only once. Copy or share it now; KairoID does not reconstruct it from share history.")
@@ -522,7 +530,7 @@ struct PassportShareCreateView: View {
             }
 
             KairoPrimaryButton(
-                title: "Manage share",
+                title: "Done",
                 accessibilityIdentifier: KairoAccessibilityID.passportShareManage,
                 action: { dismiss() }
             )
@@ -548,23 +556,34 @@ private struct PassportShareMutationForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             KairoSection {
+                Text(draft.originalShare == nil ? PassportShareHierarchy.stages[0] : "Sharing policy")
+                    .font(KairoTypography.headline)
+                    .accessibilityAddTraits(.isHeader)
                 Text(draft.sharingMode.title).font(KairoTypography.headline)
+                    .accessibilityIdentifier("passport.share.selectedMode")
                 if draft.originalShare != nil {
                     Text("Existing links can only be narrowed. To share more information, create a new link. The existing policy will not be converted.")
                         .font(KairoTypography.footnote)
                 } else if let capabilities {
-                    Toggle("Include candidate-provided records (explicit opt-in)", isOn: Binding(
+                    Text("Verified only is the default: only eligible verified records. Owner attribution is not verified identity; private email and phone are excluded.")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    Toggle("Verified + Candidate-provided", isOn: Binding(
                         get: { draft.sharingMode == .mixed },
                         set: { draft.selectMode($0 ? .mixed : .verifiedOnly, capabilities: capabilities) }
                     ))
                     .disabled(!capabilities.modes.contains(PassportSharingMode.mixed.rawValue))
                     .accessibilityIdentifier("passport.share.mixedOptIn")
-                    Text("Changing mode clears optional disclosures. Candidate-provided content stays labelled as such.")
+                    .frame(minHeight: 44)
+                    .accessibilityHint("Explicit opt-in. Off selects Verified only; on includes only the Candidate-provided sections you choose.")
+                    Text("Explicit opt-in includes selected information you supplied, labelled Candidate-provided. Changing mode clears optional disclosures; sharing never verifies a record.")
                         .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
                 }
             }
+            permissionGroup(title: draft.originalShare == nil ? PassportShareHierarchy.stages[1] : "Narrow shared content", options: options)
             KairoSection {
-                KairoSectionHeading(title: "Purpose")
+                KairoSectionHeading(title: draft.originalShare == nil ? PassportShareHierarchy.stages[2] : "Purpose & expiry")
                 KairoTextField(
                     title: "Purpose (required)",
                     prompt: "Recruiter link",
@@ -572,7 +591,7 @@ private struct PassportShareMutationForm: View {
                     errorMessage: draft.purposeValidationMessage,
                     accessibilityIdentifier: KairoAccessibilityID.passportShareLabel
                 )
-                Text("A private management label. The backend also includes it in public share metadata, so avoid sensitive notes.")
+                Text("Shown in your share history and public share metadata. Avoid sensitive notes.")
                     .font(KairoTypography.caption)
                     .foregroundStyle(KairoColors.textSecondary)
             }
@@ -605,7 +624,6 @@ private struct PassportShareMutationForm: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            permissionGroup(title: "Shared sections and details", options: options)
         }
     }
 
@@ -636,6 +654,7 @@ private struct PassportShareMutationForm: View {
                     }
                 }
                 .accessibilityIdentifier(KairoAccessibilityID.passportSharePermission(option.rawValue))
+                .frame(minHeight: 44)
             }
         }
     }

@@ -186,6 +186,9 @@ nonisolated enum PassportOverviewPhase: Equatable, Sendable {
 
 nonisolated enum PassportOverviewSection: String, CaseIterable, Equatable, Sendable {
     case trustScore
+    case share
+    case verifiedSummary
+    case candidateProvidedSummary
     case passportStrength
     case identity
     case employment
@@ -271,13 +274,16 @@ nonisolated struct PassportOverviewContent: Equatable, Sendable {
     var visibleSections: [PassportOverviewSection] {
         [
             .trustScore,
-            .passportStrength,
-            .identity,
+            .share,
+            .verifiedSummary,
+            .candidateProvidedSummary,
             .employment,
             .education,
             .certifications,
-            .projects,
             .skills,
+            .projects,
+            .passportStrength,
+            .identity,
             .trustTimeline,
             .actions
         ]
