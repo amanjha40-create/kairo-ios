@@ -99,9 +99,17 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     private let scenario: UITestResumeImportConfiguration.ServiceScenario
     private var imported = false
     private var retried = false
+    private var deletedIDs: Set<String> = []
+    private(set) var deleteCalls: [String] = []
+    private let deleteMode: String
+    private let singleResume: Bool
 
-    init(scenario: UITestResumeImportConfiguration.ServiceScenario) {
+    init(scenario: UITestResumeImportConfiguration.ServiceScenario,
+         deleteMode: String = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_MODE"] ?? "success",
+         singleResume: Bool = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_SINGLE"] == "1") {
         self.scenario = scenario
+        self.deleteMode = deleteMode
+        self.singleResume = singleResume
     }
 
     nonisolated func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
@@ -132,10 +140,21 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot {
+        if deleteMode == "unavailable", !deleteCalls.isEmpty { throw NetworkError.transport("Synthetic unavailable") }
         guard let entry = managementEntries.first(where: { $0.resume.id == resumeID }) else {
-            throw NetworkError.invalidResponse
+            throw NetworkError.api(APIError.decode(from: Data(), statusCode: 404)!)
         }
         return entry
+    }
+
+    func deleteResume(resumeID: String) async throws {
+        guard scenario == .managementHistory else { throw NetworkError.unavailableInDemoMode }
+        deleteCalls.append(resumeID)
+        try await Task.sleep(for: .seconds(deleteMode == "slow" ? 4 : 1))
+        if deleteMode == "unavailable" { throw NetworkError.transport("Synthetic unavailable") }
+        if deleteMode == "failure" { throw NetworkError.transport("Synthetic failure, not for display") }
+        deletedIDs.insert(resumeID)
+        if deleteMode == "ambiguous" { throw NetworkError.transport("Synthetic timeout, not for display") }
     }
 
     func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord {
@@ -232,7 +251,7 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
                 processingStatus: status, createdAt: Date(timeIntervalSince1970: id == "current" ? 1_788_530_480 : 1_780_530_480),
                 updatedAt: Date(timeIntervalSince1970: 1_788_530_480)), reviewSession: review,
                 importBatch: reviewStatus == .imported ? managementBatch(reviewID: "review-\(id)") : nil)
-        }
+        }.filter { !deletedIDs.contains($0.resume.id) && (!singleResume || $0.resume.id == "current") }
     }
 
     private func managementReview(resumeID: String, status: ResumeReviewStatus) -> ResumeReviewSession {

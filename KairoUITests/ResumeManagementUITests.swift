@@ -14,13 +14,36 @@ final class ResumeManagementUITests: XCTestCase {
             app.launchEnvironment = ["KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false"]
             app.launch()
             XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: 30))
+            for title in ["Home", "Career", "Verify", "Passport", "More"] {
+                let tab = app.tabBars.buttons[title]
+                tab.tap(); XCTAssertTrue(tab.isSelected)
+                XCTAssertTrue(app.descendants(matching: .any)
+                    .matching(identifier: "candidate.\(title.lowercased()).screen").firstMatch.waitForExistence(timeout: 20))
+                XCTAssertFalse(app.textFields["auth.login.email"].exists)
+            }
             app.tabBars.buttons["More"].tap()
+            let documents = app.buttons["documentVault"]
+            reveal(documents, app); documents.tap()
+            XCTAssertTrue(app.navigationBars["Documents"].waitForExistence(timeout: 20))
+            app.buttons["Done"].tap()
+            let settings = app.buttons["candidate.more.settings"]
+            reveal(settings, app); settings.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            app.navigationBars.buttons.firstMatch.tap()
         } else { app = launch(history: false) }
         openResume(app)
         let empty = app.staticTexts["No resumes yet"]
         let first = app.buttons["resume.management.entry.0"]
         let loaded = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in empty.exists || first.exists }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 30), .completed)
+        if live, first.exists {
+            let delete = app.buttons["resume.management.delete.0"]
+            reveal(delete, app); delete.tap()
+            let alert = app.alerts["Delete resume?"]
+            XCTAssertTrue(alert.waitForExistence(timeout: 5))
+            alert.buttons["Cancel"].tap() // Never confirm a live deletion.
+            XCTAssertTrue(first.exists)
+        }
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.buttons["candidate.more.resume"].waitForExistence(timeout: 10))
         XCUIDevice.shared.press(.home); app.activate()
@@ -105,12 +128,79 @@ final class ResumeManagementUITests: XCTestCase {
         XCTAssertTrue(app.buttons["resume.management.entry.0"].waitForExistence(timeout: 10))
     }
 
-    private func launch(history: Bool = true, large: Bool = false) -> XCUIApplication {
+    func testDeleteConfirmationCancelLongFilenameAndLargeText() {
+        let app = launch(large: true); openResume(app)
+        let delete = app.buttons["resume.management.delete.0"]
+        reveal(delete, app); XCTAssertGreaterThanOrEqual(delete.frame.height, 44); delete.tap()
+        let alert = app.alerts["Delete resume?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Imported Career records will not be deleted")).firstMatch.exists)
+        alert.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["resume.management.entry.0"].exists)
+        XCTAssertFalse(app.staticTexts["resume.delete.message"].exists)
+    }
+
+    func testDeleteExactPreviousWhileLoadingThenHistoryAndBackRemainIntact() {
+        let app = launch(deleteMode: "slow"); openResume(app)
+        confirmDelete(index: 1, app: app)
+        XCTAssertTrue(app.descendants(matching: .any)["resume.delete.progress"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["resume.management.upload"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Resume deleted. Imported Career records were not deleted."].waitForExistence(timeout: 12))
+        XCTAssertTrue(app.buttons["resume.management.entry.0"].label.contains("Synthetic_current_"))
+        XCTAssertTrue(app.buttons["resume.management.entry.1"].label.contains("Synthetic_failed_"))
+        XCTAssertFalse(app.buttons["resume.management.entry.2"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["candidate.more.resume"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+    }
+
+    func testDeleteLastResumeShowsCanonicalEmptyState() {
+        let app = launch(single: true); openResume(app); confirmDelete(index: 0, app: app)
+        XCTAssertTrue(app.staticTexts["No resumes yet"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["resume.management.upload"].isEnabled)
+        XCTAssertFalse(app.buttons["resume.management.entry.0"].exists)
+        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+    }
+
+    func testDeleteFailurePreservesHistoryWithoutRawError() {
+        let app = launch(deleteMode: "failure"); openResume(app); confirmDelete(index: 0, app: app)
+        XCTAssertTrue(app.staticTexts["Couldn't delete this resume. It is still available. Nothing was removed locally."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["resume.management.entry.0"].label.contains("Synthetic_current_"))
+        XCTAssertFalse(app.staticTexts["Synthetic failure, not for display"].exists)
+    }
+
+    func testAmbiguousDeleteUsesUnavailableMessageNotFabricatedSuccess() {
+        let app = launch(deleteMode: "ambiguous"); openResume(app); confirmDelete(index: 0, app: app)
+        XCTAssertTrue(app.staticTexts["This resume is no longer available. Your history has been refreshed."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["resume.management.entry.0"].label.contains("Synthetic_previous_"))
+        XCTAssertFalse(app.staticTexts["Resume deleted. Imported Career records were not deleted."].exists)
+    }
+
+    func testUnresolvedDeleteOffersReadOnlyStatusCheckAndDisablesAnotherDelete() {
+        let app = launch(deleteMode: "unavailable"); openResume(app); confirmDelete(index: 0, app: app)
+        let reconcile = app.buttons["resume.delete.reconcile"]
+        XCTAssertTrue(reconcile.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["resume.management.delete.0"].isEnabled)
+        reconcile.tap()
+        XCTAssertTrue(app.buttons["resume.management.entry.0"].exists)
+        XCTAssertFalse(app.buttons["resume.management.delete.0"].isEnabled)
+    }
+
+    private func confirmDelete(index: Int, app: XCUIApplication) {
+        let delete = app.buttons["resume.management.delete.\(index)"]
+        reveal(delete, app); delete.tap()
+        let alert = app.alerts["Delete resume?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Delete resume"].tap()
+    }
+
+    private func launch(history: Bool = true, large: Bool = false, deleteMode: String = "success", single: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", large ? "dark" : "light"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false", "KAIRO_UI_TEST_MORE_STATE": "populated",
+            "KAIRO_UI_TEST_RESUME_DELETE_MODE": deleteMode, "KAIRO_UI_TEST_RESUME_DELETE_SINGLE": single ? "1" : "0",
             "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": history ? "management_history" : "management_empty"]
         app.launch(); app.tabBars.buttons["More"].tap()
         return app

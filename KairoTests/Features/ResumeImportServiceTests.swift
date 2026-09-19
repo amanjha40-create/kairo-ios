@@ -3,6 +3,63 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportServiceTests: XCTestCase {
+    func test_deleteUsesExactSelectedIDAuthenticationAnd204WithoutJSONDecode() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "DELETE")
+            XCTAssertEqual(request.url?.path, "/api/v1/resumes/selected-previous")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
+            XCTAssertNil(request.httpBody)
+            return (try Self.response(for: request, statusCode: 204), Data())
+        }
+        try await service.deleteResume(resumeID: "selected-previous")
+        let requests = await MockURLProtocolStorage.shared.requests(); XCTAssertEqual(requests.count, 1)
+    }
+
+    func test_deleteRejectsUnexpectedSuccessStatus() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            (try Self.response(for: request, statusCode: 200), Data())
+        }
+        await XCTAssertThrowsErrorAsync(try await service.deleteResume(resumeID: "exact-id")) { error in
+            XCTAssertEqual(error as? NetworkError, .invalidResponse)
+        }
+    }
+
+    func test_delete401404AndServerFailureNeverReplayOrCallOtherEndpoints() async throws {
+        for status in [401, 404, 503] {
+            await MockURLProtocolStorage.shared.reset()
+            let service = try await makeService()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                XCTAssertEqual(request.httpMethod, "DELETE")
+                XCTAssertEqual(request.url?.path, "/api/v1/resumes/selected-previous")
+                return (try Self.response(for: request, statusCode: status), Data())
+            }
+            await XCTAssertThrowsErrorAsync(try await service.deleteResume(resumeID: "selected-previous")) { _ in }
+            let requests = await MockURLProtocolStorage.shared.requests(); XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func test_deleteTransportFailureDoesNotRetry() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { _ in throw URLError(.timedOut) }
+        await XCTAssertThrowsErrorAsync(try await service.deleteResume(resumeID: "exact-id")) { _ in }
+        let requests = await MockURLProtocolStorage.shared.requests(); XCTAssertEqual(requests.count, 1)
+    }
+
+    func test_deleteDuplicateInFlightRequestsAreRejected() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            try await Task.sleep(for: .milliseconds(200))
+            return (try Self.response(for: request, statusCode: 204), Data())
+        }
+        let first = Task { try await service.deleteResume(resumeID: "exact-id") }
+        try await Task.sleep(for: .milliseconds(30))
+        await XCTAssertThrowsErrorAsync(try await service.deleteResume(resumeID: "exact-id")) { _ in }
+        try await first.value
+        let requests = await MockURLProtocolStorage.shared.requests(); XCTAssertEqual(requests.count, 1)
+    }
+
     func test_abandonedSelectionCleanupRemovesOnlyPrivateCopy() async throws {
         let service = try await makeService()
         let original = try makeTemporaryResumeFile(named: "synthetic-cleanup.pdf", contents: Data("synthetic".utf8))

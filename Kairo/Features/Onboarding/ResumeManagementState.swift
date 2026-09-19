@@ -41,6 +41,10 @@ extension ResumeImportWorkflowSnapshot {
 }
 
 extension ResumeImportServiceProtocol {
+    func deleteResume(resumeID: String) async throws {
+        throw NetworkError.unavailableInDemoMode
+    }
+
     // Non-live implementations must explicitly provide history. Never manufacture backend history.
     func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage {
         throw NetworkError.unavailableInDemoMode

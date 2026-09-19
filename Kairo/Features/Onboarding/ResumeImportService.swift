@@ -8,6 +8,7 @@ protocol ResumeImportServiceProtocol: Sendable {
     func restoreLatestWorkflow() async throws -> ResumeImportWorkflowSnapshot?
     func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage
     func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot
+    func deleteResume(resumeID: String) async throws
     func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord
     func startProcessing(resumeID: String) async throws -> ResumeProcessJob
     func processingStatus(resumeID: String) async throws -> ResumeProcessJob
@@ -104,6 +105,7 @@ actor ResumeImportService: ResumeImportServiceProtocol {
     private let decoder = APIJSONCoder.makeDecoder()
     private let encoder = APIJSONCoder.makeEncoder()
     private let storageSession: URLSession
+    private var deletingResumeIDs: Set<String> = []
 
     init(
         sessionService: any SessionServiceProtocol,
@@ -190,6 +192,17 @@ actor ResumeImportService: ResumeImportServiceProtocol {
             reviewSession: reviewSession,
             importBatch: importBatch
         )
+    }
+
+    func deleteResume(resumeID: String) async throws {
+        guard deletingResumeIDs.insert(resumeID).inserted else { throw NetworkError.invalidResponse }
+        defer { deletingResumeIDs.remove(resumeID) }
+        // Never replay a destructive request. Read-only reconciliation can use normal session refresh.
+        let response = try await sessionService.sendAuthenticatedResponse(NetworkRequest(
+            path: "/resumes/\(resumeID)", method: .delete,
+            allowsSessionRefreshOnUnauthorized: false
+        ))
+        guard response.statusCode == 204 else { throw NetworkError.invalidResponse }
     }
 
     // History and explicit selection never create a review or complete onboarding.

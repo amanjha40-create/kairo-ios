@@ -15,6 +15,8 @@ struct ResumeManagementScreenView: View {
     @State private var loading = false
     @State private var loaded = false
     @State private var errorMessage: String?
+    @StateObject private var deletion = ResumeDeletionState()
+    @State private var isDeleteConfirmationPresented = false
 
     @State private var destination: ResumeManagementDestination?
 
@@ -28,7 +30,18 @@ struct ResumeManagementScreenView: View {
                 KairoPrimaryButton(title: "Import resume", accessibilityIdentifier: "resume.management.upload") {
                     destination = .upload
                 }
+                .disabled(deletion.isDeleting || deletion.needsReconciliation)
                 if loading && !loaded { ProgressView("Loading resumes").accessibilityIdentifier("resume.management.loading") }
+                if deletion.isDeleting { ProgressView("Updating resume history").accessibilityIdentifier("resume.delete.progress") }
+                if let message = deletion.message {
+                    Text(message).font(KairoTypography.footnote).accessibilityIdentifier("resume.delete.message")
+                }
+                if deletion.needsReconciliation {
+                    Button("Check deletion status") {
+                        Task { if let page = await deletion.reconcile(using: service) { apply(page) } }
+                    }.frame(minHeight: 44).disabled(deletion.isDeleting)
+                        .accessibilityIdentifier("resume.delete.reconcile")
+                }
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(KairoColors.textSecondary)
                     Button("Retry loading resumes") { Task { await load(reset: true) } }
@@ -41,6 +54,7 @@ struct ResumeManagementScreenView: View {
                     }.accessibilityIdentifier("resume.management.empty")
                 }
                 ForEach(Array(entries.enumerated()), id: \.element.resume.id) { index, entry in
+                    VStack(alignment: .leading, spacing: KairoSpacing.small) {
                     Button { destination = .existing(entry.resume.id) } label: {
                         KairoSection {
                             VStack(alignment: .leading, spacing: KairoSpacing.small) {
@@ -58,6 +72,18 @@ struct ResumeManagementScreenView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("resume.management.entry.\(index)")
                     .accessibilityHint("Open this resume's status and available review actions")
+                    Button(role: .destructive) {
+                        deletion.requestConfirmation(ResumeDeletionTarget(id: entry.resume.id, filename: entry.resume.originalFilename))
+                        isDeleteConfirmationPresented = deletion.confirmation != nil
+                    } label: {
+                        Label("Delete resume", systemImage: "trash")
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityIdentifier("resume.management.delete.\(index)")
+                    .accessibilityHint("Asks for confirmation. Imported Career records are kept.")
+                    }
+                    .disabled(loading || deletion.isDeleting || deletion.needsReconciliation)
                 }
                 if hasMore {
                     Button("Load more resumes") { Task { await load(reset: false) } }
@@ -70,6 +96,15 @@ struct ResumeManagementScreenView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .accessibilityIdentifier("resume.management.screen")
+        .alert("Delete resume?", isPresented: $isDeleteConfirmationPresented, presenting: deletion.confirmation) { _ in
+            Button("Cancel", role: .cancel) { deletion.cancel() }
+            Button("Delete resume", role: .destructive) {
+                guard let target = deletion.beginDeletion() else { return }
+                Task { if let page = await deletion.performDeletion(target, using: service) { apply(page) } }
+            }
+        } message: { target in
+            Text("\(target.filename)\n\nThis removes the uploaded resume from KairoID. Imported Career records will not be deleted.")
+        }
         .navigationDestination(item: $destination) { target in
             ResumeManagementWorkflowView(resumeID: {
                 if case .existing(let id) = target { return id }; return nil
@@ -86,7 +121,7 @@ struct ResumeManagementScreenView: View {
     }
 
     private func load(reset: Bool) async {
-        guard !loading else { return }
+        guard !loading, !deletion.isDeleting else { return }
         loading = true
         defer { loading = false }
         do {
@@ -105,6 +140,14 @@ struct ResumeManagementScreenView: View {
             guard !Task.isCancelled else { return }
             errorMessage = "Couldn't load your resumes. Please try again."
         }
+    }
+
+    private func apply(_ page: ResumeHistoryPage) {
+        entries = page.entries
+        nextOffset = page.nextOffset
+        hasMore = page.hasMore
+        loaded = true
+        errorMessage = nil
     }
 }
 
