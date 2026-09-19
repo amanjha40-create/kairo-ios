@@ -154,7 +154,7 @@ final class VisualParityUITests: XCTestCase {
     func testMoreSettingsDocumentsAndNotifications() {
         let app = launch()
         app.tabBars.buttons["More"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["candidate.more.account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.more.accountSummary"].waitForExistence(timeout: 10))
         capture("More")
         let documents = app.buttons["documentVault"]
         reveal(documents, app: app)
@@ -162,8 +162,10 @@ final class VisualParityUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Documents"].waitForExistence(timeout: 10))
         capture("Documents")
         app.buttons["Done"].tap()
-        let settings = app.staticTexts["candidate.more.preferences"]
+        let settings = app.buttons["candidate.more.settings"]
         reveal(settings, app: app)
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         capture("Settings")
         app.tabBars.buttons["Home"].tap()
         app.buttons["candidate.home.notifications"].tap()
@@ -174,6 +176,8 @@ final class VisualParityUITests: XCTestCase {
     func testDarkModeAndLargeText() {
         let app = launch(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         app.tabBars.buttons["More"].tap()
+        let settings = app.buttons["candidate.more.settings"]
+        reveal(settings, app: app); settings.tap()
         let dark = app.buttons["candidate.more.appearance.dark"]
         reveal(dark, app: app)
         dark.tap()

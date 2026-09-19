@@ -21,6 +21,7 @@ struct MoreOverviewScreenView: View {
     @State private var actionStatusMessage: String?
     @State private var mutatingNotificationIDs: Set<String> = []
     @State private var isSigningOut = false
+    @State private var navigationPath: [MoreHubDestination] = []
 
     init(
         state: Binding<MoreOverviewState>,
@@ -35,19 +36,26 @@ struct MoreOverviewScreenView: View {
     }
 
     var body: some View {
-        KairoScreenContainer(
-            title: "More",
-            subtitle: "Account, preferences, and support.",
-            titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
-        ) {
-            accountSummaryCard
-            if let actionStatusMessage {
-                successCard(message: actionStatusMessage)
+        NavigationStack(path: $navigationPath) {
+            KairoScreenContainer(
+                title: "More",
+                subtitle: "Account, preferences, and support.",
+                titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
+            ) {
+                accountSummaryCard
+                if let actionStatusMessage {
+                    successCard(message: actionStatusMessage)
+                }
+                phaseContent
             }
-            phaseContent
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(KairoAccessibilityID.moreScreen)
+            .navigationTitle("More")
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: MoreHubDestination.self) { destination in
+                destinationView(destination)
+            }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.moreScreen)
         .sheet(item: $presentedModal) { modal in
             modalView(for: modal)
         }
@@ -71,30 +79,29 @@ struct MoreOverviewScreenView: View {
 
     private var accountSummaryCard: some View {
         KairoSection {
-            HStack(alignment: .top, spacing: KairoSpacing.small) {
-                profilePlaceholder
-                accountCopy
-            }
-            ViewThatFits(in: .horizontal) {
-                HStack {
-                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
-                    Spacer(minLength: KairoSpacing.small)
-                    viewProfileAction
+            Button { presentedModal = .profile } label: {
+                HStack(alignment: .top, spacing: KairoSpacing.small) {
+                    profilePlaceholder
+                    accountCopy
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .accessibilityHidden(true)
                 }
-                VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                    MoreStatusBadge(title: state.accountSummary.trustPassportStatus)
-                    viewProfileAction
-                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(!hasAccountContent)
+            .accessibilityIdentifier(KairoAccessibilityID.moreViewProfile)
+            .accessibilityHint("Open personal information")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.moreAccountSummary)
     }
 
-    private var viewProfileAction: some View {
-        Button("View profile") { router.selectTab(.passport) }
-            .buttonStyle(KairoActionStyle())
-            .accessibilityIdentifier(KairoAccessibilityID.moreViewProfile)
+    private var hasAccountContent: Bool {
+        if case .populated = state.phase { return true }
+        return false
     }
 
     private var profilePlaceholder: some View {
@@ -127,9 +134,12 @@ struct MoreOverviewScreenView: View {
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Trust Passport")
-                .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
+            if case .populated(let content) = state.phase {
+                Text(MoreSettingsHierarchy.contactState(content.user))
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -156,52 +166,87 @@ struct MoreOverviewScreenView: View {
     private func populatedContent(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
             buttonSection(
-                title: MoreOverviewSection.account.title,
-                sectionAccessibilityIdentifier: KairoAccessibilityID.moreAccountSection,
-                rows: content.accountRows.filter { $0.id != "documentVault" },
+                title: "Documents & activity",
+                sectionAccessibilityIdentifier: "candidate.more.destinations",
+                rows: content.accountRows.filter { $0.id == "documentVault" },
                 action: handleAccountRow
             )
-            VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                KairoSectionHeading(title: "Activity & documents")
-                KairoSection {
-                    MoreNavigationRow(
-                        item: MoreRowItem(id: "notifications", title: "Notifications", subtitle: "Your latest account and verification updates.", systemImage: "bell"),
-                        action: { router.showNotificationCenter() }
-                    )
-                    ForEach(content.accountRows.filter { $0.id == "documentVault" }) { row in
-                        Divider()
-                        MoreNavigationRow(item: row, accessibilityIdentifier: accessibilityIdentifier(for: row), action: { handleAccountRow(row) })
-                    }
-                }
+            KairoSection {
+                MoreNavigationRow(
+                    item: MoreRowItem(id: "notifications", title: "Notifications", subtitle: "Verification and account updates", systemImage: "bell"),
+                    action: { router.showNotificationCenter() }
+                )
             }
+            KairoSection { hubRow(.settings) }
+            KairoSection { hubRow(.support) }
+            KairoSection { hubRow(.legal) }
+            signOutSection
+        }
+    }
+
+    private func hubRow(_ destination: MoreHubDestination) -> some View {
+        MoreNavigationRow(item: destination.row) { navigationPath.append(destination) }
+    }
+
+    @ViewBuilder
+    private func destinationView(_ destination: MoreHubDestination) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                if let actionStatusMessage { successCard(message: actionStatusMessage) }
+                if case .populated(let content) = state.phase {
+                    switch destination {
+                    case .settings: settingsContent(content)
+                    case .support:
+                        buttonSection(title: "Support", sectionAccessibilityIdentifier: KairoAccessibilityID.moreHelpSupportSection,
+                                      rows: content.supportRows, action: handleSupportRow)
+                    case .legal: aboutSection(content)
+                    }
+                } else { phaseContent }
+            }
+            .padding(KairoSpacing.medium)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(KairoColors.background.ignoresSafeArea())
+        .navigationTitle(destination.row.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .accessibilityIdentifier("candidate.more.\(destination.rawValue).screen")
+    }
+
+    private func settingsContent(_ content: MoreOverviewContent) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.large) {
+            buttonSection(title: "Account", sectionAccessibilityIdentifier: KairoAccessibilityID.moreAccountSection,
+                          rows: MoreSettingsHierarchy.accountRows(content), action: handleAccountRow)
+            buttonSection(title: "Security", sectionAccessibilityIdentifier: "candidate.more.security",
+                          rows: MoreSettingsHierarchy.securityRows(content), action: handleAccountRow)
             preferencesSection(content)
             buttonSection(
-                title: MoreOverviewSection.privacyData.title,
+                title: "Data & privacy",
                 sectionAccessibilityIdentifier: KairoAccessibilityID.morePrivacyDataSection,
-                rows: content.privacyRows.filter { $0.id != "deleteAccount" },
+                rows: MoreSettingsHierarchy.privacyRows(content),
                 action: handlePrivacyRow
             )
-            buttonSection(
-                title: MoreOverviewSection.helpSupport.title,
-                sectionAccessibilityIdentifier: KairoAccessibilityID.moreHelpSupportSection,
-                rows: content.supportRows,
-                action: handleSupportRow
-            )
-            aboutSection(content)
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                MoreSectionTitle(title: "Support", accessibilityIdentifier: "settings.support")
+                KairoSection { hubRow(.support) }
+            }
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                MoreSectionTitle(title: "Legal", accessibilityIdentifier: "settings.legal")
+                KairoSection { hubRow(.legal) }
+            }
             buttonSection(
                 title: "Danger Zone",
                 sectionAccessibilityIdentifier: "candidate.more.dangerZone",
-                rows: content.privacyRows.filter { $0.id == "deleteAccount" },
+                rows: MoreSettingsHierarchy.destructiveRows(content),
                 action: handlePrivacyRow
             )
-            signOutSection
         }
     }
 
     private func preferencesSection(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(
-                title: "Settings",
+                title: "Preferences",
                 accessibilityIdentifier: KairoAccessibilityID.morePreferencesSection
             )
 
@@ -250,7 +295,7 @@ struct MoreOverviewScreenView: View {
 
                 MorePreferenceGroup(title: "Appearance", systemImage: "circle.lefthalf.filled") {
                     VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                        Text("Appearance remains a local preference on this device.")
+                        Text("Appearance on this device")
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -275,7 +320,7 @@ struct MoreOverviewScreenView: View {
 
                 MoreStaticRow(
                     title: "Language",
-                    subtitle: "English is the only available language in this milestone.",
+                    subtitle: "Current app language",
                     value: state.preferences.language,
                     systemImage: "globe"
                 )
@@ -369,7 +414,7 @@ struct MoreOverviewScreenView: View {
     private func aboutSection(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(
-                title: MoreOverviewSection.about.title,
+                title: "Legal & about",
                 accessibilityIdentifier: KairoAccessibilityID.moreAboutSection
             )
 
@@ -411,45 +456,17 @@ struct MoreOverviewScreenView: View {
 
     private var signOutSection: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            MoreSectionTitle(title: "Session", accessibilityIdentifier: "candidate.more.session")
             KairoSection {
-                Text("Sign out")
-                    .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.textPrimary)
-
-                Text(
-                    isLiveMode
-                        ? "Securely sign out of KairoID on this device. KairoID will revoke the stored refresh session when the backend accepts the logout request."
-                        : "Return to the local sign-in preview without contacting the backend."
-                )
-                .font(KairoTypography.body)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-                Button {
+                MoreNavigationRow(item: MoreRowItem(
+                    id: KairoAccessibilityID.moreSignOut,
+                    title: "Sign Out",
+                    subtitle: "End this session on this device",
+                    systemImage: "rectangle.portrait.and.arrow.right"
+                ), isDestructive: true) {
                     presentedModal = .confirmation(.signOut)
-                } label: {
-                    HStack(spacing: KairoSpacing.small) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Sign Out")
-                            .font(KairoTypography.headline)
-                        Spacer(minLength: KairoSpacing.small)
-                    }
-                    .foregroundStyle(KairoColors.danger)
-                    .padding(.horizontal, KairoSpacing.medium)
-                    .padding(.vertical, KairoSpacing.medium)
-                    .background(
-                        KairoColors.surfaceMuted,
-                        in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                            .stroke(KairoColors.border, lineWidth: 1)
-                    )
                 }
-                .buttonStyle(.plain)
                 .disabled(isSigningOut)
-                .accessibilityIdentifier(KairoAccessibilityID.moreSignOut)
             }
         }
     }
@@ -1025,31 +1042,32 @@ private struct MoreToggleLabel: View {
 private struct MoreNavigationRow: View {
     let item: MoreRowItem
     var accessibilityIdentifier: String? = nil
+    var isDestructive = false
     let action: () -> Void
 
+    private var destructive: Bool { isDestructive || item.id == "deleteAccount" }
+
     var body: some View {
-        Button(action: action) {
+        Button(role: destructive ? .destructive : nil, action: action) {
             HStack(alignment: .center, spacing: KairoSpacing.small) {
                 Image(systemName: item.systemImage)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(KairoColors.brandPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        KairoColors.surfaceMuted,
-                        in: RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                    )
+                    .foregroundStyle(destructive ? KairoColors.danger : KairoColors.textSecondary)
+                    .frame(width: 24)
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(item.title)
-                        .font(KairoTypography.recordTitle)
-                        .foregroundStyle(KairoColors.textPrimary)
+                        .font(KairoTypography.bodyStrong)
+                        .foregroundStyle(destructive ? KairoColors.danger : KairoColors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(item.subtitle)
-                        .font(KairoTypography.footnote)
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if !item.subtitle.isEmpty {
+                        Text(item.subtitle)
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 Spacer(minLength: KairoSpacing.small)
@@ -1060,11 +1078,12 @@ private struct MoreNavigationRow: View {
                     .accessibilityHidden(true)
             }
             .padding(.vertical, KairoSpacing.xxSmall)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier ?? item.id)
+        .accessibilityHint(destructive ? "Opens confirmation. No action is taken yet." : "")
     }
 }
 
@@ -1923,7 +1942,7 @@ private struct MoreInformationSheetView: View {
     }
 }
 
-private struct MoreDeleteAccountSheetView: View {
+struct MoreDeleteAccountSheetView: View {
     let onDelete: (_ confirm: String, _ currentPassword: String?) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss

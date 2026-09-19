@@ -169,6 +169,8 @@ final class PassportHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Passport"].waitForExistence(timeout: 10))
         if large {
             app.tabBars.buttons["More"].tap()
+            let settings = app.buttons["candidate.more.settings"]
+            reveal(settings, app); settings.tap()
             let dark = app.buttons["candidate.more.appearance.dark"]
             reveal(dark, app); dark.tap()
         }

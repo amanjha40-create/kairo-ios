@@ -910,6 +910,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePreferencesSection], in: app))
         let darkAppearance = app.buttons[moreAppearanceDarkButton]
         let deadline = Date().addingTimeInterval(10)
@@ -959,12 +960,13 @@ final class KairoUITests: XCTestCase {
 
         openMoreTab(in: app)
         XCTAssertTrue(moreScreenElement(in: app).waitForExistence(timeout: 10))
+        openMoreDestination("settings", in: app)
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePreferencesSection], in: app))
         XCTAssertTrue(app.buttons[moreAppearanceSystemButton].exists)
     }
 
     @MainActor
-    func testMoreViewProfileRoutesToPassportTab() throws {
+    func testMoreViewProfileOpensCanonicalPersonalInformation() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
@@ -972,7 +974,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[moreViewProfileButton].waitForExistence(timeout: 10))
         app.buttons[moreViewProfileButton].tap()
 
-        XCTAssertTrue(passportScreenElement(in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -980,6 +982,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
 
         XCTAssertTrue(app.staticTexts[moreAccountSection].exists)
         app.buttons["personalInformation"].tap()
@@ -998,6 +1001,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
 
         let productUpdatesToggle = app.switches[moreNotificationsProductUpdates]
         XCTAssertTrue(waitForElementAfterScrolling(productUpdatesToggle, in: app))
@@ -1013,6 +1017,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
 
         let darkAppearanceButton = app.buttons[moreAppearanceDarkButton]
         XCTAssertTrue(waitForElementAfterScrolling(darkAppearanceButton, in: app))
@@ -1028,6 +1033,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: environment)
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
         let lightAppearanceButton = app.buttons[moreAppearanceLightButton]
         XCTAssertTrue(waitForElementAfterScrolling(lightAppearanceButton, in: app))
         lightAppearanceButton.tap()
@@ -1037,6 +1043,7 @@ final class KairoUITests: XCTestCase {
 
         let relaunchedApp = launchApp(environment: environment)
         openMoreTab(in: relaunchedApp)
+        openMoreDestination("settings", in: relaunchedApp)
         let restoredLightAppearanceButton = relaunchedApp.buttons[moreAppearanceLightButton]
         XCTAssertTrue(waitForElementAfterScrolling(restoredLightAppearanceButton, in: relaunchedApp))
         XCTAssertEqual(restoredLightAppearanceButton.value as? String, "Selected")
@@ -1047,6 +1054,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
 
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[morePrivacyDataSection], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts["Manage consent"], in: app))
@@ -1059,6 +1067,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
 
         let deleteButton = app.buttons[moreDeleteAccountButton]
         XCTAssertTrue(waitForElementAfterScrolling(deleteButton, in: app))
@@ -1078,6 +1087,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("support", in: app)
 
         let contactSupport = app.buttons[moreContactSupportButton]
         XCTAssertTrue(waitForElementAfterScrolling(contactSupport, in: app))
@@ -1092,9 +1102,13 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("support", in: app)
 
         let helpCentreButton = app.buttons[moreHelpCentreButton]
         XCTAssertTrue(waitForElementAfterScrolling(helpCentreButton, in: app))
+
+        app.navigationBars.buttons.firstMatch.tap()
+        openMoreDestination("legal", in: app)
 
         let termsButton = app.buttons[moreTermsOfServiceButton]
         XCTAssertTrue(waitForElementAfterScrolling(termsButton, in: app))
@@ -1979,6 +1993,13 @@ final class KairoUITests: XCTestCase {
         }
 
         XCTAssertTrue(verifyScreen.waitForExistence(timeout: 1))
+    }
+
+    @MainActor
+    private func openMoreDestination(_ destination: String, in app: XCUIApplication) {
+        let button = app.buttons["candidate.more.\(destination)"]
+        XCTAssertTrue(waitForElementAfterScrolling(button, in: app))
+        button.tap()
     }
 
     @MainActor
