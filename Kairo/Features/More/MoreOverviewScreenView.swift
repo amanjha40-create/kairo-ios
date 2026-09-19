@@ -177,6 +177,7 @@ struct MoreOverviewScreenView: View {
                     action: { router.showNotificationCenter() }
                 )
             }
+            KairoSection { hubRow(.resume) }
             KairoSection { hubRow(.settings) }
             KairoSection { hubRow(.support) }
             KairoSection { hubRow(.legal) }
@@ -190,11 +191,15 @@ struct MoreOverviewScreenView: View {
 
     @ViewBuilder
     private func destinationView(_ destination: MoreHubDestination) -> some View {
+        if destination == .resume {
+            ResumeManagementScreenView()
+        } else {
         ScrollView {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
                 if let actionStatusMessage { successCard(message: actionStatusMessage) }
                 if case .populated(let content) = state.phase {
                     switch destination {
+                    case .resume: EmptyView()
                     case .settings: settingsContent(content)
                     case .support:
                         buttonSection(title: "Support", sectionAccessibilityIdentifier: KairoAccessibilityID.moreHelpSupportSection,
@@ -211,6 +216,7 @@ struct MoreOverviewScreenView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .accessibilityIdentifier("candidate.more.\(destination.rawValue).screen")
+        }
     }
 
     private func settingsContent(_ content: MoreOverviewContent) -> some View {

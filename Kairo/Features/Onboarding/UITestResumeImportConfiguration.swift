@@ -6,6 +6,8 @@ struct UITestResumeImportConfiguration {
         case demo
         case authoritativeRecovery = "authoritative_recovery"
         case missingAuthoritativeReview = "missing_authoritative_review"
+        case managementEmpty = "management_empty"
+        case managementHistory = "management_history"
     }
 
     enum EnvironmentKey {
@@ -95,6 +97,8 @@ struct UITestResumeImportConfiguration {
 
 actor UITestResumeImportService: ResumeImportServiceProtocol {
     private let scenario: UITestResumeImportConfiguration.ServiceScenario
+    private var imported = false
+    private var retried = false
 
     init(scenario: UITestResumeImportConfiguration.ServiceScenario) {
         self.scenario = scenario
@@ -117,9 +121,21 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         case .missingAuthoritativeReview:
             try await Task.sleep(for: .milliseconds(350))
             throw ResumeImportServiceError.reviewRecovery(.serverUnavailable)
-        case .disabled, .demo:
+        case .disabled, .demo, .managementEmpty, .managementHistory:
             return nil
         }
+    }
+
+    func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage {
+        let all = scenario == .managementHistory ? managementEntries : []
+        return ResumeHistoryPage(entries: Array(all.dropFirst(offset).prefix(limit)), total: all.count, offset: offset)
+    }
+
+    func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot {
+        guard let entry = managementEntries.first(where: { $0.resume.id == resumeID }) else {
+            throw NetworkError.invalidResponse
+        }
+        return entry
     }
 
     func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord {
@@ -128,21 +144,33 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func startProcessing(resumeID: String) async throws -> ResumeProcessJob {
+        if scenario == .managementHistory {
+            retried = true
+            try await Task.sleep(for: .milliseconds(500))
+            return ResumeProcessJob(resumeID: resumeID, jobID: "synthetic-job", status: .needsReview)
+        }
         _ = resumeID
         throw NetworkError.unavailableInDemoMode
     }
 
     func processingStatus(resumeID: String) async throws -> ResumeProcessJob {
+        if scenario == .managementHistory {
+            return ResumeProcessJob(resumeID: resumeID, jobID: "synthetic-job", status: retried ? .needsReview : .failed)
+        }
         _ = resumeID
         throw NetworkError.unavailableInDemoMode
     }
 
     func loadOrCreateReviewSession(resumeID: String) async throws -> ResumeReviewSession {
+        if scenario == .managementHistory { return managementReview(resumeID: resumeID, status: .reviewing) }
         _ = resumeID
         throw NetworkError.unavailableInDemoMode
     }
 
     func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
+        if scenario == .managementHistory {
+            return managementReview(resumeID: reviewID.replacingOccurrences(of: "review-", with: ""), status: imported ? .imported : .reviewing)
+        }
         _ = reviewID
         throw NetworkError.unavailableInDemoMode
     }
@@ -157,6 +185,9 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func validateReview(reviewID: String, expectedVersion: Int) async throws -> ResumeReviewPlan {
+        if scenario == .managementHistory {
+            return ResumeReviewPlan(sessionID: reviewID, ready: true, version: expectedVersion, items: [])
+        }
         _ = (reviewID, expectedVersion)
         throw NetworkError.unavailableInDemoMode
     }
@@ -166,11 +197,17 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         expectedVersion: Int,
         idempotencyKey: String
     ) async throws -> ResumeImportBatch {
+        if scenario == .managementHistory {
+            try await Task.sleep(for: .milliseconds(500))
+            imported = true
+            return managementBatch(reviewID: reviewID)
+        }
         _ = (reviewID, expectedVersion, idempotencyKey)
         throw NetworkError.unavailableInDemoMode
     }
 
     func latestImportStatus(reviewID: String) async throws -> ResumeImportBatch {
+        if scenario == .managementHistory { return managementBatch(reviewID: reviewID) }
         _ = reviewID
         throw NetworkError.unavailableInDemoMode
     }
@@ -181,7 +218,34 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func completeOnboardingIfNeeded() async throws -> ResumeImportCompletionResult {
+        // Authenticated management tests fail if they accidentally reach onboarding completion.
         throw NetworkError.unavailableInDemoMode
+    }
+
+    private var managementEntries: [ResumeImportWorkflowSnapshot] {
+        [("current", ResumeProcessingStatus.needsReview, imported ? ResumeReviewStatus.imported : .reviewing),
+         ("previous", .needsReview, .imported), ("failed", retried ? .needsReview : .failed, .reviewing)].map { id, status, reviewStatus in
+            let review = status == .needsReview ? managementReview(resumeID: id, status: reviewStatus) : nil
+            return ResumeImportWorkflowSnapshot(resume: ResumeRecord(id: id,
+                originalFilename: "Synthetic_\(id)_resume_with_a_deliberately_long_filename_for_accessibility.pdf",
+                contentType: "application/pdf", fileSizeBytes: 4096, uploadStatus: .uploaded,
+                processingStatus: status, createdAt: Date(timeIntervalSince1970: id == "current" ? 1_788_530_480 : 1_780_530_480),
+                updatedAt: Date(timeIntervalSince1970: 1_788_530_480)), reviewSession: review,
+                importBatch: reviewStatus == .imported ? managementBatch(reviewID: "review-\(id)") : nil)
+        }
+    }
+
+    private func managementReview(resumeID: String, status: ResumeReviewStatus) -> ResumeReviewSession {
+        let template = Self.authoritativeWorkflow.reviewSession!
+        return ResumeReviewSession(id: "review-\(resumeID)", resumeID: resumeID, parsedResultID: "synthetic-parsed-\(resumeID)",
+            status: status, schemaVersion: template.schemaVersion, version: 1, items: template.items,
+            createdAt: template.createdAt, updatedAt: template.updatedAt)
+    }
+
+    private func managementBatch(reviewID: String) -> ResumeImportBatch {
+        ResumeImportBatch(id: "synthetic-batch", reviewSessionID: reviewID, status: "completed", totalCount: 1,
+            importedCount: 1, linkedCount: 0, skippedCount: 0, failedCount: 0, blockedCount: 0, incompleteCount: 0,
+            entityCounts: [:], results: [], createdAt: .distantPast, updatedAt: .distantPast)
     }
 
     nonisolated private static let authoritativeWorkflow = ResumeImportWorkflowSnapshot(

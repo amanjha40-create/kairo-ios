@@ -6,6 +6,8 @@ protocol ResumeImportServiceProtocol: Sendable {
     func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection
     func cleanupSelection(at temporaryFileURL: URL)
     func restoreLatestWorkflow() async throws -> ResumeImportWorkflowSnapshot?
+    func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage
+    func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot
     func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord
     func startProcessing(resumeID: String) async throws -> ResumeProcessJob
     func processingStatus(resumeID: String) async throws -> ResumeProcessJob
@@ -190,6 +192,39 @@ actor ResumeImportService: ResumeImportServiceProtocol {
         )
     }
 
+    // History and explicit selection never create a review or complete onboarding.
+    func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage {
+        let page = try await loadResumes(offset: offset, limit: limit)
+        var entries: [ResumeImportWorkflowSnapshot] = []
+        for dto in page.items {
+            entries.append(try await readWorkflow(resume: ResumeImportMapper.map(dto)))
+        }
+        return ResumeHistoryPage(entries: entries, total: page.total, offset: page.offset)
+    }
+
+    func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot {
+        let dto = try await send(
+            NetworkRequest(path: "/resumes/\(resumeID)", headers: ["Accept": "application/json"]),
+            responseType: ResumeRecordDTO.self
+        )
+        return try await readWorkflow(resume: ResumeImportMapper.map(dto))
+    }
+
+    private func readWorkflow(resume: ResumeRecord) async throws -> ResumeImportWorkflowSnapshot {
+        var review: ResumeReviewSession?
+        if resume.processingStatus == .needsReview {
+            do {
+                review = try await reviewSessionByResume(resumeID: resume.id)
+            } catch let error as NetworkError {
+                guard case .api(let response) = error, response.statusCode == 404 else { throw error }
+            }
+        }
+        let batch: ResumeImportBatch?
+        if let review { batch = try await authoritativeImportBatch(for: review) }
+        else { batch = nil }
+        return ResumeImportWorkflowSnapshot(resume: resume, reviewSession: review, importBatch: batch)
+    }
+
     func upload(selection: ResumeImportPreparedSelection) async throws -> ResumeRecord {
         let intent = try await createUploadIntent(for: selection.file)
         try await uploadToStorage(
@@ -338,68 +373,13 @@ actor ResumeImportService: ResumeImportServiceProtocol {
     }
 
     func reconcileImportRecovery(reviewID: String) async throws -> ResumeImportRecoveryState {
-        let reviewSession = try await refreshReviewSession(reviewID: reviewID)
-        let importBatch = try await authoritativeImportBatch(for: reviewSession)
-
-        switch reviewSession.status {
-        case .imported:
-            let completionResult = try await completeOnboardingIfNeeded()
-            return ResumeImportRecoveryState(
-                reviewSession: reviewSession,
-                importBatch: importBatch,
-                completionResult: completionResult,
-                disposition: .importCompleted
-            )
-        case .partiallyImported:
-            return ResumeImportRecoveryState(
-                reviewSession: reviewSession,
-                importBatch: importBatch,
-                completionResult: nil,
-                disposition: .importPartiallyCompleted
-            )
-        case .importing:
-            guard let importBatch else {
-                return ResumeImportRecoveryState(
-                    reviewSession: reviewSession,
-                    importBatch: nil,
-                    completionResult: nil,
-                    disposition: .noImportToResume
-                )
-            }
-
-            if importBatch.isCompletedWithoutHardFailures {
-                let completionResult = try await completeOnboardingIfNeeded()
-                return ResumeImportRecoveryState(
-                    reviewSession: reviewSession,
-                    importBatch: importBatch,
-                    completionResult: completionResult,
-                    disposition: .importCompleted
-                )
-            }
-
-            if importBatch.isPartiallyCompleted {
-                return ResumeImportRecoveryState(
-                    reviewSession: reviewSession,
-                    importBatch: importBatch,
-                    completionResult: nil,
-                    disposition: .importPartiallyCompleted
-                )
-            }
-
-            return ResumeImportRecoveryState(
-                reviewSession: reviewSession,
-                importBatch: importBatch,
-                completionResult: nil,
-                disposition: .importInProgress
-            )
-        case .draft, .reviewing, .readyToImport, .cancelled, .failed, .unknown:
-            return ResumeImportRecoveryState(
-                reviewSession: reviewSession,
-                importBatch: importBatch,
-                completionResult: nil,
-                disposition: .noImportToResume
-            )
-        }
+        let recovery = try await reconcileImportRecovery(reviewID: reviewID, context: .authenticated)
+        let completion: ResumeImportCompletionResult?
+        if recovery.disposition == .importCompleted {
+            completion = try await completeOnboardingIfNeeded()
+        } else { completion = nil }
+        return ResumeImportRecoveryState(reviewSession: recovery.reviewSession, importBatch: recovery.importBatch,
+                                         completionResult: completion, disposition: recovery.disposition)
     }
 
     func completeOnboardingIfNeeded() async throws -> ResumeImportCompletionResult {
@@ -623,6 +603,9 @@ actor ResumeImportService: ResumeImportServiceProtocol {
 }
 
 actor DemoResumeImportService: ResumeImportServiceProtocol {
+    func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage {
+        ResumeHistoryPage(entries: [], total: 0, offset: 0)
+    }
     nonisolated func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
         let file = try ResumeImportFile.make(from: pickedURL)
         return ResumeImportPreparedSelection(file: file, temporaryFileURL: pickedURL)

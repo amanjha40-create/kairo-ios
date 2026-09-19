@@ -11,7 +11,7 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(profile.frame.height, 44)
         XCTAssertFalse(app.buttons["candidate.more.deleteAccount"].exists)
         XCTAssertFalse(app.switches["candidate.more.notifications.productUpdates"].exists)
-        let ids = ["documentVault", "notifications", "candidate.more.settings", "candidate.more.support", "candidate.more.legal", "candidate.more.signOut"]
+        let ids = ["documentVault", "notifications", "candidate.more.resume", "candidate.more.settings", "candidate.more.support", "candidate.more.legal", "candidate.more.signOut"]
         var previousY = profile.frame.minY
         for id in ids {
             let row = app.buttons[id]

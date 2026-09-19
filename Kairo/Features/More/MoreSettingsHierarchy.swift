@@ -2,10 +2,12 @@ import Foundation
 
 /// Presentation-only destinations. Account mutations remain in the canonical More handlers.
 enum MoreHubDestination: String, Hashable, CaseIterable {
-    case settings, support, legal
+    case resume, settings, support, legal
 
     var row: MoreRowItem {
         switch self {
+        case .resume:
+            MoreRowItem(id: "candidate.more.resume", title: "Resume", subtitle: "Import, review and manage your resume", systemImage: "doc.text.magnifyingglass")
         case .settings:
             MoreRowItem(id: "candidate.more.settings", title: "Settings", subtitle: "Account, security, and preferences", systemImage: "gearshape")
         case .support:

@@ -3,6 +3,110 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportServiceTests: XCTestCase {
+    func test_abandonedSelectionCleanupRemovesOnlyPrivateCopy() async throws {
+        let service = try await makeService()
+        let original = try makeTemporaryResumeFile(named: "synthetic-cleanup.pdf", contents: Data("synthetic".utf8))
+        let prepared = try service.prepareSelection(from: original)
+        XCTAssertNotEqual(prepared.temporaryFileURL, original)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: prepared.temporaryFileURL.path))
+        service.cleanupSelection(at: prepared.temporaryFileURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: prepared.temporaryFileURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+    }
+    func test_authenticatedHistoryIsReadOnlyAndUsesBackendPagination() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            if request.url?.path == "/api/v1/resumes" {
+                let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
+                XCTAssertEqual(query?.first(where: { $0.name == "offset" })?.value, "20")
+                XCTAssertEqual(query?.first(where: { $0.name == "limit" })?.value, "20")
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            }
+            XCTAssertEqual(request.url?.path, "/api/v1/resumes/resume_123/review-session")
+            return (try Self.response(for: request, statusCode: 200), Self.reviewSessionPayload)
+        }
+        let page = try await service.resumeHistory(offset: 20, limit: 20)
+        XCTAssertEqual(page.entries.first?.resume.id, "resume_123")
+        XCTAssertEqual(page.entries.first?.historyStatus, "Ready for review")
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func test_historyDoesNotCreateMissingReview() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            if request.url?.path == "/api/v1/resumes" {
+                return (try Self.response(for: request, statusCode: 200), Self.resumeListPayload)
+            }
+            return (try Self.response(for: request, statusCode: 404), Self.apiErrorPayload(code: "not_found", message: "Not found"))
+        }
+        let page = try await service.resumeHistory(offset: 0, limit: 20)
+        XCTAssertEqual(page.entries.count, 1)
+        XCTAssertNil(page.entries.first?.reviewSession)
+    }
+
+    func test_selectedPreviousResumeNeverRestoresLatestInstead() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/api/v1/resumes/previous_resume")
+            let payload = String(decoding: Self.completedResumePayload, as: UTF8.self)
+                .replacingOccurrences(of: "resume_123", with: "previous_resume")
+            return (try Self.response(for: request, statusCode: 200), Data(payload.utf8))
+        }
+        let selected = try await service.restoreWorkflow(resumeID: "previous_resume")
+        XCTAssertEqual(selected.resume.id, "previous_resume")
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func test_importedHistoryUsesAuthoritativeBatchWithoutOnboardingCalls() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let data: Data
+            switch request.url?.path {
+            case "/api/v1/resumes": data = Self.resumeListPayload
+            case "/api/v1/resumes/resume_123/review-session": data = Self.importedReviewSessionPayload
+            case "/api/v1/resume-reviews/review_123/import-status": data = Self.importBatchPayload
+            default: XCTFail("Unexpected history request"); throw URLError(.badURL)
+            }
+            return (try Self.response(for: request, statusCode: 200), data)
+        }
+        let page = try await service.resumeHistory(offset: 0, limit: 20)
+        XCTAssertEqual(page.entries.first?.historyStatus, "Imported")
+        XCTAssertEqual(page.entries.first?.isImported, true)
+    }
+
+    func test_authenticatedRecoveryNeverCompletesOnboardingOrChangesSession() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let data: Data
+            switch request.url?.path {
+            case "/api/v1/resume-reviews/review_123": data = Self.importedReviewSessionPayload
+            case "/api/v1/resume-reviews/review_123/import-status": data = Self.importBatchPayload
+            default: XCTFail("Authenticated recovery must not call auth, onboarding, Trust or verification"); throw URLError(.badURL)
+            }
+            return (try Self.response(for: request, statusCode: 200), data)
+        }
+        let recovery = try await service.reconcileImportRecovery(reviewID: "review_123", context: .authenticated)
+        XCTAssertEqual(recovery.disposition, .importCompleted)
+        XCTAssertNil(recovery.completionResult)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func test_historyFailureDoesNotInventEmptySuccess() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            (try Self.response(for: request, statusCode: 503), Self.apiErrorPayload(code: "internal_error", message: "Unavailable"))
+        }
+        await XCTAssertThrowsErrorAsync(try await service.resumeHistory(offset: 0, limit: 20)) { _ in }
+    }
+
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()

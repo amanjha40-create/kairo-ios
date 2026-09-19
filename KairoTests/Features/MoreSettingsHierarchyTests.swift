@@ -4,8 +4,8 @@ import XCTest
 @MainActor
 final class MoreSettingsHierarchyTests: XCTestCase {
     func testHubContainsOnlyRoutingDestinations() {
-        XCTAssertEqual(MoreHubDestination.allCases.map(\.rawValue), ["settings", "support", "legal"])
-        XCTAssertEqual(Set(MoreHubDestination.allCases.map { $0.row.id }).count, 3)
+        XCTAssertEqual(MoreHubDestination.allCases.map(\.rawValue), ["resume", "settings", "support", "legal"])
+        XCTAssertEqual(Set(MoreHubDestination.allCases.map { $0.row.id }).count, 4)
     }
 
     func testAccountAndSecurityPartitionExistingDestinations() {

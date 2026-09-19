@@ -5,15 +5,20 @@ struct ResumeImportScreenView: View {
     let createAccountDraft: CreateAccountDraft
     @Binding var state: ResumeImportState
     let onBuildProfileManually: () -> Void
+    var context: ResumePresentationContext = .onboarding
+    var onAuthenticatedCompletion: () -> Void = {}
 
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.resumeImportService) private var resumeImportService
 
     @State private var isFileImporterPresented = false
     @State private var activeEditorItem: ResumeReviewItem?
     @State private var editorValues: [String: String] = [:]
+    @State private var mutationInFlight = false
+    @State private var isVisible = false
 
     private var isPreviewMode: Bool {
         appConfiguration.isDemoModeEnabled || UITestResumeImportConfiguration.current().usesDemoReview
@@ -58,6 +63,7 @@ struct ResumeImportScreenView: View {
             }
         } actions: {
             actionContent
+                .disabled(mutationInFlight)
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -75,11 +81,16 @@ struct ResumeImportScreenView: View {
             .presentationDetents([.medium, .large])
         }
         .onAppear {
-            guard !isPreviewMode else {
+            isVisible = true
+            guard !isPreviewMode, context == .onboarding else {
                 return
             }
 
             state.prepareForEntryIntoLiveResumeImport()
+        }
+        .onDisappear {
+            isVisible = false
+            if !mutationInFlight { cleanupAbandonedAuthenticatedSelection() }
         }
         .task {
             await restoreLatestWorkflowIfNeeded()
@@ -151,7 +162,7 @@ struct ResumeImportScreenView: View {
                     .font(KairoTypography.bodyStrong)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                Text("Resume information stays candidate-provided and unverified until confirmed. No employer or institution is contacted automatically.")
+                Text("Imported resume information remains candidate-provided, not verified. No employer or institution is contacted automatically.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -359,7 +370,7 @@ struct ResumeImportScreenView: View {
                 primaryTitle: "Choose Resume",
                 primaryAccessibilityIdentifier: KairoAccessibilityID.resumeImportChooseButton,
                 primaryAction: { isFileImporterPresented = true },
-                secondaryTitle: "Build profile manually",
+                secondaryTitle: context == .onboarding ? "Build profile manually" : nil,
                 secondaryAccessibilityIdentifier: KairoAccessibilityID.resumeImportManualButton,
                 secondaryAction: onBuildProfileManually
             )
@@ -374,7 +385,7 @@ struct ResumeImportScreenView: View {
                         Task { await beginLiveUpload() }
                     }
                 },
-                secondaryTitle: "Build profile manually",
+                secondaryTitle: context == .onboarding ? "Build profile manually" : nil,
                 secondaryAccessibilityIdentifier: KairoAccessibilityID.resumeImportManualButton,
                 secondaryAction: onBuildProfileManually
             )
@@ -526,7 +537,7 @@ struct ResumeImportScreenView: View {
     }
 
     private func restoreLatestWorkflowIfNeeded() async {
-        guard !isPreviewMode, !state.restorationAttempted else {
+        guard context == .onboarding, !isPreviewMode, !state.restorationAttempted else {
             return
         }
 
@@ -679,6 +690,12 @@ struct ResumeImportScreenView: View {
     }
 
     private func beginLiveUpload() async {
+        guard !mutationInFlight, state.canPrepareResume else { return }
+        mutationInFlight = true
+        defer {
+            mutationInFlight = false
+            if !isVisible { cleanupAbandonedAuthenticatedSelection() }
+        }
         guard let selectedFile = state.selectedFile,
               let selectedTemporaryFileURL = state.selectedTemporaryFileURL
         else {
@@ -716,6 +733,9 @@ struct ResumeImportScreenView: View {
     }
 
     private func retryLiveProcessing() async {
+        guard !mutationInFlight else { return }
+        mutationInFlight = true
+        defer { mutationInFlight = false }
         guard let resumeID = state.liveResume?.id else {
             return
         }
@@ -726,6 +746,15 @@ struct ResumeImportScreenView: View {
         } catch {
             state.setError(message(for: error), stage: .parsing)
         }
+    }
+
+    private func cleanupAbandonedAuthenticatedSelection() {
+        guard context == .authenticated, !isPreviewMode,
+              let temporaryURL = state.selectedTemporaryFileURL else { return }
+        // The canonical service copied this file into its private temporary directory.
+        // Never remove the founder's original picked document or a file still being uploaded.
+        resumeImportService.cleanupSelection(at: temporaryURL)
+        state.clearSelection()
     }
 
     private func hydrateLiveReviewSession(resumeID: String) async {
@@ -774,10 +803,14 @@ struct ResumeImportScreenView: View {
 
     private func handlePreviewLooksGood() {
         state.confirmReview()
-        router.advanceOnboarding(from: .resumeImportOrQuickProfile)
+        if context == .onboarding { router.advanceOnboarding(from: .resumeImportOrQuickProfile) }
+        else { onAuthenticatedCompletion() }
     }
 
     private func handleLiveLooksGood() async {
+        guard !mutationInFlight else { return }
+        mutationInFlight = true
+        defer { mutationInFlight = false }
         guard let review = state.liveReviewSession else {
             return
         }
@@ -857,6 +890,11 @@ struct ResumeImportScreenView: View {
     private func finishSuccessfulImport(
         using completionResult: ResumeImportCompletionResult? = nil
     ) async throws {
+        if context == .authenticated {
+            candidateDataRefreshStore.candidateDataChanged()
+            if isVisible { onAuthenticatedCompletion() }
+            return
+        }
         let resolvedCompletionResult: ResumeImportCompletionResult
         if let completionResult {
             resolvedCompletionResult = completionResult
@@ -876,10 +914,14 @@ struct ResumeImportScreenView: View {
 
     private func reconcileImportRecovery(reviewID: String) async {
         do {
-            let recovery = try await resumeImportService.reconcileImportRecovery(reviewID: reviewID)
+            let recovery = try await resumeImportService.reconcileImportRecovery(reviewID: reviewID, context: context)
 
             switch recovery.disposition {
             case .importCompleted:
+                if context == .authenticated {
+                    try await finishSuccessfulImport()
+                    return
+                }
                 guard let completionResult = recovery.completionResult else {
                     state.setError(
                         "KairoID refreshed the latest import state, but couldn't finish onboarding reconciliation yet.",
@@ -899,7 +941,7 @@ struct ResumeImportScreenView: View {
                     state.setError(importFailureMessage(for: importBatch), stage: .import)
                 } else {
                     state.setError(
-                        "Some imported claims still need your attention before onboarding can finish.",
+                        "Some imported claims still need your attention.",
                         stage: .import
                     )
                 }
@@ -1105,7 +1147,7 @@ struct ResumeImportScreenView: View {
 
     private func importFailureMessage(for batch: ResumeImportBatch) -> String {
         if batch.isPartiallyCompleted {
-            return "KairoID imported some approved claims, but some items still need your attention before onboarding can finish."
+            return "KairoID imported some approved claims, but some items still need your attention."
         }
 
         if batch.failedCount > 0 || batch.blockedCount > 0 {
