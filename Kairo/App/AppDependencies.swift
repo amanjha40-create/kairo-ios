@@ -100,7 +100,9 @@ struct AppDependencies: Sendable {
                 CareerDocumentService(sessionService: sessionService)
             }
         let documentVaultService: any DocumentVaultServiceProtocol =
-            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+            if uiTestConfiguration.isEnabled, let scenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DOCUMENT_HIERARCHY"] {
+                DocumentHierarchyFixtures(scenario: scenario)
+            } else if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
                 DemoDocumentVaultService()
             } else {
                 DocumentVaultService(sessionService: sessionService)
@@ -156,7 +158,9 @@ struct AppDependencies: Sendable {
             careerDocumentService: careerDocumentService,
             documentVaultService: documentVaultService,
             documentsHubService: configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
-                ? PreviewDocumentsHubService()
+                ? (uiTestConfiguration.isEnabled && ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DOCUMENT_HIERARCHY"] != nil
+                    ? DocumentHierarchyFixtures(scenario: ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DOCUMENT_HIERARCHY"] ?? "populated") as any DocumentsHubServiceProtocol
+                    : PreviewDocumentsHubService() as any DocumentsHubServiceProtocol)
                 : DocumentsHubService(career: careerOverviewService, documents: careerDocumentService, vault: documentVaultService, session: sessionService),
             documentPackService: configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
                 ? DemoDocumentPackService(scenario: uiTestConfiguration.isEnabled ? ProcessInfo.processInfo.environment["KAIRO_UI_TEST_PACK_STATE"] ?? "populated" : "populated")

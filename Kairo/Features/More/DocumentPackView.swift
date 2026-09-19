@@ -12,6 +12,7 @@ struct DocumentPackView: View {
     @EnvironmentObject private var session: AppSessionStore
     @StateObject private var store = DocumentPackStore()
     @State private var history: Bool
+    @FocusState private var purposeFocused: Bool
     init(history: Bool = false) { _history = State(initialValue: history) }
 
     var body: some View {
@@ -36,17 +37,32 @@ struct DocumentPackView: View {
                     if store.busy { ProgressView("Confirming with server").accessibilityIdentifier("pack.busy") }
                     if history { historyContent }
                     else if let creation = store.creation {
-                        Text("Document pack ready").font(KairoTypography.title2).accessibilityIdentifier("pack.ready")
+                        Text("Share ready").font(KairoTypography.title2).accessibilityIdentifier("pack.ready")
                         packSummary(creation.pack)
-                        Text("Anyone with this link can access only these files until expiry or revocation. Save or share it now; the link cannot be recovered from history.")
+                        Text("Only these exact files are shared until expiry or revocation. Save the link now; it cannot be recovered from history.")
                             .font(KairoTypography.footnote)
                         DocumentPackActions(pack: creation.pack, capability: creation.capability)
-                        Button("Done") { store.finishCreation(); history = true }.buttonStyle(.borderedProminent)
+                        Button { store.finishCreation(); history = true } label: {
+                            Text("Done").frame(maxWidth: .infinity, minHeight: 44)
+                        }.buttonStyle(.bordered)
                             .accessibilityIdentifier("pack.done")
                     } else { createContent }
                 }.padding(KairoSpacing.medium)
             }
+            .scrollDismissesKeyboard(.immediately)
             .background(KairoColors.background.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                if purposeFocused {
+                    HStack {
+                        Spacer()
+                        Button { purposeFocused = false } label: {
+                            Text("Done editing").frame(minWidth: 44, minHeight: 44)
+                        }.accessibilityIdentifier("pack.purpose.done")
+                    }
+                    .padding(.horizontal, KairoSpacing.medium)
+                    .background(KairoColors.background)
+                }
+            }
             .navigationTitle("Document packs").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() }.disabled(store.busy) } }
             .navigationDestination(for: String.self) { id in
@@ -65,7 +81,7 @@ struct DocumentPackView: View {
     }
 
     @ViewBuilder private var historyContent: some View {
-        Text("Shared document packs").font(KairoTypography.title2)
+        Text("Shared document packs").font(KairoTypography.headline)
         Text("Old links cannot be recovered. History contains exact file snapshots, not your latest attachments.")
             .font(KairoTypography.footnote)
         if store.loading { ProgressView("Loading packs").accessibilityIdentifier("pack.loading") }
@@ -76,16 +92,20 @@ struct DocumentPackView: View {
         } else {
             ForEach(store.packs) { pack in
                 NavigationLink(value: pack.id) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(pack.purpose).font(KairoTypography.headline)
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        Text(pack.purpose).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("\(pack.documentCount) documents · \(pack.statusTitle) · \(pack.viewCount) views")
+                            .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                         Text("Created \(pack.createdAt.formatted(date: .abbreviated, time: .omitted)) · Expires \(pack.expiresAt.formatted(date: .abbreviated, time: .omitted))")
                             .font(KairoTypography.caption)
-                    }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                }.accessibilityIdentifier("pack.history.\(pack.id)")
-                Divider()
+                    }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+                        .padding(.vertical, KairoSpacing.small)
+                        .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
+                }.buttonStyle(.plain).accessibilityIdentifier("pack.history.\(pack.id)")
+                    .accessibilityElement(children: .combine)
             }
-            Button("Refresh history") { Task { await store.loadHistory(service) } }
+            Button { Task { await store.loadHistory(service) } } label: { Text("Refresh history").frame(minHeight: 44) }
         }
     }
 
@@ -96,6 +116,7 @@ struct DocumentPackView: View {
         case .purpose:
             Text("Purpose").font(KairoTypography.title2)
             TextField("Employment onboarding — Acme", text: $store.purpose, axis: .vertical)
+                .lineLimit(1...4).focused($purposeFocused)
                 .textFieldStyle(.roundedBorder).accessibilityLabel("Purpose").accessibilityIdentifier("pack.purpose")
             Text("Required, 1–120 characters. Visible to the recipient.").font(KairoTypography.footnote)
             Text("\(store.purpose.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count)/120")
@@ -114,22 +135,25 @@ struct DocumentPackView: View {
         case .review:
             Text("Review selection").font(KairoTypography.title2).accessibilityIdentifier("pack.review")
             Text("Purpose: \(store.purpose.trimmingCharacters(in: .whitespacesAndNewlines))")
-            Text("Expires in \(store.expiryDays) days")
-            Text("\(store.selected.count) selected documents")
+                .font(KairoTypography.bodyStrong).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("pack.review.purpose")
+            Text("Expires in \(store.expiryDays) days").font(KairoTypography.footnote).accessibilityIdentifier("pack.review.expiry")
+            DocumentGroupHeading(title: "Selected documents", count: store.selected.count)
+                .accessibilityIdentifier("pack.review.count")
             ForEach(store.selected) { document in documentLabel(document) }
             Text("This pack shares these exact file versions. Replacing or removing the source does not update this pack. Revoke the pack to stop access; create a new pack to add files.").font(KairoTypography.footnote)
+                .accessibilityIdentifier("pack.review.snapshot")
             Text("Sharing a document does not verify its contents or your identity.").font(KairoTypography.footnote)
         }
         if store.ambiguous {
             Button("Check Shared document packs") { history = true }.accessibilityIdentifier("pack.checkHistory")
         }
         HStack {
-            if store.step != .selection { Button("Back") { store.back() }.disabled(store.busy).accessibilityIdentifier("pack.back") }
+            if store.step != .selection { Button { store.back() } label: { Text("Back").frame(minWidth: 44, minHeight: 44) }.disabled(store.busy).accessibilityIdentifier("pack.back") }
             if store.step == .review {
-                Button("Create secure link") { Task { await store.create(service) } }
+                Button { Task { await store.create(service) } } label: { Text("Create secure link").frame(minHeight: 44) }
                     .buttonStyle(.borderedProminent).disabled(!store.canCreate).accessibilityIdentifier("pack.create")
             } else {
-                Button("Continue") { store.next() }.buttonStyle(.borderedProminent)
+                Button { store.next() } label: { Text("Continue").frame(minHeight: 44) }.buttonStyle(.borderedProminent)
                     .disabled(!store.canContinue).accessibilityIdentifier("pack.continue")
             }
         }
@@ -137,7 +161,14 @@ struct DocumentPackView: View {
 
     @ViewBuilder private var selection: some View {
         Text("Select documents").font(KairoTypography.title2)
-        Text("Only explicitly selected files are shared. No Passport, Profile, Trust Score, unrelated files, or historical verification evidence is included.").font(KairoTypography.footnote)
+        HStack {
+            Text("\(store.selected.count) selected").font(KairoTypography.bodyStrong).accessibilityIdentifier("pack.selectedCount")
+            Spacer()
+            Button { store.clearSelection() } label: { Text("Clear selection").frame(minHeight: 44) }
+                .accessibilityIdentifier("pack.clear")
+        }
+        Text("Choose exact files only. No Profile, Passport, Trust Score or historical verification evidence. Up to 20 files / 200 MB.")
+            .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
         if store.loading { ProgressView("Loading eligible documents").accessibilityIdentifier("pack.loading") }
         else if store.error != nil && store.documents.isEmpty {
             Button("Retry documents") { Task { await store.loadDocuments(service) } }.accessibilityIdentifier("pack.documents.retry")
@@ -145,14 +176,7 @@ struct DocumentPackView: View {
             Picker("Category", selection: $store.category) {
                 ForEach(store.categories, id: \.self) { category in Text(category == "all" ? "All categories" : DocumentPackCategory.title(category)).tag(category) }
             }.accessibilityIdentifier("pack.category")
-            HStack {
-                Text("\(store.selected.count) selected").accessibilityIdentifier("pack.selectedCount")
-                Spacer()
-                Button { store.clearSelection() } label: { Text("Clear selection").frame(minHeight: 44) }
-                    .accessibilityIdentifier("pack.clear")
-            }
-            Button("Refresh eligible documents") { Task { await store.loadDocuments(service) } }
-                .disabled(store.busy || store.ambiguous).accessibilityIdentifier("pack.refreshDocuments")
+                .frame(minHeight: 44)
             if store.visible.isEmpty { Text("No shareable documents in this category.").accessibilityIdentifier("pack.documents.empty") }
             ForEach(store.visible) { document in
                 Button { store.toggle(document) } label: {
@@ -163,18 +187,16 @@ struct DocumentPackView: View {
                 }.buttonStyle(.plain).accessibilityIdentifier("pack.select.\(document.id)")
                     .accessibilityLabel("\(document.title), \(document.filename), \(document.categoryTitle)")
                     .accessibilityValue(store.selectedIDs.contains(document.id) ? "Selected" : "Not selected")
-                Divider()
+                Rectangle().fill(KairoColors.border).frame(height: 1)
             }
             if !store.selected.isEmpty && !store.selectionValid { Text(DocumentPackError.limit.localizedDescription) }
+            Button { Task { await store.loadDocuments(service) } } label: { Text("Refresh eligible documents").frame(minHeight: 44) }
+                .disabled(store.busy || store.ambiguous).accessibilityIdentifier("pack.refreshDocuments")
         }
     }
     private func documentLabel(_ document: PackSelectableDocument) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(document.title).font(KairoTypography.headline)
-            Text(document.filename)
-            if let context = document.context { Text(context) }
-            Text("\(document.categoryTitle) · Uploaded document · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))").font(KairoTypography.caption)
-        }.fixedSize(horizontal: false, vertical: true)
+        CompactDocumentLabel(title: document.title, filename: document.filename, context: document.context,
+            metadata: "\(document.categoryTitle) · Uploaded document · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))")
     }
     private func packSummary(_ pack: DocumentPack) -> some View {
         VStack(alignment: .leading) {
@@ -200,11 +222,13 @@ private struct DocumentPackDetailView: View {
                 }
                 if let pack = store.detail, pack.id == id {
                     Text(pack.purpose).font(KairoTypography.title2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(pack.statusTitle).accessibilityIdentifier("pack.detail.status")
-                    Text("Created \(pack.createdAt.formatted())")
-                    Text("Expires \(pack.expiresAt.formatted())")
-                    Text("\(pack.documentCount) documents · \(pack.viewCount) views").accessibilityIdentifier("pack.detail.analytics")
-                    if let date = pack.lastViewedAt { Text("Last viewed \(date.formatted())") }
+                    Text("\(pack.documentCount) documents").font(KairoTypography.bodyStrong).accessibilityIdentifier("pack.detail.count")
+                    Text("Created \(pack.createdAt.formatted())").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    Text("Expires \(pack.expiresAt.formatted())").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    Text("\(pack.viewCount) views").accessibilityIdentifier("pack.detail.analytics")
+                    if let date = pack.lastViewedAt { Text("Last viewed \(date.formatted())").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary) }
                     Text("Exact file snapshots at creation; source changes do not update this pack.").font(KairoTypography.footnote)
                     DocumentPackItemList(items: pack.items)
                     if pack.isActive {
@@ -212,12 +236,13 @@ private struct DocumentPackDetailView: View {
                             DocumentPackActions(pack: pack, capability: creation.capability,
                                 onRecipientDismiss: { Task { await store.loadDetail(id, service: service) } })
                         } else { Text("The bearer link is not recoverable from history. You can still revoke access.").font(KairoTypography.footnote) }
-                        Button("Revoke pack", role: .destructive) { confirming = true }.disabled(store.busy).accessibilityIdentifier("pack.revoke")
+                        Button(role: .destructive) { confirming = true } label: { Text("Revoke pack").frame(minHeight: 44) }.disabled(store.busy).accessibilityIdentifier("pack.revoke")
                     }
-                    Button("Refresh detail") { Task { await store.loadDetail(id, service: service) } }.disabled(store.busy)
+                    Button { Task { await store.loadDetail(id, service: service) } } label: { Text("Refresh detail").frame(minHeight: 44) }.disabled(store.busy)
                 }
             }.padding(KairoSpacing.medium)
-        }.navigationTitle("Pack detail").navigationBarTitleDisplayMode(.inline)
+        }.background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Pack detail").navigationBarTitleDisplayMode(.inline)
             .task { await store.loadDetail(id, service: service) }
             .alert("Revoke this document pack?", isPresented: $confirming) {
                 Button("Revoke access", role: .destructive) { Task { await store.revoke(id, service: service) } }
@@ -234,16 +259,19 @@ private struct DocumentPackActions: View {
     @State private var copied = false
     @State private var qr = false
     @State private var recipient = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
-            VStack(alignment: .leading, spacing: 12) {
-                Button(copied ? "Copied" : "Copy") {
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: KairoSpacing.small), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: KairoSpacing.small) {
+                Button {
                     UIPasteboard.general.setItems([["public.url": capability.copyURL]], options: [.localOnly: true, .expirationDate: min(pack.expiresAt, Date().addingTimeInterval(300))])
                     copied = true
-                }.accessibilityIdentifier("pack.copy")
-                Button("QR") { qr = true }.accessibilityIdentifier("pack.qr")
-                ShareLink(item: capability.shareURL, subject: Text("KairoID shared documents"), message: Text("View my selected documents")) { Text("Share") }.accessibilityIdentifier("pack.share")
-                Button("View recipient") { recipient = true }.accessibilityIdentifier("pack.preview")
+                } label: { actionLabel(copied ? "Copied" : "Copy", symbol: "doc.on.doc") }.accessibilityIdentifier("pack.copy")
+                Button { qr = true } label: { actionLabel("QR", symbol: "qrcode") }.accessibilityIdentifier("pack.qr")
+                ShareLink(item: capability.shareURL, subject: Text("KairoID shared documents"), message: Text("View my selected documents")) { actionLabel("Share", symbol: "square.and.arrow.up") }.accessibilityIdentifier("pack.share")
+                Button { recipient = true } label: { actionLabel("View recipient", symbol: "eye") }.accessibilityIdentifier("pack.preview")
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("pack.actions")
                 Text("Opening the recipient view records a server-authoritative view.").font(KairoTypography.caption)
             }.buttonStyle(.bordered).disabled(!pack.isActive)
         }
@@ -261,19 +289,21 @@ private struct DocumentPackActions: View {
         }
         .sheet(isPresented: $recipient, onDismiss: onRecipientDismiss) { DocumentPackRecipientView(capability: capability) }
     }
+    private func actionLabel(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol).font(KairoTypography.action)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
+    }
 }
 
 struct DocumentPackItemList: View {
     let items: [DocumentPackItem]
     var body: some View {
         ForEach(items) { item in
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).font(KairoTypography.headline)
-                Text(item.filename)
-                if let context = item.context { Text(context) }
-                Text("\(DocumentPackCategory.title(item.category)) · Uploaded document").font(KairoTypography.caption)
-            }.fixedSize(horizontal: false, vertical: true)
-            Divider()
+            CompactDocumentLabel(title: item.title, filename: item.filename, context: item.context,
+                metadata: "\(DocumentPackCategory.title(item.category)) · Uploaded document · \(ByteCountFormatter.string(fromByteCount: Int64(item.byteSize), countStyle: .file))")
+                .accessibilityIdentifier("pack.snapshot.\(item.id)")
+            Rectangle().fill(KairoColors.border).frame(height: 1)
         }
     }
 }

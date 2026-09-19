@@ -20,42 +20,49 @@ struct DocumentVaultView: View {
     @State private var expiryDate = Date()
     @State private var editingDocument: VaultDocument?
     @State private var pendingDelete: VaultDocument?
+    @State private var addingDocument = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     privacyCard
+                    Button { addingDocument.toggle() } label: {
+                        HStack {
+                            Label("Add document", systemImage: "plus")
+                            Spacer()
+                            Image(systemName: addingDocument ? "chevron.up" : "chevron.down")
+                        }.font(KairoTypography.action).frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }.buttonStyle(.plain).accessibilityIdentifier("vault.add")
+                        .accessibilityValue(addingDocument ? "Expanded" : "Collapsed")
+                        .accessibilityHint("Shows or hides private upload options")
+                    if addingDocument { uploadCard }
 
                     if isLoading {
                         KairoLoadingStateView(
-                            title: "Loading Document Vault",
+                            title: "Loading Vault",
                             message: "KairoID is fetching private document metadata."
                         )
                     } else if documents.isEmpty {
-                        KairoEmptyStateView(
-                            title: "Your Vault is empty",
-                            message: "Add a private identity document when you are ready. Documents are never shared automatically.",
-                            systemImage: "lock.doc"
-                        )
+                        Text("No private identity documents yet.").accessibilityIdentifier("vault.empty")
                     } else {
-                        documentSection(title: "Current documents", documents: currentDocuments)
+                        documentSection(title: "Private identity documents", documents: currentDocuments.filter { !DocumentHierarchy.vaultIsLegacy($0) })
+                        documentSection(title: "Legacy documents", documents: currentDocuments.filter { DocumentHierarchy.vaultIsLegacy($0) })
                         if !historicalDocuments.isEmpty {
                             documentSection(title: "Version history", documents: historicalDocuments)
                         }
                     }
-
-                    uploadCard
 
                     if let errorMessage {
                         KairoErrorStateView(title: "Vault action failed", message: errorMessage)
                     }
                 }
                 .padding(.horizontal, KairoSpacing.medium)
-                .padding(.vertical, KairoSpacing.large)
+                .padding(.vertical, KairoSpacing.medium)
             }
             .background(KairoColors.background.ignoresSafeArea())
-            .navigationTitle("Document Vault")
+            .navigationTitle("Vault")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -106,12 +113,12 @@ struct DocumentVaultView: View {
     }
 
     private var privacyCard: some View {
-        KairoSection {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Label("Private by default", systemImage: "lock.shield")
-                .font(KairoTypography.title2)
+                .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
-            Text("Vault documents stay private unless you explicitly select them as verification evidence. Private previews use your authenticated KairoID connection; storage locations are never shown here.")
-                .font(KairoTypography.body)
+            Text("Private identity and personal documents. Uploading does not mean verified. Sharing requires your explicit selection.")
+                .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -119,16 +126,13 @@ struct DocumentVaultView: View {
 
     private var uploadCard: some View {
         KairoSection {
-            Text("Add document")
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-
             Picker("Document type", selection: $selectedType) {
                 ForEach(VaultDocumentType.newUploadTypes) { type in
                     Text(type.title).tag(type)
                 }
             }
             .accessibilityIdentifier("candidate.more.documentVault.type")
+            .frame(minHeight: 44)
 
             KairoTextField(
                 title: "Document number",
@@ -138,6 +142,7 @@ struct DocumentVaultView: View {
 
             Toggle("Include an expiry date", isOn: $includesExpiry)
                 .tint(KairoColors.brandPrimary)
+                .frame(minHeight: 44)
             if includesExpiry {
                 DatePicker("Expiry date", selection: $expiryDate, displayedComponents: .date)
             }
@@ -159,27 +164,24 @@ struct DocumentVaultView: View {
         }
     }
 
-    private func documentSection(title: String, documents: [VaultDocument]) -> some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text(title)
-                .font(KairoTypography.sectionEyebrow)
-                .foregroundStyle(KairoColors.textSecondary)
-                .textCase(.uppercase)
-
-            ForEach(documents) { document in
-                documentCard(document)
+    @ViewBuilder private func documentSection(title: String, documents: [VaultDocument]) -> some View {
+        if !documents.isEmpty {
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                DocumentGroupHeading(title: title, count: documents.count)
+                ForEach(documents) { document in documentCard(document) }
             }
         }
     }
 
     private func documentCard(_ document: VaultDocument) -> some View {
-        KairoDocumentRow(
-            filename: document.originalFilename,
-            metadata: "\(document.documentType.title) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))",
-            source: document.isCurrent ? "Documents · Current" : "Documents · Replaced",
-            status: statusTitle(document.verificationStatus),
-            isHistorical: !document.isCurrent,
-            details: {
+        HStack(alignment: .top, spacing: KairoSpacing.small) {
+            Button { view(document) } label: {
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    CompactDocumentLabel(title: document.documentType.title, filename: document.originalFilename,
+                        context: document.isCurrent ? "Identity & Personal · Current" : "Identity & Personal · Replaced version",
+                        metadata: "\(statusTitle(document.verificationStatus)) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))")
+                    Text("Added \(document.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
                 if let number = document.documentNumber, !number.isEmpty {
                     Text("Document number: \(number)")
                         .font(KairoTypography.footnote)
@@ -195,41 +197,21 @@ struct DocumentVaultView: View {
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                 }
-            },
-            actions: {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: KairoSpacing.small) { documentActions(document) }
-                    VStack(alignment: .leading, spacing: KairoSpacing.xSmall) { documentActions(document) }
-                }
+                }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(isMutating)
+                .accessibilityIdentifier("candidate.more.documentVault.document.\(document.id)")
+                .accessibilityHint("Opens the private authenticated preview")
+            if document.isCurrent {
+                Menu {
+                    Button("Edit details") { editingDocument = document }
+                    Button("Replace") { uploadMode = .replace(document); isFileImporterPresented = true }
+                    Button("Delete", role: .destructive) { pendingDelete = document }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
+                    .disabled(isMutating).accessibilityLabel("More actions for \(document.originalFilename)")
+                    .accessibilityIdentifier("vault.actions.\(document.id)")
             }
-        )
-        .accessibilityIdentifier("candidate.more.documentVault.document.\(document.id)")
-    }
-
-    @ViewBuilder
-    private func documentActions(_ document: VaultDocument) -> some View {
-        Button("View securely") { view(document) }
-            .buttonStyle(.plain)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .frame(minHeight: 44)
-
-        if document.isCurrent {
-            Button("Edit details") { editingDocument = document }
-                .buttonStyle(.plain)
-                .foregroundStyle(KairoColors.brandPrimary)
-                .frame(minHeight: 44)
-            Button("Replace") {
-                uploadMode = .replace(document)
-                isFileImporterPresented = true
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(KairoColors.brandPrimary)
-            .frame(minHeight: 44)
-            Button("Delete", role: .destructive) { pendingDelete = document }
-                .buttonStyle(.plain)
-                .foregroundStyle(KairoColors.danger)
-                .frame(minHeight: 44)
-        }
+        }.padding(.vertical, KairoSpacing.small)
+            .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
     }
 
     private func load() async {

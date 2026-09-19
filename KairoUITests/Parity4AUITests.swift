@@ -11,9 +11,10 @@ final class Parity4AUITests: XCTestCase {
         app.tabBars.buttons["More"].tap()
         let documents = app.buttons["documentVault"]
         reveal(documents, app); documents.tap()
-        let vault = app.buttons["Manage Vault / identity documents"]
-        XCTAssertTrue(vault.waitForExistence(timeout: 10)); vault.tap()
-        XCTAssertTrue(app.navigationBars["Document Vault"].waitForExistence(timeout: 10))
+        let vault = app.buttons["documents.vault"]
+        reveal(vault, app); vault.tap()
+        XCTAssertTrue(app.navigationBars["Vault"].waitForExistence(timeout: 10))
+        app.buttons["vault.add"].tap()
         let picker = app.buttons["candidate.more.documentVault.type"]
         reveal(picker, app); picker.tap()
         let names = ["Aadhaar", "PAN", "Passport", "Driving Licence", "Voter ID", "Birth Certificate", "Address Proof"]

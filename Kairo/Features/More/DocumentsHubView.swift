@@ -23,48 +23,45 @@ struct DocumentsHubView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                    Text("Documents you have uploaded to KairoID")
-                        .font(KairoTypography.title2)
-                    Text("Current attachments and immutable verification history, from your authorized records. Project items may retain a legacy Portfolio origin until the shared migration is complete.")
-                        .font(KairoTypography.footnote)
-                    Button("Manage Vault / identity documents") { showsVault = true }
-                    Button("Share documents") { router.showDocumentPacks() }
-                        .accessibilityIdentifier("documents.shareDocuments")
-                    Button("Shared document packs") { router.showDocumentPacks(history: true) }
-                        .accessibilityIdentifier("documents.sharedPacks")
+                    Text("Your documents across KairoID. Select exact files to share in a Document Pack.")
+                        .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    KairoPrimaryButton(title: "Share documents", accessibilityIdentifier: "documents.shareDocuments") {
+                        router.showDocumentPacks()
+                    }
                     if loading { ProgressView("Loading document sources") }
                     else if let message {
                         KairoErrorStateView(title: "Documents unavailable", message: message)
-                        Button("Retry") { Task { await load() } }
+                        Button { Task { await load() } } label: { Text("Retry").frame(minWidth: 44, minHeight: 44) }
                     } else if rows.isEmpty {
-                        KairoEmptyStateView(title: "No uploaded documents", message: "Attachments from your Career, verification evidence, and Vault will appear here.", systemImage: "doc.on.doc")
+                        Text("No documents yet.").font(KairoTypography.body).accessibilityIdentifier("documents.empty")
                     } else {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
                                 ForEach(DocumentsHubRow.categories(in: rows)) { item in
-                                    Button(item.rawValue) { category = item }
+                                    Button { category = item } label: {
+                                        Text(item.rawValue).frame(minHeight: 44)
+                                    }
                                         .buttonStyle(.bordered)
                                         .tint(category == item ? KairoColors.brandPrimary : KairoColors.textSecondary)
                                         .accessibilityIdentifier("documents.filter.\(item.id)")
+                                        .accessibilityValue(category == item ? "Selected" : "Not selected")
                                 }
                             }
-                        }
-                        ForEach(rows.filter { category == .all || $0.category == category }) { row in
-                            KairoDocumentRow(filename: row.filename,
-                                metadata: "\(row.category.rawValue) · \(row.contentType) · \(ByteCountFormatter.string(fromByteCount: Int64(row.byteSize), countStyle: .file))",
-                                source: row.context, status: row.status, isHistorical: row.historical,
-                                details: {
-                                    if row.immutable { Text("Immutable evidence / history").font(KairoTypography.caption) }
-                                    if !row.canView { Text("Historical preview unavailable in the current backend contract.").font(KairoTypography.caption) }
-                                }, actions: {
-                                    ViewThatFits(in: .horizontal) {
-                                        HStack { actions(row) }
-                                        VStack(alignment: .leading) { actions(row) }
-                                    }
-                                })
-                                .accessibilityIdentifier("documents.row.\(row.id)")
+                        }.accessibilityElement(children: .contain).accessibilityIdentifier("documents.filters")
+                        ForEach(DocumentHierarchy.groups(rows, category: category)) { group in
+                            DocumentGroupHeading(title: group.title, count: group.rows.count)
+                                .accessibilityIdentifier("documents.group.\(group.id)")
+                            ForEach(group.rows) { row in documentRow(row) }
                         }
                     }
+                    KairoSecondaryButton(title: "Shared document packs", accessibilityIdentifier: "documents.sharedPacks") {
+                        router.showDocumentPacks(history: true)
+                    }
+                    Button { showsVault = true } label: {
+                        Label("Vault · Private identity & personal documents", systemImage: "lock.doc")
+                            .font(KairoTypography.body).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }.accessibilityIdentifier("documents.vault")
                 }
                 .padding(KairoSpacing.medium)
             }
@@ -95,10 +92,35 @@ struct DocumentsHubView: View {
         .accessibilityIdentifier("candidate.more.documentsHub")
     }
 
-    @ViewBuilder private func actions(_ row: DocumentsHubRow) -> some View {
-        if row.canView { Button("View") { Task { await view(row) } }.disabled(mutating) }
-        if row.canReplace { Button("Replace") { replacement = row; choosingFile = true }.disabled(mutating) }
-        if row.canRemove { Button("Remove", role: .destructive) { removal = row }.disabled(mutating) }
+    private func documentRow(_ row: DocumentsHubRow) -> some View {
+        HStack(alignment: .top, spacing: KairoSpacing.small) {
+            Group {
+                if row.canView {
+                    Button { Task { await view(row) } } label: { rowLabel(row) }
+                        .buttonStyle(.plain).disabled(mutating)
+                        .accessibilityHint("Opens the authorized document preview")
+                } else { rowLabel(row) }
+            }.accessibilityIdentifier("documents.row.\(row.id)")
+            if row.canReplace || row.canRemove {
+                Menu {
+                    if row.canReplace { Button("Replace") { replacement = row; choosingFile = true } }
+                    if row.canRemove { Button("Remove", role: .destructive) { removal = row } }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
+                    .disabled(mutating).accessibilityLabel("More actions for \(row.filename)")
+                    .accessibilityIdentifier("documents.actions.\(row.id)")
+            }
+        }.padding(.vertical, KairoSpacing.small)
+            .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
+    }
+
+    private func rowLabel(_ row: DocumentsHubRow) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+            CompactDocumentLabel(title: DocumentHierarchy.title(row), filename: row.filename, context: row.context,
+                metadata: "\(row.status) · \(ByteCountFormatter.string(fromByteCount: Int64(row.byteSize), countStyle: .file))")
+            if row.immutable { Text("Read-only evidence / history").font(KairoTypography.caption) }
+            if !row.canView { Text("Historical preview unavailable in the current backend contract.").font(KairoTypography.caption) }
+        }.foregroundStyle(KairoColors.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
     }
 
     private func load() async {
