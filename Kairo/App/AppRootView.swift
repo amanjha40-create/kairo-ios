@@ -6,6 +6,7 @@ struct AppRootView: View {
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +54,9 @@ struct AppRootView: View {
         .sheet(item: trustScorePresentationBinding) { _ in
             TrustScoreDetailView()
         }
+        .sheet(item: digiLockerPresentationBinding) { _ in
+            DigiLockerHubView()
+        }
         .sheet(item: careerDocumentPresentationBinding) { presentation in
             CareerDocumentsView(presentation: presentation)
         }
@@ -62,6 +66,7 @@ struct AppRootView: View {
         .onChange(of: sessionStore.currentUser?.id) { _, _ in
             notificationStore.reset()
             candidateDataRefreshStore.resetForIdentityChange()
+            digiLockerStore.resetForIdentityChange()
         }
     }
 
@@ -93,6 +98,17 @@ struct AppRootView: View {
             set: { presentation in
                 if presentation == nil {
                     router.dismissTrustScoreDetails()
+                }
+            }
+        )
+    }
+
+    private var digiLockerPresentationBinding: Binding<DigiLockerHubPresentation?> {
+        Binding(
+            get: { router.digiLockerPresentation },
+            set: { presentation in
+                if presentation == nil {
+                    router.dismissDigiLocker()
                 }
             }
         )

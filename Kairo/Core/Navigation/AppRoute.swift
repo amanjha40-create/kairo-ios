@@ -13,6 +13,14 @@ struct NotificationCenterPresentation: Identifiable, Equatable {
     }
 }
 
+struct DigiLockerHubPresentation: Identifiable, Equatable {
+    let id: UUID
+
+    init(id: UUID = UUID()) {
+        self.id = id
+    }
+}
+
 enum OnboardingDestination: Hashable, Identifiable {
     case step(OnboardingStep)
     case loginPlaceholder

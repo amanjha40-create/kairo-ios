@@ -12,6 +12,7 @@ final class AppRouter: ObservableObject {
     @Published private(set) var trustScorePresentation: TrustScorePresentation?
     @Published private(set) var careerDocumentPresentation: CareerDocumentPresentation?
     @Published private(set) var googleAuthenticationPresentation: GoogleAuthenticationPresentation?
+    @Published private(set) var digiLockerPresentation: DigiLockerHubPresentation?
     @Published var documentPackPresentation: DocumentPackPresentation?
 
     func showDocumentPacks(history: Bool = false) {
@@ -32,6 +33,7 @@ final class AppRouter: ObservableObject {
         trustScorePresentation = nil
         careerDocumentPresentation = nil
         googleAuthenticationPresentation = nil
+        digiLockerPresentation = nil
     }
 
     func showOnboarding() {
@@ -167,6 +169,14 @@ final class AppRouter: ObservableObject {
 
     func showNotificationCenter() {
         notificationCenterPresentation = NotificationCenterPresentation()
+    }
+
+    func showDigiLocker() {
+        digiLockerPresentation = DigiLockerHubPresentation()
+    }
+
+    func dismissDigiLocker() {
+        digiLockerPresentation = nil
     }
 
     func dismissNotificationCenter() {

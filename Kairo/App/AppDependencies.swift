@@ -9,6 +9,7 @@ struct AppDependencies: Sendable {
     let resumeImportService: any ResumeImportServiceProtocol
     let homeOverviewService: any HomeOverviewServiceProtocol
     let trustScoreService: any TrustScoreServiceProtocol
+    let digiLockerService: any DigiLockerServiceProtocol
     let careerOverviewService: any CareerOverviewServiceProtocol
     let careerDocumentService: any CareerDocumentServiceProtocol
     let documentVaultService: any DocumentVaultServiceProtocol
@@ -89,6 +90,12 @@ struct AppDependencies: Sendable {
             } else {
                 TrustScoreService(sessionService: sessionService)
             }
+        let digiLockerService: any DigiLockerServiceProtocol =
+            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+                DemoDigiLockerService()
+            } else {
+                DigiLockerService(sessionService: sessionService)
+            }
         let careerOverviewService = CareerOverviewService(
             authService: authService,
             sessionService: sessionService
@@ -154,6 +161,7 @@ struct AppDependencies: Sendable {
             resumeImportService: resumeImportService,
             homeOverviewService: homeOverviewService,
             trustScoreService: trustScoreService,
+            digiLockerService: digiLockerService,
             careerOverviewService: careerOverviewService,
             careerDocumentService: careerDocumentService,
             documentVaultService: documentVaultService,

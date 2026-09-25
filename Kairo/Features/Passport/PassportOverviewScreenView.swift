@@ -7,6 +7,7 @@ struct PassportOverviewScreenView: View {
 
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.passportShareService) private var passportShareService
     @Environment(\.passportPDFExportService) private var passportPDFExportService
@@ -44,6 +45,7 @@ struct PassportOverviewScreenView: View {
                 )
             }
             .onAppear { openRequestedActivityIfNeeded() }
+            .task { await digiLockerStore.loadSummaryIfNeeded() }
             .onChange(of: router.passportActivityRequestID) { _, _ in
                 openRequestedActivityIfNeeded()
             }
@@ -420,6 +422,9 @@ struct PassportOverviewScreenView: View {
                 identityRow(title: "Email", value: identity.emailAddress)
                 identityRow(title: "Mobile", value: identity.mobileNumber)
                 identityRow(title: "Identity status", value: identity.status.style.title)
+                if digiLockerStore.identityVerifiedViaDigiLocker {
+                    identityRow(title: "Source", value: "Verified via DigiLocker")
+                }
                 identityRow(title: "Last verified", value: identity.lastVerifiedDate)
             }
         }

@@ -46,19 +46,24 @@ final class Parity4CUITests: XCTestCase {
         let app = launch()
         let hero = app.descendants(matching: .any)["candidate.home.trustScore"].firstMatch
         XCTAssertTrue(hero.waitForExistence(timeout: 10))
-        let attention = app.staticTexts["Needs your attention"]
-        reveal(attention, in: app)
-        let career = app.descendants(matching: .any)["candidate.home.career"].firstMatch
-        reveal(career, in: app)
-        let documents = app.buttons["candidate.home.documents"]
-        reveal(documents, in: app)
         let passport = app.buttons["candidate.home.viewTrustPassport"]
         reveal(passport, in: app)
-        XCTAssertLessThan(documents.frame.minY, passport.frame.minY)
+        let digiLocker = app.buttons["candidate.home.digilocker"]
+        reveal(digiLocker, in: app)
+        XCTAssertLessThan(passport.frame.minY, digiLocker.frame.minY)
+        let attention = app.staticTexts["Needs your attention"]
+        reveal(attention, in: app)
+        XCTAssertLessThan(digiLocker.frame.minY, attention.frame.minY)
+        let career = app.descendants(matching: .any)["candidate.home.career"].firstMatch
+        reveal(career, in: app)
+        XCTAssertLessThan(attention.frame.minY, career.frame.minY)
+        let documents = app.buttons["candidate.home.documents"]
+        reveal(documents, in: app)
+        XCTAssertLessThan(career.frame.minY, documents.frame.minY)
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.home.viewTrustPassport").count, 1)
         let activity = app.descendants(matching: .any)["candidate.home.recentActivity"].firstMatch
         reveal(activity, in: app)
-        XCTAssertLessThan(passport.frame.minY, activity.frame.minY)
+        XCTAssertLessThan(documents.frame.minY, activity.frame.minY)
     }
 
     func testHomeDocumentsOpensCanonicalHubAndPreservesSessionOnReturn() {

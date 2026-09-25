@@ -8,6 +8,7 @@ struct KairoApp: App {
     @StateObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @StateObject private var candidateNotificationStore: CandidateNotificationStore
     @StateObject private var appearanceStore: AppAppearanceStore
+    @StateObject private var digiLockerStore: DigiLockerStore
 
     init() {
         let configuration = AppConfiguration.resolve()
@@ -44,6 +45,7 @@ struct KairoApp: App {
             service: dependencies.candidateNotificationService
         ))
         _appearanceStore = StateObject(wrappedValue: AppAppearanceStore())
+        _digiLockerStore = StateObject(wrappedValue: DigiLockerStore(service: dependencies.digiLockerService))
         self.configuration = configuration
         self.dependencies = dependencies
     }
@@ -59,6 +61,7 @@ struct KairoApp: App {
                 .environmentObject(candidateDataRefreshStore)
                 .environmentObject(candidateNotificationStore)
                 .environmentObject(appearanceStore)
+                .environmentObject(digiLockerStore)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)

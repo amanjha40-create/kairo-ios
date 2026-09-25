@@ -22,6 +22,7 @@ struct VerifyOverviewFixtureHostView: View {
 
 struct VerifyOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding private var state: VerifyOverviewState
@@ -64,6 +65,7 @@ struct VerifyOverviewScreenView: View {
             title: "Verify",
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
+            DigiLockerVerifySections()
             filterControl
             phaseContent
         }
@@ -93,6 +95,7 @@ struct VerifyOverviewScreenView: View {
             presentFocusedRequestIfAvailable()
         }
         .onAppear { presentFocusedRequestIfAvailable() }
+        .task { await digiLockerStore.loadSummaryIfNeeded() }
     }
 
     private var loadedRequests: [VerifyRequest]? {

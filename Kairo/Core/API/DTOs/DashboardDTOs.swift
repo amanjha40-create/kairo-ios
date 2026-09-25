@@ -69,6 +69,8 @@ nonisolated struct TrustScoreResponseDTO: Decodable, Equatable, Sendable {
     let lastCalculatedAt: Date?
     let verificationCompletenessPercentage: Int
     let weekChange: Int
+    let identityState: DigiLockerIdentityState
+    let identitySources: [DigiLockerTrustSourceDTO]
 
     private enum CodingKeys: String, CodingKey {
         case overall
@@ -83,6 +85,8 @@ nonisolated struct TrustScoreResponseDTO: Decodable, Equatable, Sendable {
         case lastCalculatedAt
         case verificationCompletenessPercentage
         case weekChange
+        case identityState
+        case identitySources
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +118,8 @@ nonisolated struct TrustScoreResponseDTO: Decodable, Equatable, Sendable {
             forKey: .verificationCompletenessPercentage
         ) ?? 0
         weekChange = try container.decodeIfPresent(Int.self, forKey: .weekChange) ?? 0
+        identityState = try container.decodeIfPresent(DigiLockerIdentityState.self, forKey: .identityState) ?? .unverified
+        identitySources = try container.decodeIfPresent([DigiLockerTrustSourceDTO].self, forKey: .identitySources) ?? []
     }
 }
 

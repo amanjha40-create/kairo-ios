@@ -73,6 +73,7 @@ struct TrustScoreDetailView: View {
             )
         } else if let score {
             scoreSummary(score)
+            DigiLockerTrustScoreProvenance(state: score.identityState, sources: score.identitySources)
             explanation(score)
             breakdown(score)
             contributors(score)

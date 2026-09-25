@@ -8,6 +8,7 @@ struct HomeOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 46.0
     @State private var showsDocuments = false
@@ -26,7 +27,11 @@ struct HomeOverviewScreenView: View {
         .background(KairoColors.background.ignoresSafeArea())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeScreen)
-        .task { await notificationStore.refreshUnreadCount() }
+        .task {
+            async let notifications: Void = notificationStore.refreshUnreadCount()
+            async let digiLocker: Void = digiLockerStore.loadSummaryIfNeeded()
+            _ = await (notifications, digiLocker)
+        }
         .sheet(isPresented: $showsDocuments) { DocumentsHubView() }
     }
 
@@ -98,18 +103,19 @@ struct HomeOverviewScreenView: View {
     @ViewBuilder
     private func dashboard(_ content: HomeOverviewContent, isEmpty: Bool) -> some View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
+        KairoCompactDestinationRow(
+            title: "Passport", metadata: "View your Trust Passport",
+            systemImage: "person.text.rectangle",
+            accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
+            action: { router.selectTab(.passport) }
+        )
+        DigiLockerHomeCard()
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         careerSection(content, isEmpty: isEmpty)
         KairoCompactDestinationRow(
             title: "Documents", metadata: "Career attachments and private Vault documents",
             systemImage: "doc.on.doc", accessibilityIdentifier: "candidate.home.documents",
             action: { showsDocuments = true }
-        )
-        KairoCompactDestinationRow(
-            title: "Passport", metadata: "View your Trust Passport",
-            systemImage: "person.text.rectangle",
-            accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
-            action: { router.selectTab(.passport) }
         )
         recentActivitySection(content.recentActivity)
         recentPassportViewsSection(content.recentPassportViews)
@@ -213,7 +219,7 @@ struct HomeOverviewScreenView: View {
 
     private func careerSection(_ content: HomeOverviewContent, isEmpty: Bool) -> some View {
         KairoSection(compact: true) {
-            KairoSectionHeading(title: "Build your Career")
+            KairoSectionHeading(title: "Build Your Trust")
                 .accessibilityIdentifier("candidate.home.career")
             if isEmpty {
                 Text("Your Home is ready to grow")

@@ -10,6 +10,7 @@ struct MoreOverviewScreenView: View {
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var appearanceStore: AppAppearanceStore
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
 
     @Binding private var state: MoreOverviewState
     private let isLiveMode: Bool
@@ -62,6 +63,7 @@ struct MoreOverviewScreenView: View {
         .onAppear {
             state.selectAppearance(appearanceStore.selection)
         }
+        .task { await digiLockerStore.loadSummaryIfNeeded() }
         .onChange(of: appearanceStore.selection) { _, selection in
             state.selectAppearance(selection)
         }
@@ -165,12 +167,16 @@ struct MoreOverviewScreenView: View {
 
     private func populatedContent(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            buttonSection(
-                title: "Documents & activity",
-                sectionAccessibilityIdentifier: "candidate.more.destinations",
-                rows: content.accountRows.filter { $0.id == "documentVault" },
-                action: handleAccountRow
-            )
+            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                MoreSectionTitle(title: "Documents & trust sources", accessibilityIdentifier: "candidate.more.destinations")
+                KairoSection {
+                    DigiLockerMoreRow()
+                    Divider()
+                    ForEach(content.accountRows.filter { $0.id == "documentVault" }) { row in
+                        MoreNavigationRow(item: row, action: { handleAccountRow(row) })
+                    }
+                }
+            }
             KairoSection {
                 MoreNavigationRow(
                     item: MoreRowItem(id: "notifications", title: "Notifications", subtitle: "Verification and account updates", systemImage: "bell"),
@@ -1140,6 +1146,7 @@ private struct MoreProfileSheetView: View {
     let onSave: (MoreProfileDraft) async throws -> String
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @FocusState private var focusedField: ProfileField?
 
     @State private var draft: MoreProfileDraft
@@ -1162,6 +1169,7 @@ private struct MoreProfileSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    DigiLockerIdentitySummary()
                     KairoSection {
                         MoreStaticRow(
                             title: "Email",
