@@ -4,6 +4,7 @@ import UIKit
 struct MoreOverviewScreenView: View {
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.moreOverviewService) private var moreOverviewService
+    @Environment(\.profileService) private var profileService
     @Environment(\.passportPDFExportService) private var passportPDFExportService
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var router: AppRouter
@@ -488,11 +489,7 @@ struct MoreOverviewScreenView: View {
         switch modal {
         case .profile:
             if case .populated(let content) = state.phase {
-                MoreProfileSheetView(
-                    initialDraft: MoreProfileDraft(user: content.user),
-                    user: content.user,
-                    onSave: saveProfile
-                )
+                ProfileOverviewSheetView(initialUser: content.user, service: profileService)
             }
         case .password:
             MoreChangePasswordSheetView(onSubmit: changePassword)

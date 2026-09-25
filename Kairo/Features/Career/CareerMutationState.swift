@@ -523,19 +523,21 @@ nonisolated struct CareerSkillDraft: Equatable, Sendable {
     }
 
     var displayName: String {
-        normalized(name).nonEmpty ?? "skill"
+        ProfileCatalogues.resolve(name, in: ProfileCatalogues.skills)?.name
+            ?? normalized(name).nonEmpty
+            ?? "skill"
     }
 
     func validationErrors(existingNames: [String]) -> [String: String] {
         let normalizedName = normalized(name)
         guard !normalizedName.isEmpty else {
-            return ["name": "Enter a skill name."]
+            return ["name": "Choose a Skill."]
+        }
+        guard let entry = ProfileCatalogues.resolve(normalizedName, in: ProfileCatalogues.skills) else {
+            return ["name": "Choose a Skill from the KairoID catalogue."]
         }
 
-        let duplicateExists = existingNames.contains {
-            normalized($0).caseInsensitiveCompare(normalizedName) == .orderedSame
-        }
-        if duplicateExists {
+        if ProfileCatalogues.contains(entry, values: existingNames, in: ProfileCatalogues.skills) {
             return ["name": "That skill already exists."]
         }
 
@@ -543,7 +545,9 @@ nonisolated struct CareerSkillDraft: Equatable, Sendable {
     }
 
     func createRequest() -> CareerSkillCreateRequestDTO {
-        CareerSkillCreateRequestDTO(name: normalized(name))
+        CareerSkillCreateRequestDTO(
+            name: ProfileCatalogues.resolve(name, in: ProfileCatalogues.skills)?.name ?? normalized(name)
+        )
     }
 }
 

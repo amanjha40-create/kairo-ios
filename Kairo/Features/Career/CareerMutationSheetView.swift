@@ -807,6 +807,7 @@ struct CareerSkillEditorSheet: View {
     @State private var draft: CareerSkillDraft
     @State private var isSaving = false
     @State private var presentationError: CareerMutationPresentationError?
+    @State private var searchQuery = ""
 
     init(
         mode: CareerMutationMode,
@@ -847,12 +848,64 @@ struct CareerSkillEditorSheet: View {
 
                 KairoSection {
                     KairoTextField(
-                        title: "Skill name",
-                        prompt: "SQL",
-                        text: $draft.name,
-                        errorMessage: fieldErrors["name"],
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("skill", "name")
+                        title: "Search Skills",
+                        prompt: "Search by name, alias, or category",
+                        text: $searchQuery,
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("skill", "search")
                     )
+
+                    if let selected = ProfileCatalogues.resolve(draft.name, in: ProfileCatalogues.skills) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                Text("Selected").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                                Text(selected.name).font(KairoTypography.bodyStrong)
+                            }
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(KairoColors.brandPrimary)
+                        }
+                        .frame(minHeight: 44)
+                        .accessibilityElement(children: .combine)
+                    }
+
+                    let results = ProfileCatalogues.search(searchQuery, in: ProfileCatalogues.skills)
+                    if results.isEmpty {
+                        Text("No matching Skills. Free-text Skills cannot be added.")
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    } else {
+                        ForEach(results.prefix(40)) { entry in
+                            let unavailable = ProfileCatalogues.contains(
+                                entry,
+                                values: existingNames,
+                                in: ProfileCatalogues.skills
+                            )
+                            Button {
+                                if !unavailable { draft.name = entry.name }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                        Text(entry.name).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
+                                        Text(entry.category ?? "Skill").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                                    }
+                                    Spacer()
+                                    if unavailable {
+                                        Text("Already added").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                                    } else {
+                                        Image(systemName: draft.name == entry.name ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(KairoColors.brandPrimary)
+                                    }
+                                }
+                                .frame(minHeight: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(unavailable)
+                            .accessibilityLabel(entry.name)
+                        }
+                    }
+
+                    if let error = fieldErrors["name"] {
+                        Text(error).font(KairoTypography.caption).foregroundStyle(KairoColors.danger)
+                    }
                 }
             }
             .interactiveDismissDisabled(isSaving)

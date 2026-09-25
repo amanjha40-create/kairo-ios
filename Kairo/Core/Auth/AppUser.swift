@@ -1,13 +1,13 @@
 import Foundation
 
 nonisolated struct AppUser: Equatable, Sendable {
-    nonisolated struct Language: Equatable, Sendable {
+    nonisolated struct Language: Equatable, Identifiable, Sendable {
         let id: String
         let language: String
         let proficiency: String?
     }
 
-    nonisolated struct ProfessionalLink: Equatable, Sendable {
+    nonisolated struct ProfessionalLink: Equatable, Identifiable, Sendable {
         let id: String
         let linkType: String
         let label: String?

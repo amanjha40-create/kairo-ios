@@ -968,7 +968,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreViewProfileOpensCanonicalPersonalInformation() throws {
+    func testMoreViewProfileOpensCanonicalProfile() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
@@ -976,7 +976,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[moreViewProfileButton].waitForExistence(timeout: 10))
         app.buttons[moreViewProfileButton].tap()
 
-        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -988,10 +988,10 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts[moreAccountSection].exists)
         app.buttons["personalInformation"].tap()
-        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
-        let cancel = app.buttons["Cancel"]
-        XCTAssertTrue(waitForElementAfterScrolling(cancel, in: app))
-        cancel.tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        done.tap()
 
         XCTAssertTrue(app.buttons["loginSecurity"].waitForExistence(timeout: 10))
         app.buttons["loginSecurity"].tap()

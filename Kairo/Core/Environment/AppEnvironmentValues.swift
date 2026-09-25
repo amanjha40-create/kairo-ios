@@ -612,6 +612,10 @@ private struct MoreOverviewServiceKey: EnvironmentKey {
     static let defaultValue: any MoreOverviewServiceProtocol = MissingMoreOverviewService()
 }
 
+private struct ProfileServiceKey: EnvironmentKey {
+    static let defaultValue: any ProfileServiceProtocol = MissingProfileService()
+}
+
 extension EnvironmentValues {
     var appConfiguration: AppConfiguration {
         get { self[AppConfigurationKey.self] }
@@ -706,5 +710,10 @@ extension EnvironmentValues {
     var moreOverviewService: any MoreOverviewServiceProtocol {
         get { self[MoreOverviewServiceKey.self] }
         set { self[MoreOverviewServiceKey.self] = newValue }
+    }
+
+    var profileService: any ProfileServiceProtocol {
+        get { self[ProfileServiceKey.self] }
+        set { self[ProfileServiceKey.self] = newValue }
     }
 }

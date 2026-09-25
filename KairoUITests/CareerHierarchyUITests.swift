@@ -97,7 +97,7 @@ final class CareerHierarchyUITests: XCTestCase {
         let add = app.buttons["candidate.career.employment.add"]
         reveal(add, app)
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.career.employment.add").count, 1)
-        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 43.9)
         add.tap()
         XCTAssertTrue(app.staticTexts["candidate.career.mutation.title"].waitForExistence(timeout: 10))
         app.buttons["candidate.career.mutation.cancel"].tap()

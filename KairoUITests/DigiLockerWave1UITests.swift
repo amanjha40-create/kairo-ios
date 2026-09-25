@@ -32,9 +32,11 @@ final class DigiLockerWave1UITests: XCTestCase {
         let profile = app.buttons["candidate.more.viewProfile"]
         reveal(profile, in: app)
         profile.tap()
-        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["candidate.identity.provenance"].firstMatch.exists)
-        XCTAssertTrue(app.staticTexts["Source: DigiLocker"].exists)
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        let provenance = app.descendants(matching: .any)["candidate.identity.provenance"].firstMatch
+        reveal(provenance, in: app)
+        XCTAssertTrue(provenance.exists)
+        XCTAssertTrue(waitForLabel("Source: DigiLocker", in: provenance))
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[A-Z]{5}[0-9]{4}[A-Z]")).firstMatch.exists)
         attach(app, name: "Wave1-Profile-Provenance-Light")
     }
@@ -87,8 +89,10 @@ final class DigiLockerWave1UITests: XCTestCase {
         let profile = app.buttons["candidate.more.viewProfile"]
         reveal(profile, in: app)
         profile.tap()
-        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Source: DigiLocker"].exists)
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        let provenance = app.descendants(matching: .any)["candidate.identity.provenance"].firstMatch
+        reveal(provenance, in: app)
+        XCTAssertTrue(waitForLabel("Source: DigiLocker", in: provenance))
         attach(app, name: "Wave1-Profile-Provenance-Dark")
 
         app.terminate()
@@ -125,6 +129,14 @@ final class DigiLockerWave1UITests: XCTestCase {
         }
         XCTAssertTrue(element.exists)
         XCTAssertTrue(element.isHittable)
+    }
+
+    private func waitForLabel(_ text: String, in element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate { object, _ in
+            (object as? XCUIElement)?.label.contains(text) == true
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     private func attach(_ app: XCUIApplication, name: String) {

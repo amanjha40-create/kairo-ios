@@ -22,7 +22,7 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         }
         capture("More compact hierarchy")
         profile.tap()
-        XCTAssertTrue(app.navigationBars["Personal information"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
     }
 
     func testSettingsSectionsAndBottomOnlyDeletion() {

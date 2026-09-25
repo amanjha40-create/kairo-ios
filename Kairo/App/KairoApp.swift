@@ -81,6 +81,7 @@ struct KairoApp: App {
                 .environment(\.passportShareService, dependencies.passportShareService)
                 .environment(\.passportPDFExportService, dependencies.passportPDFExportService)
                 .environment(\.moreOverviewService, dependencies.moreOverviewService)
+                .environment(\.profileService, dependencies.profileService)
                 .preferredColorScheme(appearanceStore.preferredColorScheme)
         }
     }

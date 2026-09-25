@@ -1,0 +1,539 @@
+import PhotosUI
+import SwiftUI
+import UIKit
+
+struct ProfileOverviewSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var digiLockerStore: DigiLockerStore
+    @StateObject private var store: ProfileOverviewStore
+
+    @State private var editor: ProfileEditor?
+    @State private var photoSelection: PhotosPickerItem?
+    @State private var pendingPhoto: UIImage?
+    @State private var photoErrorMessage: String?
+    @State private var showRemovePhotoConfirmation = false
+
+    init(initialUser: AppUser, service: any ProfileServiceProtocol) {
+        _store = StateObject(wrappedValue: ProfileOverviewStore(service: service, initialUser: initialUser))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    if store.isLoading && store.snapshot.skills.isEmpty {
+                        KairoLoadingStateView(
+                            title: "Loading Profile",
+                            message: "Preparing your professional information."
+                        )
+                    }
+                    hero
+                    identity
+                    professionalInformation
+                    skills
+                    languages
+                    links
+                    if let errorMessage = store.errorMessage {
+                        KairoErrorStateView(
+                            title: "Profile update unavailable",
+                            message: errorMessage,
+                            retryAction: { Task { await store.load() } }
+                        )
+                    }
+                }
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.large)
+            }
+            .background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Edit") { editor = .profile }
+                        .accessibilityIdentifier("candidate.profile.edit")
+                }
+            }
+            .refreshable { await store.load(showLoading: false) }
+            .task {
+                async let profile: Void = store.load()
+                async let identity: Void = digiLockerStore.loadSummaryIfNeeded()
+                _ = await (profile, identity)
+            }
+            .onChange(of: store.snapshot.user) { _, user in
+                if sessionStore.currentUser?.id == user.id {
+                    sessionStore.replaceCurrentUser(user)
+                }
+                refreshStore.candidateDataChanged()
+            }
+            .onChange(of: photoSelection) { _, selection in
+                guard let selection else { return }
+                Task { await prepare(selection) }
+            }
+            .sheet(item: $editor) { editor in
+                editorView(editor)
+            }
+            .sheet(isPresented: Binding(
+                get: { pendingPhoto != nil },
+                set: { if !$0 { pendingPhoto = nil } }
+            )) {
+                if let pendingPhoto {
+                    ProfilePhotoPreviewView(
+                        image: pendingPhoto,
+                        isSaving: store.isMutating,
+                        onCancel: { self.pendingPhoto = nil },
+                        onSave: { Task { await savePhoto(pendingPhoto) } }
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Remove profile photo?",
+                isPresented: $showRemovePhotoConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Remove photo", role: .destructive) {
+                    Task {
+                        do {
+                            try await store.removeAvatar()
+                            photoErrorMessage = nil
+                        } catch {
+                            photoErrorMessage = "The profile photo could not be removed. Please try again."
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your initials will be shown instead.")
+            }
+            .overlay(alignment: .bottom) {
+                if let message = store.actionMessage {
+                    Text(message)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, KairoSpacing.medium)
+                        .padding(.vertical, KairoSpacing.small)
+                        .background(KairoColors.navy, in: Capsule())
+                        .padding(.bottom, KairoSpacing.medium)
+                        .accessibilityLabel(message)
+                        .task {
+                            try? await Task.sleep(for: .seconds(2))
+                            store.clearActionMessage()
+                        }
+                }
+            }
+        }
+        .interactiveDismissDisabled(store.isMutating)
+        .accessibilityIdentifier("candidate.profile.screen")
+    }
+
+    private var hero: some View {
+        let photoTitle = store.snapshot.user.avatarURL == nil ? "Add photo" : "Replace photo"
+        return KairoCard {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                    ProfileAvatarView(user: store.snapshot.user)
+                    heroSummary
+                }
+            } else {
+                HStack(alignment: .center, spacing: KairoSpacing.medium) {
+                    ProfileAvatarView(user: store.snapshot.user)
+                    heroSummary
+                }
+            }
+            ProgressView(value: Double(store.snapshot.user.profileCompletionPercentage), total: 100)
+                .tint(KairoColors.brandPrimary)
+                .accessibilityLabel("Profile completion")
+                .accessibilityValue("\(store.snapshot.user.profileCompletionPercentage) percent")
+            HStack(spacing: KairoSpacing.small) {
+                PhotosPicker(selection: $photoSelection, matching: .images) {
+                    Label(photoTitle, systemImage: "photo")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.isMutating)
+                .accessibilityIdentifier("candidate.profile.avatar.choose")
+                if store.snapshot.user.avatarURL != nil {
+                    Button("Remove", role: .destructive) { showRemovePhotoConfirmation = true }
+                        .buttonStyle(.bordered)
+                        .frame(minHeight: 44)
+                        .disabled(store.isMutating)
+                        .accessibilityIdentifier("candidate.profile.avatar.remove")
+                }
+            }
+            if let photoErrorMessage {
+                Label(photoErrorMessage, systemImage: "exclamationmark.triangle")
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("candidate.profile.avatar.error")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("candidate.profile.hero")
+    }
+
+    private var heroSummary: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+            Text(displayName)
+                .font(KairoTypography.title)
+                .foregroundStyle(KairoColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(store.snapshot.user.headline ?? "Professional headline not added")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !location.isEmpty {
+                Label(location, systemImage: "location")
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var identity: some View {
+        KairoCard {
+            if let attention = digiLockerStore.attentionDigiLockerSources.first {
+                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                    KairoSectionHeading(title: "Identity")
+                    Spacer(minLength: KairoSpacing.small)
+                    KairoStatusChip(title: "Needs review", tone: .attention)
+                        .accessibilityValue("Needs review")
+                }
+                Text(DigiLockerPresentation.safeReason(attention.reason))
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                    KairoSectionHeading(title: "Identity")
+                    Spacer(minLength: KairoSpacing.small)
+                    KairoStatusChip(
+                        title: digiLockerStore.identityIsVerified ? "Verified" : "Not currently verified",
+                        tone: digiLockerStore.identityIsVerified ? .verified : .draft
+                    )
+                }
+            }
+            if digiLockerStore.identityVerifiedViaDigiLocker {
+                Text("Source: DigiLocker")
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+            }
+            Text("Only the backend identity result is shown. Sensitive identity values stay private.")
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("candidate.identity.provenance")
+    }
+
+    private var professionalInformation: some View {
+        ProfileSection(title: "Professional information") {
+            ProfileFactRow(title: "Email", value: store.snapshot.user.email, status: verified(store.snapshot.user.emailVerifiedAt))
+            ProfileFactRow(title: "Mobile", value: store.snapshot.user.phone ?? "Not added", status: verified(store.snapshot.user.phoneVerifiedAt))
+            ProfileFactRow(title: "Current role", value: store.snapshot.user.currentRole ?? "Not added")
+            ProfileFactRow(title: "Industry", value: store.snapshot.user.industry ?? "Not added")
+            ProfileFactRow(
+                title: "Experience",
+                value: store.snapshot.user.yearsOfExperience.map { "\($0) years" } ?? "Not added"
+            )
+            ProfileFactRow(title: "Location", value: location.isEmpty ? "Not added" : location)
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text("About")
+                    .font(KairoTypography.caption)
+                    .foregroundStyle(KairoColors.textSecondary)
+                Text(store.snapshot.user.bio ?? "Not added yet")
+                    .font(KairoTypography.body)
+                    .foregroundStyle(KairoColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button("Edit professional information") { editor = .profile }
+                .buttonStyle(KairoActionStyle())
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+    }
+
+    private var skills: some View {
+        ProfileSection(title: "Skills", count: store.snapshot.skills.count) {
+            if store.snapshot.skills.isEmpty {
+                ProfileEmptyRow(message: "No Skills added yet.")
+            } else {
+                FlowLayout(spacing: KairoSpacing.xSmall) {
+                    ForEach(store.snapshot.skills) { skill in
+                        Text(skill.name)
+                            .font(KairoTypography.footnote)
+                            .padding(.horizontal, KairoSpacing.small)
+                            .padding(.vertical, KairoSpacing.xSmall)
+                            .background(KairoColors.surfaceMuted, in: Capsule())
+                    }
+                }
+            }
+            Button("Manage Skills") { editor = .skills }
+                .buttonStyle(KairoActionStyle())
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityIdentifier("candidate.profile.skills.manage")
+        }
+    }
+
+    private var languages: some View {
+        ProfileSection(title: "Languages", count: store.snapshot.user.languages.count) {
+            if store.snapshot.user.languages.isEmpty {
+                ProfileEmptyRow(message: "No Languages added yet.")
+            } else {
+                ForEach(store.snapshot.user.languages, id: \.id) { language in
+                    ProfileFactRow(
+                        title: language.language,
+                        value: ProfileLanguageProficiency(rawValue: language.proficiency ?? "")?.title ?? "No proficiency"
+                    )
+                }
+            }
+            Button("Manage Languages") { editor = .languages }
+                .buttonStyle(KairoActionStyle())
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityIdentifier("candidate.profile.languages.manage")
+        }
+    }
+
+    private var links: some View {
+        ProfileSection(title: "Professional links", count: store.snapshot.user.professionalLinks.count) {
+            if store.snapshot.user.professionalLinks.isEmpty {
+                ProfileEmptyRow(message: "No professional links added yet.")
+            } else {
+                ForEach(store.snapshot.user.professionalLinks, id: \.id) { link in
+                    Button {
+                        if let url = ProfileURLValidator.normalized(link.url) { openURL(url) }
+                    } label: {
+                        HStack {
+                            Image(systemName: "link")
+                            Text(link.label ?? ProfileLinkType(rawValue: link.linkType)?.title ?? "Professional link")
+                                .font(KairoTypography.bodyStrong)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button("Manage professional links") { editor = .links }
+                .buttonStyle(KairoActionStyle())
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityIdentifier("candidate.profile.links.manage")
+        }
+    }
+
+    @ViewBuilder
+    private func editorView(_ editor: ProfileEditor) -> some View {
+        switch editor {
+        case .profile:
+            ProfileEditView(user: store.snapshot.user, isSaving: store.isMutating) { draft in
+                try await store.update(draft)
+            }
+        case .skills:
+            ProfileSkillsView(store: store)
+        case .languages:
+            ProfileLanguagesView(store: store)
+        case .links:
+            ProfileLinksView(store: store)
+        }
+    }
+
+    private var displayName: String { profileOptional(store.snapshot.user.fullName ?? "") ?? store.snapshot.user.email }
+
+    private var location: String {
+        let structured = [store.snapshot.user.locationCity, store.snapshot.user.locationRegion, store.snapshot.user.locationCountry]
+            .compactMap { profileOptional($0 ?? "") }
+            .joined(separator: ", ")
+        return structured.isEmpty ? (store.snapshot.user.location ?? "") : structured
+    }
+
+    private func verified(_ date: Date?) -> String { date == nil ? "Unverified" : "Verified" }
+
+    private func prepare(_ item: PhotosPickerItem) async {
+        photoSelection = nil
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            photoErrorMessage = "That image could not be opened. Choose another profile photo."
+            return
+        }
+        photoErrorMessage = nil
+        pendingPhoto = image
+    }
+
+    private func savePhoto(_ image: UIImage) async {
+        guard let data = image.jpegData(compressionQuality: 0.82) else { return }
+        do {
+            try await store.uploadAvatar(data)
+            photoErrorMessage = nil
+            pendingPhoto = nil
+        } catch {
+            photoErrorMessage = "The profile photo could not be uploaded. Please try again."
+        }
+    }
+}
+
+private enum ProfileEditor: String, Identifiable {
+    case profile, skills, languages, links
+    var id: String { rawValue }
+}
+
+private struct ProfileAvatarView: View {
+    let user: AppUser
+
+    var body: some View {
+        Group {
+            if let raw = user.avatarURL,
+               let url = URL(string: raw),
+               url.scheme?.lowercased() == "https" {
+                AsyncImage(url: url) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFill()
+                    } else {
+                        initials
+                    }
+                }
+            } else {
+                initials
+            }
+        }
+        .frame(width: 72, height: 72)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(KairoColors.border, lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Profile photo for \(user.fullName ?? "candidate")")
+    }
+
+    private var initials: some View {
+        Text((user.fullName ?? user.email).split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased())
+            .font(.system(size: 24, weight: .bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(KairoColors.navy)
+    }
+}
+
+struct ProfileSection<Content: View>: View {
+    let title: String
+    var count: Int? = nil
+    @ViewBuilder let content: Content
+
+    init(title: String, count: Int? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.count = count
+        self.content = content()
+    }
+
+    var body: some View {
+        KairoCard {
+            KairoSectionHeading(title: title, count: count)
+            content
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ProfileFactRow: View {
+    let title: String
+    let value: String
+    var status: String? = nil
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: KairoSpacing.small) {
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text(title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                Text(value).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: KairoSpacing.small)
+            if let status {
+                KairoStatusChip(title: status, tone: status == "Verified" ? .verified : .draft)
+            }
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ProfileEmptyRow: View {
+    let message: String
+    var body: some View {
+        Text(message)
+            .font(KairoTypography.footnote)
+            .foregroundStyle(KairoColors.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    }
+}
+
+private struct ProfilePhotoPreviewView: View {
+    let image: UIImage
+    let isSaving: Bool
+    let onCancel: () -> Void
+    let onSave: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: KairoSpacing.large) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 220, height: 220)
+                    .clipShape(Circle())
+                    .accessibilityLabel("Selected profile photo preview")
+                Text("The selected image is uploaded only after you confirm.")
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.textSecondary)
+                KairoPrimaryButton(title: "Use this photo", isLoading: isSaving, action: onSave)
+                    .disabled(isSaving)
+                KairoSecondaryButton(title: "Cancel", action: onCancel)
+                    .disabled(isSaving)
+            }
+            .padding(KairoSpacing.large)
+            .navigationTitle("Profile photo")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+}
+
+private struct FlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        layout(proposal: proposal, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = layout(proposal: proposal, subviews: subviews)
+        for (index, point) in result.points.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+
+    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, points: [CGPoint]) {
+        let width = proposal.width ?? 320
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var points: [CGPoint] = []
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            points.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: width, height: y + rowHeight), points)
+    }
+}
