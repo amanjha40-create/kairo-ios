@@ -26,7 +26,7 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
         case .employment: "Employment documents"
         case .education: "Education documents"
         case .certification: "Certification document"
-        case .legacyPortfolio: "Project document · Legacy Portfolio origin"
+        case .legacyPortfolio: "Portfolio document"
         }
     }
 

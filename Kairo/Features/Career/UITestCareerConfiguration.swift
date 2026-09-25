@@ -46,17 +46,45 @@ struct UITestCareerConfiguration {
 /// saves/submissions are unavailable and no live record or service is involved.
 struct CareerHierarchyFixtureHostView: View {
     let state: CareerOverviewState
-    @State private var addingEmployment = false
+    @State private var presentedSheet: CareerMutationSheet?
     @State private var verificationPreset: VerificationInitiationPreset?
 
     var body: some View {
         CareerOverviewScreenView(state: state,
-            addEmploymentAction: { addingEmployment = true },
-            startEmploymentVerificationAction: { verificationPreset = .employment(id: $0.routeID) })
-            .sheet(isPresented: $addingEmployment) {
-                CareerEmploymentEditorSheet(mode: .create, draft: .init()) { _ in throw URLError(.unsupportedURL) }
+            addEmploymentAction: { presentedSheet = .employment(mode: .create, recordID: nil, draft: .init()) },
+            editEmploymentAction: { item in presentedSheet = .employment(mode: .edit, recordID: item.routeID, draft: .init()) },
+            startEmploymentVerificationAction: { verificationPreset = .employment(id: $0.routeID) },
+            addEducationAction: { presentedSheet = .education(mode: .create, recordID: nil, draft: .init()) },
+            editEducationAction: { item in presentedSheet = .education(mode: .edit, recordID: item.routeID, draft: .init()) },
+            addCertificationAction: { presentedSheet = .certification(mode: .create, recordID: nil, draft: .init()) },
+            editCertificationAction: { item in presentedSheet = .certification(mode: .edit, recordID: item.routeID, draft: .init()) },
+            addProjectAction: { presentedSheet = .project(mode: .create, recordID: nil, draft: .init()) },
+            editProjectAction: { item in presentedSheet = .project(mode: .edit, recordID: item.routeID, draft: .init()) })
+            .environment(\.careerDocumentService, DemoCareerDocumentService())
+            .sheet(item: $presentedSheet) { sheet in
+                mutationSheet(for: sheet)
             }
             .verificationInitiationSheet(preset: $verificationPreset, service: CareerHierarchyVerificationFixture()) { _ in }
+    }
+
+    init(state: CareerOverviewState) {
+        self.state = state
+    }
+
+    @ViewBuilder
+    private func mutationSheet(for sheet: CareerMutationSheet) -> some View {
+        switch sheet {
+        case .employment(let mode, _, let draft):
+            CareerEmploymentEditorSheet(mode: mode, draft: draft) { _ in throw URLError(.unsupportedURL) }
+        case .education(let mode, _, let draft):
+            CareerEducationEditorSheet(mode: mode, draft: draft) { _ in throw URLError(.unsupportedURL) }
+        case .certification(let mode, _, let draft):
+            CareerCertificationEditorSheet(mode: mode, draft: draft) { _, _ in throw URLError(.unsupportedURL) }
+        case .project(let mode, _, let draft):
+            CareerProjectEditorSheet(mode: mode, draft: draft) { _ in throw URLError(.unsupportedURL) }
+        case .skill(let mode, _, let draft, let existingNames):
+            CareerSkillEditorSheet(mode: mode, existingNames: existingNames, draft: draft) { _ in throw URLError(.unsupportedURL) }
+        }
     }
 }
 

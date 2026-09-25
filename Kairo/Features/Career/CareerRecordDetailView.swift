@@ -1,6 +1,6 @@
 import SwiftUI
 
-nonisolated enum CareerRecordKind { case employment, education, certification, project }
+nonisolated enum CareerRecordKind { case employment, education, certification, project, portfolio }
 
 /// Only supplied web links become destinations; display labels are never URLs.
 nonisolated struct CareerRecordLink: Equatable, Sendable {
@@ -31,6 +31,24 @@ struct CareerRecordDetailPresentation: Identifiable {
     var attachmentPresent: Bool? = nil
 
     var showsVerification: Bool { kind == .employment || kind == .education }
+
+    var documentSectionTitle: String {
+        switch kind {
+        case .employment, .education: "Evidence"
+        case .certification: "Certificate document"
+        case .portfolio: "Portfolio attachment"
+        case .project: "Documents"
+        }
+    }
+
+    var documentActionTitle: String {
+        switch kind {
+        case .employment, .education: "Manage evidence"
+        case .certification: "Manage document"
+        case .portfolio: "View attachment"
+        case .project: "View documents"
+        }
+    }
 
     static func employment(_ item: CareerEmploymentItem, edit: (() -> Void)?, delete: (() -> Void)?, verify: (() -> Void)?) -> Self {
         Self(id: item.routeID, title: item.role, organization: item.company, status: item.verificationStatus,
@@ -63,6 +81,20 @@ struct CareerRecordDetailPresentation: Identifiable {
             edit: item.legacyPortfolioID == nil ? edit : nil, delete: item.legacyPortfolioID == nil ? delete : nil, kind: .project,
             supportingMetadata: item.detailMetadata.filter { $0.title == "Origin" }.map { ($0.title, $0.value) }, links: item.links)
     }
+
+    static func portfolio(_ item: CareerPortfolioItem) -> Self {
+        Self(
+            id: item.routeID,
+            title: item.title,
+            organization: "Portfolio",
+            status: item.verificationStatus,
+            metadata: item.description.map { [("Description", $0)] } ?? [],
+            documents: .legacyPortfolio(id: item.routeID, title: item.title),
+            kind: .portfolio,
+            links: [CareerRecordLink(title: "Work sample URL", url: item.url)].compactMap { $0 },
+            attachmentPresent: item.hasDocument
+        )
+    }
 }
 
 struct CareerRecordDetailView: View {
@@ -70,6 +102,8 @@ struct CareerRecordDetailView: View {
     let perform: (@escaping () -> Void) -> Void
     let openDocuments: (CareerDocumentParent) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.careerDocumentService) private var documentService
+    @State private var documentCount: Int?
 
     var body: some View {
         NavigationStack {
@@ -106,7 +140,7 @@ struct CareerRecordDetailView: View {
                     }
                     if let documents = record.documents {
                         KairoSection(compact: true) {
-                            KairoSectionHeading(title: "Documents")
+                            KairoSectionHeading(title: record.documentSectionTitle, count: documentCount)
                             if let present = record.attachmentPresent {
                                 Text(present ? "Attachment added" : "No attachment")
                                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
@@ -122,7 +156,7 @@ struct CareerRecordDetailView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                                     .accessibilityIdentifier("career.detail.educationEvidenceNotice")
                             }
-                            KairoCompactDestinationRow(title: "View documents", systemImage: "doc.text",
+                            KairoCompactDestinationRow(title: record.documentActionTitle, systemImage: "doc.text",
                                 accessibilityIdentifier: "career.detail.documents") { openDocuments(documents) }
                         }
                     }
@@ -160,6 +194,9 @@ struct CareerRecordDetailView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         }
         .accessibilityIdentifier("career.record.detail")
+        .task(id: record.documents?.id) {
+            await loadDocumentCount()
+        }
     }
 
     private func metadata(_ items: [(title: String, value: String)]) -> some View {
@@ -186,6 +223,19 @@ struct CareerRecordDetailView: View {
         if let delete = record.delete {
             Button("Delete", role: .destructive) { perform(delete) }
                 .buttonStyle(KairoActionStyle(role: .destructiveSecondary)).accessibilityIdentifier("career.detail.delete")
+        }
+    }
+
+    private func loadDocumentCount() async {
+        guard let parent = record.documents else {
+            documentCount = nil
+            return
+        }
+        do {
+            let documents = try await documentService.listDocuments(for: parent)
+            await MainActor.run { documentCount = documents.count }
+        } catch {
+            await MainActor.run { documentCount = nil }
         }
     }
 }

@@ -34,8 +34,10 @@ nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
     let employmentType: String?
     let startDate: Date?
     let endDate: Date?
+    let workLocationCity: String?
     let workLocationCountry: String?
     let workLocationRegion: String?
+    let workArrangement: String?
     let verificationMethod: String?
     let verificationStatus: String
 
@@ -65,8 +67,10 @@ nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
         employmentType = try container.decodeFirstPresentString(forKeys: ["employment_type"])
         startDate = try container.decodeFirstPresentDate(forKeys: ["start_date"])
         endDate = try container.decodeFirstPresentDate(forKeys: ["end_date"])
+        workLocationCity = try container.decodeFirstPresentString(forKeys: ["work_location_city"])
         workLocationCountry = try container.decodeFirstPresentString(forKeys: ["work_location_country"])
         workLocationRegion = try container.decodeFirstPresentString(forKeys: ["work_location_region"])
+        workArrangement = try container.decodeFirstPresentString(forKeys: ["work_arrangement"])
         verificationMethod = try container.decodeFirstPresentString(
             forKeys: ["verification_method"]
         )
@@ -213,8 +217,10 @@ nonisolated struct CareerEmploymentCreateRequestDTO: Encodable, Equatable, Senda
     let verificationMethod: String
     let startDate: String
     let endDate: String?
-    let workLocationCountry: String
+    let workLocationCountry: String?
     let workLocationRegion: String?
+    var workLocationCity: String? = nil
+    var workArrangement: String? = nil
 }
 
 nonisolated struct CareerEmploymentUpdateRequestDTO: Encodable, Equatable, Sendable {
@@ -228,6 +234,8 @@ nonisolated struct CareerEmploymentUpdateRequestDTO: Encodable, Equatable, Senda
     let endDate: String?
     let workLocationCountry: String?
     let workLocationRegion: String?
+    var workLocationCity: String? = nil
+    var workArrangement: String? = nil
 }
 
 nonisolated struct CareerEducationCreateRequestDTO: Encodable, Equatable, Sendable {

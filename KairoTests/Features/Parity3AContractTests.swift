@@ -16,7 +16,11 @@ final class Parity3AContractTests: XCTestCase {
             "expired": "Expired", "draft": "Draft", "self_declared": "Candidate-provided", "future_state": "Status unavailable"]
         for (raw, expected) in values {
             XCTAssertEqual(ProductStatusLanguage.title(for: raw), expected, raw)
-            XCTAssertEqual(CareerVerificationStatus(rawBackendValue: raw).badgeStyle.title, expected, raw)
+            let careerExpected = [
+                "pending_admin_review": "Needs review",
+                "additional_info_requested": "Needs review"
+            ][raw] ?? expected
+            XCTAssertEqual(CareerVerificationStatus(rawBackendValue: raw).badgeStyle.title, careerExpected, raw)
             let passport = PassportRecordVerificationStatus(rawBackendValue: raw)
             if case .precise(let value) = passport { XCTAssertEqual(ProductStatusLanguage.title(for: value), expected) }
         }
@@ -306,7 +310,9 @@ final class Parity3AContractTests: XCTestCase {
         let overview = try await career.loadOverview()
         let mapped = CareerOverviewMapper.map(overview)
         guard case .populated(let content) = mapped.phase else { return XCTFail("Legacy content must remain visible") }
-        XCTAssertEqual(content.projects.first?.legacyPortfolioID, "legacy")
+        XCTAssertTrue(content.projects.isEmpty)
+        XCTAssertEqual(content.portfolio.first?.routeID, "legacy")
+        XCTAssertEqual(content.portfolio.first?.title, "Old project")
     }
     func testHubKeepsPreciseVaultTaxonomyAndLegacyRawValues() async throws {
         let (session, _) = try await makeSession()

@@ -159,6 +159,7 @@ nonisolated enum KairoAccessibilityID {
     static let careerCertificationsSection = "candidate.career.certifications"
     static let careerProjectsSection = "candidate.career.projects"
     static let careerSkillsSection = "candidate.career.skills"
+    static let careerPortfolioSection = "candidate.career.portfolio"
     static let careerEmptyState = "candidate.career.empty"
     static let careerAddEmploymentButton = "candidate.career.employment.add"
     static let careerAddEducationButton = "candidate.career.education.add"

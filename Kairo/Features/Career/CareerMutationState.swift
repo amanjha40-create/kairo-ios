@@ -72,6 +72,26 @@ nonisolated enum CareerEmploymentTypeOption: String, CaseIterable, Identifiable,
     }
 }
 
+nonisolated enum CareerWorkArrangementOption: String, CaseIterable, Identifiable, Sendable {
+    case onsite
+    case hybrid
+    case remote
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .onsite: "On-site"
+        case .hybrid: "Hybrid"
+        case .remote: "Remote"
+        }
+    }
+
+    nonisolated init(rawValue: String?) {
+        self = CareerWorkArrangementOption(rawValue: rawValue ?? "") ?? .onsite
+    }
+}
+
 nonisolated enum CareerEducationLevelOption: String, CaseIterable, Identifiable, Sendable {
     case highSchool = "high_school"
     case diploma
@@ -119,6 +139,8 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
     var startDate = Date()
     var endDate = Date()
     var isCurrentlyWorking = true
+    var workArrangement: CareerWorkArrangementOption = .onsite
+    var workLocationCity = ""
     var workLocationCountry = ""
     var workLocationRegion = ""
 
@@ -132,6 +154,8 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
         startDate = record.startDate ?? Date()
         endDate = record.endDate ?? Date()
         isCurrentlyWorking = record.currentlyWorking
+        workArrangement = .init(rawValue: record.workArrangement)
+        workLocationCity = record.workLocationCity ?? ""
         workLocationCountry = record.workLocationCountry ?? ""
         workLocationRegion = record.workLocationRegion ?? ""
     }
@@ -153,8 +177,13 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             errors["job_title"] = "Enter the job title."
         }
 
-        if ManualProfileNormalization.normalizedCountryCode(workLocationCountry) == nil {
-            errors["work_location_country"] = "Enter a valid country."
+        if workArrangement != .remote {
+            if normalized(workLocationCity).isEmpty {
+                errors["work_location_city"] = "Enter the work city."
+            }
+            if ManualProfileNormalization.normalizedCountryCode(workLocationCountry) == nil {
+                errors["work_location_country"] = "Enter a valid country."
+            }
         }
 
         if !isCurrentlyWorking, endDate < startDate {
@@ -175,8 +204,10 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             verificationMethod: "document",
             startDate: encodedDate(startDate),
             endDate: isCurrentlyWorking ? nil : encodedDate(endDate),
-            workLocationCountry: ManualProfileNormalization.normalizedCountryCode(workLocationCountry) ?? "",
-            workLocationRegion: normalized(workLocationRegion).nonEmpty
+            workLocationCountry: workArrangement == .remote ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
+            workLocationRegion: workArrangement == .remote ? nil : normalized(workLocationRegion).nonEmpty,
+            workLocationCity: workArrangement == .remote ? nil : normalized(workLocationCity).nonEmpty,
+            workArrangement: workArrangement.rawValue
         )
     }
 
@@ -190,8 +221,10 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             employmentType: employmentType.rawValue,
             startDate: encodedDate(startDate),
             endDate: isCurrentlyWorking ? nil : encodedDate(endDate),
-            workLocationCountry: ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
-            workLocationRegion: normalized(workLocationRegion).nonEmpty
+            workLocationCountry: workArrangement == .remote ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
+            workLocationRegion: workArrangement == .remote ? nil : normalized(workLocationRegion).nonEmpty,
+            workLocationCity: workArrangement == .remote ? nil : normalized(workLocationCity).nonEmpty,
+            workArrangement: workArrangement.rawValue
         )
     }
 }
@@ -531,14 +564,15 @@ nonisolated enum CareerMutationErrorMapper {
                     fieldErrors: [:]
                 )
             case .api(let apiError):
-                let flattened = apiError.fieldErrors.reduce(into: [String: String]()) { partialResult, pair in
-                    partialResult[pair.key] = pair.value.first
+                let fieldErrors = apiError.fieldErrors.reduce(into: [String: String]()) { partialResult, pair in
+                    if let message = validationMessage(for: pair.key) {
+                        partialResult[pair.key] = message
+                    }
                 }
-                let message = apiError.globalErrors.first ?? apiError.message
                 return CareerMutationPresentationError(
                     title: title(for: apiError, fallbackTitle: fallbackTitle),
-                    message: message,
-                    fieldErrors: flattened
+                    message: message(for: apiError),
+                    fieldErrors: fieldErrors
                 )
             case .invalidResponse:
                 return CareerMutationPresentationError(
@@ -563,9 +597,49 @@ nonisolated enum CareerMutationErrorMapper {
 
         return CareerMutationPresentationError(
             title: fallbackTitle,
-            message: error.localizedDescription,
+            message: "KairoID couldn't complete that Career change. Please try again.",
             fieldErrors: [:]
         )
+    }
+
+    private nonisolated static func validationMessage(for field: String) -> String? {
+        switch field {
+        case "employer_legal_name": "Enter the employer name."
+        case "job_title": "Enter the job title."
+        case "work_location_city": "Enter the work city."
+        case "work_location_country": "Enter a valid country."
+        case "institution_name": "Enter the institution."
+        case "degree": "Enter the degree."
+        case "education_level": "Choose the education level."
+        case "issuing_organization": "Enter the issuer."
+        case "credential_url": "Enter a valid credential URL."
+        case "project_url": "Enter a valid project URL."
+        case "repository_url": "Enter a valid repository URL."
+        case "expiry_date": "Expiry date must be after the issue date."
+        case "end_date": "End date must be after the start date."
+        case "title": "Enter a title."
+        case "name": "Enter a skill name."
+        default: nil
+        }
+    }
+
+    private nonisolated static func message(for apiError: APIError) -> String {
+        switch apiError.code {
+        case .badRequest, .validationError:
+            "Review the highlighted fields and try again."
+        case .forbidden:
+            "This record can't be changed in its current state."
+        case .notFound:
+            "This record is no longer available. Refresh Career and try again."
+        case .conflict:
+            "This record changed. Refresh Career and try again."
+        case .unauthorized:
+            "Your session needs to be restored. Sign in and try again."
+        case .rateLimited:
+            "Too many attempts. Wait a moment and try again."
+        case .internalError, .serviceUnavailable:
+            "KairoID couldn't complete that Career change. Please try again."
+        }
     }
 
     private nonisolated static func title(for apiError: APIError, fallbackTitle: String) -> String {

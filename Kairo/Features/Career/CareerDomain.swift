@@ -24,6 +24,8 @@ struct CareerEmploymentRecord: Identifiable, Equatable, Sendable {
     let currentlyWorking: Bool
     let workLocationCountry: String?
     let workLocationRegion: String?
+    var workLocationCity: String? = nil
+    var workArrangement: String? = nil
     let verificationMethod: String?
     let verificationStatus: CareerRecordVerificationStatus
     let rawVerificationStatus: String
@@ -139,6 +141,8 @@ extension CareerEmploymentRecord {
             currentlyWorking: dto.currentlyWorking,
             workLocationCountry: dto.workLocationCountry,
             workLocationRegion: dto.workLocationRegion,
+            workLocationCity: dto.workLocationCity,
+            workArrangement: dto.workArrangement,
             verificationMethod: dto.verificationMethod,
             verificationStatus: .init(rawBackendValue: dto.verificationStatus),
             rawVerificationStatus: dto.verificationStatus

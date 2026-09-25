@@ -16,13 +16,15 @@ final class CareerOverviewStateTests: XCTestCase {
         XCTAssertEqual(content.certifications.count, 2)
         XCTAssertEqual(content.projects.count, 2)
         XCTAssertEqual(content.skills.count, 8)
+        XCTAssertEqual(content.portfolio.count, 1)
         XCTAssertEqual(content.visibleSections, [
             .professionalSummary,
             .employment,
             .education,
             .certifications,
+            .skills,
             .projects,
-            .skills
+            .portfolio
         ])
     }
 
@@ -39,6 +41,7 @@ final class CareerOverviewStateTests: XCTestCase {
         XCTAssertTrue(content.certifications.isEmpty)
         XCTAssertTrue(content.projects.isEmpty)
         XCTAssertTrue(content.skills.isEmpty)
+        XCTAssertTrue(content.portfolio.isEmpty)
         XCTAssertEqual(content.visibleSections, [.professionalSummary])
     }
 
@@ -69,7 +72,7 @@ final class CareerOverviewStateTests: XCTestCase {
         XCTAssertEqual(
             CareerVerificationStatus.pendingVerification.badgeStyle,
             CareerVerificationBadgeStyle(
-                title: "Pending KairoID Review",
+                title: "Pending",
                 symbol: "clock.badge.checkmark.fill",
                 tone: .pending
             )
@@ -79,8 +82,16 @@ final class CareerOverviewStateTests: XCTestCase {
             CareerVerificationBadgeStyle(
                 title: "Candidate-provided",
                 symbol: "circle.dashed",
-                tone: .neutral
+                tone: .candidateProvided
             )
         )
+    }
+
+    func test_wave2StatusesUseProductCopyAndNeverExposeUnknownEnums() {
+        XCTAssertEqual(CareerVerificationStatus(rawBackendValue: "partial_match").badgeStyle.title, "Partially verified")
+        XCTAssertEqual(CareerVerificationStatus(rawBackendValue: "additional_info_requested").badgeStyle.title, "Needs review")
+        XCTAssertEqual(CareerVerificationStatus(rawBackendValue: "submitted").badgeStyle.title, "Submitted")
+        XCTAssertEqual(CareerVerificationStatus(rawBackendValue: "future_internal_state").badgeStyle.title, "Status unavailable")
+        XCTAssertEqual(CareerVerificationStatus(rawBackendValue: "rejected").badgeStyle.tone, .rejected)
     }
 }

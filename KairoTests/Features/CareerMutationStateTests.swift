@@ -7,6 +7,8 @@ final class CareerMutationStateTests: XCTestCase {
         var draft = CareerEmploymentDraft()
         draft.employerLegalName = "  Northline Career Services  "
         draft.jobTitle = " Trust Operations Lead "
+        draft.workArrangement = .hybrid
+        draft.workLocationCity = " Bengaluru "
         draft.workLocationCountry = "India"
         draft.workLocationRegion = " Karnataka "
         draft.isCurrentlyWorking = true
@@ -23,6 +25,26 @@ final class CareerMutationStateTests: XCTestCase {
         XCTAssertNil(request.endDate)
         XCTAssertEqual(request.workLocationCountry, "IN")
         XCTAssertEqual(request.workLocationRegion, "Karnataka")
+        XCTAssertEqual(request.workLocationCity, "Bengaluru")
+        XCTAssertEqual(request.workArrangement, "hybrid")
+    }
+
+    func test_remoteEmploymentClearsLocationFieldsUsingBackendContract() {
+        var draft = CareerEmploymentDraft()
+        draft.employerLegalName = "Northline Career Services"
+        draft.jobTitle = "Trust Operations Lead"
+        draft.workArrangement = .remote
+        draft.workLocationCity = "Bengaluru"
+        draft.workLocationCountry = "India"
+        draft.workLocationRegion = "Karnataka"
+
+        XCTAssertNil(draft.validationErrors()["work_location_city"])
+        XCTAssertNil(draft.validationErrors()["work_location_country"])
+        let request = draft.createRequest(currentUser: makeUser())
+        XCTAssertEqual(request.workArrangement, "remote")
+        XCTAssertNil(request.workLocationCity)
+        XCTAssertNil(request.workLocationCountry)
+        XCTAssertNil(request.workLocationRegion)
     }
 
     func test_employmentValidationRejectsEndDateEarlierThanStartDate() {
@@ -132,8 +154,34 @@ final class CareerMutationStateTests: XCTestCase {
         let error = CareerMutationErrorMapper.map(NetworkError.api(apiError), fallbackTitle: "Employment unavailable")
 
         XCTAssertEqual(error.title, "Employment unavailable")
-        XCTAssertEqual(error.message, "Request validation failed.")
+        XCTAssertEqual(error.message, "Review the highlighted fields and try again.")
         XCTAssertEqual(error.fieldErrors["job_title"], "Enter the job title.")
+    }
+
+    func test_errorMapperNeverExposesBackendOrSystemErrorDetails() {
+        let apiError = APIError(
+            statusCode: 422,
+            code: .validationError,
+            message: "s3://private-bucket/internal-object",
+            fieldErrors: ["job_title": ["database constraint career_records_job_title"]],
+            globalErrors: ["Bearer secret-token"],
+            validationDetails: []
+        )
+
+        let mappedAPI = CareerMutationErrorMapper.map(
+            NetworkError.api(apiError),
+            fallbackTitle: "Employment unavailable"
+        )
+        let mappedSystem = CareerMutationErrorMapper.map(
+            NSError(domain: "secret.internal", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bearer secret-token"]),
+            fallbackTitle: "Employment unavailable"
+        )
+
+        XCTAssertEqual(mappedAPI.message, "Review the highlighted fields and try again.")
+        XCTAssertEqual(mappedAPI.fieldErrors["job_title"], "Enter the job title.")
+        XCTAssertEqual(mappedSystem.message, "KairoID couldn't complete that Career change. Please try again.")
+        XCTAssertFalse(mappedAPI.message.contains("s3://"))
+        XCTAssertFalse(mappedSystem.message.contains("Bearer"))
     }
 
     func test_errorMapperDistinguishesForbiddenAndNotFound() {

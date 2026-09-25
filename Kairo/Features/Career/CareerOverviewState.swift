@@ -144,6 +144,16 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                             name: "People Experience",
                             verificationStatus: .notVerified
                         )
+                    ],
+                    portfolio: [
+                        CareerPortfolioItem(
+                            routeID: "fixture_portfolio_1",
+                            title: "Candidate Experience Case Study",
+                            description: "A work sample from the existing Portfolio collection.",
+                            verificationStatus: .notVerified,
+                            hasDocument: true,
+                            url: URL(string: "https://example.invalid/case-study")
+                        )
                     ]
                 )
             )
@@ -160,7 +170,8 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                     education: [],
                     certifications: [],
                     projects: [],
-                    skills: []
+                    skills: [],
+                    portfolio: []
                 )
             )
         )
@@ -242,8 +253,9 @@ nonisolated enum CareerOverviewSection: String, CaseIterable, Equatable, Sendabl
     case employment
     case education
     case certifications
-    case projects
     case skills
+    case projects
+    case portfolio
 
     var title: String {
         switch self {
@@ -255,10 +267,12 @@ nonisolated enum CareerOverviewSection: String, CaseIterable, Equatable, Sendabl
             "Education"
         case .certifications:
             "Certifications"
-        case .projects:
-            "Projects"
         case .skills:
             "Skills"
+        case .projects:
+            "Projects"
+        case .portfolio:
+            "Portfolio"
         }
     }
 }
@@ -266,7 +280,11 @@ nonisolated enum CareerOverviewSection: String, CaseIterable, Equatable, Sendabl
 nonisolated enum CareerVerificationTone: Equatable, Sendable {
     case success
     case pending
-    case neutral
+    case attention
+    case rejected
+    case withdrawn
+    case draft
+    case candidateProvided
 }
 
 nonisolated struct CareerVerificationBadgeStyle: Equatable, Sendable {
@@ -284,8 +302,8 @@ nonisolated enum CareerVerificationStatus: Equatable, Sendable {
     init(rawBackendValue: String) {
         switch rawBackendValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "verified", "approved": self = .verified
-        case "pending", "pending_review", "pending_verification", "awaiting_verification", "submitted", "under_review", "in_review": self = .pendingVerification
-        case "self_declared", "not_verified", "unverified", "missing": self = .notVerified
+        case "pending", "pending_review", "pending_verification", "awaiting_verification": self = .pendingVerification
+        case "self_declared", "candidate_provided", "not_verified", "unverified", "missing": self = .notVerified
         default: self = .precise(rawBackendValue)
         }
     }
@@ -300,7 +318,7 @@ nonisolated enum CareerVerificationStatus: Equatable, Sendable {
             )
         case .pendingVerification:
             CareerVerificationBadgeStyle(
-                title: ProductStatusLanguage.pendingReview,
+                title: "Pending",
                 symbol: "clock.badge.checkmark.fill",
                 tone: .pending
             )
@@ -308,10 +326,32 @@ nonisolated enum CareerVerificationStatus: Equatable, Sendable {
             CareerVerificationBadgeStyle(
                 title: ProductStatusLanguage.candidateProvided,
                 symbol: "circle.dashed",
-                tone: .neutral
+                tone: .candidateProvided
             )
         case .precise(let value):
-            CareerVerificationBadgeStyle(title: ProductStatusLanguage.title(for: value), symbol: "info.circle", tone: .neutral)
+            Self.preciseBadgeStyle(for: value)
+        }
+    }
+
+    private static func preciseBadgeStyle(for rawValue: String) -> CareerVerificationBadgeStyle {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return switch value {
+        case "partially_verified", "partial_match":
+            CareerVerificationBadgeStyle(title: "Partially verified", symbol: "checkmark.circle.badge.questionmark", tone: .pending)
+        case "submitted":
+            CareerVerificationBadgeStyle(title: "Submitted", symbol: "paperplane.fill", tone: .pending)
+        case "under_review", "in_review", "pending_admin_review", "pending_admin_re_review", "pending_admin_quality_review":
+            CareerVerificationBadgeStyle(title: "Needs review", symbol: "clock.badge.checkmark.fill", tone: .pending)
+        case "additional_info_requested", "awaiting_subject_corrections", "awaiting_information":
+            CareerVerificationBadgeStyle(title: "Needs review", symbol: "exclamationmark.circle.fill", tone: .attention)
+        case "rejected", "failed", "unable_to_verify", "cancelled", "expired":
+            CareerVerificationBadgeStyle(title: ProductStatusLanguage.title(for: value), symbol: "xmark.circle.fill", tone: .rejected)
+        case "withdrawn", "withdrawn_by_candidate":
+            CareerVerificationBadgeStyle(title: "Withdrawn", symbol: "minus.circle.fill", tone: .withdrawn)
+        case "draft", "pending_upload":
+            CareerVerificationBadgeStyle(title: "Draft", symbol: "pencil", tone: .draft)
+        default:
+            CareerVerificationBadgeStyle(title: ProductStatusLanguage.unavailable, symbol: "questionmark.circle", tone: .draft)
         }
     }
 
@@ -322,7 +362,9 @@ nonisolated enum CareerVerificationStatus: Equatable, Sendable {
     var canStartVerification: Bool {
         switch self {
         case .notVerified: true
-        case .precise(let raw): CareerRecordVerificationStatus(rawBackendValue: raw) == .notVerified
+        case .precise(let raw):
+            ["draft", "self_declared", "candidate_provided", "not_verified", "unverified", "missing"]
+                .contains(raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
         case .verified, .pendingVerification: false
         }
     }
@@ -370,6 +412,7 @@ nonisolated struct CareerOverviewContent: Equatable, Sendable {
     let certifications: [CareerCertificationItem]
     let projects: [CareerProjectItem]
     let skills: [CareerSkillItem]
+    var portfolio: [CareerPortfolioItem] = []
 
     var visibleSections: [CareerOverviewSection] {
         var sections: [CareerOverviewSection] = [.professionalSummary]
@@ -386,12 +429,16 @@ nonisolated struct CareerOverviewContent: Equatable, Sendable {
             sections.append(.certifications)
         }
 
+        if !skills.isEmpty {
+            sections.append(.skills)
+        }
+
         if !projects.isEmpty {
             sections.append(.projects)
         }
 
-        if !skills.isEmpty {
-            sections.append(.skills)
+        if !portfolio.isEmpty {
+            sections.append(.portfolio)
         }
 
         return sections
@@ -464,6 +511,17 @@ nonisolated struct CareerSkillItem: Equatable, Identifiable, Sendable {
     let routeID: String
     let name: String
     let verificationStatus: CareerVerificationStatus
+
+    var id: String { routeID }
+}
+
+nonisolated struct CareerPortfolioItem: Equatable, Identifiable, Sendable {
+    let routeID: String
+    let title: String
+    let description: String?
+    let verificationStatus: CareerVerificationStatus
+    let hasDocument: Bool
+    let url: URL?
 
     var id: String { routeID }
 }

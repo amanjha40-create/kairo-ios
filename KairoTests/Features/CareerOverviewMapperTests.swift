@@ -21,6 +21,8 @@ final class CareerOverviewMapperTests: XCTestCase {
                     currentlyWorking: true,
                     workLocationCountry: "India",
                     workLocationRegion: "Karnataka",
+                    workLocationCity: "Bengaluru",
+                    workArrangement: "hybrid",
                     verificationMethod: "document",
                     verificationStatus: .verified,
                     rawVerificationStatus: "approved"
@@ -105,6 +107,12 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(state.summary.trustPassportStatus, "Active")
         XCTAssertEqual(content.employment.first?.routeID, "employment_1")
         XCTAssertEqual(content.employment.first?.dateRange, "Jan 2024 – Present")
+        XCTAssertEqual(content.employment.first?.detailMetadata, [
+            CareerDetailMetadata(title: "Employment type", value: "Full Time"),
+            CareerDetailMetadata(title: "Work arrangement", value: "Hybrid"),
+            CareerDetailMetadata(title: "Location", value: "Bengaluru, Karnataka, India"),
+            CareerDetailMetadata(title: "Verification source", value: "Documents")
+        ])
         XCTAssertFalse(content.employment.first?.allowsEdit ?? true)
         XCTAssertFalse(content.employment.first?.allowsDelete ?? true)
         XCTAssertEqual(content.education.first?.routeID, "education_1")
@@ -114,6 +122,9 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.certifications.first?.routeID, "certification_1")
         XCTAssertEqual(content.certifications.first?.issueDate, "Mar 2025")
         XCTAssertEqual(content.certifications.first?.credentialURL, URL(string: "https://example.invalid/credential"))
+        XCTAssertTrue(content.certifications.first?.detailMetadata.contains(
+            CareerDetailMetadata(title: "Credential status", value: "Expiry not provided")
+        ) ?? false)
         XCTAssertEqual(content.projects.first?.routeID, "project_1")
         XCTAssertEqual(content.projects.first?.portfolioLinkTitle, "portfolio.example.com")
         XCTAssertEqual(content.projects.first?.projectURL, URL(string: "https://portfolio.example.com/projects/1"))
@@ -124,7 +135,7 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.skills.map(\.verificationStatus), [.verified, .pendingVerification])
         XCTAssertEqual(
             content.visibleSections,
-            [.professionalSummary, .employment, .education, .certifications, .projects, .skills]
+            [.professionalSummary, .employment, .education, .certifications, .skills, .projects]
         )
     }
 
@@ -323,7 +334,7 @@ final class CareerOverviewMapperTests: XCTestCase {
         }
 
         XCTAssertEqual(errorState.title, "Career overview unavailable")
-        XCTAssertEqual(errorState.message, "Career payload is invalid.")
+        XCTAssertEqual(errorState.message, "KairoID couldn't load your Career records. Please try again.")
     }
 
     func test_requiresSessionRecoveryOnlyForExpiredSession() {

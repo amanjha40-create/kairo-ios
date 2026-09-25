@@ -6,14 +6,9 @@ enum CareerOverviewMapper {
             employment: overview.employments.map(makeEmploymentItem),
             education: overview.educations.map(makeEducationItem),
             certifications: overview.certifications.map(makeCertificationItem),
-            projects: overview.projects.map(makeProjectItem) + overview.legacyPortfolio.map { item in
-                CareerProjectItem(routeID: "legacy.\(item.id)", title: item.title,
-                    role: "Legacy Portfolio origin", duration: "", portfolioLinkTitle: item.url?.host ?? "",
-                    verificationStatus: .init(rawBackendValue: item.verificationStatus),
-                    detailMetadata: detailMetadata([("Description", item.description), ("Origin", "Legacy Portfolio; Project migration pending")]),
-                    legacyPortfolioID: item.id, projectURL: item.url)
-            },
-            skills: overview.skills.map(makeSkillItem)
+            projects: overview.projects.map(makeProjectItem),
+            skills: overview.skills.map(makeSkillItem),
+            portfolio: overview.legacyPortfolio.map(makePortfolioItem)
         )
 
         return .live(
@@ -39,7 +34,7 @@ enum CareerOverviewMapper {
                 return .error(
                     summary: summary,
                     title: "Career overview unavailable",
-                    message: apiError.message
+                    message: safeAPIErrorMessage(apiError)
                 )
             case .invalidResponse:
                 return .error(
@@ -65,7 +60,7 @@ enum CareerOverviewMapper {
         return .error(
             summary: summary,
             title: "Career overview unavailable",
-            message: error.localizedDescription
+            message: "KairoID couldn't load your Career records. Please try again."
         )
     }
 
@@ -106,7 +101,9 @@ enum CareerOverviewMapper {
             allowsDelete: record.allowsCandidateDeletion,
             detailMetadata: detailMetadata([
                 ("Employment type", record.employmentType?.replacingOccurrences(of: "_", with: " ").capitalized),
-                ("Location", [record.workLocationRegion, record.workLocationCountry].compactMap { $0 }.joined(separator: ", "))
+                ("Work arrangement", record.workArrangement.map(workArrangementTitle)),
+                ("Location", employmentLocation(record)),
+                ("Verification source", record.verificationMethod.map(verificationSourceTitle))
             ])
         )
     }
@@ -150,6 +147,7 @@ enum CareerOverviewMapper {
             hasDocument: record.originalFilename?.isEmpty == false,
             detailMetadata: detailMetadata([
                 ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate)),
+                ("Credential status", certificationValidity(record)),
                 ("Credential ID", record.credentialID)
             ]),
             credentialURL: record.credentialURL
@@ -192,6 +190,17 @@ enum CareerOverviewMapper {
         )
     }
 
+    private nonisolated static func makePortfolioItem(_ item: LegacyPortfolioItem) -> CareerPortfolioItem {
+        CareerPortfolioItem(
+            routeID: item.id,
+            title: item.title,
+            description: item.description,
+            verificationStatus: .init(rawBackendValue: item.verificationStatus),
+            hasDocument: item.document != nil,
+            url: item.url
+        )
+    }
+
     private nonisolated static func verificationStatus(from status: CareerRecordVerificationStatus) -> CareerVerificationStatus {
         switch status {
         case .verified:
@@ -210,7 +219,66 @@ enum CareerOverviewMapper {
             content.education.isEmpty &&
             content.certifications.isEmpty &&
             content.projects.isEmpty &&
-            content.skills.isEmpty
+            content.skills.isEmpty &&
+            content.portfolio.isEmpty
+    }
+
+    private nonisolated static func employmentLocation(_ record: CareerEmploymentRecord) -> String? {
+        if record.workArrangement?.lowercased() == "remote" {
+            return "Remote"
+        }
+        let country = displayCountry(record.workLocationCountry)
+        let values = [record.workLocationCity, record.workLocationRegion, country]
+            .compactMap { value -> String? in
+                guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+                return trimmed
+            }
+        let uniqueValues = values.reduce(into: [String]()) { result, value in
+            if !result.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) {
+                result.append(value)
+            }
+        }
+        let joined = uniqueValues.joined(separator: ", ")
+        return joined.isEmpty ? nil : joined
+    }
+
+    private nonisolated static func displayCountry(_ rawValue: String?) -> String? {
+        guard let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        if value.count == 2, let localized = Locale(identifier: "en_US_POSIX").localizedString(forRegionCode: value.uppercased()) {
+            return localized
+        }
+        return value
+    }
+
+    private nonisolated static func workArrangementTitle(_ rawValue: String) -> String {
+        CareerWorkArrangementOption(rawValue: rawValue).title
+    }
+
+    private nonisolated static func verificationSourceTitle(_ rawValue: String) -> String {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "document": "Documents"
+        case "employer_confirmation", "employer": "Employer confirmation"
+        default: "KairoID verification"
+        }
+    }
+
+    private nonisolated static func certificationValidity(_ record: CareerCertificationRecord) -> String {
+        if record.doesNotExpire { return "Current" }
+        guard let expiryDate = record.expiryDate else { return "Expiry not provided" }
+        return expiryDate < Date() ? "Expired" : "Current"
+    }
+
+    private nonisolated static func safeAPIErrorMessage(_ error: APIError) -> String {
+        switch error.code {
+        case .rateLimited:
+            "Too many requests were made. Wait a moment and try again."
+        case .serviceUnavailable:
+            "Career data is temporarily unavailable. Please try again."
+        case .unauthorized:
+            "Your session needs to be refreshed before Career can load."
+        default:
+            "KairoID couldn't load your Career records. Please try again."
+        }
     }
 
     private nonisolated static func displayName(from user: AppUser) -> String {

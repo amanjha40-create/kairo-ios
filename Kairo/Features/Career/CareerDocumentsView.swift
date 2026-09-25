@@ -217,8 +217,8 @@ struct CareerDocumentsView: View {
                     }
                 } catch { await present(error) }
             }
-        case .failure(let error):
-            errorMessage = error.localizedDescription
+        case .failure:
+            errorMessage = "KairoID couldn't read that file. Choose another supported document."
         }
     }
 
@@ -256,10 +256,30 @@ struct CareerDocumentsView: View {
     private func present(_ error: Error) async {
         isLoading = false
         isMutating = false
-        errorMessage = error.localizedDescription
+        errorMessage = safeMessage(for: error)
         if let sessionError = error as? SessionServiceError, sessionError == .sessionExpired {
             await sessionStore.refreshLaunchRoute()
         }
+    }
+
+    private func safeMessage(for error: Error) -> String {
+        if let documentError = error as? CareerDocumentServiceError {
+            return documentError.errorDescription ?? "The document action could not be completed. Please try again."
+        }
+        if let transferError = error as? SecureDocumentTransferError {
+            return transferError.errorDescription ?? "The secure document transfer could not be completed. Please try again."
+        }
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .transport:
+                return "KairoID couldn't reach your documents. Check your connection and try again."
+            case .unavailableInDemoMode:
+                return "Document changes are unavailable in this preview."
+            case .api, .invalidResponse, .invalidURL:
+                return "KairoID couldn't complete that document action. Please try again."
+            }
+        }
+        return "KairoID couldn't complete that document action. Please try again."
     }
 
     private func typeTitle(_ value: String) -> String {

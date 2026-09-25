@@ -115,6 +115,7 @@ final class KairoUITests: XCTestCase {
     private let careerCertificationsSection = "candidate.career.certifications"
     private let careerProjectsSection = "candidate.career.projects"
     private let careerSkillsSection = "candidate.career.skills"
+    private let careerPortfolioSection = "candidate.career.portfolio"
     private let careerDocuments = "candidate.career.documents"
     private let careerEmptyState = "candidate.career.empty"
     private let passportScreen = "candidate.passport.screen"
@@ -466,8 +467,9 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerEducationSection], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerCertificationsSection], in: app))
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerPortfolioSection], in: app))
     }
 
     @MainActor
@@ -486,7 +488,7 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts[careerEmploymentSection].exists)
         XCTAssertTrue(app.staticTexts["Northline Career Services"].exists)
-        XCTAssertTrue(app.staticTexts["Pending KairoID Review"].exists)
+        XCTAssertTrue(app.staticTexts["Pending"].exists)
     }
 
     @MainActor
@@ -532,7 +534,7 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerProjectsSection], in: app))
         XCTAssertTrue(app.staticTexts["Career Trust Onboarding Pilot"].exists)
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerSkillsSection], in: app))
+        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[careerPortfolioSection], in: app))
     }
 
     @MainActor

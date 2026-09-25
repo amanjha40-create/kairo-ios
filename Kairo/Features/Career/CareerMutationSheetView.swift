@@ -194,20 +194,48 @@ struct CareerEmploymentEditorSheet: View {
                         )
                     }
 
-                    KairoTextField(
-                        title: "Work location country",
-                        prompt: "India",
-                        text: $draft.workLocationCountry,
-                        errorMessage: fieldErrors["work_location_country"],
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationCountry")
-                    )
+                    CareerSelectionMenu(
+                        title: "Work arrangement",
+                        value: draft.workArrangement.title,
+                        errorMessage: nil,
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workArrangement")
+                    ) {
+                        ForEach(CareerWorkArrangementOption.allCases) { option in
+                            Button(option.title) {
+                                draft.workArrangement = option
+                            }
+                        }
+                    }
 
-                    KairoTextField(
-                        title: "Work location region",
-                        prompt: "Karnataka",
-                        text: $draft.workLocationRegion,
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationRegion")
-                    )
+                    if draft.workArrangement != .remote {
+                        KairoTextField(
+                            title: "Work location city",
+                            prompt: "Bengaluru",
+                            text: $draft.workLocationCity,
+                            errorMessage: fieldErrors["work_location_city"],
+                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationCity")
+                        )
+
+                        KairoTextField(
+                            title: "Work location country",
+                            prompt: "India",
+                            text: $draft.workLocationCountry,
+                            errorMessage: fieldErrors["work_location_country"],
+                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationCountry")
+                        )
+
+                        KairoTextField(
+                            title: "Work location region",
+                            prompt: "Karnataka",
+                            text: $draft.workLocationRegion,
+                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationRegion")
+                        )
+                    } else {
+                        Text("Remote roles do not require a work location.")
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .interactiveDismissDisabled(isSaving)
@@ -572,10 +600,10 @@ struct CareerCertificationEditorSheet: View {
                 case .success(let urls):
                     selectedDocumentURL = urls.first
                     presentationError = nil
-                case .failure(let error):
+                case .failure:
                     presentationError = CareerMutationPresentationError(
                         title: "Certificate file unavailable",
-                        message: error.localizedDescription,
+                        message: "KairoID couldn't read that certificate file. Choose another PDF, JPEG, or PNG.",
                         fieldErrors: [:]
                     )
                 }

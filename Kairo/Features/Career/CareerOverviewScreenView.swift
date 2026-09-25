@@ -33,6 +33,11 @@ struct CareerOverviewScreenView: View {
                     .foregroundStyle(KairoColors.textPrimary)
                     .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
                     .accessibilityAddTraits(.isHeader)
+                Text(overviewSubtitle)
+                    .font(KairoTypography.body)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(KairoAccessibilityID.careerSummarySection)
                 phaseContent
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,9 +80,22 @@ struct CareerOverviewScreenView: View {
             employmentSection(content.employment)
             educationSection(content.education)
             certificationsSection(content.certifications)
-            projectsSection(content.projects)
             skillsSection(content.skills)
+            projectsSection(content.projects)
+            portfolioSection(content.portfolio)
         }
+    }
+
+    private var overviewSubtitle: String {
+        let content: CareerOverviewContent?
+        switch state.phase {
+        case .populated(let value), .empty(let value): content = value
+        case .loading, .error: content = nil
+        }
+        guard let content else { return "Manage your professional history" }
+        let total = content.employment.count + content.education.count
+        if total == 0 { return "Build your professional history" }
+        return "\(total) \(total == 1 ? "career record" : "career records")"
     }
 
     private func employmentSection(_ items: [CareerEmploymentItem]) -> some View {
@@ -87,7 +105,8 @@ struct CareerOverviewScreenView: View {
                 addTitle: "Add Employment", addIdentifier: KairoAccessibilityID.careerAddEmploymentButton, add: addEmploymentAction)
             if items.isEmpty { emptyRow("No employment records added yet.") }
             ForEach(items) { item in
-                CareerCompactRecordRow(title: item.role, subtitle: item.company, metadata: [item.dateRange], status: item.verificationStatus) {
+                CareerCompactRecordRow(title: item.role, subtitle: item.company, metadata: [item.dateRange], status: item.verificationStatus,
+                    leadingText: CareerRecordLeadingVisual.initials(item.company)) {
                     selectedDetail = .employment(item,
                         edit: editEmploymentAction.map { action in { action(item) } },
                         delete: deleteEmploymentAction.map { action in { action(item) } },
@@ -104,7 +123,8 @@ struct CareerOverviewScreenView: View {
                 addTitle: "Add Education", addIdentifier: KairoAccessibilityID.careerAddEducationButton, add: addEducationAction)
             if items.isEmpty { emptyRow("No education records added yet.") }
             ForEach(items) { item in
-                CareerCompactRecordRow(title: item.degree, subtitle: item.institution, metadata: [item.dateRange], status: item.verificationStatus) {
+                CareerCompactRecordRow(title: item.degree, subtitle: item.institution, metadata: [item.dateRange], status: item.verificationStatus,
+                    leadingText: CareerRecordLeadingVisual.initials(item.institution)) {
                     selectedDetail = .education(item,
                         edit: editEducationAction.map { action in { action(item) } },
                         delete: deleteEducationAction.map { action in { action(item) } },
@@ -123,7 +143,8 @@ struct CareerOverviewScreenView: View {
             ForEach(items) { item in
                 CareerCompactRecordRow(title: item.title, subtitle: item.issuer,
                     metadata: [item.issueDate] + item.detailMetadata.filter { $0.title == "Expiry" }.map(\.value),
-                    status: item.verificationStatus, attachment: item.hasDocument ? "Attachment added" : "No attachment") {
+                    status: item.verificationStatus, attachment: item.hasDocument ? "Attachment added" : "No attachment",
+                    leadingSystemImage: "rosette") {
                     selectedDetail = .certification(item,
                         edit: editCertificationAction.map { action in { action(item) } },
                         delete: deleteCertificationAction.map { action in { action(item) } })
@@ -141,10 +162,31 @@ struct CareerOverviewScreenView: View {
             ForEach(items) { item in
                 CareerCompactRecordRow(title: item.title, subtitle: item.role,
                     metadata: item.detailMetadata.filter { $0.title == "Organization" }.map(\.value) + [item.duration] + item.links.map { "\($0.title): \($0.url.host ?? "")" },
-                    status: item.verificationStatus ?? .notVerified) {
+                    status: item.verificationStatus ?? .notVerified, leadingSystemImage: "folder") {
                     selectedDetail = .project(item,
                         edit: editProjectAction.map { action in { action(item) } },
                         delete: deleteProjectAction.map { action in { action(item) } })
+                }
+            }
+        }
+    }
+
+    private func portfolioSection(_ items: [CareerPortfolioItem]) -> some View {
+        KairoSection(compact: true) {
+            CareerSectionHeader(title: "Portfolio", count: items.count,
+                identifier: KairoAccessibilityID.careerPortfolioSection,
+                addTitle: "", addIdentifier: "", add: nil)
+            if items.isEmpty { emptyRow("No work samples added yet.") }
+            ForEach(items) { item in
+                CareerCompactRecordRow(
+                    title: item.title,
+                    subtitle: "Portfolio",
+                    metadata: [item.description].compactMap { $0 },
+                    status: item.verificationStatus,
+                    attachment: item.hasDocument ? "Attachment added" : nil,
+                    leadingSystemImage: "rectangle.stack"
+                ) {
+                    selectedDetail = .portfolio(item)
                 }
             }
         }
@@ -199,6 +241,8 @@ struct CareerCompactRecordRow: View {
     let metadata: [String]
     let status: CareerVerificationStatus
     var attachment: String? = nil
+    var leadingText: String? = nil
+    var leadingSystemImage: String? = nil
     let open: () -> Void
 
     var body: some View {
@@ -206,6 +250,23 @@ struct CareerCompactRecordRow: View {
             Divider()
             Button(action: open) {
                 HStack(alignment: .center, spacing: KairoSpacing.small) {
+                    if leadingText != nil || leadingSystemImage != nil {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
+                                .fill(KairoColors.surfaceMuted)
+                                .frame(width: 40, height: 40)
+                            if let leadingText {
+                                Text(leadingText)
+                                    .font(KairoTypography.caption)
+                                    .foregroundStyle(KairoColors.brandPrimary)
+                            } else if let leadingSystemImage {
+                                Image(systemName: leadingSystemImage)
+                                    .font(KairoTypography.bodyStrong)
+                                    .foregroundStyle(KairoColors.brandPrimary)
+                            }
+                        }
+                        .accessibilityHidden(true)
+                    }
                     VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                         Text(title).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
                         if !subtitle.isEmpty {
@@ -277,9 +338,33 @@ struct CareerSectionHeader: View {
 struct CareerRecordStatus: View {
     let status: CareerVerificationStatus
     var body: some View {
-        KairoStatusChip(title: status.badgeStyle.title,
-            tone: status == .verified ? .verified : status == .pendingVerification ? .pending : .candidateProvided,
-            systemImage: status.badgeStyle.symbol)
+        let style = status.badgeStyle
+        KairoStatusChip(title: style.title, tone: style.kairoTone, systemImage: style.symbol)
+    }
+}
+
+nonisolated enum CareerRecordLeadingVisual {
+    static func initials(_ value: String) -> String {
+        let words = value.split(whereSeparator: { $0.isWhitespace })
+        guard let first = words.first else { return "?" }
+        if words.count == 1 || first == first.uppercased() {
+            return String(first.prefix(2)).uppercased()
+        }
+        return words.prefix(2).compactMap(\.first).map { String($0).uppercased() }.joined()
+    }
+}
+
+private extension CareerVerificationBadgeStyle {
+    var kairoTone: KairoStatusTone {
+        switch tone {
+        case .success: .verified
+        case .pending: .pending
+        case .attention: .attention
+        case .rejected: .rejected
+        case .withdrawn: .withdrawn
+        case .draft: .draft
+        case .candidateProvided: .candidateProvided
+        }
     }
 }
 

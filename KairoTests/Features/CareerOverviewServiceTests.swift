@@ -79,6 +79,8 @@ final class CareerOverviewServiceTests: XCTestCase {
         XCTAssertEqual(overview.user.email, "aarav@example.com")
         XCTAssertEqual(overview.employments.first?.company, "Northline Career Services")
         XCTAssertTrue(overview.employments.first?.currentlyWorking ?? false)
+        XCTAssertEqual(overview.employments.first?.workArrangement, "hybrid")
+        XCTAssertEqual(overview.employments.first?.workLocationCity, "Bengaluru")
         XCTAssertEqual(overview.educations.first?.institution, "Christ University")
         XCTAssertEqual(overview.educations.first?.startDate, Self.utcDate(year: 2016, month: 6, day: 1))
         XCTAssertEqual(overview.educations.first?.startDatePrecision, "month")
@@ -351,6 +353,8 @@ final class CareerOverviewServiceTests: XCTestCase {
               "employment_type": "full_time",
               "start_date": "2024-01-01",
               "end_date": null,
+              "work_arrangement": "hybrid",
+              "work_location_city": "Bengaluru",
               "work_location_country": "India",
               "work_location_region": "Karnataka",
               "verification_method": "document",

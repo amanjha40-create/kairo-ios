@@ -7,7 +7,8 @@ final class CareerHierarchyUITests: XCTestCase {
     func testSectionOrderCountsAndNoInlineLifecycleControls() {
         let app = launch()
         let sections = [("employment", "Employment: 3 records"), ("education", "Education: 2 records"),
-                        ("certifications", "Certifications: 2 records"), ("projects", "Projects: 2 records"), ("skills", "Skills: 8 records")]
+                        ("certifications", "Certifications: 2 records"), ("skills", "Skills: 8 records"),
+                        ("projects", "Projects: 2 records"), ("portfolio", "Portfolio: 1 record")]
         var previous: XCUIElement?
         for (key, count) in sections {
             let heading = app.staticTexts["candidate.career.\(key)"]
@@ -19,6 +20,7 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Edit"].exists)
         XCTAssertFalse(app.buttons["Delete"].exists)
         XCTAssertFalse(app.buttons["Start verification"].exists)
+        keepScreenshot("Wave 2 - Career overview", app)
     }
 
     func testFullRowEdgesOpenEmploymentAndPreserveDocumentsDestination() {
@@ -35,12 +37,14 @@ final class CareerHierarchyUITests: XCTestCase {
             let dates = app.staticTexts["career.detail.field.Employment dates"]
             XCTAssertTrue(dates.exists)
             XCTAssertLessThan(app.descendants(matching: .any)["career.detail.status"].firstMatch.frame.minY, dates.frame.minY)
+            keepScreenshot("Wave 2 - Employment detail", app)
             app.buttons["Done"].tap()
         }
         row.tap()
         let documents = app.buttons["career.detail.documents"]
         reveal(documents, app); documents.tap()
         XCTAssertTrue(app.navigationBars["Employment documents"].waitForExistence(timeout: 10))
+        keepScreenshot("Wave 2 - Employment evidence", app)
         app.buttons["Done"].tap()
     }
 
@@ -53,9 +57,11 @@ final class CareerHierarchyUITests: XCTestCase {
         reveal(notice, app)
         XCTAssertTrue(notice.label.contains("Historical verification evidence"))
         XCTAssertFalse(app.buttons["Download"].exists)
+        keepScreenshot("Wave 2 - Education detail", app)
         let documents = app.buttons["career.detail.documents"]
         reveal(documents, app); documents.tap()
         XCTAssertTrue(app.navigationBars["Education documents"].waitForExistence(timeout: 10))
+        keepScreenshot("Wave 2 - Education evidence", app)
     }
 
     func testCertificationAttachmentAndProjectWithoutFalseVerification() {
@@ -68,6 +74,7 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."].exists)
         XCTAssertFalse(app.staticTexts["Verification"].exists)
         XCTAssertFalse(app.buttons["career.detail.verify"].exists)
+        keepScreenshot("Wave 2 - Certification detail", app)
         app.buttons["Done"].tap()
         let project = app.buttons["career.record.open.University Hiring Readiness Workshop"]
         reveal(project, app); project.tap()
@@ -76,12 +83,13 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Verification"].exists)
         XCTAssertFalse(app.buttons["career.detail.verify"].exists)
         XCTAssertFalse(app.links.firstMatch.exists) // Display-only fixture label is not a fabricated URL.
+        keepScreenshot("Wave 2 - Project detail", app)
     }
 
     func testEmptySectionsHaveCountsAndOneCanonicalAddAction() {
         let app = launch(empty: true, actions: true)
         XCTAssertTrue(app.staticTexts["Your professional timeline starts here"].exists)
-        for key in ["employment", "education", "certifications", "projects", "skills"] {
+        for key in ["employment", "education", "certifications", "skills", "projects", "portfolio"] {
             let count = app.staticTexts["candidate.career.\(key).count"]
             reveal(count, app)
             XCTAssertTrue(count.label.hasSuffix("0 records"))
@@ -94,6 +102,52 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["candidate.career.mutation.title"].waitForExistence(timeout: 10))
         app.buttons["candidate.career.mutation.cancel"].tap()
         // Never save or create a record.
+    }
+
+    func testAllWave2AddScreensAreNavigableWithoutWriting() {
+        let app = launch(empty: true, actions: true)
+        let cases = [
+            ("candidate.career.employment.add", "Add Employment"),
+            ("candidate.career.education.add", "Add Education"),
+            ("candidate.career.certifications.add", "Add Certification"),
+            ("candidate.career.projects.add", "Add Project")
+        ]
+
+        for (identifier, title) in cases {
+            let add = app.buttons[identifier]
+            reveal(add, app)
+            add.tap()
+            let editorTitle = app.staticTexts["candidate.career.mutation.title"]
+            XCTAssertTrue(editorTitle.waitForExistence(timeout: 10))
+            XCTAssertEqual(editorTitle.label, title)
+            keepScreenshot("Wave 2 - \(title)", app)
+            app.buttons["candidate.career.mutation.cancel"].tap()
+            XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
+        }
+    }
+
+    func testAllWave2EditScreensAreNavigableWithoutWriting() {
+        let app = launch(actions: true)
+        let cases = [
+            ("career.record.open.Operations Analyst", "Edit Employment"),
+            ("career.record.open.BBA, Human Resources & Operations", "Edit Education"),
+            ("career.record.open.People Operations Foundations", "Edit Certification"),
+            ("career.record.open.University Hiring Readiness Workshop", "Edit Project")
+        ]
+
+        for (recordIdentifier, title) in cases {
+            let row = app.buttons[recordIdentifier]
+            reveal(row, app)
+            row.tap()
+            let edit = app.buttons["career.detail.edit"]
+            reveal(edit, app)
+            edit.tap()
+            let editorTitle = app.staticTexts["candidate.career.mutation.title"]
+            XCTAssertTrue(editorTitle.waitForExistence(timeout: 10))
+            XCTAssertEqual(editorTitle.label, title)
+            app.buttons["candidate.career.mutation.cancel"].tap()
+            XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
+        }
     }
 
     func testDetailDismissalHandsOffToCanonicalVerificationWithoutSubmitting() {
@@ -120,24 +174,19 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["career.detail.title"].waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
         XCTAssertTrue(app.tabBars.buttons["Career"].isSelected)
+        keepScreenshot("Wave 2 - Career dark AXXXL", app)
     }
 
     private func launch(empty: Bool = false, actions: Bool = false, large: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES",
+                               "-kairo.appearance.preference", large ? "dark" : "light"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
             "KAIRO_UI_TEST_CAREER_STATE": empty ? "empty" : "populated", "KAIRO_UI_TEST_MORE_STATE": "populated"]
         if actions { app.launchEnvironment["KAIRO_UI_TEST_CAREER_HIERARCHY"] = "1" }
         app.launch()
-        if large {
-            app.tabBars.buttons["More"].tap()
-            let settings = app.buttons["candidate.more.settings"]
-            reveal(settings, app); settings.tap()
-            let dark = app.buttons["candidate.more.appearance.dark"]
-            reveal(dark, app); dark.tap()
-        }
         app.tabBars.buttons["Career"].tap()
         XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
         return app
@@ -151,5 +200,12 @@ final class CareerHierarchyUITests: XCTestCase {
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.65 : 0.40)))
         }
         XCTAssertTrue(element.isHittable)
+    }
+
+    private func keepScreenshot(_ name: String, _ app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
