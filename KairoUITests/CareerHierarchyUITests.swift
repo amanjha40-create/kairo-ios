@@ -166,7 +166,7 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["candidate.career.portfolio.detail"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["career.detail.field.Description"].exists)
         XCTAssertTrue(app.staticTexts["career.detail.field.Tags"].exists)
-        XCTAssertTrue(app.links["career.detail.link.Work sample URL"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["career.detail.link.Work sample URL"].exists)
         keepScreenshot("Wave 4 - Portfolio detail attachment present", app)
 
         let edit = app.buttons["career.detail.edit"]

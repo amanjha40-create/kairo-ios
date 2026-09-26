@@ -99,10 +99,73 @@ final class ResumeManagementUITests: XCTestCase {
         reveal(current, app); current.tap()
         let confirm = app.buttons["onboarding.resumeImport.looksGood"]
         reveal(confirm, app); confirm.tap()
-        XCTAssertTrue(app.buttons["resume.management.upload"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
-        XCTAssertTrue(app.buttons["resume.management.entry.0"].label.contains("Imported"))
+        XCTAssertTrue(app.descendants(matching: .any)["resume.import.finalSummary"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["resume.import.viewCareer"].exists)
+        app.buttons["resume.import.viewCareer"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Career"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["Career"].isSelected)
         XCTAssertFalse(app.buttons["onboarding.resumeImport.manual"].exists)
+    }
+
+    func testEmploymentDuplicateReviewUsesSafeDefaultConfirmationAndTruthfulSummary() {
+        let app = launchDuplicateReview()
+        openResume(app)
+        let current = app.buttons["resume.management.entry.0"]
+        reveal(current, app)
+        current.tap()
+
+        let exactCard = app.descendants(matching: .any)["resume.import.employment.duplicate.item_duplicate_exact"]
+        let possibleCard = app.descendants(matching: .any)["resume.import.employment.duplicate.item_duplicate_possible"]
+        XCTAssertTrue(exactCard.waitForExistence(timeout: 10))
+        reveal(possibleCard, app)
+        XCTAssertTrue(app.staticTexts["Already in Career"].exists)
+        XCTAssertTrue(app.staticTexts["Possible match"].exists)
+        XCTAssertTrue(app.staticTexts["Selected: Keep existing"].exists)
+        capture("Wave 5 exact possible and safe default")
+
+        let add = app.buttons["resume.import.employment.addAsNew"]
+        reveal(add, app)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        add.tap()
+
+        let confirmation = app.descendants(matching: .any)["resume.import.employment.confirmation"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(
+            format: "label CONTAINS %@",
+            "This will create a separate Employment record"
+        )).firstMatch.exists)
+        capture("Wave 5 distinct role confirmation")
+
+        app.buttons["resume.import.employment.confirmDistinct"].tap()
+        XCTAssertTrue(app.staticTexts["Selected: Add as new role"].waitForExistence(timeout: 10))
+        capture("Wave 5 add as new confirmed")
+
+        let looksGood = app.buttons["onboarding.resumeImport.looksGood"]
+        reveal(looksGood, app)
+        looksGood.tap()
+
+        let summary = app.descendants(matching: .any)["resume.import.finalSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Resume import complete"].exists)
+        XCTAssertTrue(app.staticTexts["Already in Career"].exists)
+        XCTAssertTrue(app.staticTexts["Added"].exists)
+        XCTAssertTrue(app.buttons["resume.import.viewCareer"].exists)
+        capture("Wave 5 final backend summary")
+    }
+
+    func testEmploymentDuplicateReviewSupportsAccessibilityTextAndExplicitControls() {
+        let app = launchDuplicateReview(large: true)
+        openResume(app)
+        let current = app.buttons["resume.management.entry.0"]
+        reveal(current, app)
+        current.tap()
+
+        let add = app.buttons["resume.import.employment.addAsNew"]
+        reveal(add, app)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        XCTAssertTrue(app.staticTexts["Selected: Keep existing"].exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "similarity")).firstMatch.exists)
+        capture("Wave 5 duplicate review dark accessibility XXL")
     }
 
     func testFailedResumeRetriesSameWorkflowThenReviews() {
@@ -200,9 +263,36 @@ final class ResumeManagementUITests: XCTestCase {
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false", "KAIRO_UI_TEST_MORE_STATE": "populated",
+            "KAIRO_UI_TEST_CAREER_STATE": "populated",
             "KAIRO_UI_TEST_RESUME_DELETE_MODE": deleteMode, "KAIRO_UI_TEST_RESUME_DELETE_SINGLE": single ? "1" : "0",
             "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": history ? "management_history" : "management_empty"]
         app.launch(); app.tabBars.buttons["More"].tap()
+        return app
+    }
+
+    private func launchDuplicateReview(large: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-KAIRO_UI_TESTING",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+            "-kairo.appearance.preference",
+            large ? "dark" : "light"
+        ]
+        if large {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launchEnvironment = [
+            "KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1",
+            "KAIRO_UI_TEST_ROUTE": "demoHome",
+            "KAIRO_APP_ENVIRONMENT": "staging",
+            "KAIRO_DEMO_MODE": "false",
+            "KAIRO_UI_TEST_MORE_STATE": "populated",
+            "KAIRO_UI_TEST_CAREER_STATE": "populated",
+            "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": "duplicate_review"
+        ]
+        app.launch()
+        app.tabBars.buttons["More"].tap()
         return app
     }
 

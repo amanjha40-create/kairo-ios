@@ -13,11 +13,15 @@ struct ResumeImportScreenView: View {
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.resumeImportService) private var resumeImportService
+    @Environment(\.careerOverviewService) private var careerOverviewService
 
     @State private var isFileImporterPresented = false
     @State private var activeEditorItem: ResumeReviewItem?
+    @State private var distinctRoleConfirmationItem: ResumeReviewItem?
     @State private var editorValues: [String: String] = [:]
     @State private var mutationInFlight = false
+    @State private var employmentDecisionSubmissionGate = ResumeEmploymentDecisionSubmissionGate()
+    @State private var employmentDecisionErrorID: String?
     @State private var isVisible = false
 
     private var isPreviewMode: Bool {
@@ -55,8 +59,14 @@ struct ResumeImportScreenView: View {
                     processingCard
                 case .failed:
                     failureCard
-                case .readyForReview, .confirmed:
+                case .readyForReview:
                     reviewContent
+                case .confirmed:
+                    if isPreviewMode {
+                        reviewContent
+                    } else {
+                        importSummaryContent
+                    }
                 case .unsupportedFile:
                     unsupportedFileCard
                 }
@@ -79,6 +89,23 @@ struct ResumeImportScreenView: View {
                 onSave: { Task { await saveEdits(for: item) } }
             )
             .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $distinctRoleConfirmationItem) { item in
+            ResumeDistinctRoleConfirmationSheet(
+                item: item,
+                onCancel: { distinctRoleConfirmationItem = nil },
+                onConfirm: {
+                    distinctRoleConfirmationItem = nil
+                    Task {
+                        await updateEmploymentDecision(
+                            for: item,
+                            decision: .addAsNewRole,
+                            distinctRoleConfirmed: true
+                        )
+                    }
+                }
+            )
+            .presentationDetents([.medium])
         }
         .onAppear {
             isVisible = true
@@ -336,6 +363,8 @@ struct ResumeImportScreenView: View {
                 }
             }
 
+            reviewedOutcomesCard(reviewSession)
+
             ForEach(state.reviewSections) { section in
                 ResumeImportLiveReviewSectionCard(
                     section: section,
@@ -344,10 +373,152 @@ struct ResumeImportScreenView: View {
                     },
                     onEdit: { item in
                         openEditor(for: item)
-                    }
+                    },
+                    onKeepExisting: { item in
+                        Task {
+                            await updateEmploymentDecision(
+                                for: item,
+                                decision: .keepExisting,
+                                distinctRoleConfirmed: false
+                            )
+                        }
+                    },
+                    onRequestAddAsNew: { item in
+                        distinctRoleConfirmationItem = item
+                    },
+                    employmentDecisionInFlightID: employmentDecisionSubmissionGate.inFlightItemID,
+                    employmentDecisionErrorID: employmentDecisionErrorID
                 )
             }
         }
+    }
+
+    private func reviewedOutcomesCard(_ reviewSession: ResumeReviewSession) -> some View {
+        KairoCard {
+            Text("Reviewed outcomes")
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.textPrimary)
+
+            Text("These are the decisions KairoID will send for final import.")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(ResumeImportMapper.visibleItems(from: reviewSession)) { item in
+                HStack(alignment: .top, spacing: KairoSpacing.small) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ResumeImportMapper.displayTitle(for: item))
+                            .font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(item.claimType.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                    Spacer(minLength: KairoSpacing.small)
+                    Text(ResumeImportMapper.reviewedOutcome(for: item).rawValue)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.brandPrimary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .accessibilityIdentifier(KairoAccessibilityID.resumeImportReviewedOutcomes)
+    }
+
+    @ViewBuilder
+    private var importSummaryContent: some View {
+        if let batch = state.liveImportBatch, batch.isTerminal {
+            let summary = ResumeImportResultSummary(batch: batch)
+            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                KairoCard {
+                    Label("Resume import complete", systemImage: "checkmark.seal.fill")
+                        .font(KairoTypography.title2)
+                        .foregroundStyle(KairoColors.textPrimary)
+
+                    Text("KairoID used the completed backend result. Existing Career records are not counted as newly added.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 96), spacing: KairoSpacing.small)],
+                        alignment: .leading,
+                        spacing: KairoSpacing.small
+                    ) {
+                        reviewStat(title: "Added", value: "\(summary.added)")
+                        reviewStat(title: "Already in Career", value: "\(summary.alreadyInCareer)")
+                        reviewStat(title: "Skipped", value: "\(summary.skipped)")
+                        if summary.updated > 0 {
+                            reviewStat(title: "Updated", value: "\(summary.updated)")
+                        }
+                        if summary.needsAttention > 0 {
+                            reviewStat(title: "Needs attention", value: "\(summary.needsAttention)")
+                        }
+                    }
+
+                    careerRefreshStatusView
+                }
+
+                if !batch.results.isEmpty {
+                    KairoCard {
+                        Text("Item outcomes")
+                            .font(KairoTypography.bodyStrong)
+                            .foregroundStyle(KairoColors.textPrimary)
+
+                        ForEach(batch.results) { result in
+                            HStack(alignment: .top, spacing: KairoSpacing.small) {
+                                Text(importResultTitle(for: result))
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.textPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: KairoSpacing.small)
+                                Text(ResumeImportResultSummary.outcome(for: result).rawValue)
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.brandPrimary)
+                                    .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                }
+            }
+            .accessibilityIdentifier(KairoAccessibilityID.resumeImportFinalSummary)
+        } else {
+            KairoErrorStateView(
+                title: "Import summary unavailable",
+                message: "KairoID couldn't load the completed backend result yet.",
+                messageAccessibilityIdentifier: KairoAccessibilityID.resumeImportFailureMessage
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var careerRefreshStatusView: some View {
+        switch state.postImportCareerRefreshStatus {
+        case .succeeded:
+            Label("Career refreshed from KairoID", systemImage: "arrow.clockwise.circle.fill")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+        case .failed:
+            Label("Import is complete. Career will refresh again when you open it.", systemImage: "exclamationmark.arrow.circlepath")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        case .idle:
+            EmptyView()
+        }
+    }
+
+    private func importResultTitle(for result: ResumeImportResultItem) -> String {
+        state.liveReviewSession?.items
+            .first(where: { $0.id == result.reviewItemID })
+            .map(ResumeImportMapper.displayTitle(for:))
+            ?? result.recordType?.replacingOccurrences(of: "_", with: " ").capitalized
+            ?? "Resume item"
     }
 
     private func reviewStat(title: String, value: String) -> some View {
@@ -422,7 +593,7 @@ struct ResumeImportScreenView: View {
                 }
             }
             .accessibilityElement(children: .contain)
-        case .readyForReview, .confirmed:
+        case .readyForReview:
             VStack(spacing: KairoSpacing.small) {
                 KairoPrimaryButton(
                     title: "Looks Good",
@@ -443,6 +614,18 @@ struct ResumeImportScreenView: View {
                 )
             }
             .accessibilityElement(children: .contain)
+        case .confirmed:
+            KairoPrimaryButton(
+                title: context == .authenticated ? "View Career" : "Continue",
+                accessibilityIdentifier: KairoAccessibilityID.resumeImportViewCareerButton,
+                action: {
+                    if isPreviewMode {
+                        handlePreviewLooksGood()
+                    } else {
+                        Task { await completeAfterImportSummary() }
+                    }
+                }
+            )
         }
     }
 
@@ -801,6 +984,17 @@ struct ResumeImportScreenView: View {
         }
     }
 
+    private func completeAfterImportSummary() async {
+        do {
+            try await finishSuccessfulImport()
+        } catch {
+            state.setError(
+                onboardingCompletionMessage(for: error),
+                stage: .onboardingCompletion
+            )
+        }
+    }
+
     private func handlePreviewLooksGood() {
         state.confirmReview()
         if context == .onboarding { router.advanceOnboarding(from: .resumeImportOrQuickProfile) }
@@ -866,11 +1060,23 @@ struct ResumeImportScreenView: View {
 
     private func handleTerminalImportBatch(_ batch: ResumeImportBatch) async {
         if batch.isCompletedWithoutHardFailures {
-            do {
-                try await finishSuccessfulImport()
-            } catch {
-                state.setError(onboardingCompletionMessage(for: error), stage: .onboardingCompletion)
+            var careerRefreshSucceeded = false
+            if UITestResumeImportConfiguration.current().serviceScenario == .duplicateReview {
+                // The isolated UI fixture has no live Career service or founder data.
+                // Production and unit-test paths below always read backend Career truth.
+                careerRefreshSucceeded = true
+            } else {
+                do {
+                    _ = try await ResumePostImportCareerRefresh.loadAuthoritativeOverview {
+                        try await careerOverviewService.loadOverview()
+                    }
+                    careerRefreshSucceeded = true
+                } catch {
+                    careerRefreshSucceeded = false
+                }
             }
+            candidateDataRefreshStore.candidateDataChanged()
+            state.markImportConfirmed(careerRefreshSucceeded: careerRefreshSucceeded)
             return
         }
 
@@ -893,6 +1099,7 @@ struct ResumeImportScreenView: View {
         if context == .authenticated {
             candidateDataRefreshStore.candidateDataChanged()
             if isVisible { onAuthenticatedCompletion() }
+            router.selectTab(.career)
             return
         }
         let resolvedCompletionResult: ResumeImportCompletionResult
@@ -918,20 +1125,17 @@ struct ResumeImportScreenView: View {
 
             switch recovery.disposition {
             case .importCompleted:
-                if context == .authenticated {
-                    try await finishSuccessfulImport()
-                    return
-                }
-                guard let completionResult = recovery.completionResult else {
+                state.applyReviewSession(recovery.reviewSession)
+                guard let importBatch = recovery.importBatch else {
                     state.setError(
-                        "KairoID refreshed the latest import state, but couldn't finish onboarding reconciliation yet.",
-                        stage: .onboardingCompletion
+                        "KairoID refreshed the latest review, but the completed import summary is not available yet.",
+                        stage: .import
                     )
                     activeEditorItem = nil
                     return
                 }
-
-                try await finishSuccessfulImport(using: completionResult)
+                state.applyImportBatch(importBatch)
+                await handleTerminalImportBatch(importBatch)
             case .importPartiallyCompleted:
                 state.applyReviewSession(recovery.reviewSession)
                 if let importBatch = recovery.importBatch {
@@ -1018,6 +1222,46 @@ struct ResumeImportScreenView: View {
             }
         } catch {
             state.setError(message(for: error), stage: .review)
+        }
+    }
+
+    private func updateEmploymentDecision(
+        for item: ResumeReviewItem,
+        decision: ResumeEmploymentDuplicateDecision,
+        distinctRoleConfirmed: Bool
+    ) async {
+        guard ResumeImportMapper.employmentDuplicateReviewState(for: item).selectedDecision != decision,
+              let review = state.liveReviewSession,
+              let payload = ResumeImportMapper.employmentDecisionUpdateRequest(
+                  for: item,
+                  decision: decision,
+                  distinctRoleConfirmed: distinctRoleConfirmed
+              ) else {
+            return
+        }
+
+        guard employmentDecisionSubmissionGate.begin(itemID: item.id) else {
+            return
+        }
+        employmentDecisionErrorID = nil
+        defer { employmentDecisionSubmissionGate.finish(itemID: item.id) }
+
+        do {
+            let updated = try await resumeImportService.updateReviewItem(
+                reviewID: review.id,
+                itemID: item.id,
+                payload: payload
+            )
+            state.applyReviewSession(updated)
+        } catch let error as NetworkError {
+            if case .api(let apiError) = error, apiError.code == .conflict {
+                if let latest = try? await resumeImportService.refreshReviewSession(reviewID: review.id) {
+                    state.applyReviewSession(latest)
+                }
+            }
+            employmentDecisionErrorID = item.id
+        } catch {
+            employmentDecisionErrorID = item.id
         }
     }
 
@@ -1196,6 +1440,10 @@ private struct ResumeImportLiveReviewSectionCard: View {
     let section: ResumeReviewSection
     let onToggleSelection: (ResumeReviewItem) -> Void
     let onEdit: (ResumeReviewItem) -> Void
+    let onKeepExisting: (ResumeReviewItem) -> Void
+    let onRequestAddAsNew: (ResumeReviewItem) -> Void
+    let employmentDecisionInFlightID: String?
+    let employmentDecisionErrorID: String?
 
     var body: some View {
         KairoCard {
@@ -1213,13 +1461,163 @@ private struct ResumeImportLiveReviewSectionCard: View {
 
             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                 ForEach(section.items) { item in
-                    ResumeImportReviewItemCard(
-                        item: item,
-                        onToggleSelection: { onToggleSelection(item) },
-                        onEdit: { onEdit(item) }
-                    )
+                    switch ResumeImportMapper.employmentDuplicateReviewState(for: item) {
+                    case .alreadyInCareer, .possibleMatch:
+                        ResumeEmploymentDuplicateReviewCard(
+                            item: item,
+                            state: ResumeImportMapper.employmentDuplicateReviewState(for: item),
+                            isUpdating: employmentDecisionInFlightID == item.id,
+                            showsError: employmentDecisionErrorID == item.id,
+                            onKeepExisting: { onKeepExisting(item) },
+                            onRequestAddAsNew: { onRequestAddAsNew(item) }
+                        )
+                    case .noConflict:
+                        ResumeImportReviewItemCard(
+                            item: item,
+                            onToggleSelection: { onToggleSelection(item) },
+                            onEdit: { onEdit(item) }
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+private struct ResumeEmploymentDuplicateReviewCard: View {
+    let item: ResumeReviewItem
+    let state: ResumeEmploymentDuplicateReviewState
+    let isUpdating: Bool
+    let showsError: Bool
+    let onKeepExisting: () -> Void
+    let onRequestAddAsNew: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            switch state {
+            case .noConflict:
+                EmptyView()
+            case .alreadyInCareer(let existing):
+                duplicateHeader(
+                    status: "Already in Career",
+                    title: ResumeImportMapper.displayTitle(for: item),
+                    detail: "Your existing Employment record will be kept unchanged. No second record will be added."
+                )
+                if let existing {
+                    comparisonSummary(label: "Existing Career record", summary: existing)
+                }
+            case .possibleMatch(let existing, let imported, let decision):
+                duplicateHeader(
+                    status: "Possible match",
+                    title: ResumeImportMapper.displayTitle(for: item),
+                    detail: "This may already be in Career. Keep the existing record, or add this only if it is a separate role. Existing facts and evidence will not be changed."
+                )
+
+                if let existing {
+                    comparisonSummary(label: "Existing Career record", summary: existing)
+                } else {
+                    unavailableComparisonSummary(label: "Existing Career record")
+                }
+                comparisonSummary(label: "Resume record", summary: imported)
+
+                Label(
+                    "Selected: \(decision.title)",
+                    systemImage: decision == .keepExisting ? "checkmark.shield.fill" : "checkmark.circle.fill"
+                )
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textPrimary)
+                .accessibilityIdentifier(KairoAccessibilityID.resumeImportEmploymentSelectedDecision)
+
+                VStack(spacing: KairoSpacing.small) {
+                    KairoSecondaryButton(
+                        title: "Keep existing",
+                        isLoading: isUpdating && decision != .keepExisting,
+                        accessibilityIdentifier: KairoAccessibilityID.resumeImportEmploymentKeepExisting,
+                        action: onKeepExisting
+                    )
+                    .disabled(isUpdating || decision == .keepExisting)
+
+                    KairoSecondaryButton(
+                        title: "Add as new role",
+                        isLoading: isUpdating && decision != .addAsNewRole,
+                        accessibilityIdentifier: KairoAccessibilityID.resumeImportEmploymentAddAsNew,
+                        action: onRequestAddAsNew
+                    )
+                    .disabled(isUpdating || decision == .addAsNewRole)
+                }
+
+                if showsError {
+                    Text("Could not save your choice. Your previous decision is still active. Please try again.")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier(KairoAccessibilityID.resumeImportEmploymentDecisionError)
+                }
+            }
+        }
+        .padding(KairoSpacing.medium)
+        .background(KairoColors.surfaceMuted.opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("\(KairoAccessibilityID.resumeImportEmploymentDuplicateCard).\(item.id)")
+    }
+
+    private func duplicateHeader(status: String, title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+            Text(status)
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.brandPrimary)
+            Text(title)
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(detail)
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func comparisonSummary(label: String, summary: ResumeEmploymentSummary) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+            Text(label)
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
+            summaryLine("Employer", summary.employer)
+            summaryLine("Role", summary.role)
+            summaryLine("Dates", summary.dates)
+            summaryLine("Location", summary.location)
+        }
+        .padding(KairoSpacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label), \(summary.accessibilitySummary.isEmpty ? "details unavailable" : summary.accessibilitySummary)")
+    }
+
+    private func unavailableComparisonSummary(label: String) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+            Text(label)
+                .font(KairoTypography.caption)
+                .foregroundStyle(KairoColors.textSecondary)
+            Text("Details unavailable")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+        }
+        .padding(KairoSpacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func summaryLine(_ label: String, _ value: String?) -> some View {
+        if let value, !value.isEmpty {
+            Text("\(label): \(value)")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1296,6 +1694,54 @@ private struct ResumeImportReviewItemCard: View {
         .padding(KairoSpacing.medium)
         .background(KairoColors.surfaceMuted.opacity(0.45))
         .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+    }
+}
+
+private struct ResumeDistinctRoleConfirmationSheet: View {
+    let item: ResumeReviewItem
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                Image(systemName: "person.crop.rectangle.stack")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(KairoColors.brandPrimary)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                    Text("Add as new role?")
+                        .font(KairoTypography.title)
+                        .foregroundStyle(KairoColors.textPrimary)
+                    Text("This will create a separate Employment record. Confirm only if the resume entry represents a distinct role or employment period.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(ResumeImportMapper.displayTitle(for: item))
+                        .font(KairoTypography.bodyStrong)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier(KairoAccessibilityID.resumeImportEmploymentConfirmation)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: KairoSpacing.small) {
+                    KairoPrimaryButton(
+                        title: "Create separate Employment record",
+                        accessibilityIdentifier: KairoAccessibilityID.resumeImportEmploymentConfirmDistinct,
+                        action: onConfirm
+                    )
+                    KairoSecondaryButton(title: "Cancel", action: onCancel)
+                }
+            }
+            .padding(KairoSpacing.large)
+            .background(KairoColors.background)
+            .navigationTitle("Confirm separate role")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 

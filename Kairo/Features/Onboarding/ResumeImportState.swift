@@ -55,6 +55,12 @@ nonisolated enum ResumeImportProcessingPolicy: String, Equatable, Sendable {
     case failOnce
 }
 
+nonisolated enum ResumePostImportCareerRefreshStatus: Equatable, Sendable {
+    case idle
+    case succeeded
+    case failed
+}
+
 nonisolated struct ResumeImportFile: Equatable, Sendable {
     let fileName: String
     let fileType: String
@@ -253,6 +259,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
     var restorationAttempted: Bool
     var importIdempotencyReviewID: String?
     var importIdempotencyKey: String?
+    var postImportCareerRefreshStatus: ResumePostImportCareerRefreshStatus
 
     init(
         phase: ResumeImportPhase = .initial,
@@ -272,7 +279,8 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         statusMessageOverride: String? = nil,
         restorationAttempted: Bool = false,
         importIdempotencyReviewID: String? = nil,
-        importIdempotencyKey: String? = nil
+        importIdempotencyKey: String? = nil,
+        postImportCareerRefreshStatus: ResumePostImportCareerRefreshStatus = .idle
     ) {
         self.phase = phase
         self.selectedFile = selectedFile
@@ -292,6 +300,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         self.restorationAttempted = restorationAttempted
         self.importIdempotencyReviewID = importIdempotencyReviewID
         self.importIdempotencyKey = importIdempotencyKey
+        self.postImportCareerRefreshStatus = postImportCareerRefreshStatus
     }
 
     var canChooseResume: Bool {
@@ -482,6 +491,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         statusMessageOverride = nil
         importIdempotencyReviewID = nil
         importIdempotencyKey = nil
+        postImportCareerRefreshStatus = .idle
     }
 
     mutating func clearSelection() {
@@ -500,6 +510,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         statusMessageOverride = nil
         importIdempotencyReviewID = nil
         importIdempotencyKey = nil
+        postImportCareerRefreshStatus = .idle
     }
 
     mutating func chooseAnotherResume() {
@@ -585,6 +596,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         )
         liveReviewSession = snapshot.reviewSession
         liveImportBatch = snapshot.importBatch
+        postImportCareerRefreshStatus = .idle
         selectedTemporaryFileURL = nil
         restorationAttempted = true
         failureStage = nil
@@ -649,6 +661,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         liveReviewSession = nil
         liveReviewPlan = nil
         liveImportBatch = nil
+        postImportCareerRefreshStatus = .idle
         currentProcessingStatus = .uploaded
         errorMessage = nil
         failureStage = nil
@@ -709,6 +722,7 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         phase = .readyForReview
         statusTitleOverride = nil
         statusMessageOverride = nil
+        postImportCareerRefreshStatus = .idle
     }
 
     mutating func beginReviewHydration() {
@@ -751,6 +765,19 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             statusTitleOverride = nil
             statusMessageOverride = nil
         }
+    }
+
+    mutating func markImportConfirmed(careerRefreshSucceeded: Bool) {
+        guard liveImportBatch?.isCompletedWithoutHardFailures == true else {
+            return
+        }
+
+        phase = .confirmed
+        errorMessage = nil
+        failureStage = nil
+        statusTitleOverride = nil
+        statusMessageOverride = nil
+        postImportCareerRefreshStatus = careerRefreshSucceeded ? .succeeded : .failed
     }
 
     mutating func setError(

@@ -240,6 +240,23 @@ nonisolated struct ResumeReviewItemUpdateRequestDTO: Encodable, Equatable, Senda
     let importAction: String?
     let targetRecordID: String?
     let editedPayload: [String: JSONValue]?
+    let confirmDistinctRole: Bool?
+
+    init(
+        expectedVersion: Int,
+        selected: Bool?,
+        importAction: String?,
+        targetRecordID: String?,
+        editedPayload: [String: JSONValue]?,
+        confirmDistinctRole: Bool? = nil
+    ) {
+        self.expectedVersion = expectedVersion
+        self.selected = selected
+        self.importAction = importAction
+        self.targetRecordID = targetRecordID
+        self.editedPayload = editedPayload
+        self.confirmDistinctRole = confirmDistinctRole
+    }
 
     private enum CodingKeys: String, CodingKey {
         case expectedVersion
@@ -247,6 +264,7 @@ nonisolated struct ResumeReviewItemUpdateRequestDTO: Encodable, Equatable, Senda
         case importAction
         case targetRecordID = "targetRecordId"
         case editedPayload
+        case confirmDistinctRole
     }
 }
 

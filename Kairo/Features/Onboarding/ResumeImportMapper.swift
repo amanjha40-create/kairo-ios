@@ -361,6 +361,134 @@ enum ResumeImportMapper {
         )
     }
 
+    nonisolated static func employmentDuplicateReviewState(
+        for item: ResumeReviewItem
+    ) -> ResumeEmploymentDuplicateReviewState {
+        guard item.claimType == "employment" else {
+            return .noConflict
+        }
+
+        let existing = item.duplicateCandidates.first.map(employmentSummary(from:))
+
+        switch item.duplicateStatus {
+        case .exactMatch:
+            return .alreadyInCareer(existing: existing)
+        case .possibleMatch, .probableMatch, .conflict:
+            let decision: ResumeEmploymentDuplicateDecision =
+                item.selected && item.importAction == .createNew
+                    ? .addAsNewRole
+                    : .keepExisting
+            return .possibleMatch(
+                existing: existing,
+                imported: employmentSummary(from: item.editedPayload),
+                decision: decision
+            )
+        case .noMatch, .unknown:
+            return .noConflict
+        }
+    }
+
+    nonisolated static func employmentDecisionUpdateRequest(
+        for item: ResumeReviewItem,
+        decision: ResumeEmploymentDuplicateDecision,
+        distinctRoleConfirmed: Bool
+    ) -> ResumeReviewItemUpdateRequestDTO? {
+        guard item.claimType == "employment" else {
+            return nil
+        }
+
+        switch employmentDuplicateReviewState(for: item) {
+        case .noConflict, .alreadyInCareer:
+            return nil
+        case .possibleMatch:
+            switch decision {
+            case .keepExisting:
+                return ResumeReviewItemUpdateRequestDTO(
+                    expectedVersion: item.version,
+                    selected: true,
+                    importAction: ResumeImportAction.skip.rawValue,
+                    targetRecordID: nil,
+                    editedPayload: nil
+                )
+            case .addAsNewRole:
+                guard distinctRoleConfirmed else {
+                    return nil
+                }
+                return ResumeReviewItemUpdateRequestDTO(
+                    expectedVersion: item.version,
+                    selected: true,
+                    importAction: ResumeImportAction.createNew.rawValue,
+                    targetRecordID: nil,
+                    editedPayload: nil,
+                    confirmDistinctRole: true
+                )
+            }
+        }
+    }
+
+    nonisolated static func reviewedOutcome(for item: ResumeReviewItem) -> ResumeReviewedOutcome {
+        if item.claimType == "employment" {
+            switch employmentDuplicateReviewState(for: item) {
+            case .alreadyInCareer:
+                return .alreadyInCareer
+            case .possibleMatch(_, _, let decision):
+                return decision == .addAsNewRole ? .addAsNewRole : .keepExisting
+            case .noConflict:
+                break
+            }
+        }
+
+        if !item.selected || item.importAction == .skip {
+            return .skip
+        }
+        if item.importAction == .linkExisting {
+            return .alreadyInCareer
+        }
+        return .import
+    }
+
+    nonisolated static func employmentSummary(
+        from payload: [String: JSONValue]
+    ) -> ResumeEmploymentSummary {
+        let employer = firstString(
+            payload["employer"],
+            payload["company_name"],
+            payload["employer_legal_name"],
+            payload["employer_trade_name"]
+        )
+        let role = firstString(
+            payload["title"],
+            payload["role_title"],
+            payload["job_title"],
+            payload["role"]
+        )
+        let start = firstString(payload["start_date_display"], payload["start_date"])
+        let end = firstString(payload["end_date_display"], payload["end_date"])
+        let dates: String? = switch (start, end) {
+        case let (.some(start), .some(end)):
+            "\(start) – \(end)"
+        case let (.some(start), .none):
+            "\(start) – Present"
+        case let (.none, .some(end)):
+            "Until \(end)"
+        case (.none, .none):
+            nil
+        }
+        let location = firstString(
+            payload["location"],
+            payload["work_location"],
+            payload["work_location_city"],
+            payload["city"]
+        )
+
+        return ResumeEmploymentSummary(
+            employer: employer,
+            role: role,
+            dates: dates,
+            location: location
+        )
+    }
+
     nonisolated static func reconciledUpdateRequest(
         for latestItem: ResumeReviewItem,
         desiredSelected: Bool? = nil,

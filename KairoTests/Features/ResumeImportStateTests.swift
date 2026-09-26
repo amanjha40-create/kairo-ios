@@ -470,6 +470,27 @@ final class ResumeImportStateTests: XCTestCase {
         XCTAssertFalse(third.isEmpty)
     }
 
+    func test_completedImportShowsSummaryOnlyAfterAuthoritativeCareerRefreshAttempt() {
+        var state = ResumeImportState(phase: .importing)
+        state.applyImportBatch(makeImportBatch(status: "completed"))
+
+        state.markImportConfirmed(careerRefreshSucceeded: true)
+
+        XCTAssertEqual(state.phase, .confirmed)
+        XCTAssertEqual(state.postImportCareerRefreshStatus, .succeeded)
+        XCTAssertNotNil(state.liveImportBatch)
+    }
+
+    func test_nonterminalImportCannotFabricateFinalSummary() {
+        var state = ResumeImportState(phase: .importing)
+        state.applyImportBatch(makeImportBatch(status: "processing"))
+
+        state.markImportConfirmed(careerRefreshSucceeded: true)
+
+        XCTAssertEqual(state.phase, .importing)
+        XCTAssertEqual(state.postImportCareerRefreshStatus, .idle)
+    }
+
     private func makeResumeRecord(processingStatus: ResumeProcessingStatus) -> ResumeRecord {
         ResumeRecord(
             id: "resume_123",

@@ -189,7 +189,7 @@ private struct ResumeManagementWorkflowView: View {
                              ? "Approved claims were imported. They remain candidate-provided, not verified. View your Career for those records."
                              : "No review action is available for this resume. Return to Resume to choose a new file or refresh its status.")
                         if let batch = snapshot.importBatch {
-                            Text("Imported: \(batch.importedCount) · Linked: \(batch.linkedCount) · Skipped: \(batch.skippedCount)")
+                            Text("Added: \(batch.importedCount) · Already in Career: \(batch.linkedCount) · Skipped: \(batch.skippedCount)")
                         }
                     }.fixedSize(horizontal: false, vertical: true).padding()
                 }.accessibilityIdentifier("resume.management.historyDetail")

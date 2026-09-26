@@ -8,6 +8,7 @@ struct UITestResumeImportConfiguration {
         case missingAuthoritativeReview = "missing_authoritative_review"
         case managementEmpty = "management_empty"
         case managementHistory = "management_history"
+        case duplicateReview = "duplicate_review"
     }
 
     enum EnvironmentKey {
@@ -99,6 +100,8 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     private let scenario: UITestResumeImportConfiguration.ServiceScenario
     private var imported = false
     private var retried = false
+    private var duplicatePossibleAction: ResumeImportAction = .skip
+    private var duplicatePossibleVersion = 1
     private var deletedIDs: Set<String> = []
     private(set) var deleteCalls: [String] = []
     private let deleteMode: String
@@ -129,19 +132,26 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         case .missingAuthoritativeReview:
             try await Task.sleep(for: .milliseconds(350))
             throw ResumeImportServiceError.reviewRecovery(.serverUnavailable)
-        case .disabled, .demo, .managementEmpty, .managementHistory:
+        case .disabled, .demo, .managementEmpty, .managementHistory, .duplicateReview:
             return nil
         }
     }
 
     func resumeHistory(offset: Int, limit: Int) async throws -> ResumeHistoryPage {
-        let all = scenario == .managementHistory ? managementEntries : []
+        let all: [ResumeImportWorkflowSnapshot] = if scenario == .duplicateReview {
+            [duplicateWorkflow]
+        } else if scenario == .managementHistory {
+            managementEntries
+        } else {
+            []
+        }
         return ResumeHistoryPage(entries: Array(all.dropFirst(offset).prefix(limit)), total: all.count, offset: offset)
     }
 
     func restoreWorkflow(resumeID: String) async throws -> ResumeImportWorkflowSnapshot {
         if deleteMode == "unavailable", !deleteCalls.isEmpty { throw NetworkError.transport("Synthetic unavailable") }
-        guard let entry = managementEntries.first(where: { $0.resume.id == resumeID }) else {
+        let entries = scenario == .duplicateReview ? [duplicateWorkflow] : managementEntries
+        guard let entry = entries.first(where: { $0.resume.id == resumeID }) else {
             throw NetworkError.api(APIError.decode(from: Data(), statusCode: 404)!)
         }
         return entry
@@ -187,6 +197,9 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
+        if scenario == .duplicateReview {
+            return duplicateReviewSession(status: imported ? .imported : .reviewing)
+        }
         if scenario == .managementHistory {
             return managementReview(resumeID: reviewID.replacingOccurrences(of: "review-", with: ""), status: imported ? .imported : .reviewing)
         }
@@ -199,12 +212,27 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         itemID: String,
         payload: ResumeReviewItemUpdateRequestDTO
     ) async throws -> ResumeReviewSession {
+        if scenario == .duplicateReview, itemID == "item_duplicate_possible" {
+            guard payload.expectedVersion == duplicatePossibleVersion else {
+                throw NetworkError.transport("Synthetic review conflict")
+            }
+            if payload.importAction == ResumeImportAction.createNew.rawValue {
+                guard payload.confirmDistinctRole == true else {
+                    throw NetworkError.transport("Synthetic confirmation required")
+                }
+                duplicatePossibleAction = .createNew
+            } else if payload.importAction == ResumeImportAction.skip.rawValue {
+                duplicatePossibleAction = .skip
+            }
+            duplicatePossibleVersion += 1
+            return duplicateReviewSession(status: .reviewing)
+        }
         _ = (reviewID, itemID, payload)
         throw NetworkError.unavailableInDemoMode
     }
 
     func validateReview(reviewID: String, expectedVersion: Int) async throws -> ResumeReviewPlan {
-        if scenario == .managementHistory {
+        if scenario == .managementHistory || scenario == .duplicateReview {
             return ResumeReviewPlan(sessionID: reviewID, ready: true, version: expectedVersion, items: [])
         }
         _ = (reviewID, expectedVersion)
@@ -216,6 +244,11 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         expectedVersion: Int,
         idempotencyKey: String
     ) async throws -> ResumeImportBatch {
+        if scenario == .duplicateReview {
+            try await Task.sleep(for: .milliseconds(350))
+            imported = true
+            return duplicateBatch(reviewID: reviewID)
+        }
         if scenario == .managementHistory {
             try await Task.sleep(for: .milliseconds(500))
             imported = true
@@ -226,6 +259,7 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func latestImportStatus(reviewID: String) async throws -> ResumeImportBatch {
+        if scenario == .duplicateReview { return duplicateBatch(reviewID: reviewID) }
         if scenario == .managementHistory { return managementBatch(reviewID: reviewID) }
         _ = reviewID
         throw NetworkError.unavailableInDemoMode
@@ -239,6 +273,146 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     func completeOnboardingIfNeeded() async throws -> ResumeImportCompletionResult {
         // Authenticated management tests fail if they accidentally reach onboarding completion.
         throw NetworkError.unavailableInDemoMode
+    }
+
+    private var duplicateWorkflow: ResumeImportWorkflowSnapshot {
+        ResumeImportWorkflowSnapshot(
+            resume: ResumeRecord(
+                id: "duplicate-review",
+                originalFilename: "Synthetic_employment_duplicate_review.pdf",
+                contentType: "application/pdf",
+                fileSizeBytes: 48_000,
+                uploadStatus: .uploaded,
+                processingStatus: .needsReview,
+                createdAt: Date(timeIntervalSince1970: 1_788_530_480),
+                updatedAt: Date(timeIntervalSince1970: 1_788_530_480)
+            ),
+            reviewSession: duplicateReviewSession(status: imported ? .imported : .reviewing),
+            importBatch: imported ? duplicateBatch(reviewID: "review-duplicate") : nil
+        )
+    }
+
+    private func duplicateReviewSession(status: ResumeReviewStatus) -> ResumeReviewSession {
+        ResumeReviewSession(
+            id: "review-duplicate",
+            resumeID: "duplicate-review",
+            parsedResultID: "parsed-duplicate",
+            status: status,
+            schemaVersion: "resume_review_v1",
+            version: duplicatePossibleVersion,
+            items: [
+                duplicateItem(
+                    id: "item_duplicate_exact",
+                    role: "Senior Product Analyst",
+                    start: "2022-01",
+                    end: "2024-06",
+                    duplicateStatus: .exactMatch,
+                    action: .linkExisting,
+                    version: 1
+                ),
+                duplicateItem(
+                    id: "item_duplicate_possible",
+                    role: "Product Analytics Lead",
+                    start: "2024-07",
+                    end: nil,
+                    duplicateStatus: .possibleMatch,
+                    action: duplicatePossibleAction,
+                    version: duplicatePossibleVersion
+                )
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_788_530_480),
+            updatedAt: Date(timeIntervalSince1970: 1_788_530_480)
+        )
+    }
+
+    private func duplicateItem(
+        id: String,
+        role: String,
+        start: String,
+        end: String?,
+        duplicateStatus: ResumeDuplicateStatus,
+        action: ResumeImportAction,
+        version: Int
+    ) -> ResumeReviewItem {
+        let payload: [String: JSONValue] = [
+            "employer_legal_name": .string("Meridian Trust"),
+            "job_title": .string(role),
+            "start_date": .string(start),
+            "end_date": end.map(JSONValue.string) ?? .null,
+            "work_location_city": .string("Bengaluru")
+        ]
+        let candidate: [String: JSONValue] = [
+            "record_id": .string("employment-existing"),
+            "employer": .string("Meridian Trust"),
+            "title": .string("Senior Product Analyst"),
+            "start_date": .string("2022-01"),
+            "end_date": .string("2024-06"),
+            "location": .string("Bengaluru")
+        ]
+
+        return ResumeReviewItem(
+            id: id,
+            claimType: "employment",
+            sourceClaimID: "claim-\(id)",
+            originalPayload: payload,
+            editedPayload: payload,
+            selected: true,
+            reviewStatus: imported ? "imported" : "selected",
+            duplicateStatus: duplicateStatus,
+            duplicateCandidates: [candidate],
+            conflictWarnings: [],
+            importAction: action,
+            targetRecordID: action == .linkExisting ? "employment-existing" : nil,
+            importedRecordType: imported ? "employment" : nil,
+            importedRecordID: imported ? "employment-result-\(id)" : nil,
+            sourceReference: "page_1",
+            confidence: 0.98,
+            version: version
+        )
+    }
+
+    private func duplicateBatch(reviewID: String) -> ResumeImportBatch {
+        let possibleWasAdded = duplicatePossibleAction == .createNew
+        return ResumeImportBatch(
+            id: "duplicate-batch",
+            reviewSessionID: reviewID,
+            status: "completed",
+            totalCount: 2,
+            importedCount: possibleWasAdded ? 1 : 0,
+            linkedCount: 1,
+            skippedCount: possibleWasAdded ? 0 : 1,
+            failedCount: 0,
+            blockedCount: 0,
+            incompleteCount: 0,
+            entityCounts: [
+                "employment": ResumeImportEntitySummary(
+                    detected: 2,
+                    imported: possibleWasAdded ? 1 : 0,
+                    incomplete: 0,
+                    failed: 0
+                )
+            ],
+            results: [
+                ResumeImportResultItem(
+                    reviewItemID: "item_duplicate_exact",
+                    outcome: "linked",
+                    recordType: "employment",
+                    recordID: "employment-existing",
+                    sanitizedErrorCode: nil,
+                    warnings: []
+                ),
+                ResumeImportResultItem(
+                    reviewItemID: "item_duplicate_possible",
+                    outcome: possibleWasAdded ? "imported" : "skipped",
+                    recordType: "employment",
+                    recordID: possibleWasAdded ? "employment-new-role" : nil,
+                    sanitizedErrorCode: nil,
+                    warnings: []
+                )
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_788_530_500),
+            updatedAt: Date(timeIntervalSince1970: 1_788_530_510)
+        )
     }
 
     private var managementEntries: [ResumeImportWorkflowSnapshot] {
