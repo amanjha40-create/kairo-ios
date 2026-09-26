@@ -479,7 +479,7 @@ private struct ContactVerificationScreenView: View {
         Task {
             do {
                 _ = try await authService.completeSignup()
-                await sessionStore.completeAuthenticationAndRoute()
+                await sessionStore.completeNewAccountAuthenticationAndRoute()
                 await MainActor.run {
                     isCompletingSignup = false
                 }

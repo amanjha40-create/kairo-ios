@@ -318,6 +318,72 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertEqual(store.currentUser?.fullName, "Aarav Mehta")
     }
 
+    func test_newAccountAuthenticationArmsTourAfterIdentityHydration() async {
+        let router = AppRouter()
+        let preferences = AppSessionGuidedTourPreferences()
+        let store = AppSessionStore(
+            configuration: makeConfiguration(),
+            uiTestConfiguration: .disabled,
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(
+                    currentStep: .completeProfile,
+                    completedSteps: ["verify_email", "verify_phone"],
+                    missingRequirements: ["headline"],
+                    nextRecommendedStep: "complete_profile",
+                    completionPercentage: 75
+                )
+            ),
+            sessionService: StubSessionService(
+                hasAccessToken: true,
+                hasRefreshToken: true,
+                signupSessionID: nil
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService(),
+            guidedTourPreferences: preferences
+        )
+
+        await store.completeNewAccountAuthenticationAndRoute()
+
+        XCTAssertEqual(preferences.status(for: "user_123"), .pending)
+        XCTAssertEqual(router.onboardingPath.last, .step(.chooseStart))
+    }
+
+    func test_ordinaryLoginClearsStalePendingTourAndNeverRearmsExistingAccount() async {
+        let router = AppRouter()
+        let preferences = AppSessionGuidedTourPreferences()
+        preferences.markPendingIfEligible(for: "user_123")
+        let store = AppSessionStore(
+            configuration: makeConfiguration(),
+            uiTestConfiguration: .disabled,
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(
+                    currentStep: .complete,
+                    passportReady: true,
+                    completionPercentage: 100,
+                    isOnboardingComplete: true
+                )
+            ),
+            sessionService: StubSessionService(
+                hasAccessToken: true,
+                hasRefreshToken: true,
+                signupSessionID: nil
+            ),
+            manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService(),
+            guidedTourPreferences: preferences
+        )
+
+        await store.completeAuthenticationAndRoute()
+
+        XCTAssertNil(preferences.status(for: "user_123"))
+        XCTAssertEqual(router.rootDestination, .mainTabs)
+    }
+
     func test_bootstrapRoutesToChooseStartForIncompleteProfile() async {
         let router = AppRouter()
         let store = AppSessionStore(
@@ -605,6 +671,19 @@ final class AppSessionStoreTests: XCTestCase {
             resumeImportService: StubResumeImportService()
         )
     }
+}
+
+@MainActor
+private final class AppSessionGuidedTourPreferences: GuidedTourPreferenceStoring {
+    private var states: [String: GuidedTourAccountStatus] = [:]
+
+    func status(for accountID: String) -> GuidedTourAccountStatus? { states[accountID] }
+    func markPendingIfEligible(for accountID: String) {
+        if states[accountID] != .completed { states[accountID] = .pending }
+    }
+    func markCompleted(for accountID: String) { states[accountID] = .completed }
+    func clearPendingStates() { states = states.filter { $0.value == .completed } }
+    func removeState(for accountID: String) { states.removeValue(forKey: accountID) }
 }
 
 private extension UITestLaunchConfiguration {

@@ -2,7 +2,11 @@ import SwiftUI
 
 struct CandidateTabShellView: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
+    @EnvironmentObject private var guidedTourCoordinator: GuidedTourCoordinator
     @Environment(\.appConfiguration) private var appConfiguration
+    @State private var tabFrames: [GuidedTourTarget: CGRect] = [:]
+    @State private var isTourOverlayVisible = false
     private let uiTestHomeConfiguration: UITestHomeConfiguration
     private let uiTestCareerConfiguration: UITestCareerConfiguration
     private let uiTestVerifyConfiguration: UITestVerifyConfiguration
@@ -32,6 +36,56 @@ struct CandidateTabShellView: View {
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
         .accessibilityIdentifier(KairoAccessibilityID.candidateTabShell)
+        .accessibilityHidden(isTourOverlayVisible)
+        .allowsHitTesting(!isTourOverlayVisible)
+        .background(
+            GuidedTourTabFrameReader { frames in
+                tabFrames = frames
+            }
+        )
+        .overlayPreferenceValue(GuidedTourAnchorPreferenceKey.self) { anchors in
+            GeometryReader { proxy in
+                let homeFrames = anchors.mapValues { proxy[$0] }
+                let viewport = CGRect(origin: .zero, size: proxy.size)
+                if let step = guidedTourCoordinator.currentStep,
+                   step.target != guidedTourCoordinator.unavailableTargetForTesting,
+                   let targetFrame = GuidedTourTargetResolver.frame(
+                       for: step.target,
+                       homeFrames: homeFrames,
+                       tabFrames: tabFrames
+                   ),
+                   viewport.width > 24,
+                   viewport.height > 24,
+                   !targetFrame.isNull,
+                   !targetFrame.isInfinite,
+                   targetFrame.width > 0,
+                   targetFrame.height > 0,
+                   targetFrame.intersects(viewport) {
+                    GuidedTourOverlayView(
+                        step: step,
+                        targetFrame: targetFrame,
+                        nextAction: guidedTourCoordinator.advance,
+                        backAction: guidedTourCoordinator.moveBack,
+                        skipAction: guidedTourCoordinator.skip
+                    )
+                    .zIndex(100)
+                    .onAppear { isTourOverlayVisible = true }
+                    .onDisappear { isTourOverlayVisible = false }
+                }
+            }
+        }
+        .onAppear(perform: updateGuidedTourContext)
+        .onChange(of: router.selectedTab) { _, _ in updateGuidedTourContext() }
+        .onChange(of: sessionStore.currentUser?.id) { _, _ in updateGuidedTourContext() }
+        .onChange(of: sessionStore.currentUser?.role) { _, _ in updateGuidedTourContext() }
+    }
+
+    private func updateGuidedTourContext() {
+        guidedTourCoordinator.updateContext(
+            accountID: sessionStore.currentUser?.id,
+            role: sessionStore.currentUser?.role,
+            isHomeSelected: router.selectedTab == .home
+        )
     }
 
     @ViewBuilder

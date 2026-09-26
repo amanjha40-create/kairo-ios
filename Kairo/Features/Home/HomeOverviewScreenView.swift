@@ -9,19 +9,29 @@ struct HomeOverviewScreenView: View {
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
+    @EnvironmentObject private var guidedTourCoordinator: GuidedTourCoordinator
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 46.0
     @State private var showsDocuments = false
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                header
-                content
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                    header
+                    content
+                }
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.top, KairoSpacing.medium)
+                .padding(.bottom, KairoSpacing.xxLarge)
             }
-            .padding(.horizontal, KairoSpacing.medium)
-            .padding(.top, KairoSpacing.medium)
-            .padding(.bottom, KairoSpacing.xxLarge)
+            .onChange(of: guidedTourCoordinator.currentStep) { _, step in
+                guard let step, step.target == .trustScore || step.target == .passport else { return }
+                let scroll = { proxy.scrollTo(step.target, anchor: .center) }
+                if reduceMotion { scroll() }
+                else { withAnimation(.easeInOut(duration: 0.25), scroll) }
+            }
         }
         .refreshableIfAvailable(action: refreshAction)
         .background(KairoColors.background.ignoresSafeArea())
@@ -32,6 +42,9 @@ struct HomeOverviewScreenView: View {
             async let digiLocker: Void = digiLockerStore.loadSummaryIfNeeded()
             _ = await (notifications, digiLocker)
         }
+        .onAppear { updateGuidedTourReadiness() }
+        .onChange(of: state.phase) { _, _ in updateGuidedTourReadiness() }
+        .onDisappear { guidedTourCoordinator.setHomeReady(false) }
         .sheet(isPresented: $showsDocuments) { DocumentsHubView() }
     }
 
@@ -103,12 +116,16 @@ struct HomeOverviewScreenView: View {
     @ViewBuilder
     private func dashboard(_ content: HomeOverviewContent, isEmpty: Bool) -> some View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
+            .id(GuidedTourTarget.trustScore)
+            .guidedTourTarget(.trustScore)
         KairoCompactDestinationRow(
             title: "Passport", metadata: "View your Trust Passport",
             systemImage: "person.text.rectangle",
             accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
             action: { router.selectTab(.passport) }
         )
+        .id(GuidedTourTarget.passport)
+        .guidedTourTarget(.passport)
         DigiLockerHomeCard()
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         careerSection(content, isEmpty: isEmpty)
@@ -163,6 +180,15 @@ struct HomeOverviewScreenView: View {
         .modifier(KairoTrustSurface())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
+    }
+
+    private func updateGuidedTourReadiness() {
+        switch state.phase {
+        case .populated, .empty:
+            guidedTourCoordinator.setHomeReady(true)
+        case .loading, .error:
+            guidedTourCoordinator.setHomeReady(false)
+        }
     }
 
     @ViewBuilder

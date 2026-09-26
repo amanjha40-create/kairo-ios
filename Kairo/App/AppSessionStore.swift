@@ -25,6 +25,7 @@ final class AppSessionStore: ObservableObject {
     private let sessionService: any SessionServiceProtocol
     private let manualProfileService: any ManualProfileServiceProtocol
     private let resumeImportService: any ResumeImportServiceProtocol
+    private let guidedTourPreferences: any GuidedTourPreferenceStoring
     private var hasBootstrapped = false
 
     init(
@@ -34,7 +35,8 @@ final class AppSessionStore: ObservableObject {
         authService: any AuthServiceProtocol,
         sessionService: any SessionServiceProtocol,
         manualProfileService: any ManualProfileServiceProtocol,
-        resumeImportService: any ResumeImportServiceProtocol
+        resumeImportService: any ResumeImportServiceProtocol,
+        guidedTourPreferences: (any GuidedTourPreferenceStoring)? = nil
     ) {
         self.configuration = configuration
         self.uiTestConfiguration = uiTestConfiguration
@@ -43,6 +45,7 @@ final class AppSessionStore: ObservableObject {
         self.sessionService = sessionService
         self.manualProfileService = manualProfileService
         self.resumeImportService = resumeImportService
+        self.guidedTourPreferences = guidedTourPreferences ?? GuidedTourPreferences()
     }
 
     func bootstrapIfNeeded() async {
@@ -59,11 +62,11 @@ final class AppSessionStore: ObservableObject {
         await refreshLaunchRoute()
     }
 
-    func refreshLaunchRoute() async {
+    func refreshLaunchRoute(armNewAccountTour: Bool = false) async {
         launchPhase = .bootstrapping
 
         do {
-            let launchRoute = try await resolveLaunchRoute()
+            let launchRoute = try await resolveLaunchRoute(armNewAccountTour: armNewAccountTour)
             applyLaunchRoute(launchRoute)
             launchPhase = .idle
         } catch {
@@ -79,7 +82,13 @@ final class AppSessionStore: ObservableObject {
     }
 
     func completeAuthenticationAndRoute() async {
+        guidedTourPreferences.clearPendingStates()
         await refreshLaunchRoute()
+    }
+
+    func completeNewAccountAuthenticationAndRoute() async {
+        guidedTourPreferences.clearPendingStates()
+        await refreshLaunchRoute(armNewAccountTour: true)
     }
 
     func replaceCurrentUser(_ user: AppUser?) {
@@ -99,6 +108,7 @@ final class AppSessionStore: ObservableObject {
         currentUser = nil
         signupRecovery = nil
         pendingGoogleSignup = nil
+        guidedTourPreferences.clearPendingStates()
         ManualProfileDraftStore.clear()
         router.showOnboarding()
         launchPhase = .idle
@@ -108,6 +118,7 @@ final class AppSessionStore: ObservableObject {
         try? await sessionService.clearSignupSessionID()
         signupRecovery = nil
         pendingGoogleSignup = nil
+        guidedTourPreferences.clearPendingStates()
         ManualProfileDraftStore.clear()
         currentUser = nil
         router.navigateToOnboarding(.createAccount)
@@ -118,6 +129,7 @@ final class AppSessionStore: ObservableObject {
         try? await sessionService.clearSession()
         signupRecovery = nil
         pendingGoogleSignup = nil
+        guidedTourPreferences.clearPendingStates()
         ManualProfileDraftStore.clear()
         currentUser = nil
         router.showOnboarding()
@@ -140,7 +152,7 @@ final class AppSessionStore: ObservableObject {
         launchPhase = .idle
     }
 
-    private func resolveLaunchRoute() async throws -> AppLaunchRoute {
+    private func resolveLaunchRoute(armNewAccountTour: Bool = false) async throws -> AppLaunchRoute {
         let hasAccessToken = try await sessionService.hasStoredAccessToken()
         let hasRefreshToken = try await sessionService.hasStoredRefreshToken()
 
@@ -187,6 +199,9 @@ final class AppSessionStore: ObservableObject {
         signupRecovery = nil
         pendingGoogleSignup = nil
         currentUser = try await authService.currentUser().asDomainModel()
+        if armNewAccountTour, let accountID = currentUser?.id {
+            guidedTourPreferences.markPendingIfEligible(for: accountID)
+        }
         let onboardingStatus = try await authService.onboardingStatus()
 
         if onboardingStatus.isOnboardingComplete {

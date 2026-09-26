@@ -9,6 +9,7 @@ struct KairoApp: App {
     @StateObject private var candidateNotificationStore: CandidateNotificationStore
     @StateObject private var appearanceStore: AppAppearanceStore
     @StateObject private var digiLockerStore: DigiLockerStore
+    @StateObject private var guidedTourCoordinator: GuidedTourCoordinator
 
     init() {
         let configuration = AppConfiguration.resolve()
@@ -16,6 +17,10 @@ struct KairoApp: App {
         let dependencies = AppDependencies.make(
             configuration: configuration,
             uiTestConfiguration: uiTestConfiguration
+        )
+        let guidedTourPreferences = GuidedTourPreferences()
+        let guidedTourTestConfiguration = UITestGuidedTourConfiguration.current(
+            launchConfiguration: uiTestConfiguration
         )
 
         if uiTestConfiguration.disablesAnimations {
@@ -38,7 +43,8 @@ struct KairoApp: App {
             authService: dependencies.authService,
             sessionService: dependencies.sessionService,
             manualProfileService: dependencies.manualProfileService,
-            resumeImportService: dependencies.resumeImportService
+            resumeImportService: dependencies.resumeImportService,
+            guidedTourPreferences: guidedTourPreferences
         ))
         _candidateDataRefreshStore = StateObject(wrappedValue: CandidateDataRefreshStore())
         _candidateNotificationStore = StateObject(wrappedValue: CandidateNotificationStore(
@@ -46,6 +52,10 @@ struct KairoApp: App {
         ))
         _appearanceStore = StateObject(wrappedValue: AppAppearanceStore())
         _digiLockerStore = StateObject(wrappedValue: DigiLockerStore(service: dependencies.digiLockerService))
+        _guidedTourCoordinator = StateObject(wrappedValue: GuidedTourCoordinator(
+            preferences: guidedTourPreferences,
+            testConfiguration: guidedTourTestConfiguration
+        ))
         self.configuration = configuration
         self.dependencies = dependencies
     }
@@ -62,6 +72,7 @@ struct KairoApp: App {
                 .environmentObject(candidateNotificationStore)
                 .environmentObject(appearanceStore)
                 .environmentObject(digiLockerStore)
+                .environmentObject(guidedTourCoordinator)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)
