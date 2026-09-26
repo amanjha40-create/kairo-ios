@@ -263,8 +263,8 @@ struct MoreOverviewContent: Equatable, Sendable {
             supportRows: [
                 MoreRowItem(
                     id: "helpCentre",
-                    title: "Help centre",
-                    subtitle: "Open KairoID's help resources.",
+                    title: "Help Center",
+                    subtitle: "Browse guides and frequently asked questions.",
                     systemImage: "book.closed"
                 ),
                 MoreRowItem(

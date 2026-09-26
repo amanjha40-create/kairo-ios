@@ -23,7 +23,7 @@ enum MoreOverviewMapper {
                     notificationPreferences: notificationPreferences,
                     accountRows: makeAccountRows(from: overview.user),
                     privacyRows: makePrivacyRows(from: overview.trustScoreConsent),
-                    supportRows: makeSupportRows(helpCenterURL: destinations.helpCenterURL),
+                    supportRows: makeSupportRows(),
                     aboutRows: makeAboutRows(destinations: destinations),
                     appVersion: overview.bundleAppVersion,
                     backendAppVersion: overview.backendAppVersion,
@@ -217,14 +217,12 @@ enum MoreOverviewMapper {
         ]
     }
 
-    nonisolated private static func makeSupportRows(helpCenterURL: URL?) -> [MoreRowItem] {
+    nonisolated private static func makeSupportRows() -> [MoreRowItem] {
         [
             MoreRowItem(
                 id: "helpCentre",
-                title: "Help centre",
-                subtitle: helpCenterURL == nil
-                    ? "A help-centre link is not configured yet."
-                    : "Open KairoID's help resources.",
+                title: "Help Center",
+                subtitle: "Browse guides and frequently asked questions.",
                 systemImage: "book.closed"
             ),
             MoreRowItem(

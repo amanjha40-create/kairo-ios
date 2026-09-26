@@ -244,6 +244,36 @@ nonisolated enum KairoAccessibilityID {
     static let trustScoreGrantConsent = "candidate.trustScore.consent.grant"
     static let trustScoreWithdrawConsent = "candidate.trustScore.consent.withdraw"
     static let moreHelpCentre = "candidate.more.helpCentre"
+    static let helpCenterScreen = "candidate.help.screen"
+    static let helpCenterTitle = "candidate.help.title"
+    static let helpCenterSearch = "candidate.help.search"
+    static let helpCenterClearSearch = "candidate.help.search.clear"
+    static let helpCenterGuidesSection = "candidate.help.guides"
+    static let helpCenterFAQSection = "candidate.help.faqs"
+    static let helpCenterSearchResults = "candidate.help.search.results"
+    static let helpCenterEmptySearch = "candidate.help.search.empty"
+    static let helpCenterSupport = "candidate.help.support"
+    static let helpCenterDetailClose = "candidate.help.detail.close"
+
+    static func helpCenterGuide(_ id: String) -> String {
+        "candidate.help.guide.\(id)"
+    }
+
+    static func helpCenterFAQ(_ id: String) -> String {
+        "candidate.help.faq.\(id)"
+    }
+
+    static func helpCenterFAQAnswer(_ id: String) -> String {
+        "candidate.help.faq.\(id).answer"
+    }
+
+    static func helpCenterSearchResult(_ id: String) -> String {
+        "candidate.help.search.result.\(id)"
+    }
+
+    static func helpCenterDetail(_ id: String) -> String {
+        "candidate.help.detail.\(id)"
+    }
 
     static func passportSharePermission(_ permission: String) -> String {
         "candidate.passport.share.permission.\(permission)"

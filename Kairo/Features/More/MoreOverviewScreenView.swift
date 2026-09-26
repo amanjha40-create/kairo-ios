@@ -24,6 +24,7 @@ struct MoreOverviewScreenView: View {
     @State private var mutatingNotificationIDs: Set<String> = []
     @State private var isSigningOut = false
     @State private var navigationPath: [MoreHubDestination] = []
+    @State private var showsHelpCenter = false
 
     init(
         state: Binding<MoreOverviewState>,
@@ -56,6 +57,17 @@ struct MoreOverviewScreenView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: MoreHubDestination.self) { destination in
                 destinationView(destination)
+            }
+            .navigationDestination(isPresented: $showsHelpCenter) {
+                HelpCenterScreenView(
+                    supportEmailAddress: appConfiguration.supportEmailAddress,
+                    supportAction: {
+                        openSupportEmail(
+                            subject: "KairoID Support",
+                            fallbackTitle: "Contact support"
+                        )
+                    }
+                )
             }
         }
         .sheet(item: $presentedModal) { modal in
@@ -585,26 +597,7 @@ struct MoreOverviewScreenView: View {
     private func handleSupportRow(_ row: MoreRowItem) {
         switch row.id {
         case "helpCentre":
-            if let helpCenterURL = appConfiguration.helpCenterURL {
-                openExternal(
-                    helpCenterURL,
-                    fallback: MoreInformationSheetModel(
-                        title: "Help centre unavailable",
-                        subtitle: "Help & support",
-                        primaryMessage: "KairoID couldn't open the configured Help centre on this device.",
-                        supportEmailAddress: appConfiguration.supportEmailAddress
-                    )
-                )
-            } else {
-                presentedModal = .information(
-                    MoreInformationSheetModel(
-                        title: "Help centre unavailable",
-                        subtitle: "Help & support",
-                        primaryMessage: "A Help centre destination is not configured for this build yet. Contact support directly if you need help.",
-                        supportEmailAddress: appConfiguration.supportEmailAddress
-                    )
-                )
-            }
+            showsHelpCenter = true
         case "contactSupport":
             openSupportEmail(
                 subject: "KairoID Support Request",
@@ -696,6 +689,12 @@ struct MoreOverviewScreenView: View {
     private func openSupportEmail(subject: String, fallbackTitle: String) {
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
         let value = "mailto:\(appConfiguration.supportEmailAddress)?subject=\(encodedSubject)"
+        let fallback = MoreInformationSheetModel(
+            title: fallbackTitle,
+            subtitle: "Support email",
+            primaryMessage: "This device couldn't open a mail draft automatically.",
+            supportEmailAddress: appConfiguration.supportEmailAddress
+        )
 
         guard let url = URL(string: value) else {
             presentedModal = .information(
@@ -709,14 +708,14 @@ struct MoreOverviewScreenView: View {
             return
         }
 
+        if UITestLaunchConfiguration.current().isEnabled {
+            presentedModal = .information(fallback)
+            return
+        }
+
         openExternal(
             url,
-            fallback: MoreInformationSheetModel(
-                title: fallbackTitle,
-                subtitle: "Support email",
-                primaryMessage: "This device couldn't open a mail draft automatically.",
-                supportEmailAddress: appConfiguration.supportEmailAddress
-            )
+            fallback: fallback
         )
     }
 

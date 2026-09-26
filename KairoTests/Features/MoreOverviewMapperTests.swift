@@ -65,7 +65,8 @@ final class MoreOverviewMapperTests: XCTestCase {
         ])
         XCTAssertEqual(content.accountRows.first?.subtitle, "Email verified • Phone not verified")
         XCTAssertEqual(content.privacyRows.first(where: { $0.id == "manageConsent" })?.subtitle, "Trust Score consent is currently Granted.")
-        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Open KairoID's help resources.")
+        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.title, "Help Center")
+        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Browse guides and frequently asked questions.")
         XCTAssertEqual(content.aboutRows.first(where: { $0.id == "privacyPolicy" })?.subtitle, "Open the latest KairoID document.")
         XCTAssertFalse(content.accountRows.contains(where: { $0.id == "connectedAccounts" }))
         XCTAssertFalse(content.privacyRows.contains(where: { $0.id == "privacySettings" || $0.id == "downloadMyData" }))
@@ -113,6 +114,11 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertEqual(
             content.notificationPreferences.first?.subtitle,
             "Control whether KairoID sends this notification."
+        )
+        XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.title, "Help Center")
+        XCTAssertEqual(
+            content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle,
+            "Browse guides and frequently asked questions."
         )
     }
 
