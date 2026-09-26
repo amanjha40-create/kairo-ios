@@ -68,14 +68,19 @@ final class CareerHierarchyTests: XCTestCase {
         XCTAssertNotNil(detail.edit); XCTAssertNotNil(detail.delete)
     }
 
-    func testLegacyPortfolioRemainsReadOnlyCompatibilityWithOrigin() {
-        var item = project()
-        item.legacyPortfolioID = "legacy-id"
-        item.detailMetadata.append(.init(title: "Origin", value: "Legacy Portfolio; Project migration pending"))
-        let detail = CareerRecordDetailPresentation.project(item, edit: {}, delete: {})
-        XCTAssertEqual(detail.documents, .legacyPortfolio(id: "legacy-id", title: "Project"))
-        XCTAssertEqual(detail.supportingMetadata.first?.title, "Origin")
-        XCTAssertNil(detail.edit); XCTAssertNil(detail.delete); XCTAssertNil(detail.verify)
+    func testPortfolioRemainsDistinctFromProjectsAndSupportsEditing() {
+        let item = CareerPortfolioItem(
+            routeID: "portfolio-id",
+            title: "Case study",
+            description: "Research and design",
+            verificationStatus: .notVerified,
+            hasDocument: true,
+            url: URL(string: "https://example.invalid/work")
+        )
+        let detail = CareerRecordDetailPresentation.portfolio(item, edit: {})
+        XCTAssertEqual(detail.documents, .portfolio(id: "portfolio-id", title: "Case study"))
+        XCTAssertEqual(detail.kind, .portfolio)
+        XCTAssertNotNil(detail.edit)
         XCTAssertFalse(detail.showsVerification)
     }
 

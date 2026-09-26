@@ -36,7 +36,7 @@ nonisolated struct PublicPassportVaultDTO: Decodable, Equatable, Sendable {
     let internships: [PublicPassportEmploymentDTO]
     let freelance: [PublicPassportEmploymentDTO]
     let gigPlatforms: [PublicPassportEmploymentDTO]
-    let portfolio: [PublicPassportLegacyPortfolioDTO]
+    let portfolio: [PublicPassportPortfolioDTO]
     let certifications: [PublicPassportCertificationDTO]
     let skills: [PublicPassportSkillDTO]
     let projects: [PublicPassportProjectDTO]
@@ -62,7 +62,7 @@ nonisolated struct PublicPassportVaultDTO: Decodable, Equatable, Sendable {
         internships = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .internships) ?? []
         freelance = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .freelance) ?? []
         gigPlatforms = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .gigPlatforms) ?? []
-        portfolio = try container.decodeIfPresent([PublicPassportLegacyPortfolioDTO].self, forKey: .portfolio) ?? []
+        portfolio = try container.decodeIfPresent([PublicPassportPortfolioDTO].self, forKey: .portfolio) ?? []
         certifications = try container.decodeIfPresent([PublicPassportCertificationDTO].self, forKey: .certifications) ?? []
         skills = try container.decodeIfPresent([PublicPassportSkillDTO].self, forKey: .skills) ?? []
         projects = try container.decodeIfPresent([PublicPassportProjectDTO].self, forKey: .projects) ?? []
@@ -122,7 +122,7 @@ nonisolated struct PublicPassportProjectDTO: Decodable, Equatable, Sendable {
     let verificationStatus: String?
 }
 
-nonisolated struct PublicPassportLegacyPortfolioDTO: Decodable, Equatable, Sendable {
+nonisolated struct PublicPassportPortfolioDTO: Decodable, Equatable, Sendable {
     let id: String
     let title: String
     let description: String?

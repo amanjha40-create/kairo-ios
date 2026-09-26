@@ -137,8 +137,12 @@ struct DocumentsHubView: View {
         do {
             switch row.source {
             case .career(let parent, let doc):
-                let url = try await documents.downloadURL(for: doc, parent: parent)
-                preview = SecureDocumentPreview(url: url, filename: row.filename)
+                if parent.isPortfolio {
+                    preview = SecureDocumentPreview(careerParent: parent, filename: row.filename)
+                } else {
+                    let url = try await documents.downloadURL(for: doc, parent: parent)
+                    preview = SecureDocumentPreview(url: url, filename: row.filename)
+                }
             case .vault(let doc):
                 preview = SecureDocumentPreview(vaultDocumentID: doc.id, filename: row.filename)
             case .unavailable: return

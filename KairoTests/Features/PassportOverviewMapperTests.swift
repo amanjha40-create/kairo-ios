@@ -34,6 +34,8 @@ final class PassportOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.education.first?.dateRange, "Jun 2016 – May 2019")
         XCTAssertEqual(content.certifications, [])
         XCTAssertEqual(content.projects, [])
+        XCTAssertEqual(content.portfolio.first?.title, "Accessible onboarding case study")
+        XCTAssertEqual(content.portfolio.first?.linkTitle, "portfolio.example.com")
         XCTAssertEqual(content.skills.map(\.name), ["Trust Operations"])
         XCTAssertEqual(content.skills.first?.verificationStatus, .verified)
         XCTAssertEqual(content.strengthSummary.first?.title, "Identity")
@@ -100,6 +102,7 @@ final class PassportOverviewMapperTests: XCTestCase {
                 educations: [],
                 certifications: [],
                 projects: [],
+                portfolio: [],
                 skills: [],
                 userDocuments: []
             )
@@ -264,6 +267,15 @@ final class PassportOverviewMapperTests: XCTestCase {
                 ],
                 certifications: [],
                 projects: [],
+                portfolio: [
+                    PassportPortfolioRecordDomain(
+                        id: "portfolio_1",
+                        title: "Accessible onboarding case study",
+                        description: "A product case study.",
+                        url: URL(string: "https://portfolio.example.com/case-study"),
+                        verificationStatus: .notVerified
+                    )
+                ],
                 skills: [
                     PassportSkillRecordDomain(id: "skill_1", name: "Trust Operations", verificationStatus: .verified)
                 ],

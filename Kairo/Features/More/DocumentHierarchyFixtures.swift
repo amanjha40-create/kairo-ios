@@ -23,7 +23,7 @@ actor DocumentHierarchyFixtures: DocumentsHubServiceProtocol, DocumentVaultServi
         let sources: [(DocumentsHubCategory, CareerDocumentParent)] = [
             (.employment, .employment(id: "employment", title: "Synthetic Employer", canUpload: true, canDelete: true)),
             (.education, .education(id: "education", title: "Synthetic University")),
-            (.projects, .legacyPortfolio(id: "project", title: "Synthetic Project · Legacy Portfolio origin"))]
+            (.portfolio, .portfolio(id: "portfolio", title: "Synthetic Portfolio item"))]
         for (category, parent) in sources {
             let document = CareerDocument(id: category.id, documentType: "other", originalFilename: "synthetic-\(category.id)-attachment.pdf",
                 contentType: "application/pdf", byteSize: 2048, verificationStatus: "draft")

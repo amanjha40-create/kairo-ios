@@ -161,7 +161,7 @@ nonisolated enum PassportSharePermissionOption: String, CaseIterable, Identifiab
         case .internships: "Internships"
         case .freelance: "Freelance work"
         case .gigPlatforms: "Gig platforms"
-        case .portfolio: "Projects (legacy origin)"
+        case .portfolio: "Portfolio"
         case .certifications: "Certifications"
         case .skills: "Skills"
         case .projects: "Projects"

@@ -4,12 +4,22 @@ import UniformTypeIdentifiers
 
 struct SecureDocumentPreview: Identifiable {
     let id = UUID()
-    enum Source { case authorizedCareerURL(URL), vault(documentID: String), documentPack(DocumentPackCapability, itemID: String) }
+    enum Source {
+        case authorizedCareerURL(URL)
+        case protectedCareerContent(CareerDocumentParent)
+        case vault(documentID: String)
+        case documentPack(DocumentPackCapability, itemID: String)
+    }
     let source: Source
     let filename: String
 
     init(url: URL, filename: String) {
         source = .authorizedCareerURL(url)
+        self.filename = filename
+    }
+
+    init(careerParent: CareerDocumentParent, filename: String) {
+        source = .protectedCareerContent(careerParent)
         self.filename = filename
     }
 
@@ -29,6 +39,7 @@ struct SecureDocumentPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.documentVaultService) private var vault
     @Environment(\.documentPackService) private var documentPacks
+    @Environment(\.careerDocumentService) private var careerDocuments
     @EnvironmentObject private var sessionStore: AppSessionStore
     let preview: SecureDocumentPreview
     @State private var localURL: URL?
@@ -54,6 +65,7 @@ struct SecureDocumentPreviewSheet: View {
                 switch preview.source {
                 case .vault(let id): content = try await vault.content(documentID: id)
                 case .documentPack(let capability, let itemID): content = try await documentPacks.content(capability, itemID: itemID)
+                case .protectedCareerContent(let parent): content = try await careerDocuments.protectedContent(for: parent)
                 case .authorizedCareerURL(let url):
                     content = try await ProtectedDocumentContent(response: ProtectedDocumentTransport.send(URLRequest(url: url)))
                 }

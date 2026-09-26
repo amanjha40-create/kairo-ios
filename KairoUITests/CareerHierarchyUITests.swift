@@ -102,6 +102,9 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["candidate.career.mutation.title"].waitForExistence(timeout: 10))
         app.buttons["candidate.career.mutation.cancel"].tap()
         // Never save or create a record.
+        let portfolio = app.staticTexts["candidate.career.portfolio"]
+        reveal(portfolio, app)
+        keepScreenshot("Wave 4 - Portfolio empty state", app)
     }
 
     func testAllWave2AddScreensAreNavigableWithoutWriting() {
@@ -110,7 +113,8 @@ final class CareerHierarchyUITests: XCTestCase {
             ("candidate.career.employment.add", "Add Employment"),
             ("candidate.career.education.add", "Add Education"),
             ("candidate.career.certifications.add", "Add Certification"),
-            ("candidate.career.projects.add", "Add Project")
+            ("candidate.career.projects.add", "Add Project"),
+            ("candidate.career.portfolio.add", "Add Portfolio Item")
         ]
 
         for (identifier, title) in cases {
@@ -132,7 +136,8 @@ final class CareerHierarchyUITests: XCTestCase {
             ("career.record.open.Operations Analyst", "Edit Employment"),
             ("career.record.open.BBA, Human Resources & Operations", "Edit Education"),
             ("career.record.open.People Operations Foundations", "Edit Certification"),
-            ("career.record.open.University Hiring Readiness Workshop", "Edit Project")
+            ("career.record.open.University Hiring Readiness Workshop", "Edit Project"),
+            ("career.record.open.Candidate Experience Case Study", "Edit Portfolio Item")
         ]
 
         for (recordIdentifier, title) in cases {
@@ -148,6 +153,66 @@ final class CareerHierarchyUITests: XCTestCase {
             app.buttons["candidate.career.mutation.cancel"].tap()
             XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
         }
+    }
+
+    func testPortfolioDetailEditAndAttachmentLifecycleWithoutLiveMutation() {
+        let app = launch(actions: true, portfolioAttachment: "present")
+        let row = app.buttons["career.record.open.Candidate Experience Case Study"]
+        reveal(row, app)
+        XCTAssertTrue(row.label.contains("Attachment added"))
+        keepScreenshot("Wave 4 - Career Portfolio section and card", app)
+        row.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.career.portfolio.detail"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["career.detail.field.Description"].exists)
+        XCTAssertTrue(app.staticTexts["career.detail.field.Tags"].exists)
+        XCTAssertTrue(app.links["career.detail.link.Work sample URL"].exists)
+        keepScreenshot("Wave 4 - Portfolio detail attachment present", app)
+
+        let edit = app.buttons["career.detail.edit"]
+        reveal(edit, app); edit.tap()
+        XCTAssertEqual(app.staticTexts["candidate.career.mutation.title"].label, "Edit Portfolio Item")
+        XCTAssertTrue(app.staticTexts["candidate.career.portfolio.existingAttachment"].exists)
+        keepScreenshot("Wave 4 - Edit Portfolio", app)
+        app.buttons["candidate.career.mutation.cancel"].tap()
+
+        // Editing is launched after dismissing the detail presentation, so a
+        // cancelled edit returns to the authoritative Career list.
+        XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
+        reveal(row, app)
+        row.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["candidate.career.portfolio.detail"].waitForExistence(timeout: 10))
+
+        let documents = app.buttons["career.detail.documents"]
+        reveal(documents, app); documents.tap()
+        XCTAssertTrue(app.navigationBars["Portfolio attachment"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["View"].exists)
+        XCTAssertTrue(app.buttons["Replace"].exists)
+        XCTAssertTrue(app.buttons["Remove"].exists)
+        keepScreenshot("Wave 4 - Portfolio attachment replace", app)
+
+        app.buttons["Remove"].tap()
+        XCTAssertTrue(app.buttons["Delete document"].waitForExistence(timeout: 5))
+        app.buttons["Delete document"].tap()
+        XCTAssertTrue(app.staticTexts["No documents attached"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["candidate.career.documents.upload"].exists)
+        keepScreenshot("Wave 4 - Portfolio attachment removed and re-add", app)
+    }
+
+    func testPortfolioLightDarkLargeTypeAndReduceMotionPresentation() {
+        let light = launch(actions: true, portfolioAttachment: "present")
+        let lightRow = light.buttons["career.record.open.Candidate Experience Case Study"]
+        reveal(lightRow, light); lightRow.tap()
+        XCTAssertTrue(light.descendants(matching: .any)["candidate.career.portfolio.detail"].waitForExistence(timeout: 10))
+        keepScreenshot("Wave 4 - Portfolio light", light)
+        light.terminate()
+
+        let dark = launch(actions: true, large: true, portfolioAttachment: "present")
+        let darkRow = dark.buttons["career.record.open.Candidate Experience Case Study"]
+        reveal(darkRow, dark); darkRow.tap()
+        XCTAssertTrue(dark.descendants(matching: .any)["candidate.career.portfolio.detail"].waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(dark.staticTexts["career.detail.title"].frame.maxX, dark.frame.maxX)
+        keepScreenshot("Wave 4 - Portfolio dark AXXXL", dark)
     }
 
     func testDetailDismissalHandsOffToCanonicalVerificationWithoutSubmitting() {
@@ -177,7 +242,12 @@ final class CareerHierarchyUITests: XCTestCase {
         keepScreenshot("Wave 2 - Career dark AXXXL", app)
     }
 
-    private func launch(empty: Bool = false, actions: Bool = false, large: Bool = false) -> XCUIApplication {
+    private func launch(
+        empty: Bool = false,
+        actions: Bool = false,
+        large: Bool = false,
+        portfolioAttachment: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES",
                                "-kairo.appearance.preference", large ? "dark" : "light"]
@@ -186,6 +256,7 @@ final class CareerHierarchyUITests: XCTestCase {
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
             "KAIRO_UI_TEST_CAREER_STATE": empty ? "empty" : "populated", "KAIRO_UI_TEST_MORE_STATE": "populated"]
         if actions { app.launchEnvironment["KAIRO_UI_TEST_CAREER_HIERARCHY"] = "1" }
+        if let portfolioAttachment { app.launchEnvironment["KAIRO_UI_TEST_PORTFOLIO_ATTACHMENT"] = portfolioAttachment }
         app.launch()
         app.tabBars.buttons["Career"].tap()
         XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))

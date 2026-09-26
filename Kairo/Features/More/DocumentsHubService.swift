@@ -2,7 +2,7 @@ import Foundation
 
 nonisolated enum DocumentsHubCategory: String, CaseIterable, Identifiable, Sendable {
     case all = "All", employment = "Employment", education = "Education", certifications = "Certifications"
-    case projects = "Projects", verification = "Verification", other = "Other"
+    case projects = "Projects", portfolio = "Portfolio", verification = "Verification", other = "Other"
     var id: String { rawValue }
 }
 
@@ -71,7 +71,7 @@ actor DocumentsHubService: DocumentsHubServiceProtocol {
         }
         parents += overview.educations.map { (.education(id: $0.id, title: $0.institution), .education) }
         parents += overview.certifications.map { (.certification(id: $0.id, title: $0.title), .certifications) }
-        parents += overview.legacyPortfolio.map { (.legacyPortfolio(id: $0.id, title: "\($0.title) · Legacy Portfolio origin"), .projects) }
+        parents += overview.portfolio.map { (.portfolio(id: $0.id, title: "\($0.title) · Portfolio"), .portfolio) }
         for (parent, category) in parents {
             for doc in try await documents.listDocuments(for: parent) {
                 let row = DocumentsHubRow(id: "\(parent.id).\(doc.id)", category: category, filename: doc.originalFilename,

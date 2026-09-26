@@ -6,14 +6,14 @@ final class DocumentHierarchyTests: XCTestCase {
     func testGroupsCountEverySuppliedRowExactlyOnceAndPreserveCanonicalOrder() async throws {
         let rows = try await DocumentHierarchyFixtures(scenario: "populated").load()
         let groups = DocumentHierarchy.groups(rows, category: .all)
-        XCTAssertEqual(groups.map(\.title), ["Employment", "Education", "Certifications", "Projects", "Verification", "Identity & Personal"])
+        XCTAssertEqual(groups.map(\.title), ["Employment", "Education", "Certifications", "Portfolio", "Verification", "Identity & Personal"])
         XCTAssertEqual(groups.flatMap(\.rows).count, rows.count)
         XCTAssertEqual(Set(groups.flatMap(\.rows).map(\.id)), Set(rows.map(\.id)))
         XCTAssertEqual(groups.last?.rows.count, 4)
     }
     func testFiltersRetainExactCanonicalCategoriesAndDoNotReclassifyVault() async throws {
         let rows = try await DocumentHierarchyFixtures(scenario: "populated").load()
-        XCTAssertEqual(DocumentsHubRow.categories(in: rows), [.all, .employment, .education, .certifications, .projects, .verification, .other])
+        XCTAssertEqual(DocumentsHubRow.categories(in: rows), [.all, .employment, .education, .certifications, .portfolio, .verification, .other])
         for category in DocumentsHubCategory.allCases where category != .all {
             XCTAssertEqual(DocumentHierarchy.groups(rows, category: category).flatMap(\.rows), rows.filter { $0.category == category })
         }
@@ -26,13 +26,13 @@ final class DocumentHierarchyTests: XCTestCase {
         XCTAssertFalse(VaultDocumentType.governmentID.allowsNewUpload)
         XCTAssertFalse(VaultDocumentType.other.allowsNewUpload)
     }
-    func testSourceContextsAndPortfolioCompatibilityAreNotInventedOrRewritten() async throws {
+    func testSourceContextsAndFirstClassPortfolioAreNotInventedOrRewritten() async throws {
         let rows = try await DocumentHierarchyFixtures(scenario: "populated").load()
         let grouped = DocumentHierarchy.groups(rows, category: .all).flatMap(\.rows)
         for row in rows { XCTAssertEqual(grouped.first { $0.id == row.id }, row) }
         XCTAssertEqual(grouped.first { $0.category == .employment }?.context, "Synthetic Employer")
         XCTAssertEqual(grouped.first { $0.category == .education }?.context, "Synthetic University")
-        XCTAssertTrue(grouped.first { $0.category == .projects }?.context.contains("Legacy Portfolio origin") == true)
+        XCTAssertTrue(grouped.first { $0.category == .portfolio }?.context.contains("Portfolio") == true)
     }
     func testHistoricalEvidenceRemainsImmutableAndUnavailableInsteadOfInventingView() async throws {
         let rows = try await DocumentHierarchyFixtures(scenario: "populated").load()

@@ -77,6 +77,7 @@ struct PassportOverview: Equatable, Sendable {
         let educations: [PassportEducationRecordDomain]
         let certifications: [PassportCertificationRecordDomain]
         let projects: [PassportProjectRecordDomain]
+        let portfolio: [PassportPortfolioRecordDomain]
         let skills: [PassportSkillRecordDomain]
         let userDocuments: [PassportDocumentRecordDomain]
     }
@@ -132,6 +133,14 @@ struct PassportProjectRecordDomain: Identifiable, Equatable, Sendable {
     let repositoryURL: URL?
     let organizationName: String?
     let verificationStatus: PassportRecordVerificationStatus?
+}
+
+struct PassportPortfolioRecordDomain: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let description: String?
+    let url: URL?
+    let verificationStatus: PassportRecordVerificationStatus
 }
 
 struct PassportSkillRecordDomain: Identifiable, Equatable, Sendable {
@@ -263,12 +272,8 @@ extension PassportOverview.Vault {
             employments: dto.employments.map(PassportEmploymentRecordDomain.init(dto:)),
             educations: dto.educations.map(PassportEducationRecordDomain.init(dto:)),
             certifications: dto.certifications.map(PassportCertificationRecordDomain.init(dto:)),
-            projects: dto.projects.map(PassportProjectRecordDomain.init(dto:)) + dto.portfolio.map { item in
-                PassportProjectRecordDomain(id: "legacy.\(item.id)", title: item.title,
-                    role: "Legacy Portfolio origin", description: item.description, startDate: nil, endDate: nil,
-                    isOngoing: false, projectURL: item.url, repositoryURL: nil, organizationName: nil,
-                    verificationStatus: .init(rawBackendValue: item.verificationStatus))
-            },
+            projects: dto.projects.map(PassportProjectRecordDomain.init(dto:)),
+            portfolio: dto.portfolio.map(PassportPortfolioRecordDomain.init(dto:)),
             skills: dto.skills.map(PassportSkillRecordDomain.init(dto:)),
             userDocuments: dto.userDocuments.map(PassportDocumentRecordDomain.init(dto:))
         )
@@ -339,6 +344,18 @@ extension PassportProjectRecordDomain {
             repositoryURL: dto.repositoryURL,
             organizationName: dto.organizationName?.nonEmpty,
             verificationStatus: dto.verificationStatus.map(PassportRecordVerificationStatus.init(rawBackendValue:))
+        )
+    }
+}
+
+extension PassportPortfolioRecordDomain {
+    nonisolated init(dto: PublicPassportPortfolioDTO) {
+        self.init(
+            id: dto.id,
+            title: dto.title,
+            description: dto.description?.nonEmpty,
+            url: dto.url,
+            verificationStatus: .init(rawBackendValue: dto.verificationStatus)
         )
     }
 }

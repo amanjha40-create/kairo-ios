@@ -7,7 +7,7 @@ struct CareerOverview: Equatable, Sendable {
     let certifications: [CareerCertificationRecord]
     let projects: [CareerProjectRecord]
     let skills: [CareerSkillRecord]
-    var legacyPortfolio: [LegacyPortfolioItem] = []
+    var portfolio: [PortfolioRecord] = []
 }
 
 struct CareerEmploymentRecord: Identifiable, Equatable, Sendable {

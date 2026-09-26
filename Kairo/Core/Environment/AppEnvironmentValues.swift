@@ -143,6 +143,11 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
         fatalError("Missing career overview service injection.")
     }
 
+    func loadPortfolio(id: String) async throws -> PortfolioRecord {
+        _ = id
+        fatalError("Missing career overview service injection.")
+    }
+
     func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview {
         _ = request
         fatalError("Missing career overview service injection.")
@@ -211,6 +216,16 @@ private struct MissingCareerOverviewService: CareerOverviewServiceProtocol {
         fatalError("Missing career overview service injection.")
     }
 
+    func createPortfolio(_ request: PortfolioCreateRequestDTO) async throws -> CareerOverview {
+        _ = request
+        fatalError("Missing career overview service injection.")
+    }
+
+    func updatePortfolio(id: String, request: PortfolioUpdateRequestDTO) async throws -> CareerOverview {
+        _ = (id, request)
+        fatalError("Missing career overview service injection.")
+    }
+
     func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
         _ = request
         fatalError("Missing career overview service injection.")
@@ -244,6 +259,11 @@ private struct MissingCareerDocumentService: CareerDocumentServiceProtocol {
 
     func downloadURL(for document: CareerDocument, parent: CareerDocumentParent) async throws -> URL {
         _ = (document, parent)
+        fatalError("Missing Career document service injection.")
+    }
+
+    func protectedContent(for parent: CareerDocumentParent) async throws -> ProtectedDocumentContent {
+        _ = parent
         fatalError("Missing Career document service injection.")
     }
 

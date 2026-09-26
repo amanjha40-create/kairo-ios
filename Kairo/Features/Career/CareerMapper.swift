@@ -8,7 +8,7 @@ enum CareerOverviewMapper {
             certifications: overview.certifications.map(makeCertificationItem),
             projects: overview.projects.map(makeProjectItem),
             skills: overview.skills.map(makeSkillItem),
-            portfolio: overview.legacyPortfolio.map(makePortfolioItem)
+            portfolio: overview.portfolio.map(makePortfolioItem)
         )
 
         return .live(
@@ -190,14 +190,19 @@ enum CareerOverviewMapper {
         )
     }
 
-    private nonisolated static func makePortfolioItem(_ item: LegacyPortfolioItem) -> CareerPortfolioItem {
+    private nonisolated static func makePortfolioItem(_ item: PortfolioRecord) -> CareerPortfolioItem {
         CareerPortfolioItem(
             routeID: item.id,
             title: item.title,
             description: item.description,
             verificationStatus: .init(rawBackendValue: item.verificationStatus),
             hasDocument: item.document != nil,
-            url: item.url
+            url: item.url,
+            tags: item.tags,
+            originalFilename: item.document?.originalFilename,
+            byteSize: item.document?.byteSize,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt
         )
     }
 

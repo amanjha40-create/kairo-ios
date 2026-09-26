@@ -509,6 +509,73 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
     }
 }
 
+nonisolated struct CareerPortfolioDraft: Equatable, Sendable {
+    var title = ""
+    var description = ""
+    var url = ""
+    var tags = ""
+    var existingAttachmentFilename: String?
+
+    init() {}
+
+    init(record: PortfolioRecord) {
+        title = record.title
+        description = record.description ?? ""
+        url = record.url?.absoluteString ?? ""
+        tags = record.tags.joined(separator: ", ")
+        existingAttachmentFilename = record.document?.originalFilename
+    }
+
+    var displayName: String {
+        normalized(title).nonEmpty ?? "portfolio item"
+    }
+
+    func validationErrors() -> [String: String] {
+        var errors: [String: String] = [:]
+        let title = normalized(title)
+        let description = normalized(description)
+        let url = normalized(url)
+
+        if title.isEmpty {
+            errors["title"] = "Enter the portfolio title."
+        } else if title.count > 512 {
+            errors["title"] = "Keep the title to 512 characters or fewer."
+        }
+        if description.count > 5_000 {
+            errors["description"] = "Keep the description to 5,000 characters or fewer."
+        }
+        if !url.isEmpty, validatedURL(url) == nil {
+            errors["url"] = "Enter a valid HTTP or HTTPS URL."
+        }
+        return errors
+    }
+
+    func createRequest() -> PortfolioCreateRequestDTO {
+        PortfolioCreateRequestDTO(
+            title: normalized(title),
+            description: normalized(description).nonEmpty,
+            url: validatedURL(normalized(url)),
+            tags: normalizedTags
+        )
+    }
+
+    func updateRequest() -> PortfolioUpdateRequestDTO {
+        PortfolioUpdateRequestDTO(
+            title: normalized(title).nonEmpty,
+            description: normalized(description).nonEmpty,
+            url: validatedURL(normalized(url)),
+            tags: normalizedTags
+        )
+    }
+
+    private var normalizedTags: [String] {
+        var seen = Set<String>()
+        return tags.split(separator: ",")
+            .map { normalized(String($0)) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+}
+
 nonisolated struct CareerSkillDraft: Equatable, Sendable {
     var name = ""
 
@@ -710,7 +777,11 @@ private nonisolated func encodedDate(
 }
 
 private nonisolated func validatedURL(_ value: String) -> String? {
-    guard !value.isEmpty, let url = URL(string: value), url.scheme != nil, url.host != nil else {
+    guard !value.isEmpty,
+          let url = URL(string: value),
+          ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+          let host = url.host, !host.isEmpty,
+          url.user == nil, url.password == nil else {
         return nil
     }
 

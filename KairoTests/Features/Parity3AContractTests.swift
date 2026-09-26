@@ -246,14 +246,14 @@ final class Parity3AContractTests: XCTestCase {
         XCTAssertFalse(attachedEvidence.canReplace || attachedEvidence.canRemove)
     }
 
-    func testOwnerCollectionReadsEveryPageWithoutDroppingLegacyData() async throws {
+    func testOwnerCollectionReadsEveryPageWithoutDroppingPortfolioData() async throws {
         let (session, _) = try await makeSession()
         await MockURLProtocolStorage.shared.setHandler { request in
             let second = URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.queryItems?.contains { $0.name == "offset" && $0.value == "1" } == true
             let id = second ? "legacy-2" : "legacy-1"
             return (try Self.response(request), Data("{\"items\":[{\"id\":\"\(id)\",\"title\":\"Retained project\",\"verification_status\":\"draft\"}],\"total\":2}".utf8))
         }
-        let rows = try await loadOwnerCollection(LegacyPortfolioItem.self, path: "/portfolio", session: session)
+        let rows = try await loadOwnerCollection(PortfolioRecord.self, path: "/portfolio", session: session)
         XCTAssertEqual(rows.map(\.id), ["legacy-1", "legacy-2"])
     }
 
@@ -295,10 +295,10 @@ final class Parity3AContractTests: XCTestCase {
         }
         let rows = try await hub.load()
         XCTAssertEqual(rows.count, 8)
-        XCTAssertEqual(DocumentsHubRow.categories(in: rows), [.all, .employment, .education, .certifications, .projects, .verification, .other])
-        let legacy = try XCTUnwrap(rows.first { $0.category == .projects })
-        XCTAssertTrue(legacy.context.contains("Legacy Portfolio origin"))
-        XCTAssertTrue(legacy.canView)
+        XCTAssertEqual(DocumentsHubRow.categories(in: rows), [.all, .employment, .education, .certifications, .portfolio, .verification, .other])
+        let portfolio = try XCTUnwrap(rows.first { $0.category == .portfolio })
+        XCTAssertTrue(portfolio.context.contains("Portfolio"))
+        XCTAssertTrue(portfolio.canView)
         let emp = try XCTUnwrap(rows.first { $0.category == .employment })
         XCTAssertTrue(emp.immutable)
         XCTAssertFalse(emp.canRemove || emp.canReplace)

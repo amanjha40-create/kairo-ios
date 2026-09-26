@@ -1221,7 +1221,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: authEnvironment(
             loginResult: "success",
             onboardingStatus: "complete"
-        ))
+        ).merging(["KAIRO_UI_TEST_HOME_STATE": "populated"]) { _, fixture in fixture })
 
         navigateToLogin(in: app)
         enterText("aman@example.com", into: app.textFields[onboardingLoginEmailField])

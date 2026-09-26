@@ -109,6 +109,71 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
         XCTAssertEqual(requests.filter { $0.httpMethod == "DELETE" }.count, 0)
     }
 
+    func test_createPortfolioPostsSupportedFieldsAndRefetchesOverview() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.url?.path == "/api/v1/portfolio", request.httpMethod == "POST" {
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["title"] as? String, "Accessible banking case study")
+                XCTAssertEqual(body["description"] as? String, "A mobile accessibility redesign.")
+                XCTAssertEqual(body["url"] as? String, "https://example.com/case-study")
+                XCTAssertEqual(body["tags"] as? [String], ["Accessibility", "iOS"])
+                XCTAssertEqual(Set(body.keys), ["title", "description", "url", "tags"])
+                return (try Self.response(for: request, statusCode: 201), Self.portfolioPayload)
+            }
+            return try await Self.overviewResponse(for: request)
+        }
+
+        _ = try await service.createPortfolio(.init(
+            title: "Accessible banking case study",
+            description: "A mobile accessibility redesign.",
+            url: "https://example.com/case-study",
+            tags: ["Accessibility", "iOS"]
+        ))
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.filter { $0.url?.path == "/api/v1/portfolio" && $0.httpMethod == "POST" }.count, 1)
+    }
+
+    func test_updatePortfolioPreservesAttachmentBySendingOnlyEditableMetadata() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.url?.path == "/api/v1/portfolio/portfolio_1", request.httpMethod == "PATCH" {
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["title"] as? String, "Updated work sample")
+                XCTAssertEqual(body["description"] as? String, "Kept")
+                XCTAssertTrue(body["url"] is NSNull)
+                XCTAssertEqual(body["tags"] as? [String], ["Research"])
+                XCTAssertNil(body["original_filename"])
+                XCTAssertNil(body["content_type"])
+                XCTAssertNil(body["byte_size"])
+                XCTAssertNil(body["upload_completed_at"])
+                return (try Self.response(for: request, statusCode: 200), Self.portfolioPayload)
+            }
+            return try await Self.overviewResponse(for: request)
+        }
+
+        _ = try await service.updatePortfolio(
+            id: "portfolio_1",
+            request: .init(title: "Updated work sample", description: "Kept", url: nil, tags: ["Research"])
+        )
+        let writes = await MockURLProtocolStorage.shared.requests().filter { $0.httpMethod != "GET" }
+        XCTAssertEqual(writes.count, 1)
+    }
+
+    func test_loadPortfolioUsesFirstClassDetailEndpoint() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/portfolio/portfolio_1")
+            return (try Self.response(for: request, statusCode: 200), Self.portfolioPayload)
+        }
+
+        let record = try await service.loadPortfolio(id: "portfolio_1")
+        XCTAssertEqual(record.title, "Accessible banking case study")
+        XCTAssertEqual(record.tags, ["Accessibility", "iOS"])
+        XCTAssertEqual(record.document?.originalFilename, "case-study.pdf")
+    }
+
     func test_createCertificationWithDocumentUsesIntentUploadCompletionAndReload() async throws {
         let service = try await makeService()
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("certificate.pdf")
@@ -349,6 +414,25 @@ final class CareerOverviewMutationServiceTests: XCTestCase {
           "is_active": true,
           "profile_completion_percentage": 75,
           "created_at": "2026-08-01T08:00:00Z"
+        }
+        """.utf8
+    )
+
+    private nonisolated static let portfolioPayload = Data(
+        """
+        {
+          "id": "portfolio_1",
+          "title": "Accessible banking case study",
+          "description": "A mobile accessibility redesign.",
+          "url": "https://example.com/case-study",
+          "tags": ["Accessibility", "iOS"],
+          "original_filename": "case-study.pdf",
+          "content_type": "application/pdf",
+          "byte_size": 2048,
+          "upload_completed_at": "2026-09-01T08:00:00Z",
+          "verification_status": "draft",
+          "created_at": "2026-08-01T08:00:00Z",
+          "updated_at": "2026-09-01T08:00:00Z"
         }
         """.utf8
     )

@@ -13,6 +13,7 @@ nonisolated enum PassportOverviewMapper {
             certifications: overview.vault.certifications.map(makeCertificationRecord),
             skills: overview.vault.skills.map(makeSkillRecord),
             projects: overview.vault.projects.map(makeProjectRecord),
+            portfolio: overview.vault.portfolio.map(makePortfolioRecord),
             timeline: .unavailable(
                 PassportUnavailableSectionState(
                     title: "Trust timeline not available yet",
@@ -277,9 +278,18 @@ nonisolated enum PassportOverviewMapper {
         PassportProjectRecord(
             title: record.title,
             role: record.role ?? "Role not added yet",
-            date: record.id.hasPrefix("legacy.") ? "Project migration pending" : monthYearRange(startDate: record.startDate, endDate: record.endDate, isCurrent: record.isOngoing),
+            date: monthYearRange(startDate: record.startDate, endDate: record.endDate, isCurrent: record.isOngoing),
             evidenceStatus: record.verificationStatus.map { presentationStatus(from: $0).style.title } ?? ProductStatusLanguage.candidateProvided,
             portfolioLinkTitle: projectLinkTitle(for: record)
+        )
+    }
+
+    private nonisolated static func makePortfolioRecord(_ record: PassportPortfolioRecordDomain) -> PassportPortfolioRecord {
+        PassportPortfolioRecord(
+            title: record.title,
+            description: record.description ?? "Description not added yet",
+            linkTitle: record.url.map { $0.host ?? $0.absoluteString } ?? "Link not added yet",
+            verificationStatus: presentationStatus(from: record.verificationStatus)
         )
     }
 
@@ -295,6 +305,7 @@ nonisolated enum PassportOverviewMapper {
             overview.vault.educations.isEmpty &&
             overview.vault.certifications.isEmpty &&
             overview.vault.projects.isEmpty &&
+            overview.vault.portfolio.isEmpty &&
             overview.vault.skills.isEmpty
     }
 

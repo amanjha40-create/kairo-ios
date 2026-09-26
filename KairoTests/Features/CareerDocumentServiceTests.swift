@@ -155,6 +155,118 @@ final class CareerDocumentServiceTests: XCTestCase {
         XCTAssertEqual(events, ["upload:transcript", "delete:old-document"])
     }
 
+    func test_portfolioAttachmentLifecycleUsesIntentCompleteDetachAndSameRecord() async throws {
+        let service = try await makeService()
+        let backend = PortfolioAttachmentFixture()
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+        let parent = CareerDocumentParent.portfolio(id: "portfolio", title: "Case study")
+        let initial = try await service.listDocuments(for: parent)
+        XCTAssertTrue(initial.isEmpty)
+
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("portfolio-\(UUID().uuidString).pdf")
+        try Data("%PDF-synthetic-portfolio".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let added = try await service.uploadDocument(fileURL: file, documentType: "project", to: parent)
+        XCTAssertEqual(added.first?.originalFilename, file.lastPathComponent)
+        let removed = try await service.deleteDocument(try XCTUnwrap(added.first), parent: parent)
+        XCTAssertTrue(removed.isEmpty)
+        let readded = try await service.uploadDocument(fileURL: file, documentType: "project", to: parent)
+        XCTAssertEqual(readded.count, 1)
+
+        let counts = await backend.counts()
+        XCTAssertEqual(counts.intents, 2)
+        XCTAssertEqual(counts.completions, 2)
+        XCTAssertEqual(counts.detaches, 1)
+        let writes = await MockURLProtocolStorage.shared.requests().filter { $0.httpMethod != "GET" }
+        XCTAssertFalse(writes.contains { $0.url?.path == "/api/v1/portfolio" })
+    }
+
+    func test_portfolioReplaceCompletesWithoutDetachingNewAttachment() async throws {
+        let service = try await makeService()
+        let backend = PortfolioAttachmentFixture(initiallyAttached: true)
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+        let parent = CareerDocumentParent.portfolio(id: "portfolio", title: "Case study")
+        let existing = try await service.listDocuments(for: parent)
+        let old = try XCTUnwrap(existing.first)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("replacement-\(UUID().uuidString).pdf")
+        try Data("%PDF-replacement".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let replaced = try await service.replaceDocument(old, with: file, documentType: "project", parent: parent)
+
+        XCTAssertEqual(replaced.first?.originalFilename, file.lastPathComponent)
+        let counts = await backend.counts()
+        XCTAssertEqual(counts.completions, 1)
+        XCTAssertEqual(counts.detaches, 0)
+    }
+
+    func test_failedPortfolioReplacementPreservesPriorPresentedMetadataAndNeverDetaches() async throws {
+        let service = try await makeService()
+        let backend = PortfolioAttachmentFixture(initiallyAttached: true, failUpload: true)
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+        let parent = CareerDocumentParent.portfolio(id: "portfolio", title: "Case study")
+        let existing = try await service.listDocuments(for: parent)
+        let old = try XCTUnwrap(existing.first)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("failed-replacement-\(UUID().uuidString).pdf")
+        try Data("%PDF-failed".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        do {
+            _ = try await service.replaceDocument(old, with: file, documentType: "project", parent: parent)
+            XCTFail("Expected upload failure")
+        } catch {
+            XCTAssertEqual(error as? SecureDocumentTransferError, .storageUploadFailed)
+        }
+
+        XCTAssertEqual(old.originalFilename, "existing-private.pdf")
+        let counts = await backend.counts()
+        XCTAssertEqual(counts.completions, 0)
+        XCTAssertEqual(counts.detaches, 0)
+    }
+
+    func test_portfolioProtectedViewerFetchesAuthenticatedContentWithoutDownloadURL() async throws {
+        let service = try await makeService()
+        let backend = PortfolioAttachmentFixture(initiallyAttached: true)
+        await MockURLProtocolStorage.shared.setHandler { request in try await backend.respond(request) }
+
+        let content = try await service.protectedContent(for: .portfolio(id: "portfolio", title: "Case study"))
+
+        XCTAssertEqual(content.contentType, "application/pdf")
+        XCTAssertTrue(content.data.starts(with: Data("%PDF".utf8)))
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(requests.contains { request in
+            request.url?.path == "/api/v1/portfolio/portfolio/content"
+                && request.value(forHTTPHeaderField: "Authorization") == "Bearer access-123"
+        })
+        XCTAssertFalse(requests.contains { $0.url?.path.contains("download-url") == true })
+        XCTAssertFalse(requests.contains { $0.url?.host?.contains("storage") == true })
+    }
+
+    func test_portfolioSignedDownloadURLIsUnavailableByConstruction() async throws {
+        let service = try await makeService()
+        let document = CareerDocument(
+            id: "portfolio",
+            documentType: "project",
+            originalFilename: "private.pdf",
+            contentType: "application/pdf",
+            byteSize: 1,
+            verificationStatus: "draft"
+        )
+
+        do {
+            _ = try await service.downloadURL(
+                for: document,
+                parent: .portfolio(id: "portfolio", title: "Case study")
+            )
+            XCTFail("Portfolio must not expose signed download URLs")
+        } catch {
+            XCTAssertEqual(error as? CareerDocumentServiceError, .protectedContentUnavailable)
+        }
+        let recordedRequests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(recordedRequests.isEmpty)
+    }
+
     private func makeService() async throws -> CareerDocumentService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
@@ -245,6 +357,83 @@ final class CareerDocumentServiceTests: XCTestCase {
     private nonisolated static let pagePayload = Data(
         #"{"items":[{"id":"document-1","document_type":"transcript","original_filename":"evidence.pdf","content_type":"application/pdf","byte_size":20,"verification_status":"pending_review"}],"total":1,"offset":0,"limit":100}"#.utf8
     )
+}
+
+private actor PortfolioAttachmentFixture {
+    private var attached: Bool
+    private var filename = "existing-private.pdf"
+    private var intents = 0
+    private var completions = 0
+    private var detaches = 0
+    private let failUpload: Bool
+
+    init(initiallyAttached: Bool = false, failUpload: Bool = false) {
+        attached = initiallyAttached
+        self.failUpload = failUpload
+    }
+
+    func counts() -> (intents: Int, completions: Int, detaches: Int) {
+        (intents, completions, detaches)
+    }
+
+    func respond(_ request: URLRequest) throws -> (HTTPURLResponse, Data) {
+        let url = try XCTUnwrap(request.url)
+        var status = 200
+        var data = Data()
+        var headers: [String: String]?
+        switch (request.httpMethod, url.path) {
+        case ("GET", "/api/v1/portfolio/portfolio"):
+            var record: [String: Any] = [
+                "id": "portfolio", "title": "Case study", "tags": ["Research"],
+                "verification_status": "draft"
+            ]
+            if attached {
+                record["original_filename"] = filename
+                record["content_type"] = "application/pdf"
+                record["byte_size"] = 22
+                record["upload_completed_at"] = "2026-09-01T08:00:00Z"
+            }
+            data = try JSONSerialization.data(withJSONObject: record)
+        case ("POST", "/api/v1/portfolio/portfolio/upload-intent"):
+            intents += 1
+            let body = try requestJSONBody(from: request)
+            filename = try XCTUnwrap(body["original_filename"] as? String)
+            XCTAssertEqual(body["content_type"] as? String, "application/pdf")
+            XCTAssertGreaterThan(body["byte_size"] as? Int ?? 0, 0)
+            data = try JSONSerialization.data(withJSONObject: [
+                "upload_url": "https://storage.example/portfolio-put",
+                "headers_required": ["Content-Type": "application/pdf"]
+            ])
+        case ("PUT", "/portfolio-put"):
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            if failUpload { status = 500 }
+        case ("POST", "/api/v1/portfolio/portfolio/complete-upload"):
+            completions += 1
+            attached = true
+            let body = try requestJSONBody(from: request)
+            XCTAssertEqual((body["checksum_sha256"] as? String)?.count, 64)
+            data = try JSONSerialization.data(withJSONObject: ["id": "portfolio", "title": "Case study"])
+        case ("DELETE", "/api/v1/portfolio/portfolio/document"):
+            detaches += 1
+            attached = false
+            status = 204
+        case ("GET", "/api/v1/portfolio/portfolio/content"):
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
+            data = Data("%PDF-protected-portfolio".utf8)
+            headers = [
+                "Content-Type": "application/pdf",
+                "Content-Length": String(data.count),
+                "Content-Disposition": "inline; filename=portfolio.pdf"
+            ]
+        default:
+            XCTFail("Unexpected Portfolio fixture endpoint \(request.httpMethod ?? "nil") \(url.path)")
+            throw URLError(.badURL)
+        }
+        return (
+            try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: headers)),
+            data
+        )
+    }
 }
 
 private actor CertificationAttachmentFixture {

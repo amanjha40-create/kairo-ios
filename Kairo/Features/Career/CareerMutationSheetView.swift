@@ -6,6 +6,7 @@ enum CareerMutationSheet: Identifiable {
     case education(mode: CareerMutationMode, recordID: String?, draft: CareerEducationDraft)
     case certification(mode: CareerMutationMode, recordID: String?, draft: CareerCertificationDraft)
     case project(mode: CareerMutationMode, recordID: String?, draft: CareerProjectDraft)
+    case portfolio(mode: CareerMutationMode, recordID: String?, draft: CareerPortfolioDraft)
     case skill(mode: CareerMutationMode, recordID: String?, draft: CareerSkillDraft, existingNames: [String])
 
     var id: String {
@@ -18,6 +19,8 @@ enum CareerMutationSheet: Identifiable {
             "certification.\(mode.rawValue).\(recordID ?? "new")"
         case .project(let mode, let recordID, _):
             "project.\(mode.rawValue).\(recordID ?? "new")"
+        case .portfolio(let mode, let recordID, _):
+            "portfolio.\(mode.rawValue).\(recordID ?? "new")"
         case .skill(let mode, let recordID, _, _):
             "skill.\(mode.rawValue).\(recordID ?? "new")"
         }
@@ -787,6 +790,144 @@ struct CareerProjectEditorSheet: View {
                 }
             } catch {
                 let mapped = CareerMutationErrorMapper.map(error, fallbackTitle: "Project unavailable")
+                await MainActor.run {
+                    isSaving = false
+                    presentationError = mapped
+                }
+            }
+        }
+    }
+}
+
+struct CareerPortfolioEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let mode: CareerMutationMode
+    let seedDraft: CareerPortfolioDraft
+    let onSave: (CareerPortfolioDraft) async throws -> Void
+
+    @State private var draft: CareerPortfolioDraft
+    @State private var isSaving = false
+    @State private var presentationError: CareerMutationPresentationError?
+    @State private var confirmsDiscard = false
+
+    init(
+        mode: CareerMutationMode,
+        draft: CareerPortfolioDraft,
+        onSave: @escaping (CareerPortfolioDraft) async throws -> Void
+    ) {
+        self.mode = mode
+        seedDraft = draft
+        self.onSave = onSave
+        _draft = State(initialValue: draft)
+    }
+
+    private var fieldErrors: [String: String] {
+        draft.validationErrors().merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
+    }
+
+    private var canSave: Bool { fieldErrors.isEmpty && !isSaving }
+    private var isDirty: Bool { draft != seedDraft }
+
+    var body: some View {
+        NavigationStack {
+            CareerMutationScaffold(
+                title: mode == .create ? "Add Portfolio Item" : "Edit Portfolio Item",
+                subtitle: "Portfolio work samples stay separate from your project history.",
+                isSaving: isSaving,
+                isSaveEnabled: canSave,
+                saveTitle: mode == .create ? "Add Portfolio Item" : "Save Portfolio Item",
+                onSave: save,
+                onCancel: cancel
+            ) {
+                if let presentationError {
+                    CareerMutationErrorCard(error: presentationError)
+                }
+
+                KairoSection {
+                    KairoTextField(
+                        title: "Title",
+                        prompt: "Design system case study",
+                        text: $draft.title,
+                        errorMessage: fieldErrors["title"],
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("portfolio", "title")
+                    )
+                    KairoTextField(
+                        title: "Description",
+                        prompt: "Optional",
+                        text: $draft.description,
+                        errorMessage: fieldErrors["description"],
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("portfolio", "description")
+                    )
+                    KairoTextField(
+                        title: "Work sample URL",
+                        prompt: "https://example.com/work",
+                        text: $draft.url,
+                        errorMessage: fieldErrors["url"],
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("portfolio", "url"),
+                        keyboardType: .URL,
+                        textInputAutocapitalization: .never
+                    )
+                    KairoTextField(
+                        title: "Tags",
+                        prompt: "Research, accessibility, iOS",
+                        text: $draft.tags,
+                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("portfolio", "tags")
+                    )
+                    Text("Separate tags with commas.")
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
+
+                    if let filename = draft.existingAttachmentFilename {
+                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                            Text("Existing attachment")
+                                .font(KairoTypography.caption)
+                                .foregroundStyle(KairoColors.textSecondary)
+                            Text(filename)
+                                .font(KairoTypography.body)
+                                .foregroundStyle(KairoColors.textPrimary)
+                            Text("Saving text changes keeps this attachment. Replace or remove it from the Portfolio attachment screen.")
+                                .font(KairoTypography.footnote)
+                                .foregroundStyle(KairoColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier(KairoAccessibilityID.careerPortfolioExistingAttachment)
+                    }
+                }
+            }
+            .interactiveDismissDisabled(isSaving || isDirty)
+            .disabled(isSaving)
+            .confirmationDialog(
+                "Discard unsaved changes?",
+                isPresented: $confirmsDiscard,
+                titleVisibility: .visible
+            ) {
+                Button("Discard changes", role: .destructive) { dismiss() }
+                Button("Keep editing", role: .cancel) {}
+            } message: {
+                Text("Your Portfolio item has changes that have not been saved.")
+            }
+        }
+    }
+
+    private func cancel() {
+        if isDirty { confirmsDiscard = true } else { dismiss() }
+    }
+
+    private func save() {
+        guard canSave else { return }
+        presentationError = nil
+        isSaving = true
+        Task {
+            do {
+                try await onSave(draft)
+                await MainActor.run {
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                let mapped = CareerMutationErrorMapper.map(error, fallbackTitle: "Portfolio unavailable")
                 await MainActor.run {
                     isSaving = false
                     presentationError = mapped

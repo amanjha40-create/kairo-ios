@@ -15,7 +15,6 @@ struct UITestHomeConfiguration {
         )
 
         guard launchConfiguration.isEnabled,
-              launchConfiguration.route == .demoHome,
               let rawValue = environment[stateEnvironmentKey],
               let kind = HomeOverviewFixtureKind(rawValue: rawValue) else {
             return UITestHomeConfiguration(state: nil)

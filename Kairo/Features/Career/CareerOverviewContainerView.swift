@@ -69,6 +69,12 @@ struct CareerOverviewContainerView: View {
             deleteProjectAction: { item in
                 pendingDeleteRequest = .project(item)
             },
+            addPortfolioAction: { presentedSheet = .portfolio(mode: .create, recordID: nil, draft: .init()) },
+            editPortfolioAction: { item in
+                Task {
+                    await presentPortfolioEditor(for: item)
+                }
+            },
             addSkillAction: { presentedSheet = .skill(mode: .create, recordID: nil, draft: .init(), existingNames: currentSkillNames()) },
             deleteSkillAction: { item in
                 pendingDeleteRequest = .skill(item)
@@ -241,6 +247,16 @@ struct CareerOverviewContainerView: View {
         }
     }
 
+    private func presentPortfolioEditor(for item: CareerPortfolioItem) async {
+        await presentRecordEditor(
+            loadingMessage: "Loading Portfolio item",
+            fallbackTitle: "Portfolio unavailable"
+        ) {
+            let record = try await careerOverviewService.loadPortfolio(id: item.routeID)
+            return .portfolio(mode: .edit, recordID: item.routeID, draft: CareerPortfolioDraft(record: record))
+        }
+    }
+
     private func presentRecordEditor(
         loadingMessage: String,
         fallbackTitle: String,
@@ -297,6 +313,10 @@ struct CareerOverviewContainerView: View {
         case .project(let mode, let recordID, let draft):
             CareerProjectEditorSheet(mode: mode, draft: draft) { draft in
                 try await saveProject(mode: mode, recordID: recordID, draft: draft)
+            }
+        case .portfolio(let mode, let recordID, let draft):
+            CareerPortfolioEditorSheet(mode: mode, draft: draft) { draft in
+                try await savePortfolio(mode: mode, recordID: recordID, draft: draft)
             }
         case .skill(let mode, let recordID, let draft, let existingNames):
             CareerSkillEditorSheet(mode: mode, existingNames: existingNames, draft: draft) { draft in
@@ -403,6 +423,24 @@ struct CareerOverviewContainerView: View {
             )
         }
 
+        await applyUpdatedOverview(overview)
+    }
+
+    private func savePortfolio(
+        mode: CareerMutationMode,
+        recordID: String?,
+        draft: CareerPortfolioDraft
+    ) async throws {
+        let overview: CareerOverview
+        switch mode {
+        case .create:
+            overview = try await careerOverviewService.createPortfolio(draft.createRequest())
+        case .edit:
+            guard let recordID else {
+                throw CareerOverviewContainerError.missingRecordIdentifier
+            }
+            overview = try await careerOverviewService.updatePortfolio(id: recordID, request: draft.updateRequest())
+        }
         await applyUpdatedOverview(overview)
     }
 

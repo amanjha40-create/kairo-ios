@@ -90,6 +90,14 @@ nonisolated struct PassportOverviewState: Equatable, Sendable {
                             portfolioLinkTitle: "Project link"
                         )
                     ],
+                    portfolio: [
+                        PassportPortfolioRecord(
+                            title: "Accessible onboarding case study",
+                            description: "A product case study covering the onboarding redesign.",
+                            linkTitle: "Portfolio link",
+                            verificationStatus: .notVerified
+                        )
+                    ],
                     timeline: .available([
                         PassportTimelineEvent(title: "Identity verified", dateLabel: "1 Aug 2026"),
                         PassportTimelineEvent(title: "Email verified", dateLabel: "1 Aug 2026"),
@@ -195,6 +203,7 @@ nonisolated enum PassportOverviewSection: String, CaseIterable, Equatable, Senda
     case education
     case certifications
     case projects
+    case portfolio
     case skills
     case trustTimeline
     case actions
@@ -269,6 +278,7 @@ nonisolated struct PassportOverviewContent: Equatable, Sendable {
     let certifications: [PassportCertificationRecord]
     let skills: [PassportSkillRecord]
     let projects: [PassportProjectRecord]
+    let portfolio: [PassportPortfolioRecord]
     let timeline: PassportTimelineContent
 
     var visibleSections: [PassportOverviewSection] {
@@ -282,6 +292,7 @@ nonisolated struct PassportOverviewContent: Equatable, Sendable {
             .certifications,
             .skills,
             .projects,
+            .portfolio,
             .passportStrength,
             .identity,
             .trustTimeline,
@@ -376,6 +387,15 @@ nonisolated struct PassportProjectRecord: Equatable, Identifiable, Sendable {
     let portfolioLinkTitle: String
 
     var id: String { "\(title)-\(role)" }
+}
+
+nonisolated struct PassportPortfolioRecord: Equatable, Identifiable, Sendable {
+    let title: String
+    let description: String
+    let linkTitle: String
+    let verificationStatus: PassportVerificationStatus
+
+    var id: String { title }
 }
 
 nonisolated struct PassportSkillRecord: Equatable, Identifiable, Sendable {

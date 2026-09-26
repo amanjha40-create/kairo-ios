@@ -152,7 +152,12 @@ nonisolated struct CareerOverviewState: Equatable, Sendable {
                             description: "A work sample from the existing Portfolio collection.",
                             verificationStatus: .notVerified,
                             hasDocument: true,
-                            url: URL(string: "https://example.invalid/case-study")
+                            url: URL(string: "https://example.invalid/case-study"),
+                            tags: ["Research", "Accessibility", "iOS"],
+                            originalFilename: "candidate-experience-case-study.pdf",
+                            byteSize: 2_048_000,
+                            createdAt: Date(timeIntervalSince1970: 1_735_689_600),
+                            updatedAt: Date(timeIntervalSince1970: 1_756_684_800)
                         )
                     ]
                 )
@@ -495,7 +500,6 @@ nonisolated struct CareerProjectItem: Equatable, Identifiable, Sendable {
     let portfolioLinkTitle: String
     let verificationStatus: CareerVerificationStatus?
     var detailMetadata: [CareerDetailMetadata] = []
-    var legacyPortfolioID: String? = nil
     var projectURL: URL? = nil
     var repositoryURL: URL? = nil
 
@@ -522,6 +526,11 @@ nonisolated struct CareerPortfolioItem: Equatable, Identifiable, Sendable {
     let verificationStatus: CareerVerificationStatus
     let hasDocument: Bool
     let url: URL?
+    var tags: [String] = []
+    var originalFilename: String? = nil
+    var byteSize: Int? = nil
+    var createdAt: Date? = nil
+    var updatedAt: Date? = nil
 
     var id: String { routeID }
 }

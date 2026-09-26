@@ -160,7 +160,7 @@ struct CareerDocumentsView: View {
             )
             .disabled(isMutating)
 
-            Text(presentation.parent.isCertification ? "PDF, JPEG, or PNG • up to 50 MB" : "PDF, JPEG, or PNG • up to 20 MB")
+            Text((presentation.parent.isCertification || presentation.parent.isPortfolio) ? "PDF, JPEG, or PNG • up to 50 MB" : "PDF, JPEG, or PNG • up to 20 MB")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
         }
@@ -224,6 +224,10 @@ struct CareerDocumentsView: View {
 
     private func view(_ document: CareerDocument) {
         errorMessage = nil
+        if presentation.parent.isPortfolio {
+            preview = SecureDocumentPreview(careerParent: presentation.parent, filename: document.originalFilename)
+            return
+        }
         Task {
             do {
                 let url = try await service.downloadURL(for: document, parent: presentation.parent)

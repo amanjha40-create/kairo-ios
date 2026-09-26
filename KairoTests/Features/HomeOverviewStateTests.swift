@@ -45,6 +45,18 @@ final class HomeOverviewStateTests: XCTestCase {
         XCTAssertEqual(errorState.title, "Home overview unavailable")
     }
 
+    func test_uiTestHomeFixtureCanStabilizeHomeReachedAfterOnboardingLogin() {
+        let configuration = UITestHomeConfiguration.current(
+            arguments: ["Kairo", UITestLaunchConfiguration.enabledArgument],
+            environment: [
+                UITestLaunchConfiguration.routeEnvironmentKey: UITestLaunchRoute.onboarding.rawValue,
+                UITestHomeConfiguration.stateEnvironmentKey: HomeOverviewFixtureKind.populated.rawValue
+            ]
+        )
+
+        XCTAssertEqual(configuration.state, .populatedFixture())
+    }
+
     func test_visibleTrustTasksRespectPriorityOrderingAndThreeItemLimit() {
         let state = HomeOverviewState.populatedFixture()
 

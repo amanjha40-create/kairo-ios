@@ -102,7 +102,10 @@ struct AppDependencies: Sendable {
             sessionService: sessionService
         )
         let careerDocumentService: any CareerDocumentServiceProtocol =
-            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+            if uiTestConfiguration.isEnabled,
+               let scenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_PORTFOLIO_ATTACHMENT"] {
+                PortfolioLifecycleFixtureService(scenario: scenario)
+            } else if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
                 DemoCareerDocumentService()
             } else {
                 CareerDocumentService(sessionService: sessionService)

@@ -18,6 +18,8 @@ struct CareerOverviewScreenView: View {
     var addProjectAction: (() -> Void)?
     var editProjectAction: ((CareerProjectItem) -> Void)?
     var deleteProjectAction: ((CareerProjectItem) -> Void)?
+    var addPortfolioAction: (() -> Void)?
+    var editPortfolioAction: ((CareerPortfolioItem) -> Void)?
     var addSkillAction: (() -> Void)?
     var deleteSkillAction: ((CareerSkillItem) -> Void)?
 
@@ -175,8 +177,8 @@ struct CareerOverviewScreenView: View {
         KairoSection(compact: true) {
             CareerSectionHeader(title: "Portfolio", count: items.count,
                 identifier: KairoAccessibilityID.careerPortfolioSection,
-                addTitle: "", addIdentifier: "", add: nil)
-            if items.isEmpty { emptyRow("No work samples added yet.") }
+                addTitle: "Add Portfolio Item", addIdentifier: KairoAccessibilityID.careerAddPortfolioButton, add: addPortfolioAction)
+            if items.isEmpty { emptyRow("No portfolio items yet.") }
             ForEach(items) { item in
                 CareerCompactRecordRow(
                     title: item.title,
@@ -186,7 +188,7 @@ struct CareerOverviewScreenView: View {
                     attachment: item.hasDocument ? "Attachment added" : nil,
                     leadingSystemImage: "rectangle.stack"
                 ) {
-                    selectedDetail = .portfolio(item)
+                    selectedDetail = .portfolio(item, edit: editPortfolioAction.map { action in { action(item) } })
                 }
             }
         }

@@ -255,6 +255,7 @@ struct PassportOverviewScreenView: View {
             certificationsSection(content.certifications)
             skillsSection(content.skills)
             projectsSection(content.projects)
+            portfolioSection(content.portfolio)
             strengthSummarySection(content.strengthSummary)
             identitySection(content.identity)
             if case .available = content.timeline {
@@ -546,6 +547,28 @@ struct PassportOverviewScreenView: View {
                         if !item.portfolioLinkTitle.isEmpty {
                             passportRecordMeta(title: "Project link", value: item.portfolioLinkTitle)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    private func portfolioSection(_ items: [PassportPortfolioRecord]) -> some View {
+        passportRecordSection(
+            title: "Portfolio (\(items.count))",
+            accessibilityIdentifier: KairoAccessibilityID.passportPortfolioSection
+        ) {
+            if items.isEmpty {
+                emptySectionCard(message: "No portfolio items in your Trust Passport yet.")
+            } else {
+                ForEach(items) { item in
+                    PassportRecordCard {
+                        passportRecordHeader(
+                            title: item.title,
+                            subtitle: item.description,
+                            status: item.verificationStatus
+                        )
+                        passportRecordMeta(title: "Portfolio link", value: item.linkTitle)
                     }
                 }
             }

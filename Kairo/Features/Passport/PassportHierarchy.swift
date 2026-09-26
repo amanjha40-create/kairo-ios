@@ -10,6 +10,7 @@ nonisolated struct PassportHierarchyCounts: Equatable, Sendable {
             + content.education.map(\.verificationStatus)
             + content.certifications.map(\.verificationStatus)
             + content.skills.map(\.verificationStatus)
+            + content.portfolio.map(\.verificationStatus)
         verified = statuses.filter { $0 == .verified }.count
         // Projects have no verified state in the canonical owner model/Policy V2.
         candidateProvided = statuses.count - verified + content.projects.count

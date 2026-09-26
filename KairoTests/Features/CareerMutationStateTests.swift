@@ -130,6 +130,51 @@ final class CareerMutationStateTests: XCTestCase {
         XCTAssertEqual(request.isOngoing, true)
     }
 
+    func test_portfolioDraftBuildsValidCreateRequestAndNormalizesTags() {
+        var draft = CareerPortfolioDraft()
+        draft.title = "  Inclusive finance case study  "
+        draft.description = "  Research and interaction design.  "
+        draft.url = "https://example.com/work"
+        draft.tags = "Accessibility, iOS, accessibility, Research"
+
+        XCTAssertTrue(draft.validationErrors().isEmpty)
+        let request = draft.createRequest()
+        XCTAssertEqual(request.title, "Inclusive finance case study")
+        XCTAssertEqual(request.description, "Research and interaction design.")
+        XCTAssertEqual(request.url, "https://example.com/work")
+        XCTAssertEqual(request.tags, ["Accessibility", "iOS", "Research"])
+    }
+
+    func test_portfolioDraftRejectsEmptyTitleAndUnsafeURLs() {
+        for value in ["javascript:alert(1)", "data:text/plain,secret", "file:///private/work.pdf", "https://user:secret@example.com/work"] {
+            var draft = CareerPortfolioDraft()
+            draft.url = value
+            let errors = draft.validationErrors()
+            XCTAssertEqual(errors["title"], "Enter the portfolio title.")
+            XCTAssertEqual(errors["url"], "Enter a valid HTTP or HTTPS URL.")
+        }
+    }
+
+    func test_portfolioEditDraftPreservesExistingAttachmentMetadata() {
+        let record = PortfolioRecord(
+            id: "portfolio_1",
+            title: "Case study",
+            description: "Before",
+            url: URL(string: "https://example.com/work"),
+            tags: ["Research"],
+            originalFilename: "private-case-study.pdf",
+            contentType: "application/pdf",
+            byteSize: 2_048,
+            uploadCompletedAt: Date()
+        )
+
+        var draft = CareerPortfolioDraft(record: record)
+        draft.description = "After"
+
+        XCTAssertEqual(draft.existingAttachmentFilename, "private-case-study.pdf")
+        XCTAssertEqual(draft.updateRequest().description, "After")
+    }
+
     func test_skillValidationRejectsCaseInsensitiveDuplicates() {
         let draft = CareerSkillDraft(name: "sql")
 

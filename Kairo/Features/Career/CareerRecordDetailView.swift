@@ -45,7 +45,7 @@ struct CareerRecordDetailPresentation: Identifiable {
         switch kind {
         case .employment, .education: "Manage evidence"
         case .certification: "Manage document"
-        case .portfolio: "View attachment"
+        case .portfolio: "Manage attachment"
         case .project: "View documents"
         }
     }
@@ -77,20 +77,30 @@ struct CareerRecordDetailPresentation: Identifiable {
         Self(id: item.routeID, title: item.title, organization: item.role, status: item.verificationStatus ?? .notVerified,
             metadata: item.detailMetadata.filter { $0.title != "Origin" }.map { ($0.title, $0.value) }
                 + (item.duration.isEmpty ? [] : [("Dates", item.duration)]),
-            documents: item.legacyPortfolioID.map { .legacyPortfolio(id: $0, title: item.title) },
-            edit: item.legacyPortfolioID == nil ? edit : nil, delete: item.legacyPortfolioID == nil ? delete : nil, kind: .project,
+            edit: edit, delete: delete, kind: .project,
             supportingMetadata: item.detailMetadata.filter { $0.title == "Origin" }.map { ($0.title, $0.value) }, links: item.links)
     }
 
-    static func portfolio(_ item: CareerPortfolioItem) -> Self {
-        Self(
+    static func portfolio(_ item: CareerPortfolioItem, edit: (() -> Void)?) -> Self {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        let attachmentMetadata: [(String, String)] = [
+            item.originalFilename.map { ("Attachment", $0) },
+            item.byteSize.map { ("File size", ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)) },
+            item.createdAt.map { ("Created", formatter.string(from: $0)) },
+            item.updatedAt.map { ("Updated", formatter.string(from: $0)) }
+        ].compactMap { $0 }
+        return Self(
             id: item.routeID,
             title: item.title,
             organization: "Portfolio",
             status: item.verificationStatus,
-            metadata: item.description.map { [("Description", $0)] } ?? [],
-            documents: .legacyPortfolio(id: item.routeID, title: item.title),
+            metadata: (item.description.map { [("Description", $0)] } ?? [])
+                + (item.tags.isEmpty ? [] : [("Tags", item.tags.joined(separator: ", "))]),
+            documents: .portfolio(id: item.routeID, title: item.title),
+            edit: edit,
             kind: .portfolio,
+            supportingMetadata: attachmentMetadata,
             links: [CareerRecordLink(title: "Work sample URL", url: item.url)].compactMap { $0 },
             attachmentPresent: item.hasDocument
         )
@@ -144,9 +154,7 @@ struct CareerRecordDetailView: View {
                             if let present = record.attachmentPresent {
                                 Text(present ? "Attachment added" : "No attachment")
                                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
-                                Text(present
-                                    ? "Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."
-                                    : "Use Documents to add an attachment. Uploading a file does not verify this record.")
+                                Text(attachmentGuidance(isPresent: present))
                                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -190,10 +198,10 @@ struct CareerRecordDetailView: View {
                 .padding(KairoSpacing.medium)
             }
             .background(KairoColors.background.ignoresSafeArea())
-            .navigationTitle("Record details").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(record.kind == .portfolio ? "Portfolio item" : "Record details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         }
-        .accessibilityIdentifier("career.record.detail")
+        .accessibilityIdentifier(record.kind == .portfolio ? KairoAccessibilityID.careerPortfolioDetail : "career.record.detail")
         .task(id: record.documents?.id) {
             await loadDocumentCount()
         }
@@ -208,6 +216,17 @@ struct CareerRecordDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine).accessibilityIdentifier("career.detail.field.\(item.title)")
         }
+    }
+
+    private func attachmentGuidance(isPresent: Bool) -> String {
+        if record.kind == .portfolio {
+            return isPresent
+                ? "Metadata edits preserve this file. Manage the attachment to view, replace, or remove it."
+                : "Manage the attachment to add a file. Uploading a file does not verify this item."
+        }
+        return isPresent
+            ? "Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."
+            : "Use Documents to add an attachment. Uploading a file does not verify this record."
     }
 
     @ViewBuilder private var status: some View {

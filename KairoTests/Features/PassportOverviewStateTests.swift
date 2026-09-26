@@ -25,6 +25,7 @@ final class PassportOverviewStateTests: XCTestCase {
         XCTAssertEqual(content.education.count, 1)
         XCTAssertEqual(content.certifications.count, 1)
         XCTAssertEqual(content.projects.count, 1)
+        XCTAssertEqual(content.portfolio.count, 1)
         XCTAssertEqual(content.skills.count, 3)
         XCTAssertEqual(timeline.count, 5)
         XCTAssertEqual(content.visibleSections, [
@@ -37,6 +38,7 @@ final class PassportOverviewStateTests: XCTestCase {
             .certifications,
             .skills,
             .projects,
+            .portfolio,
             .passportStrength,
             .identity,
             .trustTimeline,
@@ -158,6 +160,7 @@ final class PassportOverviewStateTests: XCTestCase {
                 certifications: [],
                 skills: [],
                 projects: [],
+                portfolio: [],
                 timeline: .unavailable(
                     PassportUnavailableSectionState(
                         title: "Trust timeline not available yet",

@@ -59,7 +59,26 @@ struct CareerHierarchyFixtureHostView: View {
             addCertificationAction: { presentedSheet = .certification(mode: .create, recordID: nil, draft: .init()) },
             editCertificationAction: { item in presentedSheet = .certification(mode: .edit, recordID: item.routeID, draft: .init()) },
             addProjectAction: { presentedSheet = .project(mode: .create, recordID: nil, draft: .init()) },
-            editProjectAction: { item in presentedSheet = .project(mode: .edit, recordID: item.routeID, draft: .init()) })
+            editProjectAction: { item in presentedSheet = .project(mode: .edit, recordID: item.routeID, draft: .init()) },
+            addPortfolioAction: { presentedSheet = .portfolio(mode: .create, recordID: nil, draft: .init()) },
+            editPortfolioAction: { item in
+                presentedSheet = .portfolio(
+                    mode: .edit,
+                    recordID: item.routeID,
+                    draft: CareerPortfolioDraft(record: .init(
+                        id: item.routeID,
+                        title: item.title,
+                        description: item.description,
+                        url: item.url,
+                        tags: item.tags,
+                        originalFilename: item.originalFilename,
+                        contentType: item.hasDocument ? "application/pdf" : nil,
+                        byteSize: item.byteSize,
+                        uploadCompletedAt: item.hasDocument ? Date() : nil,
+                        verificationStatus: "draft"
+                    ))
+                )
+            })
             .environment(\.careerDocumentService, DemoCareerDocumentService())
             .sheet(item: $presentedSheet) { sheet in
                 mutationSheet(for: sheet)
@@ -82,6 +101,8 @@ struct CareerHierarchyFixtureHostView: View {
             CareerCertificationEditorSheet(mode: mode, draft: draft) { _, _ in throw URLError(.unsupportedURL) }
         case .project(let mode, _, let draft):
             CareerProjectEditorSheet(mode: mode, draft: draft) { _ in throw URLError(.unsupportedURL) }
+        case .portfolio(let mode, _, let draft):
+            CareerPortfolioEditorSheet(mode: mode, draft: draft) { _ in throw URLError(.unsupportedURL) }
         case .skill(let mode, _, let draft, let existingNames):
             CareerSkillEditorSheet(mode: mode, existingNames: existingNames, draft: draft) { _ in throw URLError(.unsupportedURL) }
         }
@@ -129,5 +150,57 @@ struct AttachedCertificationFixtureHostView: View {
             )))
             .environment(\.careerDocumentService, DemoCareerDocumentService())
         }
+    }
+}
+
+/// In-memory Portfolio attachment lifecycle used only behind the UI-test launch guard.
+/// It never contacts the backend or writes founder data.
+actor PortfolioLifecycleFixtureService: CareerDocumentServiceProtocol {
+    private var document: CareerDocument?
+
+    init(scenario: String) {
+        document = scenario == "removed" ? nil : CareerDocument(
+            id: "portfolio-fixture-document",
+            documentType: "project",
+            originalFilename: "candidate-experience-case-study.pdf",
+            contentType: "application/pdf",
+            byteSize: 2_048_000,
+            verificationStatus: "draft"
+        )
+    }
+
+    nonisolated func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType] {
+        _ = parent
+        return [.init(id: "project", label: "Project attachment")]
+    }
+
+    func listDocuments(for parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        _ = parent
+        return document.map { [$0] } ?? []
+    }
+
+    func uploadDocument(fileURL: URL, documentType: String, to parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        _ = (fileURL, documentType, parent)
+        let replacement = CareerDocument(
+            id: "portfolio-fixture-document",
+            documentType: "project",
+            originalFilename: fileURL.lastPathComponent,
+            contentType: "application/pdf",
+            byteSize: 4_096,
+            verificationStatus: "draft"
+        )
+        document = replacement
+        return [replacement]
+    }
+
+    func downloadURL(for document: CareerDocument, parent: CareerDocumentParent) async throws -> URL {
+        _ = (document, parent)
+        throw NetworkError.unavailableInDemoMode
+    }
+
+    func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        _ = (document, parent)
+        self.document = nil
+        return []
     }
 }

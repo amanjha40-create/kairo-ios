@@ -6,6 +6,7 @@ protocol CareerOverviewServiceProtocol: Sendable {
     func loadEducation(id: String) async throws -> CareerEducationRecord
     func loadCertification(id: String) async throws -> CareerCertificationRecord
     func loadProject(id: String) async throws -> CareerProjectRecord
+    func loadPortfolio(id: String) async throws -> PortfolioRecord
     func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview
     func updateEmployment(id: String, request: CareerEmploymentUpdateRequestDTO) async throws -> CareerOverview
     func deleteEmployment(id: String) async throws -> CareerOverview
@@ -22,6 +23,8 @@ protocol CareerOverviewServiceProtocol: Sendable {
     func createProject(_ request: CareerProjectCreateRequestDTO) async throws -> CareerOverview
     func updateProject(id: String, request: CareerProjectUpdateRequestDTO) async throws -> CareerOverview
     func deleteProject(id: String) async throws -> CareerOverview
+    func createPortfolio(_ request: PortfolioCreateRequestDTO) async throws -> CareerOverview
+    func updatePortfolio(id: String, request: PortfolioUpdateRequestDTO) async throws -> CareerOverview
     func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview
     func deleteSkill(id: String) async throws -> CareerOverview
 }
@@ -42,7 +45,7 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
     }
 
     func loadOverview() async throws -> CareerOverview {
-        async let legacy = loadOwnerCollection(LegacyPortfolioItem.self, path: "/portfolio", session: sessionService)
+        async let portfolio = loadOwnerCollection(PortfolioRecord.self, path: "/portfolio", session: sessionService)
         async let currentUserResult = captureResult { [self] in try await self.loadCurrentUser() }
         async let employmentsResult = captureResult { [self] in
             try await self.loadCollection([CareerEmploymentDTO].self, path: "/employments/")
@@ -73,7 +76,7 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             certifications: certificationRecords.map(CareerCertificationRecord.init(dto:)),
             projects: projectRecords.map(CareerProjectRecord.init(dto:)),
             skills: skillRecords.map(CareerSkillRecord.init(dto:)),
-            legacyPortfolio: try await legacy
+            portfolio: try await portfolio
         )
     }
 
@@ -107,6 +110,10 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
             as: CareerProjectDTO.self,
             transform: CareerProjectRecord.init(dto:)
         )
+    }
+
+    func loadPortfolio(id: String) async throws -> PortfolioRecord {
+        try await loadRecord(path: "/portfolio/\(id)", as: PortfolioRecord.self) { $0 }
     }
 
     func createEmployment(_ request: CareerEmploymentCreateRequestDTO) async throws -> CareerOverview {
@@ -256,6 +263,14 @@ actor CareerOverviewService: CareerOverviewServiceProtocol {
 
     func deleteProject(id: String) async throws -> CareerOverview {
         try await deleteAndReload(path: "/projects/\(id)")
+    }
+
+    func createPortfolio(_ request: PortfolioCreateRequestDTO) async throws -> CareerOverview {
+        try await mutate(path: "/portfolio", method: .post, body: request, responseType: PortfolioRecord.self)
+    }
+
+    func updatePortfolio(id: String, request: PortfolioUpdateRequestDTO) async throws -> CareerOverview {
+        try await mutate(path: "/portfolio/\(id)", method: .patch, body: request, responseType: PortfolioRecord.self)
     }
 
     func createSkill(_ request: CareerSkillCreateRequestDTO) async throws -> CareerOverview {
