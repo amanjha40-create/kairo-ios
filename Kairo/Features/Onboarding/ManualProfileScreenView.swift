@@ -205,8 +205,8 @@ struct ManualProfileScreenView: View {
         switch error {
         case let networkError as NetworkError:
             switch networkError {
-            case .api(let apiError):
-                return apiError.message
+            case .api:
+                return "Review your profile details and try again."
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
             case .unavailableInDemoMode:
@@ -219,7 +219,7 @@ struct ManualProfileScreenView: View {
         case let sessionError as SessionServiceError:
             return sessionError.errorDescription ?? "KairoID couldn't continue your Manual Profile."
         default:
-            return error.localizedDescription
+            return "KairoID couldn't save your profile. Please try again."
         }
     }
 

@@ -6,6 +6,9 @@ final class MoreSettingsHierarchyTests: XCTestCase {
     func testHubContainsOnlyRoutingDestinations() {
         XCTAssertEqual(MoreHubDestination.allCases.map(\.rawValue), ["resume", "settings", "support", "legal"])
         XCTAssertEqual(Set(MoreHubDestination.allCases.map { $0.row.id }).count, 4)
+        XCTAssertEqual(MoreHubDestination.resume.row.title, "Resume import")
+        XCTAssertEqual(MoreHubDestination.resume.row.subtitle, "Review previous and current imports")
+        XCTAssertEqual(MoreHubDestination.settings.row.subtitle, "Privacy, notifications, and active sessions")
     }
 
     func testAccountAndSecurityPartitionExistingDestinations() {

@@ -25,6 +25,8 @@ final class MoreOverviewStateTests: XCTestCase {
             "Sessions & devices",
             "Documents"
         ])
+        XCTAssertEqual(content.accountRows.first?.subtitle, "Profile, contact details, and professional links")
+        XCTAssertEqual(content.accountRows.last?.subtitle, "All documents you've uploaded to KairoID")
         XCTAssertEqual(content.appVersion, "1.0.0 (1)")
         XCTAssertEqual(content.supportEmailAddress, "contact@kairoid.com")
     }
@@ -115,7 +117,7 @@ final class MoreOverviewStateTests: XCTestCase {
 
         XCTAssertEqual(content.dataSourceLabel, "Live data")
         XCTAssertEqual(content.notificationPreferences.count, 2)
-        XCTAssertEqual(content.accountRows.first?.subtitle, "Email verified • Phone not verified")
+        XCTAssertEqual(content.accountRows.first?.subtitle, "Profile, contact details, and professional links")
     }
 
     private func makeOverview() -> MoreOverview {

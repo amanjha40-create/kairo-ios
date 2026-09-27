@@ -1369,8 +1369,8 @@ struct ResumeImportScreenView: View {
             switch networkError {
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
-            case .api(let apiError):
-                return apiError.message
+            case .api:
+                return "KairoID couldn't complete that resume action. Refresh the review and try again."
             case .invalidResponse:
                 return "KairoID received an unexpected resume response. Please try again."
             case .invalidURL:
@@ -1380,7 +1380,7 @@ struct ResumeImportScreenView: View {
             }
         }
 
-        return error.localizedDescription
+        return "KairoID couldn't complete that resume action. Please try again."
     }
 
     private func onboardingCompletionMessage(for error: Error) -> String {

@@ -132,6 +132,16 @@ final class PassportOverviewMapperTests: XCTestCase {
         XCTAssertTrue(errorState.message.contains("couldn't reach"))
     }
 
+    func test_errorStateDoesNotExposeBackendAPIMessage() {
+        let raw = "private passport projection failed"
+        let error = APIError(statusCode: 500, code: .internalError, message: raw,
+                             fieldErrors: [:], globalErrors: [], validationDetails: [])
+        let state = PassportOverviewMapper.errorState(for: NetworkError.api(error), header: .fixture)
+        guard case .error(let presentation) = state.phase else { return XCTFail("Expected error Passport state") }
+        XCTAssertEqual(presentation.message, "KairoID couldn't load your Trust Passport. Please try again.")
+        XCTAssertFalse(presentation.message.contains(raw))
+    }
+
     func test_errorStateMapsDecodingErrorToGenericPassportUnavailableExperience() {
         let state = PassportOverviewMapper.errorState(
             for: DecodingError.keyNotFound(

@@ -175,6 +175,41 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertEqual(router.onboardingPath, [])
     }
 
+    func test_recoveredSignupFailureDoesNotExposeRawAPIMessage() async {
+        let router = AppRouter()
+        let rawMessage = "postgres connection refused on internal-host:5432"
+        let store = makeStore(
+            router: router,
+            authService: StubAuthService(
+                user: .fixture,
+                onboardingStatus: .fixture(currentStep: .verifyIdentity),
+                recoveryError: NetworkError.api(APIError(
+                    statusCode: 500,
+                    code: .internalError,
+                    message: rawMessage,
+                    fieldErrors: [:],
+                    globalErrors: [],
+                    validationDetails: []
+                ))
+            ),
+            sessionService: StubSessionService(
+                hasAccessToken: false,
+                hasRefreshToken: false,
+                signupSessionID: "signup-session-123"
+            )
+        )
+
+        await store.refreshLaunchRoute()
+
+        XCTAssertEqual(
+            store.launchPhase,
+            .failed("KairoID couldn't restore your session. Please try again.")
+        )
+        if case .failed(let message) = store.launchPhase {
+            XCTAssertFalse(message.contains(rawMessage))
+        }
+    }
+
     func test_completedRecoveredSignupSessionRoutesSignedOutWithoutCreatingReplacement() async {
         let router = AppRouter()
         let sessionService = StubSessionService(
@@ -640,7 +675,11 @@ final class AppSessionStoreTests: XCTestCase {
 
         switch store.launchPhase {
         case .failed(let message):
-            XCTAssertTrue(message.contains("future_step"))
+            XCTAssertEqual(
+                message,
+                "KairoID needs an app update before it can continue this onboarding step."
+            )
+            XCTAssertFalse(message.contains("future_step"))
         default:
             XCTFail("Expected a recoverable launch failure for an unknown onboarding step.")
         }

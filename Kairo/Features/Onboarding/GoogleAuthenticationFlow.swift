@@ -73,8 +73,8 @@ struct GoogleAuthenticationButton: View {
             "KairoID couldn't reach the network. Check your connection and try again."
         case .unavailableInDemoMode:
             "Google sign-in is unavailable in Demo Mode."
-        case .api(let apiError):
-            apiError.message
+        case .api:
+            "Google sign-in could not be started. Please try again."
         case .invalidResponse, .invalidURL:
             "Google sign-in could not be started safely. Please try again."
         }
@@ -176,7 +176,7 @@ struct GoogleAuthenticationHandoffView: View {
         }
 
         return switch networkError {
-        case .api(let apiError): apiError.message
+        case .api: "Google sign-in could not be completed. Please try again."
         case .transport: "KairoID couldn't reach the network. Check your connection and try again."
         case .invalidResponse, .invalidURL: "Google sign-in returned an invalid handoff. Please try again."
         case .unavailableInDemoMode: "Google sign-in is unavailable in Demo Mode."
@@ -311,8 +311,8 @@ private extension GoogleAuthenticationHandoffView {
         }
 
         return switch networkError {
-        case .api(let apiError):
-            apiError.fieldErrors["phone"]?.first ?? apiError.message
+        case .api:
+            "Enter a valid mobile number and try again."
         case .transport:
             "KairoID couldn't reach the network. Check your connection and try again."
         case .invalidResponse, .invalidURL:

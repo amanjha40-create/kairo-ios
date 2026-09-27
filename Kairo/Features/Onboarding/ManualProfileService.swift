@@ -240,14 +240,35 @@ actor ManualProfileService: ManualProfileServiceProtocol {
         }
 
         let flattenedFieldErrors = apiError.fieldErrors.reduce(into: [String: String]()) { partialResult, pair in
-            partialResult[pair.key] = pair.value.first
+            guard !pair.value.isEmpty else { return }
+            partialResult[pair.key] = Self.validationMessage(for: pair.key)
         }
 
         return ManualProfileSubmissionError.fieldValidation(
             step: step,
             fieldErrors: flattenedFieldErrors,
-            message: apiError.globalErrors.first ?? apiError.message
+            message: "Review the highlighted profile details and try again."
         )
+    }
+
+    nonisolated private static func validationMessage(for field: String) -> String {
+        switch field {
+        case "full_name": "Review your full name."
+        case "headline": "Review your professional headline."
+        case "current_role": "Review your current role."
+        case "industry": "Review your industry."
+        case "years_of_experience": "Enter valid whole years of experience."
+        case "location_city": "Review your city."
+        case "location_country": "Review your country."
+        case "employer_legal_name": "Review the employer name."
+        case "job_title": "Review the job title."
+        case "work_location_city": "Review the work city."
+        case "work_location_country": "Review the work country."
+        case "institution_name": "Review the institution name."
+        case "degree": "Review the degree."
+        case "education_level": "Review the education level."
+        default: "Review this value."
+        }
     }
 
     private func submissionError(for error: ManualProfileMappingError) -> ManualProfileSubmissionError {

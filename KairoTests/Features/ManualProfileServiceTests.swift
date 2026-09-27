@@ -102,8 +102,8 @@ final class ManualProfileServiceTests: XCTestCase {
                 error,
                 .fieldValidation(
                     step: .basicProfile,
-                    fieldErrors: ["headline": "Enter your professional headline."],
-                    message: "Request validation failed"
+                    fieldErrors: ["headline": "Review your professional headline."],
+                    message: "Review the highlighted profile details and try again."
                 )
             )
         }
@@ -145,8 +145,8 @@ final class ManualProfileServiceTests: XCTestCase {
                 error,
                 .fieldValidation(
                     step: .employment(entryID: 0),
-                    fieldErrors: ["work_location_country": "Enter a valid country."],
-                    message: "Request validation failed"
+                    fieldErrors: ["work_location_country": "Review the work country."],
+                    message: "Review the highlighted profile details and try again."
                 )
             )
         }

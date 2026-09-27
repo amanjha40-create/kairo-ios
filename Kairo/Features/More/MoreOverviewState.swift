@@ -224,7 +224,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "personalInformation",
                     title: "Personal information",
-                    subtitle: "Review the basics of your KairoID identity.",
+                    subtitle: "Profile, contact details, and professional links",
                     systemImage: "person.text.rectangle"
                 ),
                 MoreRowItem(
@@ -242,7 +242,7 @@ struct MoreOverviewContent: Equatable, Sendable {
                 MoreRowItem(
                     id: "documentVault",
                     title: "Documents",
-                    subtitle: "Career attachments, verification evidence, and private Vault documents.",
+                    subtitle: "All documents you've uploaded to KairoID",
                     systemImage: "lock.doc"
                 )
             ],
@@ -446,7 +446,7 @@ enum MorePendingConfirmation: String, Equatable, Sendable, Identifiable {
         case .downloadMyData:
             "Download my data"
         case .signOut:
-            "Sign Out"
+            "Log out"
         case .withdrawConsent:
             "Withdraw consent"
         case .revokeSession:

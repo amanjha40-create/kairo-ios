@@ -208,7 +208,7 @@ struct LoginScreenView: View {
                 case .serviceUnavailable, .internalError:
                     return "KairoID is temporarily unavailable. Please try again."
                 default:
-                    return apiError.message
+                    return "KairoID couldn't sign you in. Please try again."
                 }
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
@@ -220,7 +220,7 @@ struct LoginScreenView: View {
                 return "Demo Mode keeps authentication local only."
             }
         default:
-            return error.localizedDescription
+            return "KairoID couldn't sign you in. Please try again."
         }
     }
 

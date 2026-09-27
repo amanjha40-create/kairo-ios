@@ -197,7 +197,10 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
                 message: "The Passport PDF service is temporarily unavailable. Retry shortly."
             )
         default:
-            return .init(title: "PDF export failed", message: error.message)
+            return .init(
+                title: "PDF export failed",
+                message: "KairoID could not download this Passport PDF. Please try again."
+            )
         }
     }
 }

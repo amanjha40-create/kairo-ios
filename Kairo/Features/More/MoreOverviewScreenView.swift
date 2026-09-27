@@ -45,7 +45,6 @@ struct MoreOverviewScreenView: View {
                 subtitle: "Account, preferences, and support.",
                 titleAccessibilityIdentifier: CandidateTab.more.titleAccessibilityIdentifier
             ) {
-                accountSummaryCard
                 if let actionStatusMessage {
                     successCard(message: actionStatusMessage)
                 }
@@ -92,73 +91,6 @@ struct MoreOverviewScreenView: View {
         )
     }
 
-    private var accountSummaryCard: some View {
-        KairoSection {
-            Button { presentedModal = .profile } label: {
-                HStack(alignment: .top, spacing: KairoSpacing.small) {
-                    profilePlaceholder
-                    accountCopy
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(KairoColors.textSecondary)
-                        .accessibilityHidden(true)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasAccountContent)
-            .accessibilityIdentifier(KairoAccessibilityID.moreViewProfile)
-            .accessibilityHint("Open personal information")
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(KairoAccessibilityID.moreAccountSummary)
-    }
-
-    private var hasAccountContent: Bool {
-        if case .populated = state.phase { return true }
-        return false
-    }
-
-    private var profilePlaceholder: some View {
-        ZStack {
-            Circle()
-                .fill(KairoColors.surfaceMuted)
-
-            Text(state.accountSummary.initials)
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-        }
-        .frame(width: 48, height: 48)
-        .overlay(
-            Circle()
-                .stroke(KairoColors.border, lineWidth: 1)
-        )
-        .accessibilityElement()
-        .accessibilityLabel("Profile placeholder for \(state.accountSummary.name)")
-    }
-
-    private var accountCopy: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-            Text(state.accountSummary.name)
-                .font(KairoTypography.title2)
-                .foregroundStyle(KairoColors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(state.accountSummary.emailAddress)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if case .populated(let content) = state.phase {
-                Text(MoreSettingsHierarchy.contactState(content.user))
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     @ViewBuilder
     private var phaseContent: some View {
         switch state.phase {
@@ -180,27 +112,69 @@ struct MoreOverviewScreenView: View {
 
     private func populatedContent(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-                MoreSectionTitle(title: "Documents & trust sources", accessibilityIdentifier: "candidate.more.destinations")
-                KairoSection {
-                    DigiLockerMoreRow()
-                    Divider()
-                    ForEach(content.accountRows.filter { $0.id == "documentVault" }) { row in
-                        MoreNavigationRow(item: row, action: { handleAccountRow(row) })
-                    }
-                }
-            }
+            accountDestinations(content)
+            activityAndDocuments(content)
+            supportDestination(content)
+            signOutSection
+        }
+    }
+
+    private func accountDestinations(_ content: MoreOverviewContent) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            MoreSectionTitle(title: "Account", accessibilityIdentifier: "candidate.more.accountDestinations")
             KairoSection {
+                if let profile = content.accountRows.first(where: { $0.id == "personalInformation" }) {
+                    MoreNavigationRow(
+                        item: profile,
+                        accessibilityIdentifier: KairoAccessibilityID.moreViewProfile,
+                        action: { handleAccountRow(profile) }
+                    )
+                    Divider()
+                }
+                hubRow(.settings)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(KairoAccessibilityID.moreAccountSummary)
+        }
+    }
+
+    private func activityAndDocuments(_ content: MoreOverviewContent) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            MoreSectionTitle(title: "Activity & documents", accessibilityIdentifier: "candidate.more.activityDocuments")
+            KairoSection {
+                DigiLockerMoreRow()
+                Divider()
                 MoreNavigationRow(
-                    item: MoreRowItem(id: "notifications", title: "Notifications", subtitle: "Verification and account updates", systemImage: "bell"),
+                    item: MoreRowItem(
+                        id: "notifications",
+                        title: "Notifications",
+                        subtitle: "Verification and account updates",
+                        systemImage: "bell"
+                    ),
                     action: { router.showNotificationCenter() }
                 )
+                if let documents = content.accountRows.first(where: { $0.id == "documentVault" }) {
+                    Divider()
+                    MoreNavigationRow(item: documents, action: { handleAccountRow(documents) })
+                }
+                Divider()
+                hubRow(.resume)
             }
-            KairoSection { hubRow(.resume) }
-            KairoSection { hubRow(.settings) }
-            KairoSection { hubRow(.support) }
-            KairoSection { hubRow(.legal) }
-            signOutSection
+        }
+    }
+
+    private func supportDestination(_ content: MoreOverviewContent) -> some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            MoreSectionTitle(title: "Support", accessibilityIdentifier: KairoAccessibilityID.moreHelpSupportSection)
+            KairoSection {
+                if let helpCenter = content.supportRows.first(where: { $0.id == "helpCentre" }) {
+                    MoreNavigationRow(
+                        item: helpCenter,
+                        accessibilityIdentifier: KairoAccessibilityID.moreHelpCentre,
+                        action: { handleSupportRow(helpCenter) }
+                    )
+                }
+            }
         }
     }
 
@@ -485,7 +459,7 @@ struct MoreOverviewScreenView: View {
             KairoSection {
                 MoreNavigationRow(item: MoreRowItem(
                     id: KairoAccessibilityID.moreSignOut,
-                    title: "Sign Out",
+                    title: "Log out",
                     subtitle: "End this session on this device",
                     systemImage: "rectangle.portrait.and.arrow.right"
                 ), isDestructive: true) {
@@ -870,7 +844,8 @@ struct MoreOverviewScreenView: View {
         case let networkError as NetworkError:
             switch networkError {
             case .api(let apiError):
-                return apiError.message
+                _ = apiError
+                return "KairoID couldn't update this preference. Your previous setting was restored. Please try again."
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
             case .invalidResponse:
@@ -883,7 +858,7 @@ struct MoreOverviewScreenView: View {
         case let sessionError as SessionServiceError:
             return sessionError.errorDescription ?? "KairoID couldn't complete this account action."
         default:
-            return error.localizedDescription
+            return "KairoID couldn't update this preference. Your previous setting was restored. Please try again."
         }
     }
 
@@ -1351,20 +1326,20 @@ private struct MoreProfileSheetView: View {
         case let networkError as NetworkError:
             if case .api(let apiError) = networkError {
                 fieldErrors = [
-                    .fullName: apiError.fieldErrors["full_name"]?.first,
-                    .headline: apiError.fieldErrors["headline"]?.first,
-                    .currentRole: apiError.fieldErrors["current_role"]?.first,
-                    .industry: apiError.fieldErrors["industry"]?.first,
-                    .yearsOfExperience: apiError.fieldErrors["years_of_experience"]?.first,
-                    .currentCity: apiError.fieldErrors["location_city"]?.first,
-                    .currentCountry: apiError.fieldErrors["location_country"]?.first
+                    .fullName: apiError.fieldErrors["full_name"] == nil ? nil : "Review your full name.",
+                    .headline: apiError.fieldErrors["headline"] == nil ? nil : "Review your headline.",
+                    .currentRole: apiError.fieldErrors["current_role"] == nil ? nil : "Review your current role.",
+                    .industry: apiError.fieldErrors["industry"] == nil ? nil : "Review your industry.",
+                    .yearsOfExperience: apiError.fieldErrors["years_of_experience"] == nil ? nil : "Enter valid whole years of experience.",
+                    .currentCity: apiError.fieldErrors["location_city"] == nil ? nil : "Review your city.",
+                    .currentCountry: apiError.fieldErrors["location_country"] == nil ? nil : "Review your country."
                 ].compactMapValues { $0 }
-                serverErrorMessage = apiError.message
+                serverErrorMessage = "KairoID couldn't save your profile. Review the highlighted fields and try again."
                 return
             }
-            serverErrorMessage = error.localizedDescription
+            serverErrorMessage = "KairoID couldn't save your profile. Check your connection and try again."
         default:
-            serverErrorMessage = error.localizedDescription
+            serverErrorMessage = "KairoID couldn't save your profile. Please try again."
         }
     }
 
@@ -1538,16 +1513,16 @@ private struct MoreChangePasswordSheetView: View {
         case let networkError as NetworkError:
             if case .api(let apiError) = networkError {
                 fieldErrors = [
-                    .currentPassword: apiError.fieldErrors["current_password"]?.first,
-                    .newPassword: apiError.fieldErrors["new_password"]?.first,
-                    .confirmPassword: apiError.fieldErrors["confirm_password"]?.first
+                    .currentPassword: apiError.fieldErrors["current_password"] == nil ? nil : "Check your current password.",
+                    .newPassword: apiError.fieldErrors["new_password"] == nil ? nil : "Review the password requirements.",
+                    .confirmPassword: apiError.fieldErrors["confirm_password"] == nil ? nil : "Make sure both passwords match."
                 ].compactMapValues { $0 }
-                serverErrorMessage = apiError.message
+                serverErrorMessage = "KairoID couldn't change your password. Review the highlighted fields and try again."
                 return
             }
-            serverErrorMessage = error.localizedDescription
+            serverErrorMessage = "KairoID couldn't change your password. Check your connection and try again."
         default:
-            serverErrorMessage = error.localizedDescription
+            serverErrorMessage = "KairoID couldn't change your password. Please try again."
         }
     }
 
@@ -1680,7 +1655,7 @@ private struct MoreSessionsSheetView: View {
             } catch {
                 await MainActor.run {
                     isLoading = false
-                    errorMessage = error.localizedDescription
+                    errorMessage = "KairoID couldn't load your active sessions. Please try again."
                 }
             }
         }
@@ -1705,7 +1680,7 @@ private struct MoreSessionsSheetView: View {
             } catch {
                 await MainActor.run {
                     revokingIDs.remove(session.id)
-                    errorMessage = error.localizedDescription
+                    errorMessage = "KairoID couldn't revoke that session. Refresh the list and try again."
                 }
             }
         }
@@ -1834,7 +1809,7 @@ private struct MoreConsentManagementSheetView: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    serverErrorMessage = error.localizedDescription
+                    serverErrorMessage = "KairoID couldn't withdraw this consent. Please try again."
                 }
             }
         }
@@ -1855,7 +1830,7 @@ private struct MoreConsentManagementSheetView: View {
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    serverErrorMessage = error.localizedDescription
+                    serverErrorMessage = "KairoID couldn't grant this consent. Please try again."
                 }
             }
         }
@@ -2202,7 +2177,7 @@ private struct MoreConfirmationSheetView: View {
         case .downloadMyData:
             "Download my data"
         case .signOut:
-            "Sign Out"
+            "Log out"
         case .withdrawConsent:
             "Withdraw consent"
         case .revokeSession:
@@ -2228,7 +2203,7 @@ private struct MoreConfirmationSheetView: View {
         case .downloadMyData:
             "Understood"
         case .signOut:
-            "Sign Out"
+            "Log out"
         case .withdrawConsent:
             "Withdraw"
         case .revokeSession:

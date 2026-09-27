@@ -888,14 +888,16 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testMoreAccountSummaryRenders() throws {
+    func testMoreAccountDestinationsRenderWithoutPrivateIdentityCopy() throws {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
 
         XCTAssertTrue(app.descendants(matching: .any)[moreAccountSummary].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Aarav Mehta"].exists)
-        XCTAssertTrue(app.staticTexts["aarav@example.com"].exists)
+        XCTAssertTrue(app.buttons[moreViewProfileButton].exists)
+        XCTAssertTrue(app.buttons["candidate.more.settings"].exists)
+        XCTAssertFalse(app.staticTexts["Aarav Mehta"].exists)
+        XCTAssertFalse(app.staticTexts["aarav@example.com"].exists)
     }
 
     @MainActor
@@ -1089,6 +1091,7 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
+        openMoreDestination("settings", in: app)
         openMoreDestination("support", in: app)
 
         let contactSupport = app.buttons[moreContactSupportButton]
@@ -1104,12 +1107,13 @@ final class KairoUITests: XCTestCase {
         let app = launchApp(environment: moreEnvironment())
 
         openMoreTab(in: app)
-        openMoreDestination("support", in: app)
-
         let helpCentreButton = app.buttons[moreHelpCentreButton]
         XCTAssertTrue(waitForElementAfterScrolling(helpCentreButton, in: app))
+        helpCentreButton.tap()
+        XCTAssertTrue(app.navigationBars["Help Center"].waitForExistence(timeout: 10))
 
         app.navigationBars.buttons.firstMatch.tap()
+        openMoreDestination("settings", in: app)
         openMoreDestination("legal", in: app)
 
         let termsButton = app.buttons[moreTermsOfServiceButton]
@@ -1130,7 +1134,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
         signOutButton.tap()
 
-        XCTAssertTrue(app.navigationBars["Sign Out"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Log out"].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -1162,7 +1166,7 @@ final class KairoUITests: XCTestCase {
 
         let confirmation = app.buttons
             .matching(identifier: moreSignOutConfirmation)
-            .matching(NSPredicate(format: "label == %@", "Sign Out"))
+            .matching(NSPredicate(format: "label == %@", "Log out"))
             .firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
         confirmation.tap()

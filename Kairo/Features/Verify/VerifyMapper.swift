@@ -28,11 +28,11 @@ nonisolated enum VerifyOverviewMapper {
 
         if let networkError = error as? NetworkError {
             switch networkError {
-            case .api(let apiError):
+            case .api:
                 return .error(
                     header: header,
                     title: "Verify unavailable",
-                    message: apiError.message
+                    message: "KairoID couldn't load your verification requests. Please try again."
                 )
             case .invalidResponse:
                 return .error(
@@ -58,7 +58,7 @@ nonisolated enum VerifyOverviewMapper {
         return .error(
             header: header,
             title: "Verify unavailable",
-            message: error.localizedDescription
+            message: "KairoID couldn't load your verification requests. Please try again."
         )
     }
 

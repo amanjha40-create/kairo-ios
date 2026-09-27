@@ -525,7 +525,7 @@ private struct ContactVerificationScreenView: View {
             case .api(let apiError):
                 switch apiError.code {
                 case .validationError:
-                    return apiError.fieldErrors["code"]?.first ?? apiError.message
+                    return "Enter the latest verification code and try again."
                 case .rateLimited:
                     return "Too many attempts. Please try again shortly."
                 case .serviceUnavailable, .internalError:
@@ -533,7 +533,7 @@ private struct ContactVerificationScreenView: View {
                 case .unauthorized:
                     return "Your signup session expired. Please start again."
                 default:
-                    return apiError.message
+                    return "KairoID couldn't verify that code. Please try again."
                 }
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
@@ -547,7 +547,7 @@ private struct ContactVerificationScreenView: View {
         case let sessionError as SessionServiceError where sessionError == .missingSignupSession:
             return "Your signup session expired. Please start again."
         default:
-            return error.localizedDescription
+            return "KairoID couldn't verify your identity. Please try again."
         }
     }
 }

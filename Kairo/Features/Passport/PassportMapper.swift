@@ -49,11 +49,11 @@ nonisolated enum PassportOverviewMapper {
 
         if let networkError = error as? NetworkError {
             switch networkError {
-            case .api(let apiError):
+            case .api:
                 return .error(
                     header: header,
                     title: "Trust Passport unavailable",
-                    message: apiError.message
+                    message: "KairoID couldn't load your Trust Passport. Please try again."
                 )
             case .invalidResponse:
                 return .error(
@@ -79,7 +79,7 @@ nonisolated enum PassportOverviewMapper {
         return .error(
             header: header,
             title: "Trust Passport unavailable",
-            message: error.localizedDescription
+            message: "KairoID couldn't load your Trust Passport. Please try again."
         )
     }
 

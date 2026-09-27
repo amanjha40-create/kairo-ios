@@ -250,7 +250,11 @@ final class PassportShareManagementTests: XCTestCase {
         XCTAssertFalse(succeeded)
         XCTAssertNil(model.creation)
         XCTAssertEqual(model.error?.title, "Check sharing choices")
-        XCTAssertTrue(model.error?.message.contains("permissions") == true)
+        XCTAssertEqual(
+            model.error?.message,
+            "Review the purpose, expiry, and selected sections, then try again."
+        )
+        XCTAssertFalse(model.error?.message.contains("permissions") == true)
     }
 
     func test_invalidOrInsecureLivePublicURLIsRejected() async throws {

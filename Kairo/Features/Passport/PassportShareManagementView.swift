@@ -1066,42 +1066,38 @@ struct PassportSharePresentationError: Identifiable, Equatable {
                 return .init(title: "Demo data unavailable", message: "Demo Mode cannot call staging Passport sharing services.")
             }
         }
-        return .init(title: fallbackTitle, message: error.localizedDescription)
+        return .init(title: fallbackTitle, message: "KairoID could not complete the Passport sharing action. Please try again.")
     }
 
     private static func map(_ error: APIError, fallbackTitle: String) -> Self {
         switch error.statusCode {
         case 400:
-            return .init(title: "Share not accepted", message: error.message)
+            return .init(title: "Share not accepted", message: "Review the sharing choices and try again.")
         case 401:
             return .init(title: "Sign in required", message: "Your session is no longer valid. Sign in and refresh before retrying.")
         case 403:
-            return .init(title: "Share access denied", message: error.message)
+            return .init(title: "Share access denied", message: "This account cannot complete the requested sharing action.")
         case 404:
             return .init(title: "Share not found", message: "This Passport share no longer exists or is not available to this account.")
         case 409:
             let lowercased = error.message.lowercased()
             if lowercased.contains("revoked") {
-                return .init(title: "Share already revoked", message: error.message)
+                return .init(title: "Share already revoked", message: "This Passport share was already revoked. Refresh the share list.")
             }
             if lowercased.contains("expired") {
-                return .init(title: "Share expired", message: error.message)
+                return .init(title: "Share expired", message: "This Passport share has expired. Refresh the share list.")
             }
-            return .init(title: "Share changed", message: "The authoritative share state changed. Refresh before trying again. \(error.message)")
+            return .init(title: "Share changed", message: "The authoritative share state changed. Refresh before trying again.")
         case 410:
             return .init(title: "Share no longer available", message: "This public share is no longer available. Refresh the authoritative share list.")
         case 422:
-            let details = error.fieldErrors
-                .sorted { $0.key < $1.key }
-                .flatMap { field, messages in messages.map { "\(field): \($0)" } }
-                .joined(separator: " ")
-            return .init(title: "Check sharing choices", message: details.isEmpty ? error.message : details)
+            return .init(title: "Check sharing choices", message: "Review the purpose, expiry, and selected sections, then try again.")
         case 429:
             return .init(title: "Too many attempts", message: "Passport sharing is temporarily rate-limited. Wait and retry.")
         case 500...599:
             return .init(title: "Passport sharing unavailable", message: "The service could not complete this request. Refresh before retrying.")
         default:
-            return .init(title: fallbackTitle, message: error.message)
+            return .init(title: fallbackTitle, message: "KairoID could not complete the Passport sharing action. Please try again.")
         }
     }
 }

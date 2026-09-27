@@ -39,11 +39,11 @@ enum HomeOverviewMapper {
 
         if let networkError = error as? NetworkError {
             switch networkError {
-            case .api(let apiError):
+            case .api:
                 return .error(
                     header: header,
                     title: "Home overview unavailable",
-                    message: apiError.message
+                    message: "KairoID couldn't load your Home overview. Please try again."
                 )
             case .invalidResponse:
                 return .error(
@@ -69,7 +69,7 @@ enum HomeOverviewMapper {
         return .error(
             header: header,
             title: "Home overview unavailable",
-            message: error.localizedDescription
+            message: "KairoID couldn't load your Home overview. Please try again."
         )
     }
 

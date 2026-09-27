@@ -59,13 +59,14 @@ enum MoreOverviewMapper {
         if let networkError = error as? NetworkError {
             switch networkError {
             case .api(let apiError):
+                _ = apiError
                 return MoreOverviewState(
                     accountSummary: accountSummary,
                     preferences: .empty,
                     phase: .error(
                         MoreOverviewErrorState(
                             title: "Account settings unavailable",
-                            message: apiError.message
+                            message: "KairoID couldn't load your account settings. Please try again."
                         )
                     )
                 )
@@ -124,7 +125,7 @@ enum MoreOverviewMapper {
             phase: .error(
                 MoreOverviewErrorState(
                     title: "Account settings unavailable",
-                    message: error.localizedDescription
+                    message: "KairoID couldn't load your account settings. Please try again."
                 )
             )
         )
@@ -176,7 +177,7 @@ enum MoreOverviewMapper {
             MoreRowItem(
                 id: "personalInformation",
                 title: "Personal information",
-                subtitle: "\(verificationLabel(isVerified: user.emailVerifiedAt != nil, verifiedText: "Email verified", unverifiedText: "Email not verified")) • \(verificationLabel(isVerified: user.phoneVerifiedAt != nil, verifiedText: "Phone verified", unverifiedText: "Phone not verified"))",
+                subtitle: "Profile, contact details, and professional links",
                 systemImage: "person.text.rectangle"
             ),
             MoreRowItem(
@@ -194,7 +195,7 @@ enum MoreOverviewMapper {
             MoreRowItem(
                 id: "documentVault",
                 title: "Documents",
-                subtitle: "Career attachments, verification evidence, and private Vault documents.",
+                subtitle: "All documents you've uploaded to KairoID",
                 systemImage: "lock.doc"
             )
         ]
@@ -329,14 +330,6 @@ enum MoreOverviewMapper {
             .joined(separator: " ")
     }
 
-    nonisolated private static func verificationLabel(
-        isVerified: Bool,
-        verifiedText: String,
-        unverifiedText: String
-    ) -> String {
-        isVerified ? verifiedText : unverifiedText
-    }
-
     nonisolated private static func legalSubtitle(isConfigured: Bool) -> String {
         isConfigured
             ? "Open the latest KairoID document."
@@ -358,7 +351,7 @@ enum MoreAccountDeletionErrorMapper {
         guard let networkError = error as? NetworkError else {
             return MoreAccountDeletionFailure(
                 currentPasswordError: nil,
-                message: error.localizedDescription
+                message: "KairoID could not complete account deletion. Your account and signed-in session remain unchanged."
             )
         }
 
@@ -383,7 +376,7 @@ enum MoreAccountDeletionErrorMapper {
             case .validationError, .badRequest:
                 return MoreAccountDeletionFailure(
                     currentPasswordError: nil,
-                    message: apiError.message
+                    message: "Review the confirmation and password fields. Your account was not deleted."
                 )
             case .rateLimited:
                 return MoreAccountDeletionFailure(

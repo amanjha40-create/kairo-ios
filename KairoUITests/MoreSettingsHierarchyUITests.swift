@@ -11,7 +11,7 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(profile.frame.height, 44)
         XCTAssertFalse(app.buttons["candidate.more.deleteAccount"].exists)
         XCTAssertFalse(app.switches["candidate.more.notifications.productUpdates"].exists)
-        let ids = ["documentVault", "notifications", "candidate.more.resume", "candidate.more.settings", "candidate.more.support", "candidate.more.legal", "candidate.more.signOut"]
+        let ids = ["candidate.more.settings", "candidate.more.digilocker", "notifications", "documentVault", "candidate.more.resume", "candidate.more.helpCentre", "candidate.more.signOut"]
         var previousY = profile.frame.minY
         for id in ids {
             let row = app.buttons[id]
@@ -43,12 +43,10 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
 
     func testSupportAndLegalReuseDestinationsWithNativeBack() {
         let app = launch()
-        open("support", app)
-        XCTAssertTrue(app.buttons["candidate.more.contactSupport"].waitForExistence(timeout: 10))
-        back(app)
-        open("legal", app)
-        XCTAssertTrue(app.buttons["candidate.more.terms"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["candidate.more.privacyPolicy"].exists)
+        let help = app.buttons["candidate.more.helpCentre"]
+        reveal(help, app)
+        help.tap()
+        XCTAssertTrue(app.navigationBars["Help Center"].waitForExistence(timeout: 10))
         back(app)
         open("settings", app)
         open("support", app)
@@ -78,7 +76,7 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
 
     func testLargeTextDarkMoreAndSettingsReadOnly() {
         let app = launch(large: true)
-        for id in ["documentVault", "candidate.more.settings", "candidate.more.support", "candidate.more.legal", "candidate.more.signOut"] {
+        for id in ["candidate.more.viewProfile", "candidate.more.settings", "candidate.more.digilocker", "documentVault", "candidate.more.resume", "candidate.more.helpCentre", "candidate.more.signOut"] {
             let row = app.buttons[id]; reveal(row, app)
             XCTAssertGreaterThanOrEqual(row.frame.height, 44)
             XCTAssertLessThanOrEqual(row.frame.maxX, app.frame.maxX)
@@ -93,15 +91,15 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         back(app)
     }
 
-    func testLongAccountLabelAndMissingMetadataRemainUsable() {
+    func testLongAccountFixtureAndMissingMetadataRemainUsable() {
         var app = launch(large: true, variant: "long")
         let profile = app.buttons["candidate.more.viewProfile"]
-        XCTAssertTrue(profile.label.contains("synthetic.long.account.label"))
+        XCTAssertTrue(profile.label.contains("Personal information"))
         XCTAssertLessThanOrEqual(profile.frame.maxX, app.frame.maxX)
         capture("Long account label")
         app.terminate()
         app = launch(variant: "minimal")
-        XCTAssertTrue(app.staticTexts["KairoID account"].exists)
+        XCTAssertTrue(app.buttons["candidate.more.viewProfile"].exists)
         open("settings", app)
         reveal(app.staticTexts["No notification preferences available"], app)
         XCTAssertFalse(app.switches["candidate.more.notifications.productUpdates"].exists)

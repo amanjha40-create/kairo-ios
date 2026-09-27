@@ -366,10 +366,16 @@ struct VerifyOverviewScreenView: View {
         }
 
         if let networkError = error as? NetworkError {
-            return networkError.localizedDescription
+            return switch networkError {
+            case .transport: "KairoID couldn't reach Verify. Check your connection and try again."
+            case .api: "KairoID couldn't complete that Verify action. Refresh and try again."
+            case .invalidResponse: "KairoID received an unexpected Verify response. Please try again."
+            case .invalidURL: "KairoID's Verify configuration is invalid."
+            case .unavailableInDemoMode: "This Verify action is unavailable in Demo Mode."
+            }
         }
 
-        return error.localizedDescription
+        return "KairoID couldn't complete that Verify action. Please try again."
     }
 
     @ViewBuilder

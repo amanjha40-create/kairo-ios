@@ -7,9 +7,9 @@ enum MoreHubDestination: String, Hashable, CaseIterable {
     var row: MoreRowItem {
         switch self {
         case .resume:
-            MoreRowItem(id: "candidate.more.resume", title: "Resume", subtitle: "Import, review and manage your resume", systemImage: "doc.text.magnifyingglass")
+            MoreRowItem(id: "candidate.more.resume", title: "Resume import", subtitle: "Review previous and current imports", systemImage: "doc.text.magnifyingglass")
         case .settings:
-            MoreRowItem(id: "candidate.more.settings", title: "Settings", subtitle: "Account, security, and preferences", systemImage: "gearshape")
+            MoreRowItem(id: "candidate.more.settings", title: "Settings", subtitle: "Privacy, notifications, and active sessions", systemImage: "gearshape")
         case .support:
             MoreRowItem(id: "candidate.more.support", title: "Support", subtitle: "Help and contact", systemImage: "questionmark.circle")
         case .legal:

@@ -224,6 +224,16 @@ final class VerifyOverviewMapperTests: XCTestCase {
         XCTAssertTrue(errorState.message.contains("couldn't reach"))
     }
 
+    func test_errorStateDoesNotExposeBackendAPIMessage() {
+        let raw = "verification join failed"
+        let error = APIError(statusCode: 500, code: .internalError, message: raw,
+                             fieldErrors: [:], globalErrors: [], validationDetails: [])
+        let state = VerifyOverviewMapper.errorState(for: NetworkError.api(error))
+        guard case .error(let presentation) = state.phase else { return XCTFail("Expected error Verify state") }
+        XCTAssertEqual(presentation.message, "KairoID couldn't load your verification requests. Please try again.")
+        XCTAssertFalse(presentation.message.contains(raw))
+    }
+
     func test_requiresSessionRecoveryOnlyForExpiredSession() {
         XCTAssertTrue(VerifyOverviewMapper.requiresSessionRecovery(for: SessionServiceError.sessionExpired))
         XCTAssertFalse(VerifyOverviewMapper.requiresSessionRecovery(for: SessionServiceError.missingAccessToken))

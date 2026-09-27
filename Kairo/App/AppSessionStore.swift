@@ -323,7 +323,24 @@ final class AppSessionStore: ObservableObject {
         case let networkError as NetworkError:
             switch networkError {
             case .api(let apiError):
-                return apiError.message
+                return switch apiError.code {
+                case .badRequest, .validationError:
+                    "Review your authentication details and try again."
+                case .unauthorized:
+                    "Your session expired. Sign in again."
+                case .forbidden:
+                    "This account cannot complete the requested authentication action."
+                case .notFound:
+                    "KairoID could not find the account or signup session. Start again."
+                case .conflict:
+                    "Your account state changed. Refresh and try again."
+                case .rateLimited:
+                    "Too many authentication attempts were made. Wait briefly, then try again."
+                case .internalError:
+                    "KairoID couldn't restore your session. Please try again."
+                case .serviceUnavailable:
+                    "Authentication is temporarily unavailable. Please try again shortly."
+                }
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
             case .unavailableInDemoMode:
@@ -338,7 +355,7 @@ final class AppSessionStore: ObservableObject {
         case let appSessionError as AppSessionStoreError:
             return appSessionError.errorDescription ?? "KairoID couldn't restore your session."
         default:
-            return error.localizedDescription
+            return "KairoID couldn't restore your session. Please try again."
         }
     }
 }
@@ -357,8 +374,8 @@ private enum AppSessionStoreError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedOnboardingStep(let step):
-            "KairoID needs an app update before it can continue this onboarding step (\(step))."
+        case .unsupportedOnboardingStep:
+            "KairoID needs an app update before it can continue this onboarding step."
         case .invalidSignupRecoveryState:
             "KairoID received an incomplete signup recovery response. Please try again."
         }

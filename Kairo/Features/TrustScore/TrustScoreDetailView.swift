@@ -347,14 +347,14 @@ struct TrustScoreDetailView: View {
     private func trustScoreErrorMessage(_ error: Error) -> String {
         if let networkError = error as? NetworkError {
             switch networkError {
-            case .api(let apiError): return apiError.message
+            case .api: return "KairoID couldn't update your Trust Score. Refresh and try again."
             case .transport: return "KairoID could not reach the Trust Score service. Check your connection and try again."
             case .invalidResponse: return "KairoID received an unexpected Trust Score response."
             case .invalidURL: return "KairoID's Trust Score configuration is invalid."
             case .unavailableInDemoMode: return "This action is unavailable in Demo Mode."
             }
         }
-        return error.localizedDescription
+        return "KairoID couldn't update your Trust Score. Please try again."
     }
 
     private func statusTitle(_ status: TrustScoreResponseDTO.Status) -> String {

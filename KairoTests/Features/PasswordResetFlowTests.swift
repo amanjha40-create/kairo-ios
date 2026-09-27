@@ -97,7 +97,7 @@ final class PasswordResetFlowTests: XCTestCase {
         XCTAssertFalse(presentation.offersNewReset)
     }
 
-    func test_backendValidationUsesFieldMessage() {
+    func test_backendValidationUsesCuratedMessage() {
         let error = NetworkError.api(APIError(
             statusCode: 422,
             code: .validationError,
@@ -109,7 +109,11 @@ final class PasswordResetFlowTests: XCTestCase {
 
         let presentation = PasswordResetErrorPresentation.resolve(error, context: .submitReset)
 
-        XCTAssertEqual(presentation.message, "Password must be at least 12 characters")
+        XCTAssertEqual(
+            presentation.message,
+            "Review the reset token and password requirements, then try again."
+        )
+        XCTAssertFalse(presentation.message.contains("at least 12 characters"))
     }
 
     func test_backend5xxHasServiceMessage() {

@@ -251,6 +251,23 @@ final class PassportPDFExportTests: XCTestCase {
             XCTAssertEqual(error.title, expectedTitle)
         }
 
+        let unknownStatus = PassportPDFPresentationError.map(
+            NetworkError.api(APIError(
+                statusCode: 418,
+                code: .internalError,
+                message: "raw upstream storage failure",
+                fieldErrors: [:],
+                globalErrors: [],
+                validationDetails: []
+            ))
+        )
+        XCTAssertEqual(unknownStatus.title, "PDF export failed")
+        XCTAssertEqual(
+            unknownStatus.message,
+            "KairoID could not download this Passport PDF. Please try again."
+        )
+        XCTAssertFalse(unknownStatus.message.contains("raw upstream"))
+
         XCTAssertEqual(
             PassportPDFPresentationError.map(PassportPDFExportError.invalidContentType).title,
             "Unexpected PDF response"

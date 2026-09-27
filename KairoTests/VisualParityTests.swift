@@ -82,6 +82,21 @@ final class VisualParityTests: XCTestCase {
         XCTAssertEqual(KairoStatusChip(title: "Awaiting candidate consent", tone: .attention).title, "Awaiting candidate consent")
     }
 
+    func testPageEntranceMotionHasFastSubtleTravel() throws {
+        let plan = KairoMotion.pageEntrancePlan(reduceMotion: false)
+        XCTAssertEqual(plan.initialOpacity, 0.96)
+        XCTAssertEqual(plan.initialOffset, 6)
+        XCTAssertEqual(plan.duration, KairoMotion.standardDuration)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(plan.duration), 0.25)
+    }
+
+    func testPageEntranceRemovesMovementForReduceMotion() {
+        let plan = KairoMotion.pageEntrancePlan(reduceMotion: true)
+        XCTAssertEqual(plan.initialOpacity, 1)
+        XCTAssertEqual(plan.initialOffset, 0)
+        XCTAssertNil(plan.duration)
+    }
+
     private func size<V: View>(_ view: V, dynamicType: DynamicTypeSize = .large) -> CGSize {
         let controller = UIHostingController(rootView: view.environment(\.dynamicTypeSize, dynamicType))
         return controller.sizeThatFits(in: CGSize(width: 320, height: 10_000))

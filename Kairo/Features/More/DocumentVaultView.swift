@@ -263,7 +263,8 @@ struct DocumentVaultView: View {
                 }
             }
         case .failure(let error):
-            errorMessage = error.localizedDescription
+            _ = error
+            errorMessage = "KairoID couldn't read the selected document. Choose a supported file and try again."
         }
     }
 
@@ -307,7 +308,17 @@ struct DocumentVaultView: View {
     private func present(_ error: Error) async {
         isLoading = false
         isMutating = false
-        errorMessage = error.localizedDescription
+        if let networkError = error as? NetworkError {
+            errorMessage = switch networkError {
+            case .transport: "KairoID couldn't reach Documents. Check your connection and try again."
+            case .api: "KairoID couldn't complete that document action. Refresh and try again."
+            case .invalidResponse: "KairoID received an unexpected Documents response. Please try again."
+            case .invalidURL: "KairoID's Documents configuration is invalid."
+            case .unavailableInDemoMode: "This document action is unavailable in Demo Mode."
+            }
+        } else {
+            errorMessage = "KairoID couldn't complete that document action. Please try again."
+        }
         if let sessionError = error as? SessionServiceError, sessionError == .sessionExpired {
             await sessionStore.refreshLaunchRoute()
         }
@@ -384,7 +395,7 @@ private struct VaultMetadataEditor: View {
             } catch {
                 await MainActor.run {
                     isSaving = false
-                    errorMessage = error.localizedDescription
+                    errorMessage = "KairoID couldn't save those document details. Please try again."
                 }
             }
         }

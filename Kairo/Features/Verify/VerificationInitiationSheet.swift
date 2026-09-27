@@ -399,9 +399,10 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
             return .init(title: "Sign in required", message: sessionError.localizedDescription)
         }
         if let decodingError = error as? DecodingError {
+            _ = decodingError
             return .init(
                 title: "Response unavailable",
-                message: "KairoID could not read the verification response. No verified status was applied. Retry after refreshing. (\(decodingError.localizedDescription))"
+                message: "KairoID could not read the verification response. No verified status was applied. Retry after refreshing."
             )
         }
         if let networkError = error as? NetworkError {
@@ -414,11 +415,13 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
                 return .init(title: "Network unavailable", message: "KairoID could not reach the verification service. Check your connection and retry.")
             case .invalidResponse:
                 return .init(title: "Invalid response", message: "The server did not return a usable verification response. No verified status was applied.")
-            case .invalidURL, .unavailableInDemoMode:
-                return .init(title: fallbackTitle, message: networkError.localizedDescription)
+            case .invalidURL:
+                return .init(title: fallbackTitle, message: "KairoID could not construct the verification request safely.")
+            case .unavailableInDemoMode:
+                return .init(title: fallbackTitle, message: "Verification requests are unavailable in Demo Mode.")
             }
         }
-        return .init(title: fallbackTitle, message: error.localizedDescription)
+        return .init(title: fallbackTitle, message: "KairoID could not complete the verification request. Please try again.")
     }
 
     private static func map(_ error: APIError, fallbackTitle: String) -> Self {
@@ -432,7 +435,7 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
 
         switch error.statusCode {
         case 400:
-            return .init(title: "Request needs attention", message: error.message)
+            return .init(title: "Request needs attention", message: "Review the verification details and try again.")
         case 401:
             return .init(title: "Sign in required", message: "Your session expired. Sign in again before retrying.")
         case 403:
@@ -442,17 +445,13 @@ struct VerificationInitiationPresentationError: Identifiable, Equatable {
         case 409:
             return .init(title: "Request already exists", message: "A verification request already exists for this record. Refresh Verify to view its current status.")
         case 422:
-            let details = error.fieldErrors
-                .sorted(by: { $0.key < $1.key })
-                .flatMap { field, messages in messages.map { "\(field): \($0)" } }
-                .joined(separator: "\n")
-            return .init(title: "Check verification details", message: details.isEmpty ? error.message : details)
+            return .init(title: "Check verification details", message: "Review the selected record and verifier details, then try again.")
         case 429:
             return .init(title: "Too many attempts", message: "Wait a moment before retrying this verification request.")
         case 500...599:
             return .init(title: "Verification service unavailable", message: "The server could not complete the request. Retry to reconcile before making any changes.")
         default:
-            return .init(title: fallbackTitle, message: error.message)
+            return .init(title: fallbackTitle, message: "KairoID could not complete the verification request. Please try again.")
         }
     }
 }

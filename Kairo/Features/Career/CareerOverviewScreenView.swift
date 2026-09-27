@@ -29,21 +29,23 @@ struct CareerOverviewScreenView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            VStack(alignment: .leading, spacing: KairoSpacing.large) {
                 Text("Career")
                     .font(KairoTypography.screenTitle)
                     .foregroundStyle(KairoColors.textPrimary)
                     .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
                     .accessibilityAddTraits(.isHeader)
                 Text(overviewSubtitle)
-                    .font(KairoTypography.body)
+                    .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(KairoAccessibilityID.careerSummarySection)
                 phaseContent
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(KairoSpacing.medium)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.large)
+            .kairoPageEntrance()
         }
         .refreshableIfAvailable(action: refreshAction)
         .background(KairoColors.background.ignoresSafeArea())

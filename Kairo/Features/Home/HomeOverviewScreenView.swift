@@ -25,6 +25,7 @@ struct HomeOverviewScreenView: View {
                 .padding(.horizontal, KairoSpacing.medium)
                 .padding(.top, KairoSpacing.medium)
                 .padding(.bottom, KairoSpacing.xxLarge)
+                .kairoPageEntrance()
             }
             .onChange(of: guidedTourCoordinator.currentStep) { _, step in
                 guard let step, step.target == .trustScore || step.target == .passport else { return }
@@ -129,12 +130,12 @@ struct HomeOverviewScreenView: View {
         DigiLockerHomeCard()
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         careerSection(content, isEmpty: isEmpty)
+        recentActivitySection(content.recentActivity)
         KairoCompactDestinationRow(
-            title: "Documents", metadata: "Career attachments and private Vault documents",
+            title: "Documents", metadata: "Career attachments and private documents",
             systemImage: "doc.on.doc", accessibilityIdentifier: "candidate.home.documents",
             action: { showsDocuments = true }
         )
-        recentActivitySection(content.recentActivity)
         recentPassportViewsSection(content.recentPassportViews)
     }
 

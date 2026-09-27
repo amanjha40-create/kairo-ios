@@ -152,11 +152,6 @@ final class HelpCenterUITests: XCTestCase {
         app.launch()
         app.tabBars.buttons["More"].tap()
 
-        let supportHub = app.buttons["candidate.more.support"]
-        reveal(supportHub, in: app)
-        supportHub.tap()
-        XCTAssertTrue(app.navigationBars["Support"].waitForExistence(timeout: 10))
-
         let helpCenter = app.buttons["candidate.more.helpCentre"]
         reveal(helpCenter, in: app)
         helpCenter.tap()

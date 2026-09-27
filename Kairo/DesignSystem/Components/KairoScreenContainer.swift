@@ -62,5 +62,6 @@ struct KairoScreenContainer<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, KairoSpacing.medium)
         .padding(.vertical, KairoSpacing.large)
+        .kairoPageEntrance()
     }
 }

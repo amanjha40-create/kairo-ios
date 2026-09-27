@@ -63,7 +63,11 @@ final class MoreOverviewMapperTests: XCTestCase {
             "Verification updates",
             "Passport views"
         ])
-        XCTAssertEqual(content.accountRows.first?.subtitle, "Email verified • Phone not verified")
+        XCTAssertEqual(content.accountRows.first?.subtitle, "Profile, contact details, and professional links")
+        XCTAssertEqual(
+            content.accountRows.first(where: { $0.id == "documentVault" })?.subtitle,
+            "All documents you've uploaded to KairoID"
+        )
         XCTAssertEqual(content.privacyRows.first(where: { $0.id == "manageConsent" })?.subtitle, "Trust Score consent is currently Granted.")
         XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.title, "Help Center")
         XCTAssertEqual(content.supportRows.first(where: { $0.id == "helpCentre" })?.subtitle, "Browse guides and frequently asked questions.")
@@ -136,7 +140,7 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertTrue(errorState.message.contains("couldn't reach"))
     }
 
-    func test_errorStatePreservesBackendAPIMessage() {
+    func test_errorStateDoesNotExposeBackendAPIMessage() {
         let apiError = APIError(
             statusCode: 422,
             code: .validationError,
@@ -156,7 +160,8 @@ final class MoreOverviewMapperTests: XCTestCase {
         }
 
         XCTAssertEqual(errorState.title, "Account settings unavailable")
-        XCTAssertEqual(errorState.message, "Current password is incorrect.")
+        XCTAssertEqual(errorState.message, "KairoID couldn't load your account settings. Please try again.")
+        XCTAssertFalse(errorState.message.contains("Current password"))
     }
 
     func test_requiresSessionRecoveryOnlyForExpiredSessions() {
@@ -170,7 +175,7 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertEqual(MoreOverviewMapper.cachedSummary(from: makeUser()).name, "Aman Jha")
     }
 
-    func test_accountDeletionFailureMappingDistinguishesAuthenticationAndPreservesBackendValidation() {
+    func test_accountDeletionFailureMappingDistinguishesAuthenticationAndSanitizesBackendValidation() {
         let unauthorized = MoreAccountDeletionErrorMapper.map(apiError(
             statusCode: 401,
             code: .unauthorized,
@@ -188,7 +193,11 @@ final class MoreOverviewMapperTests: XCTestCase {
             message: "Account deletion requires confirm=DELETE"
         ))
         XCTAssertNil(validation.currentPasswordError)
-        XCTAssertEqual(validation.message, "Account deletion requires confirm=DELETE")
+        XCTAssertEqual(
+            validation.message,
+            "Review the confirmation and password fields. Your account was not deleted."
+        )
+        XCTAssertFalse(validation.message.contains("confirm=DELETE"))
     }
 
     func test_accountDeletionFailureMappingCoversProtectedBackendFailureClasses() {

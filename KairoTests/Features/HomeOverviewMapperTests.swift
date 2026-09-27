@@ -115,6 +115,16 @@ final class HomeOverviewMapperTests: XCTestCase {
         XCTAssertTrue(errorState.message.contains("couldn't reach"))
     }
 
+    func test_errorStateDoesNotExposeBackendAPIMessage() {
+        let raw = "internal dashboard relation failed"
+        let error = APIError(statusCode: 500, code: .internalError, message: raw,
+                             fieldErrors: [:], globalErrors: [], validationDetails: [])
+        let state = HomeOverviewMapper.errorState(for: NetworkError.api(error), header: .placeholder)
+        guard case .error(let presentation) = state.phase else { return XCTFail("Expected error Home state") }
+        XCTAssertEqual(presentation.message, "KairoID couldn't load your Home overview. Please try again.")
+        XCTAssertFalse(presentation.message.contains(raw))
+    }
+
     func test_requiresSessionRecoveryOnlyForExpiredSession() {
         XCTAssertTrue(HomeOverviewMapper.requiresSessionRecovery(for: SessionServiceError.sessionExpired))
         XCTAssertFalse(HomeOverviewMapper.requiresSessionRecovery(for: SessionServiceError.missingAccessToken))

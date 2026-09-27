@@ -139,7 +139,7 @@ struct PasswordResetErrorPresentation: Equatable {
                 )
             default:
                 return PasswordResetErrorPresentation(
-                    message: apiError.message,
+                    message: "KairoID couldn't complete the password reset. Please try again.",
                     offersNewReset: false
                 )
             }
@@ -170,20 +170,13 @@ struct PasswordResetErrorPresentation: Equatable {
         from error: APIError,
         context: PasswordResetRequestContext
     ) -> String {
-        let preferredFields: [String] = switch context {
+        _ = error
+        return switch context {
         case .requestEmail:
-            ["email"]
+            "Enter a valid account email and try again."
         case .submitReset:
-            ["token", "new_password", "confirm_password"]
+            "Review the reset token and password requirements, then try again."
         }
-
-        for field in preferredFields {
-            if let message = error.fieldErrors[field]?.first {
-                return message
-            }
-        }
-
-        return error.globalErrors.first ?? error.message
     }
 }
 

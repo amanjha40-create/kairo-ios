@@ -222,7 +222,11 @@ final class VerificationInitiationTests: XCTestCase {
             fallbackTitle: "Request not sent"
         )
         XCTAssertEqual(presentation.title, "Check verification details")
-        XCTAssertTrue(presentation.message.contains("contact_email"))
+        XCTAssertEqual(
+            presentation.message,
+            "Review the selected record and verifier details, then try again."
+        )
+        XCTAssertFalse(presentation.message.contains("contact_email"))
     }
 
     func test_initialEligibilityFailureCanRetryWithoutCreatingLocalState() async {

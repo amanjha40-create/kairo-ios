@@ -412,8 +412,9 @@ struct CreateAccountScreenView: View {
                 let mappedErrors = mapBackendFieldErrors(apiError.fieldErrors)
                 backendFieldErrors = mappedErrors
                 touchedFields.formUnion(mappedErrors.keys)
-                submissionErrorMessage = apiError.globalErrors.first
-                    ?? (mappedErrors.isEmpty ? apiError.message : nil)
+                submissionErrorMessage = mappedErrors.isEmpty
+                    ? "Review your account details and try again."
+                    : nil
                 return
             }
 
@@ -427,16 +428,26 @@ struct CreateAccountScreenView: View {
         var mappedErrors: [CreateAccountField: String] = [:]
 
         for (fieldName, messages) in fieldErrors {
-            guard let message = messages.first else {
+            guard !messages.isEmpty else {
                 continue
             }
 
             for field in mappedFields(for: fieldName) {
-                mappedErrors[field] = message
+                mappedErrors[field] = safeValidationMessage(for: field)
             }
         }
 
         return mappedErrors
+    }
+
+    private func safeValidationMessage(for field: CreateAccountField) -> String {
+        switch field {
+        case .firstName: "Review your first name."
+        case .lastName: "Review your last name."
+        case .emailAddress: "Enter a valid email address."
+        case .mobileNumber: "Enter a valid mobile number."
+        case .password: "Review the password requirements."
+        }
     }
 
     private func mappedFields(for backendFieldName: String) -> [CreateAccountField] {
@@ -463,13 +474,13 @@ struct CreateAccountScreenView: View {
                 case .conflict:
                     return "An account with these details already exists. Try signing in instead."
                 case .validationError:
-                    return apiError.globalErrors.first ?? apiError.message
+                    return "Review your account details and try again."
                 case .rateLimited:
                     return "Too many attempts. Please try again shortly."
                 case .serviceUnavailable, .internalError:
                     return "KairoID is temporarily unavailable. Please try again."
                 default:
-                    return apiError.message
+                    return "KairoID couldn't create your account. Please try again."
                 }
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
@@ -481,7 +492,7 @@ struct CreateAccountScreenView: View {
                 return "Demo Mode keeps account creation local only."
             }
         default:
-            return error.localizedDescription
+            return "KairoID couldn't create your account. Please try again."
         }
     }
 }
