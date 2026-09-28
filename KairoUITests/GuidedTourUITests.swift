@@ -6,6 +6,35 @@ final class GuidedTourUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testEverySpotlightEnclosesItsMeasuredTargetWithoutSafeAreaOffset() {
+        let app = XCUIApplication()
+        configure(app, account: "device-fix-geometry", reset: true, appearance: "light", accessibilityXXXL: false)
+        app.launchEnvironment["KAIRO_UI_TEST_TOUR_GEOMETRY"] = "1"
+        app.launch()
+        for index in 0..<5 {
+            let spotlight = app.staticTexts["candidate.guidedTour.title"]
+            XCTAssertTrue(spotlight.waitForExistence(timeout: 10))
+            let aligned = NSPredicate { _, _ in
+                guard let value = spotlight.value as? String else { return false }
+                let frames = value.components(separatedBy: "|")
+                guard frames.count == 2 else { return false }
+                let target = NSCoder.cgRect(for: frames[0])
+                let actual = NSCoder.cgRect(for: frames[1])
+                return target.width > 0 && target.height > 0 &&
+                    abs(actual.midX - target.midX) <= 3 && abs(actual.midY - target.midY) <= 3 &&
+                    abs(actual.width - (target.width + 10)) <= 6 && abs(actual.height - (target.height + 10)) <= 6
+            }
+            XCTAssertTrue(waitFor(aligned, object: spotlight), "Step \(index + 1): spotlight \(spotlight.frame), measured target \(String(describing: spotlight.value))")
+            capture("Device fix geometry - step \(index + 1)")
+            if index < 4 { advance(in: app) }
+        }
+        app.buttons["candidate.guidedTour.done"].tap()
+    }
+
+    private func waitFor(_ predicate: NSPredicate, object: Any) -> Bool {
+        XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: object)], timeout: 5) == .completed
+    }
+
     func testNewAccountCompletesExactFiveHomeAnchoredStepsAndStaysOnHome() {
         let app = launchTour(account: "wave7-light-sequence", reset: true)
 

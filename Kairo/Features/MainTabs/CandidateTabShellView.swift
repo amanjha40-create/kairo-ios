@@ -46,13 +46,18 @@ struct CandidateTabShellView: View {
         .overlayPreferenceValue(GuidedTourAnchorPreferenceKey.self) { anchors in
             GeometryReader { proxy in
                 let homeFrames = anchors.mapValues { proxy[$0] }
+                let localTabFrames = tabFrames.mapValues {
+                    GuidedTourTargetResolver.overlayFrame(
+                        windowFrame: $0, overlayOrigin: proxy.frame(in: .global).origin
+                    )
+                }
                 let viewport = CGRect(origin: .zero, size: proxy.size)
                 if let step = guidedTourCoordinator.currentStep,
                    step.target != guidedTourCoordinator.unavailableTargetForTesting,
                    let targetFrame = GuidedTourTargetResolver.frame(
                        for: step.target,
                        homeFrames: homeFrames,
-                       tabFrames: tabFrames
+                       tabFrames: localTabFrames
                    ),
                    viewport.width > 24,
                    viewport.height > 24,
@@ -64,6 +69,10 @@ struct CandidateTabShellView: View {
                     GuidedTourOverlayView(
                         step: step,
                         targetFrame: targetFrame,
+                        targetWindowFrame: targetFrame.offsetBy(
+                            dx: proxy.frame(in: .global).minX,
+                            dy: proxy.frame(in: .global).minY
+                        ),
                         nextAction: guidedTourCoordinator.advance,
                         backAction: guidedTourCoordinator.moveBack,
                         skipAction: guidedTourCoordinator.skip
@@ -73,6 +82,9 @@ struct CandidateTabShellView: View {
                     .onDisappear { isTourOverlayVisible = false }
                 }
             }
+            // Resolve anchors and draw the overlay in this SAME full-screen space.
+            // Expanding only the child overlay rebases every spotlight by safe area.
+            .ignoresSafeArea()
         }
         .onAppear(perform: updateGuidedTourContext)
         .onChange(of: router.selectedTab) { _, _ in updateGuidedTourContext() }

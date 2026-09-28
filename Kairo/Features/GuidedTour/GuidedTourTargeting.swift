@@ -21,6 +21,23 @@ extension View {
 }
 
 nonisolated enum GuidedTourTargetResolver {
+    static func orderedTabFrames(_ frames: [CGRect], expectedCount: Int) -> [CGRect]? {
+        // Floating tab bars may render selected/unselected layers at identical
+        // positions. Collapse those layers, not distinct or ambiguous targets.
+        var unique: [CGRect] = []
+        for frame in frames where frame.width > 0 && frame.height > 0 {
+            if !unique.contains(frame) { unique.append(frame) }
+        }
+        guard unique.count == expectedCount else { return nil }
+        return unique.sorted { $0.midX < $1.midX }
+    }
+
+    /// UIKit window coordinates and SwiftUI overlay coordinates must be reconciled
+    /// before either tab or content geometry is drawn by the overlay.
+    static func overlayFrame(windowFrame: CGRect, overlayOrigin: CGPoint) -> CGRect {
+        windowFrame.offsetBy(dx: -overlayOrigin.x, dy: -overlayOrigin.y)
+    }
+
     static func frame(
         for target: GuidedTourTarget,
         homeFrames: [GuidedTourTarget: CGRect],
@@ -88,8 +105,25 @@ final class GuidedTourTabReaderView: UIView {
             return
         }
 
-        let tabBarFrame = tabBar.convert(tabBar.bounds, to: self)
-        let slotWidth = tabBarFrame.width / CGFloat(CandidateTab.allCases.count)
+        guard let window else { return }
+        // Measure the actual controls: modern floating tab bars do not occupy
+        // equal full-height slices of UITabBar.bounds. Do not guess if unavailable.
+        let controlFrames = tabControls(in: tabBar).filter {
+            !$0.isHidden && $0.alpha > 0 && $0.bounds.width > 0 && $0.bounds.height > 0
+        }.map {
+            $0.convert($0.bounds, to: window)
+        }
+        guard let slots = GuidedTourTargetResolver.orderedTabFrames(
+            controlFrames, expectedCount: CandidateTab.allCases.count
+        ) else {
+            if !lastFrames.isEmpty {
+                lastFrames = [:]
+                onFramesChange([:])
+            }
+            return
+        }
+        let orderedFrames = effectiveUserInterfaceLayoutDirection == .rightToLeft
+            ? Array(slots.reversed()) : slots
         let mappings: [(GuidedTourTarget, CandidateTab)] = [
             (.career, .career),
             (.verify, .verify),
@@ -99,17 +133,20 @@ final class GuidedTourTabReaderView: UIView {
 
         for (target, tab) in mappings {
             guard let index = CandidateTab.allCases.firstIndex(of: tab) else { continue }
-            frames[target] = CGRect(
-                x: tabBarFrame.minX + CGFloat(index) * slotWidth,
-                y: tabBarFrame.minY,
-                width: slotWidth,
-                height: tabBarFrame.height
-            )
+            frames[target] = orderedFrames[index]
         }
 
         guard frames != lastFrames else { return }
         lastFrames = frames
         onFramesChange(frames)
+    }
+
+    private func tabControls(in view: UIView) -> [UIControl] {
+        view.subviews.flatMap { child -> [UIControl] in
+            guard !child.isHidden, child.alpha > 0 else { return [] }
+            if let control = child as? UIControl { return [control] }
+            return tabControls(in: child)
+        }
     }
 
     private func findTabBarController(from controller: UIViewController?) -> UITabBarController? {

@@ -26,6 +26,7 @@ nonisolated enum GuidedTourLayout {
 struct GuidedTourOverlayView: View {
     let step: GuidedTourStep
     let targetFrame: CGRect
+    var targetWindowFrame: CGRect = .zero
     let nextAction: () -> Void
     let backAction: () -> Void
     let skipAction: () -> Void
@@ -33,6 +34,13 @@ struct GuidedTourOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AccessibilityFocusState private var titleFocused: Bool
+    @State private var renderedSpotlightFrame: CGRect = .zero
+
+    // Opt-in geometry probe for XCTest only; absent from normal and VoiceOver QA.
+    private var exposesGeometryForTesting: Bool {
+        UITestLaunchConfiguration.current().isEnabled &&
+        ProcessInfo.processInfo.environment["KAIRO_UI_TEST_TOUR_GEOMETRY"] == "1"
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -43,11 +51,21 @@ struct GuidedTourOverlayView: View {
             ZStack {
                 GuidedTourSpotlightScrim(spotlight: spotlight)
                     .fill(Color.black.opacity(0.66), style: FillStyle(eoFill: true))
-                    .ignoresSafeArea()
 
                 RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
                     .stroke(KairoColors.accent, lineWidth: 3)
                     .frame(width: spotlight.width, height: spotlight.height)
+                    .background {
+                        if exposesGeometryForTesting {
+                            GeometryReader { measurement in
+                                Color.clear
+                                    .onAppear { renderedSpotlightFrame = measurement.frame(in: .global) }
+                                    .onChange(of: measurement.frame(in: .global)) { _, frame in
+                                        renderedSpotlightFrame = frame
+                                    }
+                            }
+                        }
+                    }
                     .position(x: spotlight.midX, y: spotlight.midY)
                     .accessibilityHidden(true)
 
@@ -56,7 +74,6 @@ struct GuidedTourOverlayView: View {
             .contentShape(Rectangle())
             .accessibilityIdentifier(KairoAccessibilityID.guidedTourOverlay)
         }
-        .ignoresSafeArea()
         .transition(reduceMotion ? .identity : .opacity)
         .onAppear { focusTitle() }
         .onChange(of: step) { _, _ in focusTitle() }
@@ -136,6 +153,8 @@ struct GuidedTourOverlayView: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($titleFocused)
                 .accessibilityIdentifier(KairoAccessibilityID.guidedTourTitle)
+                .accessibilityValue(exposesGeometryForTesting
+                    ? NSCoder.string(for: targetWindowFrame) + "|" + NSCoder.string(for: renderedSpotlightFrame) : "")
 
             Text(step.body)
                 .font(KairoTypography.body)

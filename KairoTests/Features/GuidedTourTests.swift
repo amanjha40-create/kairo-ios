@@ -4,6 +4,14 @@ import XCTest
 
 @MainActor
 final class GuidedTourTests: XCTestCase {
+    func testFloatingTabLayersResolveToFiveActualSlots() {
+        let slots = (0..<5).map { CGRect(x: 25 + $0 * 70, y: 795, width: 78, height: 54) }
+        XCTAssertEqual(GuidedTourTargetResolver.orderedTabFrames(Array((slots + slots).reversed()), expectedCount: 5), slots)
+        XCTAssertEqual(GuidedTourTargetResolver.orderedTabFrames(slots, expectedCount: 5), slots)
+        XCTAssertNil(GuidedTourTargetResolver.orderedTabFrames(Array(slots.dropLast()), expectedCount: 5))
+        XCTAssertNil(GuidedTourTargetResolver.orderedTabFrames(slots + [CGRect(x: 12, y: 700, width: 40, height: 40)], expectedCount: 5))
+    }
+
     func testNewEligibleCandidateAccountBecomesPendingOnReadyHome() {
         let (coordinator, preferences) = makeCoordinator()
         preferences.markPendingIfEligible(for: "account-a")
@@ -175,6 +183,37 @@ final class GuidedTourTests: XCTestCase {
             homeFrames: [.passport: passport],
             tabFrames: [.career: career]
         ), career)
+    }
+
+    func testWindowTabFrameConvertsToOverlayOriginWithoutSafeAreaDrift() {
+        let tab = CGRect(x: 172, y: 820, width: 70, height: 58)
+        for origin in [CGPoint.zero, CGPoint(x: 0, y: 48), CGPoint(x: 12, y: 59)] {
+            let local = GuidedTourTargetResolver.overlayFrame(windowFrame: tab, overlayOrigin: origin)
+            XCTAssertEqual(local.offsetBy(dx: origin.x, dy: origin.y), tab)
+            XCTAssertEqual(local.size, tab.size)
+        }
+    }
+
+    func testAllFiveTargetsResolveInOneOverlayCoordinateSpace() {
+        let origin = CGPoint(x: 0, y: 48)
+        let home: [GuidedTourTarget: CGRect] = [
+            .trustScore: CGRect(x: 16, y: 124, width: 382, height: 256),
+            .passport: CGRect(x: 16, y: 396, width: 382, height: 60)
+        ]
+        let tabs: [GuidedTourTarget: CGRect] = [
+            .career: CGRect(x: 94, y: 820, width: 70, height: 58),
+            .verify: CGRect(x: 172, y: 820, width: 70, height: 58),
+            .more: CGRect(x: 326, y: 820, width: 70, height: 58)
+        ]
+        let localHome = home.mapValues { $0.offsetBy(dx: -origin.x, dy: -origin.y) }
+        let localTabs = tabs.mapValues {
+            GuidedTourTargetResolver.overlayFrame(windowFrame: $0, overlayOrigin: origin)
+        }
+        for step in GuidedTourStep.allCases {
+            let expected = home[step.target] ?? tabs[step.target]
+            let resolved = GuidedTourTargetResolver.frame(for: step.target, homeFrames: localHome, tabFrames: localTabs)
+            XCTAssertEqual(resolved?.offsetBy(dx: origin.x, dy: origin.y), expected)
+        }
     }
 
     func testCoachPlacementUsesAvailableSpaceOnMultipleViewportSizes() {
