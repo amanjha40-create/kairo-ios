@@ -3,71 +3,88 @@ import SwiftUI
 struct WelcomeScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedPage: IntroPage = .trust
+    @State private var selectedPage: WelcomePage = .career
 
     var body: some View {
         GeometryReader { geometry in
-            let metrics = IntroMetrics(size: geometry.size)
-
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 TabView(selection: $selectedPage) {
-                    ForEach(IntroPage.allCases) { page in
+                    ForEach(WelcomePage.allCases) { page in
                         ScrollView(.vertical) {
-                            IntroPageView(
-                                page: page,
-                                metrics: metrics,
-                                onSkip: navigateToCreateAccount
-                            )
-                            .padding(.bottom, metrics.pageBottomPadding)
+                            WelcomePageContent(page: page, onSkip: navigateToCreateAccount)
+                                .padding(.bottom, 12)
                         }
                         .scrollIndicators(.hidden)
                         .scrollBounceBehavior(.basedOnSize)
+                        .accessibilityIdentifier("onboarding.welcome.page.\(page.rawValue)")
                         .tag(page)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .clipped()
 
-                Spacer(minLength: metrics.bottomContentSpacing)
-
-                IntroPageIndicator(
-                    pages: IntroPage.allCases,
-                    selectedPage: selectedPage
-                )
-                .padding(.bottom, metrics.indicatorBottomSpacing)
-
+                pageIndicator
                 Button(action: advance) {
-                    Text(selectedPage.primaryButtonTitle)
-                        .font(KairoTypography.action)
-                        .padding(.vertical, KairoSpacing.xSmall)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: metrics.primaryButtonHeight)
+                    HStack(spacing: 12) {
+                        Text(selectedPage.primaryButtonTitle)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(WelcomePalette.arrow)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .foregroundStyle(.white)
+                    .background(WelcomePalette.navy, in: Capsule())
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(IntroPrimaryButtonStyle())
+                .buttonStyle(.plain)
                 .accessibilityIdentifier(
-                    selectedPage == .trust
+                    selectedPage == .career
                         ? KairoAccessibilityID.onboardingGetStarted
                         : KairoAccessibilityID.onboardingContinue
                 )
 
                 Button(action: { router.showLogin() }) {
-                    Text("I already have an account")
-                        .font(KairoTypography.action)
-                        .padding(.vertical, KairoSpacing.xSmall)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: metrics.secondaryButtonHeight)
+                    (Text("Already have an account? ").foregroundColor(WelcomePalette.support)
+                        + Text("Log in").foregroundColor(WelcomePalette.teal).bold().underline())
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(IntroSecondaryButtonStyle())
+                .buttonStyle(.plain)
                 .accessibilityIdentifier(KairoAccessibilityID.onboardingExistingAccount)
                 .accessibilityHint("Log in without completing the introduction.")
-                .padding(.top, KairoSpacing.xSmall)
             }
-            .padding(.horizontal, metrics.horizontalPadding)
-            .padding(.top, geometry.safeAreaInsets.top + metrics.topInset)
-            .padding(.bottom, max(metrics.bottomInset, geometry.safeAreaInsets.bottom + 12))
+            .padding(.horizontal, geometry.size.width < 390 ? 20 : 28)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(IntroPalette.background.ignoresSafeArea())
+            // Only the background crosses safe areas.
+            .background(WelcomePalette.background.ignoresSafeArea())
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var pageIndicator: some View {
+        HStack(spacing: 9) {
+            ForEach(WelcomePage.allCases) { page in
+                Capsule()
+                    .fill(page == selectedPage ? WelcomePalette.teal : WelcomePalette.inactiveDot)
+                    .frame(width: page == selectedPage ? 22 : 7, height: 7)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selectedPage)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Introduction")
+        .accessibilityValue("Page \(selectedPage.rawValue + 1) of \(WelcomePage.allCases.count)")
+        .accessibilityIdentifier("onboarding.intro.pageIndicator")
     }
 
     private func advance() {
@@ -85,694 +102,144 @@ struct WelcomeScreenView: View {
     }
 }
 
-private enum IntroPage: Int, CaseIterable, Identifiable {
-    case trust
-    case outcome
-    case solution
-    case betterWay
-
-    var id: Int { rawValue }
-
-    var next: IntroPage? {
-        IntroPage(rawValue: rawValue + 1)
-    }
-
-    var showsSkip: Bool {
-        self != .trust
-    }
-
-    var primaryButtonTitle: String {
-        self == .trust || self == .betterWay ? "Get Started" : "Continue"
-    }
-
-    var eyebrow: String? {
-        switch self {
-        case .trust:
-            nil
-        case .betterWay:
-            "A BETTER WAY"
-        case .solution:
-            "THE SOLUTION"
-        case .outcome:
-            "THE OUTCOME"
-        }
-    }
-
-    var supportLines: [String] {
-        switch self {
-        case .trust:
-            [
-                ProductBrand.tagline,
-                "Build, own, and share professional trust that moves with you."
-            ]
-        case .betterWay:
-            [
-                "Build a profile that grows with your career.",
-                "Only confirmed records are presented as verified."
-            ]
-        case .solution:
-            [
-                "Choose what to share from your Trust Passport.",
-                "Stay in control of access."
-            ]
-        case .outcome:
-            [
-                "Bring your professional records together",
-                "in one reusable Trust Passport."
-            ]
-        }
-    }
-}
-
-private struct IntroMetrics {
-    let size: CGSize
-
-    var isLandscape: Bool {
-        size.width > size.height
-    }
-
-    var isCompactHeight: Bool {
-        size.height < 900 || isLandscape
-    }
-
-    var isSmallWidth: Bool {
-        size.width < 390
-    }
-
-    var horizontalPadding: CGFloat {
-        isSmallWidth ? 20 : 28
-    }
-
-    var topInset: CGFloat {
-        isCompactHeight ? 8 : 14
-    }
-
-    var bottomInset: CGFloat {
-        isCompactHeight ? 16 : 22
-    }
-
-    var heroHeight: CGFloat {
-        if isLandscape {
-            150
-        } else {
-            isCompactHeight ? 200 : 264
-        }
-    }
-
-    var titleSpacing: CGFloat {
-        isCompactHeight ? 2 : 6
-    }
-
-    var pageSpacing: CGFloat {
-        isCompactHeight ? 14 : 22
-    }
-
-    var supportSpacing: CGFloat {
-        6
-    }
-
-    var heroToCopySpacing: CGFloat {
-        isCompactHeight ? 14 : 24
-    }
-
-    var wordmarkWidth: CGFloat {
-        if isLandscape {
-            144
-        } else if isSmallWidth {
-            152
-        } else {
-            isCompactHeight ? 164 : 188
-        }
-    }
-
-    var wordmarkHeight: CGFloat {
-        wordmarkWidth * 163 / 589
-    }
-
-    var topBarHeight: CGFloat {
-        max(44, wordmarkHeight)
-    }
-
-    var pageBottomPadding: CGFloat {
-        isCompactHeight ? 8 : 12
-    }
-
-    var primaryButtonHeight: CGFloat {
-        48
-    }
-
-    var secondaryButtonHeight: CGFloat {
-        48
-    }
-
-    var indicatorBottomSpacing: CGFloat {
-        isCompactHeight ? 8 : 12
-    }
-
-    var bottomContentSpacing: CGFloat {
-        isCompactHeight ? 6 : 10
-    }
-
-    var headlineSize: CGFloat {
-        if isLandscape {
-            28
-        } else if isSmallWidth {
-            29
-        } else {
-            isCompactHeight ? 31 : 33
-        }
-    }
-
-    var supportSize: CGFloat {
-        isLandscape ? 14 : (isSmallWidth ? 14.5 : 15.5)
-    }
-}
-
-private struct IntroPageView: View {
-    let page: IntroPage
-    let metrics: IntroMetrics
+private struct WelcomePageContent: View {
+    let page: WelcomePage
     let onSkip: () -> Void
-
-    @ScaledMetric(relativeTo: .largeTitle) private var headlineScale: CGFloat = 1
-    @ScaledMetric(relativeTo: .body) private var supportScale: CGFloat = 1
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 29
 
     var body: some View {
-        VStack(spacing: metrics.pageSpacing) {
-            topBar
+        VStack(spacing: 16) {
+            if page == .career {
+                Image("WelcomeBrand")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 174, height: 48)
+                    .accessibilityLabel(ProductBrand.name)
+                    .accessibilityIdentifier("onboarding.welcome.wordmark")
+            } else {
+                HStack {
+                    Spacer()
+                    Button("Skip", action: onSkip)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(WelcomePalette.teal)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("onboarding.intro.skip")
+                }
+            }
 
-            hero
-                .frame(maxWidth: .infinity)
-                .frame(height: metrics.heroHeight)
-                .accessibilityHidden(true)
+            if page.artworkComesFirst { artwork }
+            headline
+            Text(page.support)
+                .font(.body)
+                .foregroundStyle(WelcomePalette.support)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(page == .career ? "onboarding.welcome.support" : "onboarding.intro.\(page.rawValue).support.0")
+            if !page.artworkComesFirst { artwork }
 
-            VStack(spacing: metrics.heroToCopySpacing) {
-                headline
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-
-                VStack(spacing: metrics.supportSpacing) {
-                    ForEach(Array(page.supportLines.enumerated()), id: \.offset) { offset, line in
-                        Text(line)
-                            .font(.system(size: metrics.supportSize * supportScale, weight: .regular, design: .default))
-                            .foregroundStyle(IntroPalette.support)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier(
-                                page == .trust && offset == 0
-                                    ? "onboarding.welcome.support"
-                                    : "onboarding.intro.\(page.rawValue).support.\(offset)"
-                            )
+            if let benefit = page.benefit { benefitView(benefit) }
+            if page == .ownership {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .center, spacing: 20))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+                layout {
+                    ForEach(WelcomePage.ownershipBenefits) { benefit in
+                        benefitView(benefit).frame(maxWidth: .infinity)
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    @ViewBuilder
-    private var topBar: some View {
-        HStack(alignment: .top) {
-            if page == .trust {
-                Text(ProductBrand.name)
-                    .font(KairoTypography.title2)
-                    .foregroundStyle(IntroPalette.navy)
-                    .accessibilityLabel(ProductBrand.name)
-                    .accessibilityIdentifier("onboarding.welcome.wordmark")
-
-                Spacer(minLength: 0)
-            } else {
-                Spacer(minLength: 0)
-
-                Button("Skip", action: onSkip)
-                    .font(KairoTypography.action)
-                    .foregroundStyle(IntroPalette.teal)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("onboarding.intro.skip")
-            }
-        }
-        .frame(minHeight: metrics.topBarHeight, alignment: .top)
-    }
-
-    @ViewBuilder
     private var headline: some View {
-        switch page {
-        case .trust:
-            VStack(spacing: metrics.titleSpacing) {
-                Text("Your trust.")
-                Text("Your career.")
-                Text("Anywhere.")
-                    .foregroundStyle(IntroPalette.teal)
-            }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
-            .foregroundStyle(IntroPalette.navy)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier(OnboardingStep.welcome.titleAccessibilityIdentifier)
-        case .betterWay:
-            VStack(spacing: metrics.titleSpacing) {
-                Text("Your verified career")
-                Text("comes with you.")
-                    .foregroundStyle(IntroPalette.teal)
-            }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
-            .foregroundStyle(IntroPalette.navy)
-            .fixedSize(horizontal: false, vertical: true)
-        case .solution:
-            VStack(spacing: metrics.titleSpacing) {
-                Text("Share with confidence.")
-                Text("Wherever you need.")
-                    .foregroundStyle(IntroPalette.teal)
-            }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
-            .foregroundStyle(IntroPalette.navy)
-            .fixedSize(horizontal: false, vertical: true)
-        case .outcome:
-            VStack(spacing: metrics.titleSpacing) {
-                Text("One identity.")
-                Text("All your trust.")
-                    .foregroundStyle(IntroPalette.teal)
-            }
-            .font(.system(size: metrics.headlineSize * headlineScale, weight: .bold, design: .default))
-            .foregroundStyle(IntroPalette.navy)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 2) {
+            Text(page.headline).foregroundStyle(WelcomePalette.navy)
+            Text(page.accentHeadline).foregroundStyle(WelcomePalette.teal)
         }
+        .font(.system(size: headlineSize, weight: .bold))
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier(page == .career ? OnboardingStep.welcome.titleAccessibilityIdentifier : "onboarding.intro.\(page.rawValue).title")
     }
 
-    @ViewBuilder
-    private var hero: some View {
-        switch page {
-        case .trust:
-            IntroTrustHero()
-        case .betterWay:
-            IntroOutcomeHero()
-        case .solution:
-            IntroSolutionHero()
-        case .outcome:
-            IntroRecordsHero()
+    private var artwork: some View {
+        WelcomeArtwork(page: page)
+            .frame(height: page == .career ? 258 : 225)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(page.artworkDescription)
+            .accessibilityAddTraits(.isImage)
+    }
+
+    private func benefitView(_ benefit: WelcomeBenefit) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: benefit.symbol)
+                .font(.title2)
+                .foregroundStyle(WelcomePalette.teal)
+                .frame(width: 44, height: 44)
+                .background(WelcomePalette.teal.opacity(0.06), in: Circle())
+                .accessibilityHidden(true)
+            Text(benefit.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(WelcomePalette.navy)
+            Text(benefit.body)
+                .font(.subheadline)
+                .foregroundStyle(WelcomePalette.support)
         }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct IntroEyebrow: View {
-    let text: String
+/// Illustration-only viewport over the unmodified Android reference asset.
+/// All headlines, benefits, progress and controls remain native accessible views.
+private struct WelcomeArtwork: View {
+    let page: WelcomePage
 
     var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(IntroPalette.teal)
-                .frame(width: 10, height: 10)
-
-            Text(text)
-                .font(.system(size: 11, weight: .semibold, design: .default))
-                .tracking(1.4)
-                .foregroundStyle(IntroPalette.eyebrow)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(
-            Capsule()
-                .fill(Color.white.opacity(0.9))
-                .overlay(
-                    Capsule()
-                        .stroke(IntroPalette.line, lineWidth: 1)
-                )
-        )
-    }
-}
-
-private struct IntroPageIndicator: View {
-    let pages: [IntroPage]
-    let selectedPage: IntroPage
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(pages) { page in
-                Capsule()
-                    .fill(page == selectedPage ? IntroPalette.teal : IntroPalette.dot)
-                    .frame(width: page == selectedPage ? 24 : 6, height: 6)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selectedPage)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Introduction")
-        .accessibilityValue("Page \(selectedPage.rawValue + 1) of \(pages.count)")
-        .accessibilityIdentifier("onboarding.intro.pageIndicator")
-    }
-}
-
-private struct IntroPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(Color.white)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(IntroPalette.navy.opacity(configuration.isPressed ? 0.92 : 1))
-            )
-    }
-}
-
-private struct IntroSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(IntroPalette.navy)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(configuration.isPressed ? 0.92 : 1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(IntroPalette.line, lineWidth: 1.2)
-            )
-    }
-}
-
-private struct IntroTrustHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 38, style: .continuous)
-                .fill(IntroPalette.heroGlow)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 10)
-
-            VStack(spacing: 18) {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(IntroPalette.navy)
-                    .frame(maxWidth: 360)
-                    .frame(height: 184)
-                    .overlay(alignment: .topLeading) {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.white.opacity(0.1))
-                                        .frame(width: 54, height: 54)
-
-                                    Image(systemName: "checkmark.shield.fill")
-                                        .font(.system(size: 22, weight: .bold))
-                                        .foregroundStyle(IntroPalette.teal)
-                                }
-
-                                Spacer()
-
-                                HStack(spacing: 8) {
-                                    Image(systemName: "paperplane.fill")
-                                        .font(.system(size: 12, weight: .bold))
-                                    Text("Shared with consent")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                }
-                                .foregroundStyle(IntroPalette.teal)
-                                .padding(.horizontal, 14)
-                                .frame(height: 40)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.09))
-                                )
-                            }
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("KairoID Passport")
-                                    .font(.system(size: 21, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color.white)
-
-                                Text("Professional trust that moves with you.")
-                                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                                    .foregroundStyle(Color.white.opacity(0.84))
-                            }
-
-                            VStack(spacing: 12) {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.94))
-                                    .frame(height: 12)
-                                Capsule()
-                                    .fill(Color.white.opacity(0.42))
-                                    .frame(width: 250, height: 12)
-                            }
-                        }
-                        .padding(22)
-                    }
-            }
-        }
-    }
-}
-
-private struct IntroRecordsHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
-                .fill(IntroPalette.heroGlow)
-                .frame(maxWidth: 360)
-
-            OrbitPath(trimStart: 0.04, trimEnd: 0.88)
-                .stroke(IntroPalette.orbit, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [9, 7]))
-                .frame(width: 332, height: 206)
-            OrbitPath(trimStart: 0.12, trimEnd: 0.98)
-                .stroke(IntroPalette.orbit, style: StrokeStyle(lineWidth: 2.3, lineCap: .round, dash: [9, 7]))
-                .frame(width: 280, height: 180)
-
-            VStack(spacing: -16) {
-                IntroRecordCard(icon: "graduationcap.fill", title: "Education", width: 332)
-                    .rotationEffect(.degrees(1.2))
-                    .offset(x: -8)
-
-                IntroRecordCard(icon: "rosette", title: "Certification", width: 336)
-                    .rotationEffect(.degrees(-1.2))
-                    .offset(x: 12)
-
-                IntroRecordCard(icon: "briefcase.fill", title: "Employment", width: 318)
-                    .rotationEffect(.degrees(1.1))
-                    .offset(x: -18)
-            }
-            .padding(.horizontal, 20)
-        }
-    }
-}
-
-private struct IntroRecordCard: View {
-    let icon: String
-    let title: String
-    let width: CGFloat
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(Color.white.opacity(0.97))
-            .frame(width: width, height: 74)
-            .overlay {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(IntroPalette.teal.opacity(0.12))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: icon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(IntroPalette.teal)
-                    }
-
-                    Text(title)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundStyle(IntroPalette.navy)
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 18)
-            }
-            .shadow(color: Color.black.opacity(0.06), radius: 18, x: 0, y: 10)
-    }
-}
-
-private struct IntroSolutionHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 48, style: .continuous)
-                .fill(IntroPalette.heroGlow)
-                .frame(maxWidth: 360)
-                .padding(.horizontal, 12)
-
-            HStack(spacing: 20) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .fill(Color.white.opacity(0.97))
-                        .frame(width: 240, height: 206)
+        GeometryReader { geometry in
+            let crop = page.artworkCrop
+            let scale = min(geometry.size.width / crop.width, geometry.size.height / crop.height)
+            ZStack(alignment: .topLeading) {
+                Image(page.artworkName)
+                    .resizable()
+                    .frame(width: page.artworkSize.width * scale, height: page.artworkSize.height * scale)
+                    .offset(x: -crop.minX * scale, y: -crop.minY * scale)
+                if page == .sharing {
+                    // Replace the old wordmark once; do not copy the doubled Android overlay.
+                    RoundedRectangle(cornerRadius: 8 * scale)
+                        .fill(Color(red: 0.91, green: 0.96, blue: 0.97))
+                        .frame(width: 202 * scale, height: 80 * scale)
                         .overlay {
-                            VStack(alignment: .leading, spacing: 16) {
-                                HStack {
-                                    Image(systemName: "checkmark.shield.fill")
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundStyle(IntroPalette.teal)
-
-                                    Text("Your Trust Passport")
-                                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                                        .foregroundStyle(IntroPalette.navy)
-                                }
-
-                                IntroPassportRow(icon: "person.crop.circle.fill", label: "Identity")
-                                IntroPassportRow(icon: "briefcase.fill", label: "Employment")
-                                IntroPassportRow(icon: "graduationcap.fill", label: "Education")
-                                IntroPassportRow(icon: "rosette", label: "Certification")
-                            }
-                            .padding(22)
+                            Image("WelcomeBrand").resizable().scaledToFit().padding(8 * scale)
                         }
-                }
-
-                VStack(spacing: 14) {
-                    IntroMiniBadge(icon: "person.crop.circle.fill")
-                    IntroMiniBadge(icon: "briefcase.fill")
-                    IntroMiniBadge(icon: "graduationcap.fill")
-                    IntroMiniBadge(icon: "rosette")
+                        .offset(x: (315 - crop.minX) * scale, y: (755 - crop.minY) * scale)
                 }
             }
+            .frame(width: crop.width * scale, height: crop.height * scale, alignment: .topLeading)
+            .clipped()
+            .mask {
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0), .init(color: .black, location: 0.035),
+                    .init(color: .black, location: 0.96), .init(color: .clear, location: 1)
+                ], startPoint: .top, endPoint: .bottom)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-private struct IntroPassportRow: View {
-    let icon: String
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(IntroPalette.teal.opacity(0.12))
-                    .frame(width: 34, height: 34)
-
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(IntroPalette.teal)
-            }
-
-            Text(label)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(IntroPalette.navy)
-
-            Spacer(minLength: 0)
-        }
-    }
-}
-
-private struct IntroMiniBadge: View {
-    let icon: String
-
-    var body: some View {
-        Circle()
-            .fill(Color.white.opacity(0.97))
-            .frame(width: 60, height: 60)
-            .overlay {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(IntroPalette.teal)
-            }
-            .shadow(color: Color.black.opacity(0.05), radius: 14, x: 0, y: 8)
-    }
-}
-
-private struct IntroOutcomeHero: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
-                .fill(IntroPalette.heroGlow)
-                .frame(maxWidth: 360)
-
-            HStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(IntroPalette.navy)
-                    .frame(width: 220, height: 178)
-                    .overlay(alignment: .topLeading) {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack(spacing: 10) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.white.opacity(0.1))
-                                        .frame(width: 42, height: 42)
-
-                                    Image(systemName: "checkmark.shield.fill")
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundStyle(IntroPalette.teal)
-                                }
-
-                                Capsule()
-                                    .fill(Color.white.opacity(0.09))
-                                    .frame(width: 126, height: 34)
-                                    .overlay(
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "paperplane.fill")
-                                                .font(.system(size: 12, weight: .bold))
-                                            Text("Share instantly")
-                                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                        }
-                                        .foregroundStyle(IntroPalette.teal)
-                                    )
-                            }
-
-                            Text("KairoID Passport")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white)
-
-                            VStack(spacing: 12) {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.92))
-                                    .frame(height: 12)
-                                Capsule()
-                                    .fill(Color.white.opacity(0.42))
-                                    .frame(width: 136, height: 12)
-                            }
-                        }
-                        .padding(20)
-                    }
-
-                VStack(spacing: 18) {
-                    Circle()
-                        .fill(Color.white.opacity(0.97))
-                        .frame(width: 68, height: 68)
-                        .overlay {
-                            Image(systemName: "person.2.fill")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundStyle(IntroPalette.teal)
-                        }
-
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(IntroPalette.teal)
-                }
-            }
-        }
-    }
-}
-
-private struct OrbitPath: Shape {
-    let trimStart: CGFloat
-    let trimEnd: CGFloat
-
-    nonisolated func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addEllipse(in: rect)
-        return path.trimmedPath(from: trimStart, to: trimEnd)
-    }
-}
-
-private enum IntroPalette {
-    static let teal = Color(red: 14 / 255, green: 165 / 255, blue: 164 / 255)
-    static let navy = Color(red: 10 / 255, green: 20 / 255, blue: 58 / 255)
-    static let support = Color(red: 104 / 255, green: 122 / 255, blue: 146 / 255)
-    static let eyebrow = Color(red: 94 / 255, green: 110 / 255, blue: 135 / 255)
-    static let dot = Color(red: 214 / 255, green: 222 / 255, blue: 232 / 255)
-    static let line = Color.black.opacity(0.08)
-    static let orbit = teal.opacity(0.44)
-    static let heroGlow = LinearGradient(
-        colors: [
-            Color(red: 235 / 255, green: 252 / 255, blue: 250 / 255),
-            Color(red: 225 / 255, green: 248 / 255, blue: 247 / 255)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-    static let background = LinearGradient(
-        colors: [
-            Color(red: 252 / 255, green: 255 / 255, blue: 255 / 255),
-            Color(red: 246 / 255, green: 252 / 255, blue: 252 / 255)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
+private enum WelcomePalette {
+    static let navy = Color(red: 8 / 255, green: 30 / 255, blue: 67 / 255)
+    static let teal = Color(red: 0, green: 0.46, blue: 0.49)
+    static let arrow = Color(red: 0.02, green: 0.81, blue: 0.78)
+    static let support = Color(red: 0.30, green: 0.37, blue: 0.46)
+    static let inactiveDot = Color(red: 0.79, green: 0.83, blue: 0.86)
+    // Reference welcome canvas stays light in both appearances. Explicit text
+    // colours preserve contrast independently of the system colour scheme.
+    static let background = Color(red: 0.975, green: 0.99, blue: 0.99)
 }
