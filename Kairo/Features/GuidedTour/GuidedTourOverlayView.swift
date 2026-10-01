@@ -8,6 +8,15 @@ nonisolated enum GuidedTourCoachPlacement: Equatable, Sendable {
 }
 
 nonisolated enum GuidedTourLayout {
+    static func spotlight(target: CGRect, step: GuidedTourStep, viewport: CGRect, homeVisibleFrame: CGRect) -> CGRect {
+        let boundary = (step == .trustScore || step == .passport) ? homeVisibleFrame : viewport
+        return target.insetBy(dx: -5, dy: -5).intersection(boundary.insetBy(dx: 4, dy: 4))
+    }
+
+    static func minimumCoachHeight(accessibilitySize: Bool, viewport: CGRect) -> CGFloat {
+        accessibilitySize ? min(500, max(1, viewport.height - 24)) : 190
+    }
+
     static func placement(
         target: CGRect,
         viewport: CGRect,
@@ -26,6 +35,7 @@ nonisolated enum GuidedTourLayout {
 struct GuidedTourOverlayView: View {
     let step: GuidedTourStep
     let targetFrame: CGRect
+    let homeVisibleFrame: CGRect
     var targetWindowFrame: CGRect = .zero
     let nextAction: () -> Void
     let backAction: () -> Void
@@ -45,8 +55,15 @@ struct GuidedTourOverlayView: View {
     var body: some View {
         GeometryReader { proxy in
             let viewport = CGRect(origin: .zero, size: proxy.size)
-            let spotlight = expandedTarget(in: viewport)
-            let placement = GuidedTourLayout.placement(target: spotlight, viewport: viewport)
+            let spotlight = GuidedTourLayout.spotlight(
+                target: targetFrame, step: step, viewport: viewport, homeVisibleFrame: homeVisibleFrame
+            )
+            let placement = GuidedTourLayout.placement(
+                target: spotlight, viewport: homeVisibleFrame,
+                minimumCoachHeight: GuidedTourLayout.minimumCoachHeight(
+                    accessibilitySize: dynamicTypeSize.isAccessibilitySize, viewport: homeVisibleFrame
+                )
+            )
 
             ZStack {
                 GuidedTourSpotlightScrim(spotlight: spotlight)
@@ -69,7 +86,7 @@ struct GuidedTourOverlayView: View {
                     .position(x: spotlight.midX, y: spotlight.midY)
                     .accessibilityHidden(true)
 
-                coachRegion(placement: placement, spotlight: spotlight, viewport: viewport)
+                coachRegion(placement: placement, spotlight: spotlight, viewport: homeVisibleFrame)
             }
             .contentShape(Rectangle())
             .accessibilityIdentifier(KairoAccessibilityID.guidedTourOverlay)
@@ -90,10 +107,10 @@ struct GuidedTourOverlayView: View {
 
         switch placement {
         case .above:
-            let height = max(1, spotlight.minY - gap - margin)
+            let height = max(1, min(viewport.maxY, spotlight.minY - gap) - viewport.minY - margin)
             coachCard(maxHeight: height)
                 .frame(width: viewport.width - margin * 2, height: height, alignment: .bottom)
-                .position(x: viewport.midX, y: margin + height / 2)
+                .position(x: viewport.midX, y: viewport.minY + margin + height / 2)
         case .below:
             let top = spotlight.maxY + gap
             let height = max(1, viewport.maxY - top - margin)
@@ -113,6 +130,7 @@ struct GuidedTourOverlayView: View {
                 ScrollView(.vertical, showsIndicators: true) {
                     coachCopy
                 }
+                .accessibilityIdentifier("candidate.guidedTour.scrollableCopy")
             } else {
                 coachCopy
             }
@@ -154,7 +172,11 @@ struct GuidedTourOverlayView: View {
                 .accessibilityFocused($titleFocused)
                 .accessibilityIdentifier(KairoAccessibilityID.guidedTourTitle)
                 .accessibilityValue(exposesGeometryForTesting
-                    ? NSCoder.string(for: targetWindowFrame) + "|" + NSCoder.string(for: renderedSpotlightFrame) : "")
+                    ? NSCoder.string(for: targetWindowFrame) + "|" + NSCoder.string(for: renderedSpotlightFrame)
+                        + "|" + NSCoder.string(for: homeVisibleFrame.offsetBy(
+                            dx: targetWindowFrame.minX - targetFrame.minX,
+                            dy: targetWindowFrame.minY - targetFrame.minY
+                        )) : "")
 
             Text(step.body)
                 .font(KairoTypography.body)
@@ -253,11 +275,6 @@ struct GuidedTourOverlayView: View {
         .accessibilityIdentifier(step.next == nil
             ? KairoAccessibilityID.guidedTourDone
             : KairoAccessibilityID.guidedTourNext)
-    }
-
-    private func expandedTarget(in viewport: CGRect) -> CGRect {
-        let expanded = targetFrame.insetBy(dx: -5, dy: -5)
-        return expanded.intersection(viewport.insetBy(dx: 4, dy: 4)).standardized
     }
 
     private func focusTitle() {

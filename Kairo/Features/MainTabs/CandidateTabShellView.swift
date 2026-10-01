@@ -6,6 +6,7 @@ struct CandidateTabShellView: View {
     @EnvironmentObject private var guidedTourCoordinator: GuidedTourCoordinator
     @Environment(\.appConfiguration) private var appConfiguration
     @State private var tabFrames: [GuidedTourTarget: CGRect] = [:]
+    @State private var homeVisibleWindowFrame: CGRect = .zero
     @State private var isTourOverlayVisible = false
     private let uiTestHomeConfiguration: UITestHomeConfiguration
     private let uiTestCareerConfiguration: UITestCareerConfiguration
@@ -39,8 +40,9 @@ struct CandidateTabShellView: View {
         .accessibilityHidden(isTourOverlayVisible)
         .allowsHitTesting(!isTourOverlayVisible)
         .background(
-            GuidedTourTabFrameReader { frames in
+            GuidedTourTabFrameReader { frames, homeFrame in
                 tabFrames = frames
+                homeVisibleWindowFrame = homeFrame
             }
         )
         .overlayPreferenceValue(GuidedTourAnchorPreferenceKey.self) { anchors in
@@ -52,6 +54,10 @@ struct CandidateTabShellView: View {
                     )
                 }
                 let viewport = CGRect(origin: .zero, size: proxy.size)
+                let homeVisibleFrame = GuidedTourTargetResolver.overlayFrame(
+                    windowFrame: homeVisibleWindowFrame,
+                    overlayOrigin: proxy.frame(in: .global).origin
+                ).intersection(viewport)
                 if let step = guidedTourCoordinator.currentStep,
                    step.target != guidedTourCoordinator.unavailableTargetForTesting,
                    let targetFrame = GuidedTourTargetResolver.frame(
@@ -61,6 +67,8 @@ struct CandidateTabShellView: View {
                    ),
                    viewport.width > 24,
                    viewport.height > 24,
+                   !homeVisibleFrame.isNull,
+                   homeVisibleFrame.height > 24,
                    !targetFrame.isNull,
                    !targetFrame.isInfinite,
                    targetFrame.width > 0,
@@ -69,6 +77,7 @@ struct CandidateTabShellView: View {
                     GuidedTourOverlayView(
                         step: step,
                         targetFrame: targetFrame,
+                        homeVisibleFrame: homeVisibleFrame,
                         targetWindowFrame: targetFrame.offsetBy(
                             dx: proxy.frame(in: .global).minX,
                             dy: proxy.frame(in: .global).minY

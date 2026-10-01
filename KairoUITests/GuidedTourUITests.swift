@@ -17,7 +17,7 @@ final class GuidedTourUITests: XCTestCase {
             let aligned = NSPredicate { _, _ in
                 guard let value = spotlight.value as? String else { return false }
                 let frames = value.components(separatedBy: "|")
-                guard frames.count == 2 else { return false }
+                guard frames.count == 3 else { return false }
                 let target = NSCoder.cgRect(for: frames[0])
                 let actual = NSCoder.cgRect(for: frames[1])
                 return target.width > 0 && target.height > 0 &&
@@ -33,6 +33,62 @@ final class GuidedTourUITests: XCTestCase {
 
     private func waitFor(_ predicate: NSPredicate, object: Any) -> Bool {
         XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: object)], timeout: 5) == .completed
+    }
+
+    func testAccessibilityXXXLAllFiveSpotlightsAndScrollableCoachStayClearOfTabs() {
+        assertAccessibilityGeometry(reduceMotion: false)
+    }
+
+    func testAccessibilityXXXLReduceMotionPreservesGeometryAndBackNavigation() {
+        assertAccessibilityGeometry(reduceMotion: true)
+    }
+
+    private func assertAccessibilityGeometry(reduceMotion: Bool) {
+        let app = XCUIApplication()
+        configure(app, account: "xxxl-closure-\(reduceMotion)", reset: true, appearance: "light", accessibilityXXXL: true)
+        app.launchEnvironment["KAIRO_UI_TEST_TOUR_GEOMETRY"] = "1"
+        app.launchEnvironment["KAIRO_UI_TEST_DISABLE_ANIMATIONS"] = "0"
+        app.launchArguments += ["-UIAccessibilityReduceMotionEnabled", reduceMotion ? "YES" : "NO"]
+        app.launch()
+        for index in 0..<5 {
+            let title = app.staticTexts["candidate.guidedTour.title"]
+            XCTAssertTrue(title.waitForExistence(timeout: 10))
+            let geometry = NSPredicate { _, _ in
+                guard let value = title.value as? String else { return false }
+                let parts = value.components(separatedBy: "|")
+                guard parts.count == 3 else { return false }
+                let target = NSCoder.cgRect(for: parts[0])
+                let spotlight = NSCoder.cgRect(for: parts[1])
+                let home = NSCoder.cgRect(for: parts[2])
+                guard spotlight.width > 0, spotlight.height > 0, home.height > 0 else { return false }
+                if index < 2 {
+                    return home.contains(spotlight) && spotlight.intersects(target)
+                }
+                return abs(spotlight.midX - target.midX) <= 3 && abs(spotlight.midY - target.midY) <= 3
+            }
+            XCTAssertTrue(waitFor(geometry, object: title), "Step \(index + 1) spotlight must remain on its real visible target")
+            let copy = app.scrollViews["candidate.guidedTour.scrollableCopy"]
+            XCTAssertTrue(copy.exists)
+            let primary = app.buttons[index == 4 ? "candidate.guidedTour.done" : "candidate.guidedTour.next"]
+            let skip = app.buttons["candidate.guidedTour.skip"]
+            for control in [primary, skip] {
+                XCTAssertTrue(control.isHittable)
+                XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+                XCTAssertTrue(app.frame.contains(control.frame))
+            }
+            if index > 0 {
+                let back = app.buttons["candidate.guidedTour.back"]
+                XCTAssertTrue(back.isHittable)
+                back.tap()
+                advance(in: app)
+            }
+            copy.swipeUp()
+            XCTAssertTrue(app.staticTexts["candidate.guidedTour.body"].isHittable)
+            XCTAssertTrue(primary.isHittable)
+            capture("XXXL closure - step \(index + 1) - reduce motion \(reduceMotion)")
+            primary.tap()
+        }
+        XCTAssertFalse(app.otherElements["candidate.guidedTour.overlay"].exists)
     }
 
     func testNewAccountCompletesExactFiveHomeAnchoredStepsAndStaysOnHome() {

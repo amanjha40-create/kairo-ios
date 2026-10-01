@@ -21,6 +21,11 @@ extension View {
 }
 
 nonisolated enum GuidedTourTargetResolver {
+    static func visibleHomeFrame(safeFrame: CGRect, tabBarFrame: CGRect) -> CGRect {
+        CGRect(x: safeFrame.minX, y: safeFrame.minY, width: safeFrame.width,
+               height: max(0, min(safeFrame.maxY, tabBarFrame.minY) - safeFrame.minY))
+    }
+
     static func orderedTabFrames(_ frames: [CGRect], expectedCount: Int) -> [CGRect]? {
         // Floating tab bars may render selected/unselected layers at identical
         // positions. Collapse those layers, not distinct or ambiguous targets.
@@ -53,7 +58,7 @@ nonisolated enum GuidedTourTargetResolver {
 }
 
 struct GuidedTourTabFrameReader: UIViewRepresentable {
-    let onFramesChange: ([GuidedTourTarget: CGRect]) -> Void
+    let onFramesChange: ([GuidedTourTarget: CGRect], CGRect) -> Void
 
     func makeUIView(context: Context) -> GuidedTourTabReaderView {
         GuidedTourTabReaderView(onFramesChange: onFramesChange)
@@ -66,10 +71,11 @@ struct GuidedTourTabFrameReader: UIViewRepresentable {
 }
 
 final class GuidedTourTabReaderView: UIView {
-    var onFramesChange: ([GuidedTourTarget: CGRect]) -> Void
+    var onFramesChange: ([GuidedTourTarget: CGRect], CGRect) -> Void
     private var lastFrames: [GuidedTourTarget: CGRect] = [:]
+    private var lastHomeFrame: CGRect = .zero
 
-    init(onFramesChange: @escaping ([GuidedTourTarget: CGRect]) -> Void) {
+    init(onFramesChange: @escaping ([GuidedTourTarget: CGRect], CGRect) -> Void) {
         self.onFramesChange = onFramesChange
         super.init(frame: .zero)
         isUserInteractionEnabled = false
@@ -118,7 +124,8 @@ final class GuidedTourTabReaderView: UIView {
         ) else {
             if !lastFrames.isEmpty {
                 lastFrames = [:]
-                onFramesChange([:])
+                lastHomeFrame = .zero
+                onFramesChange([:], .zero)
             }
             return
         }
@@ -136,9 +143,14 @@ final class GuidedTourTabReaderView: UIView {
             frames[target] = orderedFrames[index]
         }
 
-        guard frames != lastFrames else { return }
+        let homeFrame = GuidedTourTargetResolver.visibleHomeFrame(
+            safeFrame: window.safeAreaLayoutGuide.layoutFrame,
+            tabBarFrame: tabBar.convert(tabBar.bounds, to: window)
+        )
+        guard frames != lastFrames || homeFrame != lastHomeFrame else { return }
         lastFrames = frames
-        onFramesChange(frames)
+        lastHomeFrame = homeFrame
+        onFramesChange(frames, homeFrame)
     }
 
     private func tabControls(in view: UIView) -> [UIControl] {

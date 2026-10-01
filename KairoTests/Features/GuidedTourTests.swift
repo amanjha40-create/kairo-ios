@@ -4,6 +4,56 @@ import XCTest
 
 @MainActor
 final class GuidedTourTests: XCTestCase {
+    func testOversizedHomeSpotlightsStopBeforeTabsAndBelowNotch() {
+        let viewport = CGRect(x: 0, y: 0, width: 414, height: 896)
+        let safe = CGRect(x: 0, y: 48, width: 414, height: 814)
+        let tabs = CGRect(x: 0, y: 804, width: 414, height: 92)
+        let home = GuidedTourTargetResolver.visibleHomeFrame(safeFrame: safe, tabBarFrame: tabs)
+        XCTAssertEqual(home.minY, safe.minY)
+        XCTAssertEqual(home.maxY, tabs.minY)
+        let oversized = CGRect(x: 16, y: -80, width: 382, height: 1300)
+        for step in [GuidedTourStep.trustScore, .passport] {
+            let spotlight = GuidedTourLayout.spotlight(target: oversized, step: step, viewport: viewport, homeVisibleFrame: home)
+            XCTAssertTrue(home.contains(spotlight))
+            XCTAssertFalse(spotlight.intersects(tabs))
+            XCTAssertEqual(spotlight.midX, oversized.midX)
+            XCTAssertEqual(spotlight.width, oversized.width + 10)
+        }
+    }
+
+    func testNormalSizeSpotlightsRetainMeasuredGeometryForAllFiveSteps() {
+        let viewport = CGRect(x: 0, y: 0, width: 414, height: 896)
+        let home = CGRect(x: 0, y: 48, width: 414, height: 740)
+        for step in GuidedTourStep.allCases {
+            let target = step == .trustScore || step == .passport
+                ? CGRect(x: 16, y: 140, width: 382, height: 240)
+                : CGRect(x: 100, y: 812, width: 72, height: 54)
+            XCTAssertEqual(GuidedTourLayout.spotlight(target: target, step: step, viewport: viewport, homeVisibleFrame: home),
+                           target.insetBy(dx: -5, dy: -5))
+        }
+    }
+
+    func testAccessibilityCoachDoesNotChooseAnInsufficientAdjacentSlot() {
+        for height: CGFloat in [480, 640, 756] {
+            let viewport = CGRect(x: 0, y: 48, width: 414, height: height)
+            let required = GuidedTourLayout.minimumCoachHeight(accessibilitySize: true, viewport: viewport)
+            XCTAssertLessThanOrEqual(required, viewport.height - 24)
+            let target = CGRect(x: 16, y: viewport.minY + 90, width: 382, height: height - 230)
+            XCTAssertEqual(GuidedTourLayout.placement(target: target, viewport: viewport, minimumCoachHeight: required), .centered)
+            XCTAssertEqual(GuidedTourLayout.minimumCoachHeight(accessibilitySize: false, viewport: viewport), 190)
+        }
+    }
+
+    func testVisibleHomeBoundaryUsesWindowSafeAreaAndTabBarNotDeviceConstants() {
+        let safe = CGRect(x: 24, y: 59, width: 350, height: 720)
+        for top: CGFloat in [600, 700, 800] {
+            let home = GuidedTourTargetResolver.visibleHomeFrame(safeFrame: safe, tabBarFrame: CGRect(x: 0, y: top, width: 400, height: 80))
+            XCTAssertEqual(home.maxY, min(safe.maxY, top))
+            XCTAssertEqual(home.minX, safe.minX)
+            XCTAssertEqual(home.minY, safe.minY)
+        }
+    }
+
     func testFloatingTabLayersResolveToFiveActualSlots() {
         let slots = (0..<5).map { CGRect(x: 25 + $0 * 70, y: 795, width: 78, height: 54) }
         XCTAssertEqual(GuidedTourTargetResolver.orderedTabFrames(Array((slots + slots).reversed()), expectedCount: 5), slots)
