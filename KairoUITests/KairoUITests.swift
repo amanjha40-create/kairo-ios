@@ -1238,6 +1238,9 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.otherElements["candidate.tabShell"].waitForExistence(timeout: 10))
         XCTAssertTrue(homeScreenElement(in: app).waitForExistence(timeout: 10))
+        // A transient Home followed by fixture-triggered session expiry is not success.
+        XCTAssertFalse(app.buttons["onboarding.existingAccount"].waitForExistence(timeout: 3))
+        XCTAssertTrue(homeScreenElement(in: app).exists)
     }
 
     @MainActor

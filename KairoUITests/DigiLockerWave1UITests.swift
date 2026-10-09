@@ -4,6 +4,70 @@ import XCTest
 final class DigiLockerWave1UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testConsentIsExplicitAndSelectionChangesInvalidateIt() {
+        assertConsent(large: false)
+    }
+
+    func testConsentAccessibilityXXXLKeepsCheckboxAndCTAReachable() {
+        assertConsent(large: true)
+    }
+
+    private func assertConsent(large: Bool) {
+        let app = launch(largeType: large, fixture: "consent")
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+        let consent = app.buttons["candidate.digilocker.consent"]
+        let verify = app.buttons["candidate.digilocker.verify"]
+        reveal(consent, in: app)
+        XCTAssertEqual(consent.value as? String, "Unchecked")
+        XCTAssertFalse(consent.isEnabled)
+        reveal(verify, in: app)
+        XCTAssertFalse(verify.isEnabled)
+        let pan = app.switches["candidate.digilocker.select.PANCR"]
+        let panControl = pan.switches.firstMatch
+        revealAbove(panControl, in: app); panControl.tap()
+        XCTAssertEqual(pan.value as? String, "Selected")
+        reveal(consent, in: app)
+        XCTAssertEqual(consent.value as? String, "Unchecked")
+        XCTAssertTrue(consent.isEnabled)
+        consent.tap()
+        XCTAssertEqual(consent.value as? String, "Checked")
+        XCTAssertEqual(app.buttons.matching(identifier: "candidate.digilocker.consent").count, 1)
+        reveal(verify, in: app)
+        XCTAssertTrue(verify.isEnabled) // Do not verify, even in fixture mode.
+        let licence = app.switches["candidate.digilocker.select.DRVLC"]
+        let licenceControl = licence.switches.firstMatch
+        revealAbove(licenceControl, in: app); licenceControl.tap()
+        XCTAssertEqual(licence.value as? String, "Selected")
+        reveal(consent, in: app)
+        XCTAssertEqual(consent.value as? String, "Unchecked")
+        reveal(verify, in: app)
+        XCTAssertFalse(verify.isEnabled)
+        attach(app, name: large ? "Batch1-Consent-AXXXL" : "Batch1-Consent-Standard")
+    }
+
+    func testInvalidReturnFixturePreservesOneHubAndHistoricalVerification() {
+        let app = launch(fixture: "invalid")
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+        let connect = app.buttons["candidate.digilocker.connect"]
+        reveal(connect, in: app); connect.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Couldn't connect DigiLocker")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.navigationBars.matching(identifier: "DigiLocker").count, 1)
+        XCTAssertFalse(app.staticTexts["Connected"].exists)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars["DigiLocker"].exists)
+    }
+
+    private func revealAbove(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<25 {
+            if element.exists && element.isHittable && element.frame.minY > 120 { return }
+            app.swipeDown()
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+
     func test_homeSummaryOpensNativeHubWithSeparatedTruth() {
         let app = launch()
         let entry = app.buttons["candidate.home.digilocker"]
@@ -107,7 +171,7 @@ final class DigiLockerWave1UITests: XCTestCase {
         attach(app, name: "Wave1-Passport-Provenance-Dark")
     }
 
-    private func launch(appearance: String = "light", largeType: Bool = false) -> XCUIApplication {
+    private func launch(appearance: String = "light", largeType: Bool = false, fixture: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", appearance]
         if largeType { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -118,17 +182,24 @@ final class DigiLockerWave1UITests: XCTestCase {
             "KAIRO_UI_TEST_VERIFY_STATE": "populated", "KAIRO_UI_TEST_PASSPORT_STATE": "populated",
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"
         ]
+        if let fixture { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_RETURN"] = fixture }
         app.launch()
         return app
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<30 {
-            if element.exists && element.isHittable && element.frame.maxY < app.frame.maxY - 90 { return }
+            // XXXL consent may be taller than the viewport; disabled controls are
+            // inspected, not tapped. Require a visible portion, not the whole frame.
+            let viewport = app.frame.insetBy(dx: 0, dy: 140)
+            if element.exists, element.frame.intersection(viewport).height >= min(44, element.frame.height),
+               element.isHittable || !element.isEnabled { return }
             app.swipeUp()
         }
         XCTAssertTrue(element.exists)
-        XCTAssertTrue(element.isHittable)
+        XCTAssertTrue(element.isHittable || !element.isEnabled)
+        XCTAssertGreaterThanOrEqual(element.frame.intersection(app.frame.insetBy(dx: 0, dy: 140)).height,
+                                    min(44, element.frame.height))
     }
 
     private func waitForLabel(_ text: String, in element: XCUIElement, timeout: TimeInterval = 10) -> Bool {

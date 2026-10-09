@@ -78,7 +78,9 @@ struct CareerRecordDetailPresentation: Identifiable {
             metadata: item.detailMetadata.filter { $0.title != "Origin" }.map { ($0.title, $0.value) }
                 + (item.duration.isEmpty ? [] : [("Dates", item.duration)]),
             edit: edit, delete: delete, kind: .project,
-            supportingMetadata: item.detailMetadata.filter { $0.title == "Origin" }.map { ($0.title, $0.value) }, links: item.links)
+            supportingMetadata: item.detailMetadata.filter {
+                $0.title == "Origin" && ProductStatusLanguage.optionalRecordTitle($0.value) != nil
+            }.map { ($0.title, $0.value) }, links: item.links)
     }
 
     static func portfolio(_ item: CareerPortfolioItem, edit: (() -> Void)?) -> Self {
@@ -230,7 +232,9 @@ struct CareerRecordDetailView: View {
     }
 
     @ViewBuilder private var status: some View {
-        if let status = record.status {
+        if let status = record.status,
+           ![CareerRecordKind.certification, .project].contains(record.kind)
+            || ProductStatusLanguage.optionalRecordTitle(status.badgeStyle.title) != nil {
             CareerRecordStatus(status: status).accessibilityIdentifier("career.detail.status")
         }
     }

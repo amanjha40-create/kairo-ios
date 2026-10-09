@@ -8,6 +8,10 @@ nonisolated enum ProductBrand {
 }
 
 nonisolated enum ProductStatusLanguage {
+    /// Optional record display only; stored provenance and verification stay intact.
+    static func optionalRecordTitle(_ title: String) -> String? {
+        title.caseInsensitiveCompare(candidateProvided) == .orderedSame ? nil : title
+    }
     static let verified = "Verified"
     static let pendingReview = "Pending KairoID Review"
     static let needsAttention = "Needs your attention"

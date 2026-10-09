@@ -183,9 +183,41 @@ final class DigiLockerTests: XCTestCase {
         XCTAssertEqual(score.identitySources.count, 2)
     }
 
+    func testReadOnlyStatusUsesCanonicalSessionRefreshButConnectDoesNotRetry() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch request.url?.path {
+            case "/api/v1/auth/refresh":
+                return (try Self.response(for: request), Data(#"{"access_token":"synthetic-new","refresh_token":"synthetic-refresh-new","token_type":"bearer","expires_in":3600}"#.utf8))
+            case "/api/v1/integrations/digilocker/status":
+                if request.value(forHTTPHeaderField: "Authorization") == "Bearer access-123" {
+                    return (try Self.response(for: request, statusCode: 401), Data(#"{"error":{"code":"unauthorized","message":"Expired"}}"#.utf8))
+                }
+                return (try Self.response(for: request), Self.statusPayload)
+            default:
+                XCTFail("Unexpected route")
+                return (try Self.response(for: request, statusCode: 404), Data())
+            }
+        }
+        let result = try await service.status()
+        XCTAssertTrue(result.connected)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.map { $0.url?.path }, ["/api/v1/integrations/digilocker/status", "/api/v1/auth/refresh", "/api/v1/integrations/digilocker/status"])
+
+        await MockURLProtocolStorage.shared.reset()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/integrations/digilocker/connect")
+            return (try Self.response(for: request, statusCode: 401), Data(#"{"error":{"code":"unauthorized","message":"Expired"}}"#.utf8))
+        }
+        do { _ = try await service.connect(); XCTFail("Expected rejection") } catch { }
+        let mutationRequests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(mutationRequests.count, 1)
+    }
+
     private func makeService() async throws -> DigiLockerService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
+        try await tokenStore.save("synthetic-refresh", for: .refreshToken)
         let configuration = AppConfiguration(
             buildConfiguration: .development,
             environment: .staging,

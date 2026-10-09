@@ -4,6 +4,50 @@ import XCTest
 
 @MainActor
 final class AppConfigurationTests: XCTestCase {
+    func test_uiTestLoginDependenciesBlockLiveRequestsWithoutExpiringFixtureSession() async throws {
+        let configuration = AppConfiguration(
+            buildConfiguration: .staging, environment: .staging,
+            isDemoModeEnabled: false,
+            apiBaseURL: URL(string: "https://staging-api.example.invalid")!,
+            keychainService: "com.kairoid.Kairo.tests.fixture-isolation"
+        )
+        let dependencies = AppDependencies.make(configuration: configuration,
+            uiTestConfiguration: .init(isEnabled: true, route: .onboarding,
+                onboardingStep: nil, disablesAnimations: true))
+        XCTAssertTrue(dependencies.authService is UITestAuthService)
+        XCTAssertTrue(dependencies.tokenStore is InMemoryTokenStore)
+        XCTAssertTrue(dependencies.networkClient is DemoNetworkClient)
+        _ = try await dependencies.authService.login(email: "synthetic@example.invalid", password: "SyntheticFixtureOnly")
+
+        for path in ["/passport/me", "/verification-requests/me", "/employments", "/auth/refresh"] {
+            do {
+                _ = try await dependencies.sessionService.sendAuthenticated(NetworkRequest(path: path))
+                XCTFail("UI-test networking must fail closed locally")
+            } catch let error as NetworkError {
+                XCTAssertEqual(error, .unavailableInDemoMode)
+            }
+        }
+        let hasAccess = try await dependencies.sessionService.hasStoredAccessToken()
+        let hasRefresh = try await dependencies.sessionService.hasStoredRefreshToken()
+        XCTAssertTrue(hasAccess)
+        XCTAssertTrue(hasRefresh)
+    }
+
+    func test_normalStagingDependenciesKeepCanonicalNetworkAndAuthentication() {
+        let configuration = AppConfiguration(
+            buildConfiguration: .staging, environment: .staging,
+            isDemoModeEnabled: false,
+            apiBaseURL: URL(string: "https://staging-api.example.invalid")!,
+            keychainService: "com.kairoid.Kairo.tests.normal-staging"
+        )
+        let dependencies = AppDependencies.make(configuration: configuration,
+            uiTestConfiguration: .init(isEnabled: false, route: .onboarding,
+                onboardingStep: nil, disablesAnimations: false))
+        XCTAssertTrue(dependencies.networkClient is URLSessionNetworkClient)
+        XCTAssertTrue(dependencies.tokenStore is KeychainTokenStore)
+        XCTAssertTrue(dependencies.authService is AuthService)
+    }
+
     func test_resolvesBundleDrivenDemoDefaults() {
         let configuration = AppConfiguration.resolve(
             bundleValues: [

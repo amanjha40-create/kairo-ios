@@ -116,10 +116,22 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         app.buttons["Open deletion confirmation"].tap()
         let confirm = app.textFields["candidate.more.deleteAccount.confirmationInput"]
         reveal(confirm, app); confirm.tap(); confirm.typeText("DELETE")
-        if app.keyboards.buttons["Next"].exists { app.keyboards.buttons["Next"].tap() }
-        if app.keyboards.buttons["Done"].exists { app.keyboards.buttons["Done"].tap() }
-        app.swipeUp()
-        reveal(submit, app)
+        XCTAssertEqual(confirm.value as? String, "DELETE")
+        // Scroll the form, not the software keyboard. Keyboard return/Done is
+        // a submit action, not a safe way to dismiss it before testing the CTA.
+        for _ in 0..<12 {
+            let keyboardTop = app.keyboards.firstMatch.exists
+                ? app.keyboards.firstMatch.frame.minY : app.frame.maxY
+            if submit.exists && submit.isHittable && submit.frame.maxY < keyboardTop { break }
+            let top = app.navigationBars["Delete account"].frame.maxY + 30
+            let bottom = keyboardTop - 30
+            XCTAssertGreaterThan(bottom, top)
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: 24, dy: bottom))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: 24, dy: top)))
+        }
+        XCTAssertTrue(submit.isHittable)
         XCTAssertTrue(submit.isEnabled)
         submit.tap()
         XCTAssertTrue(app.staticTexts["settings.fixture.deletionCalls"].waitForExistence(timeout: 10))

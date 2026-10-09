@@ -29,16 +29,23 @@ struct AppDependencies: Sendable {
         uiTestConfiguration: UITestLaunchConfiguration = .current()
     ) -> AppDependencies {
         let uiTestConfiguration = uiTestConfiguration.validated(for: configuration)
-        let tokenStore: any TokenStore = configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
+        var tokenStore: any TokenStore = configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
             ? InMemoryTokenStore()
             : KeychainTokenStore(service: configuration.keychainService)
 
-        let networkClient: any NetworkClient = configuration.isDemoModeEnabled
+        // Synthetic UI-test credentials must never reach live services, including
+        // unselected tabs refreshed by a Login identity transition.
+        var networkClient: any NetworkClient = configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
             ? DemoNetworkClient()
             : URLSessionNetworkClient(
                 baseURL: configuration.apiBaseURL,
                 session: .shared
             )
+
+        if DigiLockerReadQA.current(configuration: configuration) != nil {
+            tokenStore = DigiLockerReadOnlyTokens(underlying: tokenStore)
+            networkClient = DigiLockerReadOnlyNetwork(underlying: networkClient)
+        }
 
         let sessionService = SessionService(
             configuration: configuration,
@@ -93,7 +100,7 @@ struct AppDependencies: Sendable {
             }
         let digiLockerService: any DigiLockerServiceProtocol =
             if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
-                DemoDigiLockerService()
+                DemoDigiLockerService(returnFixture: DigiLockerReturnFixture.current(configuration: configuration))
             } else {
                 DigiLockerService(sessionService: sessionService)
             }

@@ -148,7 +148,7 @@ struct CareerOverviewScreenView: View {
                 CareerCompactRecordRow(title: item.title, subtitle: item.issuer,
                     metadata: [item.issueDate] + item.detailMetadata.filter { $0.title == "Expiry" }.map(\.value),
                     status: item.verificationStatus, attachment: item.hasDocument ? "Attachment added" : "No attachment",
-                    leadingSystemImage: "rosette") {
+                    leadingSystemImage: "rosette", optionalRecord: true) {
                     selectedDetail = .certification(item,
                         edit: editCertificationAction.map { action in { action(item) } },
                         delete: deleteCertificationAction.map { action in { action(item) } })
@@ -166,7 +166,7 @@ struct CareerOverviewScreenView: View {
             ForEach(items) { item in
                 CareerCompactRecordRow(title: item.title, subtitle: item.role,
                     metadata: item.detailMetadata.filter { $0.title == "Organization" }.map(\.value) + [item.duration] + item.links.map { "\($0.title): \($0.url.host ?? "")" },
-                    status: item.verificationStatus ?? .notVerified, leadingSystemImage: "folder") {
+                    status: item.verificationStatus ?? .notVerified, leadingSystemImage: "folder", optionalRecord: true) {
                     selectedDetail = .project(item,
                         edit: editProjectAction.map { action in { action(item) } },
                         delete: deleteProjectAction.map { action in { action(item) } })
@@ -207,7 +207,9 @@ struct CareerOverviewScreenView: View {
                 HStack(alignment: .top, spacing: KairoSpacing.small) {
                     VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
                         Text(item.name).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
-                        CareerRecordStatus(status: item.verificationStatus)
+                        if ProductStatusLanguage.optionalRecordTitle(item.verificationStatus.badgeStyle.title) != nil {
+                            CareerRecordStatus(status: item.verificationStatus)
+                        }
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -247,6 +249,7 @@ struct CareerCompactRecordRow: View {
     var attachment: String? = nil
     var leadingText: String? = nil
     var leadingSystemImage: String? = nil
+    var optionalRecord = false
     let open: () -> Void
 
     var body: some View {
@@ -279,8 +282,10 @@ struct CareerCompactRecordRow: View {
                         ForEach(Array(metadata.filter { !$0.isEmpty }.enumerated()), id: \.offset) { _, value in
                             Text(value).font(KairoTypography.metadata).foregroundStyle(KairoColors.textSecondary)
                         }
-                        CareerRecordStatus(status: status)
-                            .accessibilityIdentifier("career.record.status.\(title)")
+                        if !optionalRecord || ProductStatusLanguage.optionalRecordTitle(status.badgeStyle.title) != nil {
+                            CareerRecordStatus(status: status)
+                                .accessibilityIdentifier("career.record.status.\(title)")
+                        }
                         if let attachment {
                             Label(attachment, systemImage: "paperclip")
                                 .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)

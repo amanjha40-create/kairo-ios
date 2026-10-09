@@ -115,14 +115,19 @@ final class ProfileWave3UITests: XCTestCase {
         url.tap(); url.typeText("javascript:alert(1)")
         app.buttons["candidate.profile.links.save"].tap()
         XCTAssertTrue(app.staticTexts["Enter a valid HTTP or HTTPS professional link."].exists)
+        XCTAssertTrue(app.navigationBars["Add link"].exists)
+        XCTAssertEqual(url.value as? String, "javascript:alert(1)")
 
-        url.tap()
-        url.press(forDuration: 1)
-        app.menuItems["Select All"].tap()
-        url.typeText("example.com/professional")
+        replaceText(in: url, with: "example.com/professional")
         keepScreenshot("Wave 3 - Professional link editor - Light", app)
         app.buttons["candidate.profile.links.save"].tap()
         XCTAssertTrue(app.staticTexts["example.com"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["javascript:alert(1)"].exists)
+
+        app.buttons["Edit linkedin link"].tap()
+        XCTAssertTrue(app.navigationBars["Edit link"].waitForExistence(timeout: 10))
+        XCTAssertEqual(url.value as? String, "https://example.com/professional")
+        app.buttons["Cancel"].tap()
     }
 
     func testDarkAccessibilityTypeKeepsAvatarAndManagersReachable() {
@@ -140,6 +145,15 @@ final class ProfileWave3UITests: XCTestCase {
         openManager("candidate.profile.languages.manage", title: "Languages", in: app)
         XCTAssertGreaterThanOrEqual(app.buttons["candidate.profile.languages.add"].frame.height, 44)
         keepScreenshot("Wave 3 - Languages - Dark AXXXL", app)
+    }
+
+    private func replaceText(in field: XCUIElement, with text: String) {
+        field.tap()
+        // Public keyboard selection replaces the whole value without assuming
+        // which localized items are visible in the native edit menu.
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(text)
+        XCTAssertEqual(field.value as? String, text)
     }
 
     private func launchProfile(appearance: String = "light", accessibilityType: Bool = false) -> XCUIApplication {

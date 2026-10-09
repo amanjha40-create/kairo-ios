@@ -69,6 +69,7 @@ final class CareerHierarchyUITests: XCTestCase {
         let certificate = app.buttons["career.record.open.People Operations Foundations"]
         reveal(certificate, app)
         XCTAssertTrue(certificate.label.contains("Attachment added"))
+        XCTAssertFalse(certificate.label.contains("Candidate-provided"))
         certificate.tap()
         XCTAssertTrue(app.staticTexts["career.detail.field.Issue date"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."].exists)
@@ -77,9 +78,14 @@ final class CareerHierarchyUITests: XCTestCase {
         keepScreenshot("Wave 2 - Certification detail", app)
         app.buttons["Done"].tap()
         let project = app.buttons["career.record.open.University Hiring Readiness Workshop"]
-        reveal(project, app); project.tap()
+        reveal(project, app)
+        XCTAssertFalse(project.label.contains("Candidate-provided"))
+        project.tap()
         XCTAssertTrue(app.staticTexts["career.detail.title"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.descendants(matching: .any)["career.detail.status"].firstMatch.label, "Candidate-provided")
+        XCTAssertFalse(app.descendants(matching: .any)["career.detail.status"].firstMatch.exists)
+        let projectDetail = app.descendants(matching: .any)["career.record.detail"].firstMatch
+        XCTAssertTrue(projectDetail.exists)
+        XCTAssertFalse(projectDetail.staticTexts["Candidate-provided"].exists)
         XCTAssertFalse(app.staticTexts["Verification"].exists)
         XCTAssertFalse(app.buttons["career.detail.verify"].exists)
         XCTAssertFalse(app.links.firstMatch.exists) // Display-only fixture label is not a fabricated URL.

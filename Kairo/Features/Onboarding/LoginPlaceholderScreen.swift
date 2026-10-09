@@ -120,6 +120,7 @@ struct LoginScreenView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.onboardingLoginScreen)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: { router.showOnboarding() }) {

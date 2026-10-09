@@ -116,7 +116,7 @@ struct DocumentsHubView: View {
     private func rowLabel(_ row: DocumentsHubRow) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             CompactDocumentLabel(title: DocumentHierarchy.title(row), filename: row.filename, context: row.context,
-                metadata: "\(row.status) · \(ByteCountFormatter.string(fromByteCount: Int64(row.byteSize), countStyle: .file))")
+                metadata: "\(row.displayStatus) · \(ByteCountFormatter.string(fromByteCount: Int64(row.byteSize), countStyle: .file))")
             if row.immutable { Text("Read-only evidence / history").font(KairoTypography.caption) }
             if !row.canView { Text("Historical preview unavailable in the current backend contract.").font(KairoTypography.caption) }
         }.foregroundStyle(KairoColors.textSecondary)

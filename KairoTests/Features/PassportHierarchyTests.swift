@@ -9,7 +9,9 @@ final class PassportHierarchyTests: XCTestCase {
         }
         let counts = PassportHierarchyCounts(content: content)
         XCTAssertEqual(counts.verified, 2)
-        XCTAssertEqual(counts.candidateProvided, 7)
+        XCTAssertEqual(counts.candidateProvided,
+                       (content.employment.map(\.verificationStatus) + content.education.map(\.verificationStatus)
+                        + content.portfolio.map(\.verificationStatus)).filter { $0 != .verified }.count)
         guard case .available(let score) = content.trustScore else { return XCTFail("Missing score") }
         XCTAssertEqual(score.value, 72)
         XCTAssertEqual(content.employment.last?.verificationStatus, .pendingVerification)

@@ -223,9 +223,12 @@ struct DigiLockerHubView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appConfiguration) private var configuration
+    @EnvironmentObject private var sessionStore: AppSessionStore
 
-    @State private var selected = Set<DigiLockerDocumentType>()
-    @State private var consent = false
+    @State private var consent = DigiLockerConsent()
+    @StateObject private var authentication = DigiLockerAuthenticationCoordinator()
+    @State private var isFinishingReturn = false
     @State private var awaitingBrowserReturn = false
 
     var body: some View {
@@ -233,6 +236,17 @@ struct DigiLockerHubView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
                     header
+                    if DigiLockerReadQA.current(configuration: configuration) != nil {
+                        Text("Staging authenticated read QA — writes and OAuth blocked")
+                            .font(KairoTypography.caption)
+                        Button("Open safe completion fixture") { connect() }
+                            .accessibilityIdentifier("candidate.digilocker.readQA")
+                    }
+                    if DigiLockerReturnFixture.current(configuration: configuration) != nil {
+                        Text("Synthetic DigiLocker return QA — writes blocked")
+                            .font(KairoTypography.caption)
+                            .accessibilityIdentifier("candidate.digilocker.fixture")
+                    }
                     savedSection
                     availableSection
                     connectionSection
@@ -255,6 +269,11 @@ struct DigiLockerHubView: View {
                 awaitingBrowserReturn = false
                 Task { await refresh() }
             }
+            .onChange(of: sessionStore.currentUser?.id) { _, _ in
+                authentication.cancel()
+                consent = DigiLockerConsent()
+            }
+            .onDisappear { authentication.cancel() }
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
     }
@@ -323,6 +342,7 @@ struct DigiLockerHubView: View {
                 verificationControls
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("candidate.digilocker.available")
     }
 
@@ -337,11 +357,11 @@ struct DigiLockerHubView: View {
             if store.status?.connected != true && store.status?.status != .pending && !store.summaryError {
                 KairoPrimaryButton(
                     title: store.status?.status == .reconnectRequired ? "Reconnect DigiLocker" : "Connect DigiLocker",
-                    isLoading: store.isConnecting,
+                    isLoading: store.isConnecting || authentication.isActive || isFinishingReturn,
                     accessibilityIdentifier: "candidate.digilocker.connect",
                     action: connect
                 )
-                .disabled(store.isConnecting)
+                .disabled(store.isConnecting || authentication.isActive || isFinishingReturn || store.isLoadingSummary)
             }
 
             if awaitingBrowserReturn || store.status?.status == .pending {
@@ -354,7 +374,7 @@ struct DigiLockerHubView: View {
             KairoSecondaryButton(title: "Refresh status and results") {
                 Task { await refresh() }
             }
-            .disabled(store.isLoadingSummary || store.isLoadingInventory)
+            .disabled(store.isLoadingSummary || store.isLoadingInventory || authentication.isActive || isFinishingReturn)
 
             if let error = store.actionErrorMessage {
                 Text(error)
@@ -424,31 +444,61 @@ struct DigiLockerHubView: View {
                 .foregroundStyle(KairoColors.textPrimary)
             ForEach(availableVerificationTypes, id: \.self) { type in
                 Toggle(type.title, isOn: Binding(
-                    get: { selected.contains(type) },
+                    get: { consent.selected.contains(type) },
                     set: { enabled in
-                        if enabled { selected.insert(type) } else { selected.remove(type) }
-                        consent = false
+                        consent.select(type, enabled: enabled)
                     }
                 ))
                 .frame(minHeight: 44)
+                .accessibilityIdentifier("candidate.digilocker.select.\(type.rawValue)")
+                .accessibilityValue(consent.selected.contains(type) ? "Selected" : "Not selected")
+                .disabled(store.isVerifying)
             }
-            Toggle(isOn: $consent) {
-                Text("I consent to KairoID retrieving the selected identity documents from DigiLocker for identity verification.")
-                    .font(KairoTypography.metadata)
-                    .fixedSize(horizontal: false, vertical: true)
+            KairoSection {
+                Text("Selected for verification")
+                    .font(KairoTypography.headline).accessibilityAddTraits(.isHeader)
+                Text(consent.selected.isEmpty ? "No documents selected." : DigiLockerDocumentType.allCases.filter(consent.selected.contains).map(\.title).joined(separator: ", "))
+                    .font(KairoTypography.metadata).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("candidate.digilocker.selected")
             }
-            .disabled(selected.isEmpty)
-            .frame(minHeight: 44)
-            KairoPrimaryButton(title: "Verify selected documents", isLoading: store.isVerifying) {
-                Task {
-                    if await store.verify(selected) {
-                        selected.removeAll()
-                        consent = false
-                        refreshStore.candidateDataChanged()
+            KairoSection {
+                Text("Consent to verify")
+                    .font(KairoTypography.headline).accessibilityAddTraits(.isHeader)
+                Button {
+                    consent.accepted.toggle()
+                } label: {
+                    HStack(alignment: .top, spacing: KairoSpacing.small) {
+                        Image(systemName: consent.accepted ? "checkmark.square.fill" : "square")
+                            .accessibilityHidden(true)
+                        Text("I consent to KairoID retrieving the selected documents from DigiLocker for identity verification.")
+                            .font(KairoTypography.metadata).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(consent.selected.isEmpty || store.isVerifying)
+                .accessibilityLabel("Consent to verify. I consent to KairoID retrieving the selected documents from DigiLocker for identity verification.")
+                .accessibilityValue(consent.accepted ? "Checked" : "Unchecked")
+                .accessibilityHint("Required. Select at least one document and check consent to enable Verify.")
+                .accessibilityIdentifier("candidate.digilocker.consent")
+                Text("KairoID stores verification results, not the source files.")
+                    .font(KairoTypography.caption).fixedSize(horizontal: false, vertical: true)
+                Text(consent.canVerify ? "Verify checks the selected documents against your KairoID profile." : "Select at least one document and give consent to enable Verify.")
+                    .font(KairoTypography.caption).fixedSize(horizontal: false, vertical: true)
+                KairoPrimaryButton(title: "Verify selected documents", isLoading: store.isVerifying,
+                                   accessibilityIdentifier: "candidate.digilocker.verify") {
+                    guard consent.canVerify else { return }
+                    let selected = consent.selected
+                    Task {
+                        if await store.verify(selected) {
+                            consent = DigiLockerConsent()
+                            refreshStore.candidateDataChanged()
+                        } else { consent.accepted = false }
                     }
                 }
+                .disabled(!consent.canVerify || store.isVerifying)
             }
-            .disabled(selected.isEmpty || !consent || store.isVerifying)
         }
         .padding(.top, KairoSpacing.small)
     }
@@ -468,7 +518,37 @@ struct DigiLockerHubView: View {
     }
 
     private func connect() {
+        guard !authentication.isActive, !isFinishingReturn else { return }
         Task {
+            if configuration.environment == .staging {
+                let revision = store.identityRevision
+                let fixture = DigiLockerReturnFixture.current(configuration: configuration)
+                let readQA = DigiLockerReadQA.current(configuration: configuration)
+                let result: DigiLockerReturnOutcome?
+                if fixture == .invalid {
+                    // Parser-only negative fixture; not evidence of system-browser handoff.
+                    result = DigiLockerReturnParser.parse(URL(string: "com.kairoid.staging.digilocker://complete?unexpected=fixture")!)
+                } else {
+                    result = await authentication.connect(authorize: {
+                        if let readQA { return readQA.completionURL }
+                        if let fixture { return fixture.completionURL }
+                        return await store.startConnection()
+                    })
+                }
+                guard let outcome = result,
+                      revision == store.identityRevision else { return }
+                isFinishingReturn = true
+                defer { isFinishingReturn = false }
+                consent = DigiLockerConsent()
+                if let readQA { await DigiLockerReadQAEvidence.shared.beginCallback(mode: readQA) }
+                await store.finishAuthentication(outcome, revision: revision)
+                if readQA != nil {
+                    print("[DigiLockerReadQA] hub_return same_identity=\(revision == store.identityRevision) summary_error=\(store.summaryError) server_connected=\(store.status?.connected == true) saved_history_present=\(store.history != nil)")
+                }
+                if revision == store.identityRevision { refreshStore.candidateDataChanged() }
+                return
+            }
+            // Other environments retain their existing browser behavior.
             guard let url = await store.startConnection() else { return }
             awaitingBrowserReturn = true
             openURL(url) { accepted in

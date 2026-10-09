@@ -65,7 +65,14 @@ struct KairoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppRootView()
+            Group {
+                if DigiLockerReadQA.current(configuration: configuration) != nil {
+                    // Exact canonical Hub, no bootstrap/Home requests or account actions.
+                    DigiLockerHubView()
+                } else {
+                    AppRootView()
+                }
+            }
                 .environmentObject(router)
                 .environmentObject(sessionStore)
                 .environmentObject(candidateDataRefreshStore)

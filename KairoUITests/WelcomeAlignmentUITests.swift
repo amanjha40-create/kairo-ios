@@ -4,6 +4,36 @@ import XCTest
 final class WelcomeAlignmentUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testLoginExposesOnlyExplicitAccessibleBackAndReturnsToWelcome() {
+        assertSingleLoginBack(large: false)
+    }
+
+    func testAccessibilityXXXLLoginExposesOnlyOneBackAndReturnsToWelcome() {
+        assertSingleLoginBack(large: true)
+    }
+
+    private func assertSingleLoginBack(large: Bool) {
+        let app = launch(large: large)
+        app.buttons["onboarding.existingAccount"].tap()
+        let back = app.buttons["onboarding.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding.login.submit"].exists)
+        // Count the AX-exposed navigation buttons, not just our identifier:
+        // the automatic system Back has a different identifier/title.
+        XCTAssertEqual(app.navigationBars.buttons.count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "onboarding.back").count, 1)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "Back")).count, 1)
+        XCTAssertEqual(back.label, "Back")
+        XCTAssertTrue(back.isHittable)
+        XCTAssertFalse(back.frame.isEmpty)
+        XCTAssertTrue(app.frame.contains(back.frame))
+        capture(large ? "Login single Back Accessibility XXXL" : "Login single Back standard")
+        back.tap()
+        XCTAssertTrue(app.buttons["onboarding.getStarted"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding.existingAccount"].isHittable)
+        XCTAssertFalse(app.buttons["onboarding.login.submit"].exists)
+    }
+
     func testExactStoryBenefitsAndFinalSignupRoute() {
         let app = launch()
         let headlines = ["Your career.", "One identity.", "Share with confidence.", "Your verified career"]

@@ -511,7 +511,8 @@ struct PassportOverviewScreenView: View {
                         passportRecordHeader(
                             title: item.title,
                             subtitle: item.issuer,
-                            status: item.verificationStatus
+                            status: item.verificationStatus,
+                            optionalRecord: true
                         )
 
                         passportRecordMeta(title: "Issue date", value: item.issueDate)
@@ -538,10 +539,9 @@ struct PassportOverviewScreenView: View {
                             .font(KairoTypography.bodyStrong)
                             .foregroundStyle(KairoColors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
-                        PassportBadge(status: .notVerified)
                         passportRecordMeta(title: "Role", value: item.role)
                         passportRecordMeta(title: "Date", value: item.date)
-                        if !item.evidenceStatus.isEmpty {
+                        if !item.evidenceStatus.isEmpty, ProductStatusLanguage.optionalRecordTitle(item.evidenceStatus) != nil {
                             passportRecordMeta(title: "Project details", value: item.evidenceStatus)
                         }
                         if !item.portfolioLinkTitle.isEmpty {
@@ -590,7 +590,9 @@ struct PassportOverviewScreenView: View {
                                 .font(KairoTypography.bodyStrong)
                                 .foregroundStyle(KairoColors.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            PassportBadge(status: item.verificationStatus)
+                            if ProductStatusLanguage.optionalRecordTitle(item.verificationStatus.style.title) != nil {
+                                PassportBadge(status: item.verificationStatus)
+                            }
                         }
                         if index < items.count - 1 { Divider() }
                     }
@@ -722,7 +724,8 @@ struct PassportOverviewScreenView: View {
     private func passportRecordHeader(
         title: String,
         subtitle: String,
-        status: PassportVerificationStatus
+        status: PassportVerificationStatus,
+        optionalRecord: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             HStack(alignment: .top, spacing: KairoSpacing.small) {
@@ -739,7 +742,9 @@ struct PassportOverviewScreenView: View {
                 }
 
                 Spacer(minLength: KairoSpacing.small)
-                PassportBadge(status: status)
+                if !optionalRecord || ProductStatusLanguage.optionalRecordTitle(status.style.title) != nil {
+                    PassportBadge(status: status)
+                }
             }
         }
     }

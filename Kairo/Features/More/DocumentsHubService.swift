@@ -24,6 +24,12 @@ nonisolated struct DocumentsHubRow: Identifiable, Equatable, Sendable {
     var immutable: Bool
     let source: DocumentsHubSource
     var canView: Bool { source != .unavailable }
+    var displayStatus: String {
+        if category == .certifications || category == .projects {
+            return ProductStatusLanguage.optionalRecordTitle(status) ?? "Attachment"
+        }
+        return status
+    }
     var canReplace: Bool {
         guard !immutable, !historical else { return false }
         switch source {

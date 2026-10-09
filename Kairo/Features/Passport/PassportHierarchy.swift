@@ -12,8 +12,11 @@ nonisolated struct PassportHierarchyCounts: Equatable, Sendable {
             + content.skills.map(\.verificationStatus)
             + content.portfolio.map(\.verificationStatus)
         verified = statuses.filter { $0 == .verified }.count
-        // Projects have no verified state in the canonical owner model/Policy V2.
-        candidateProvided = statuses.count - verified + content.projects.count
+        // Optional records retain neutral per-category counts, not a generic provenance count.
+        let attributed = content.employment.map(\.verificationStatus)
+            + content.education.map(\.verificationStatus)
+            + content.portfolio.map(\.verificationStatus)
+        candidateProvided = attributed.filter { $0 != .verified }.count
     }
 }
 

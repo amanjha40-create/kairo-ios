@@ -17,6 +17,7 @@ final class DigiLockerStore: ObservableObject {
 
     private let service: any DigiLockerServiceProtocol
     private var hasLoadedSummary = false
+    private(set) var identityRevision = UUID()
 
     init(service: any DigiLockerServiceProtocol) {
         self.service = service
@@ -40,6 +41,7 @@ final class DigiLockerStore: ObservableObject {
 
     func refreshSummary() async {
         guard !isLoadingSummary else { return }
+        let revision = identityRevision
         isLoadingSummary = true
         summaryError = false
         do {
@@ -47,11 +49,13 @@ final class DigiLockerStore: ObservableObject {
             async let loadedTrust = service.identityTrust()
             async let loadedHistory = service.verificationHistory()
             let result = try await (loadedStatus, loadedTrust, loadedHistory)
+            guard revision == identityRevision else { return }
             status = result.0
             trust = result.1
             history = result.2
             hasLoadedSummary = true
         } catch {
+            guard revision == identityRevision else { return }
             summaryError = true
         }
         isLoadingSummary = false
@@ -68,12 +72,15 @@ final class DigiLockerStore: ObservableObject {
 
     func refreshInventory() async {
         guard status?.connected == true, !isLoadingInventory else { return }
+        let revision = identityRevision
         isLoadingInventory = true
         inventoryError = false
         do {
             let response = try await service.issuedDocuments()
+            guard revision == identityRevision else { return }
             issuedDocuments = uniqueDocuments(response.items)
         } catch {
+            guard revision == identityRevision else { return }
             inventoryError = true
         }
         isLoadingInventory = false
@@ -81,15 +88,18 @@ final class DigiLockerStore: ObservableObject {
 
     func startConnection() async -> URL? {
         guard !isConnecting else { return nil }
+        let revision = identityRevision
         isConnecting = true
         actionErrorMessage = nil
-        defer { isConnecting = false }
+        defer { if revision == identityRevision { isConnecting = false } }
         do {
             let response = try await service.connect()
+            guard revision == identityRevision else { return nil }
             let url = try DigiLockerAuthorizationURLValidator.validate(response.authorizationURL)
             status = DigiLockerStatusDTO(connected: false, status: response.connectionState)
             return url
         } catch {
+            guard revision == identityRevision else { return nil }
             actionErrorMessage = "We couldn't open DigiLocker. Refresh the status before trying again."
             return nil
         }
@@ -112,11 +122,27 @@ final class DigiLockerStore: ObservableObject {
 
     func clearActionError() { actionErrorMessage = nil }
 
+    func finishAuthentication(_ outcome: DigiLockerReturnOutcome, revision: UUID) async {
+        // An initial Hub read may still be in flight. Never drop the post-return refresh.
+        while (isLoadingSummary || isLoadingInventory) && revision == identityRevision {
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
+        }
+        guard revision == identityRevision, !Task.isCancelled else { return }
+        actionErrorMessage = outcome.message
+        await refreshAll()
+        // A refresh failure is shown by summaryError. Old saved provenance is retained.
+    }
+
     func markBrowserOpenFailed() {
         actionErrorMessage = "We couldn't open the secure DigiLocker browser. Refresh the status before trying again."
     }
 
     func resetForIdentityChange() {
+        identityRevision = UUID()
+        isLoadingSummary = false
+        isLoadingInventory = false
+        isConnecting = false
+        isVerifying = false
         status = nil
         trust = nil
         history = nil

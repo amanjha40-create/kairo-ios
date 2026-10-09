@@ -292,6 +292,10 @@ struct CareerDocumentsView: View {
     }
 
     private func statusTitle(_ value: String) -> String {
-        ProductStatusLanguage.title(for: value)
+        let title = ProductStatusLanguage.title(for: value)
+        if case .certification = presentation.parent {
+            return ProductStatusLanguage.optionalRecordTitle(title) ?? "Attachment"
+        }
+        return title
     }
 }

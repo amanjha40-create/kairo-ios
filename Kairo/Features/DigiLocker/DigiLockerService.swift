@@ -111,10 +111,24 @@ actor DigiLockerService: DigiLockerServiceProtocol {
 
 actor DemoDigiLockerService: DigiLockerServiceProtocol {
     private var connection = DigiLockerStatusDTO(connected: true, status: .active)
+    private let returnFixture: DigiLockerReturnFixture?
+    private var reads = 0
 
-    func status() async throws -> DigiLockerStatusDTO { connection }
+    init(returnFixture: DigiLockerReturnFixture? = nil) {
+        self.returnFixture = returnFixture
+        if let returnFixture, returnFixture != .consent {
+            connection = DigiLockerStatusDTO(connected: false, status: .disconnected)
+        }
+    }
+
+    func status() async throws -> DigiLockerStatusDTO {
+        reads += 1
+        if returnFixture == .refreshFailure, reads > 2 { throw DigiLockerServiceError.invalidResponse }
+        return connection
+    }
 
     func connect() async throws -> DigiLockerConnectResponseDTO {
+        guard returnFixture == nil else { throw DigiLockerServiceError.invalidResponse }
         connection = DigiLockerStatusDTO(connected: false, status: .pending)
         return try APIJSONCoder.makeDecoder().decode(
             DigiLockerConnectResponseDTO.self,
@@ -134,19 +148,30 @@ actor DemoDigiLockerService: DigiLockerServiceProtocol {
     }
 
     func identityTrust() async throws -> DigiLockerIdentityTrustDTO {
-        try APIJSONCoder.makeDecoder().decode(
+        if returnFixture != nil {
+            return .init(state: .verified, sources: DigiLockerDocumentType.allCases.map {
+                .init(source: .digilocker, documentType: $0.rawValue, current: true, matchResult: .verifiedMatch, reason: nil)
+            })
+        }
+        return try APIJSONCoder.makeDecoder().decode(
             DigiLockerIdentityTrustDTO.self,
             from: Data(#"{"state":"verified","sources":[{"source":"digilocker","document_type":"DRVLC","current":true,"match_result":"VERIFIED_MATCH","reason":null},{"source":"digilocker","document_type":"PANCR","current":false,"match_result":"MISMATCH","reason":"NAME_MISMATCH"}]}"#.utf8)
         )
     }
 
     func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO {
+        guard returnFixture == nil else { throw DigiLockerServiceError.invalidResponse }
         _ = documentTypes
         return try fixtureHistory()
     }
 
     private func fixtureHistory() throws -> DigiLockerVerificationHistoryDTO {
-        try APIJSONCoder.makeDecoder().decode(
+        if returnFixture != nil {
+            return .init(items: DigiLockerDocumentType.allCases.map {
+                .init(documentType: $0.rawValue, source: .digilocker, current: true, matchResult: .verifiedMatch, matchReason: nil, integrityResult: "verified", verifiedAt: nil)
+            }, identityVerified: true)
+        }
+        return try APIJSONCoder.makeDecoder().decode(
             DigiLockerVerificationHistoryDTO.self,
             from: Data(#"{"items":[{"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-08-01T10:00:00Z"},{"document_type":"PANCR","source":"digilocker","current":false,"match_result":"MISMATCH","match_reason":"NAME_MISMATCH","integrity_result":"verified","verified_at":null}],"identity_verified":true}"#.utf8)
         )
