@@ -595,8 +595,8 @@ final class KairoUITests: XCTestCase {
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportEmploymentSection], in: app))
-        XCTAssertTrue(app.staticTexts["BrightPath Technologies"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons["candidate.passport.viewCareer"], in: app))
+        XCTAssertFalse(app.staticTexts[passportEmploymentSection].exists)
     }
 
     @MainActor
@@ -605,8 +605,8 @@ final class KairoUITests: XCTestCase {
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportEducationSection], in: app))
-        XCTAssertTrue(app.staticTexts["Welingkar Institute of Management"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons["candidate.passport.viewCareer"], in: app))
+        XCTAssertFalse(app.staticTexts[passportEducationSection].exists)
     }
 
     @MainActor
@@ -615,8 +615,8 @@ final class KairoUITests: XCTestCase {
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportCertificationsSection], in: app))
-        XCTAssertTrue(app.staticTexts["Certified Scrum Product Owner"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons["candidate.passport.viewCareer"], in: app))
+        XCTAssertFalse(app.staticTexts[passportCertificationsSection].exists)
     }
 
     @MainActor
@@ -625,8 +625,8 @@ final class KairoUITests: XCTestCase {
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportProjectsSection], in: app))
-        XCTAssertTrue(app.staticTexts["Trust Operations Workflow Redesign"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons["candidate.passport.viewCareer"], in: app))
+        XCTAssertFalse(app.staticTexts[passportProjectsSection].exists)
     }
 
     @MainActor
@@ -635,8 +635,8 @@ final class KairoUITests: XCTestCase {
 
         openPassportTab(in: app)
 
-        XCTAssertTrue(waitForElementAfterScrolling(app.staticTexts[passportSkillsSection], in: app))
-        XCTAssertTrue(app.staticTexts["Candidate Operations"].exists)
+        XCTAssertTrue(waitForElementAfterScrolling(app.buttons["candidate.passport.viewCareer"], in: app))
+        XCTAssertFalse(app.staticTexts[passportSkillsSection].exists)
     }
 
     @MainActor

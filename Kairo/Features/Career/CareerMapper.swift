@@ -228,12 +228,12 @@ enum CareerOverviewMapper {
             content.portfolio.isEmpty
     }
 
-    private nonisolated static func employmentLocation(_ record: CareerEmploymentRecord) -> String? {
+    nonisolated static func employmentLocation(_ record: CareerEmploymentRecord) -> String? {
         if record.workArrangement?.lowercased() == "remote" {
             return "Remote"
         }
         let country = displayCountry(record.workLocationCountry)
-        let values = [record.workLocationCity, record.workLocationRegion, country]
+        let values = [record.workLocationCity, country]
             .compactMap { value -> String? in
                 guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
                 return trimmed

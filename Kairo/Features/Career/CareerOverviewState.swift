@@ -308,7 +308,7 @@ nonisolated enum CareerVerificationStatus: Equatable, Sendable {
         switch rawBackendValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "verified", "approved": self = .verified
         case "pending", "pending_review", "pending_verification", "awaiting_verification": self = .pendingVerification
-        case "self_declared", "candidate_provided", "not_verified", "unverified", "missing": self = .notVerified
+        case "self_declared", "candidate_provided", "not_verified", "unverified", "missing", "withdrawn", "withdrawn_by_candidate": self = .notVerified
         default: self = .precise(rawBackendValue)
         }
     }

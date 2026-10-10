@@ -273,6 +273,7 @@ final class AppSessionStore: ObservableObject {
     private func applyLaunchRoute(_ route: AppLaunchRoute) {
         switch route {
         case .signedOut:
+            currentUser = nil
             router.showOnboarding()
         case .verifyIdentity:
             router.navigateToOnboarding(.verifyIdentity)

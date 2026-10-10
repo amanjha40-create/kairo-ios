@@ -41,6 +41,8 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
         let evidence = app.staticTexts["synthetic-navigation.pdf"]
         XCTAssertTrue(evidence.waitForExistence(timeout: 10))
         reveal(evidence, app); evidence.tap()
+        let secondEvidence = app.staticTexts["synthetic-navigation-2.pdf"]
+        reveal(secondEvidence, app); secondEvidence.tap()
         let email = app.textFields["hr@organisation.com"]
         reveal(email, app); email.tap(); email.typeText("qa@example.com\n")
         XCTAssertEqual(email.value as? String, "qa@example.com")

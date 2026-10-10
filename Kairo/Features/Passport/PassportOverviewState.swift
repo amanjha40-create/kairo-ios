@@ -198,6 +198,7 @@ nonisolated enum PassportOverviewSection: String, CaseIterable, Equatable, Senda
     case verifiedSummary
     case candidateProvidedSummary
     case passportStrength
+    case careerDetails
     case identity
     case employment
     case education
@@ -287,13 +288,8 @@ nonisolated struct PassportOverviewContent: Equatable, Sendable {
             .share,
             .verifiedSummary,
             .candidateProvidedSummary,
-            .employment,
-            .education,
-            .certifications,
-            .skills,
-            .projects,
-            .portfolio,
             .passportStrength,
+            .careerDetails,
             .identity,
             .trustTimeline,
             .actions

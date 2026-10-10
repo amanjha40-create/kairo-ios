@@ -43,6 +43,9 @@ struct TrustScoreDetailView: View {
             }
             .task { await load(showLoading: true) }
             .refreshable { await load(showLoading: false) }
+            .onChange(of: refreshStore.revision) { _, _ in
+                Task { await load(showLoading: false) }
+            }
             .confirmationDialog(
                 confirmation?.title ?? "",
                 isPresented: Binding(

@@ -4,6 +4,68 @@ import XCTest
 
 @MainActor
 final class CareerDocumentServiceTests: XCTestCase {
+    func testEmploymentUploadsExplicitPrimaryOrSupportingAndWaitsForCompletion() async throws {
+        let service = try await makeService()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+        try Data("%PDF-synthetic-evidence".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        for role in EmploymentEvidenceRole.allCases {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                switch (request.httpMethod, request.url?.host, request.url?.path) {
+                case ("POST", "staging-api.kairoid.com", "/api/v1/employments/employment-1/documents/upload-intent"):
+                    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: Any])
+                    XCTAssertEqual(json["evidence_role"] as? String, role.rawValue)
+                    XCTAssertEqual(json["document_type"] as? String, "other")
+                    return (try Self.response(for: request, statusCode: 201), Self.intentPayload)
+                case ("PUT", "storage.example", "/private-upload"):
+                    XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                    return (try Self.response(for: request, statusCode: 200), Data())
+                case ("POST", "staging-api.kairoid.com", "/api/v1/employments/employment-1/documents/document-1/complete-upload"):
+                    return (try Self.response(for: request, statusCode: 200), Self.documentPayload)
+                case ("GET", "staging-api.kairoid.com", "/api/v1/employments/employment-1/documents"):
+                    return (try Self.response(for: request, statusCode: 200), Self.pagePayload)
+                default: XCTFail("Unexpected synthetic upload route"); throw URLError(.badURL)
+                }
+            }
+            _ = try await service.uploadDocument(fileURL: file, documentType: "other", evidenceRole: role,
+                to: .employment(id: "employment-1", title: "Synthetic", canUpload: true, canDelete: true))
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.map(\.httpMethod), ["POST", "PUT", "POST", "GET"])
+        }
+    }
+
+    func testEmploymentEligibilityUsesBackendCountNotPaginatedDocuments() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/api/v1/employments/employment-1/evidence-eligibility")
+            return (try Self.response(for: request, statusCode: 200), Data(#"{"eligible_primary_count":2,"minimum_required":2,"eligible":true}"#.utf8))
+        }
+        let result = try await service.employmentEligibility(id: "employment-1")
+        XCTAssertTrue(result.canContinue)
+        XCTAssertEqual(result.progress, "2 documents added")
+    }
+
+    func testLegacyClassificationUsesExactAuthenticatedRouteAndPropagatesOwnershipDenial() async throws {
+        let service = try await makeService()
+        let document = CareerDocument(id: "legacy", documentType: "other", originalFilename: "synthetic.pdf", contentType: "application/pdf", byteSize: 1, verificationStatus: "pending_review")
+        for role in EmploymentEvidenceRole.allCases {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                XCTAssertEqual(request.httpMethod, "PATCH")
+                XCTAssertEqual(request.url?.path, "/api/v1/employments/employment-1/documents/legacy/evidence-role")
+                XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: String])
+                XCTAssertEqual(payload, ["evidence_role": role.rawValue])
+                return (try Self.response(for: request, statusCode: 403), Data(#"{"message":"Forbidden"}"#.utf8))
+            }
+            do {
+                try await service.classifyEvidence(document, parent: .employment(id: "employment-1", title: "Synthetic", canUpload: true, canDelete: true), role: role)
+                XCTFail("Ownership denial must not be treated as success")
+            } catch { }
+        }
+    }
+
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()

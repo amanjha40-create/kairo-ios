@@ -110,7 +110,7 @@ final class CareerOverviewMapperTests: XCTestCase {
         XCTAssertEqual(content.employment.first?.detailMetadata, [
             CareerDetailMetadata(title: "Employment type", value: "Full Time"),
             CareerDetailMetadata(title: "Work arrangement", value: "Hybrid"),
-            CareerDetailMetadata(title: "Location", value: "Bengaluru, Karnataka, India"),
+            CareerDetailMetadata(title: "Location", value: "Bengaluru, India"),
             CareerDetailMetadata(title: "Verification source", value: "Documents")
         ])
         XCTAssertFalse(content.employment.first?.allowsEdit ?? true)

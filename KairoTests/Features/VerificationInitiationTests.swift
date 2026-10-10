@@ -41,7 +41,7 @@ final class VerificationInitiationTests: XCTestCase {
         var draft = draft(kind: .employment)
 
         XCTAssertFalse(draft.canSubmit)
-        draft.selectedDocumentIDs = ["document_1"]
+        draft.selectedDocumentIDs = ["document_1", "document_2"]
         draft.contactEmail = "hr@brightpath.example"
         draft.consentsToClaimFields = true
         XCTAssertFalse(draft.canSubmit)
@@ -59,9 +59,11 @@ final class VerificationInitiationTests: XCTestCase {
 
         await MockURLProtocolStorage.shared.setHandler { request in
             switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/employments/employment_1/evidence-eligibility"):
+                return (try Self.response(request, 200), Data(#"{"eligible_primary_count":2,"minimum_required":2,"eligible":true}"#.utf8))
             case ("POST", "/api/v1/employments/employment_1/verification-request"):
                 let body = try requestJSONBody(from: request)
-                XCTAssertEqual(body["employment_document_ids"] as? [String], ["document_1"])
+                XCTAssertEqual(body["employment_document_ids"] as? [String], ["document_1", "document_2"])
                 XCTAssertNil(body["employment_document_i_ds"])
                 XCTAssertEqual(Set(body.keys), ["employment_document_ids", "verification_contact"])
                 let contact = try XCTUnwrap(body["verification_contact"] as? [String: Any])
@@ -88,7 +90,7 @@ final class VerificationInitiationTests: XCTestCase {
         XCTAssertEqual(result.requestID, "request_1")
         XCTAssertEqual(result.status, .pendingAdminReview)
         XCTAssertFalse(result.reusedExistingRequest)
-        XCTAssertEqual(requests.map(\.httpMethod), ["POST", "POST", "GET"])
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "POST", "POST", "GET"])
     }
 
     func test_educationSubmissionEncodesExactDocumentIDsKeyWithProductionEncoder() async throws {
@@ -164,6 +166,8 @@ final class VerificationInitiationTests: XCTestCase {
 
         await MockURLProtocolStorage.shared.setHandler { request in
             switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/employments/employment_1/evidence-eligibility"):
+                return (try Self.response(request, 200), Data(#"{"eligible_primary_count":2,"minimum_required":2,"eligible":true}"#.utf8))
             case ("POST", "/api/v1/employments/employment_1/verification-request"):
                 return (
                     try Self.response(request, 409),
@@ -202,12 +206,8 @@ final class VerificationInitiationTests: XCTestCase {
             )
         }
 
-        do {
-            _ = try await service.loadEvidence(for: employment)
-            XCTFail("Expected incomplete evidence to block initiation")
-        } catch let error as VerificationInitiationServiceError {
-            XCTAssertEqual(error, .noCompletedEvidence)
-        }
+        let incomplete = try await service.loadEvidence(for: employment)
+        XCTAssertTrue(incomplete.isEmpty, "Incomplete uploads must not be selectable")
 
         let validationError = APIError(
             statusCode: 422,
@@ -341,21 +341,27 @@ final class VerificationInitiationTests: XCTestCase {
     }
 
     private func draft(kind: VerificationInitiationKind) -> VerificationInitiationDraft {
-        VerificationInitiationDraft(
+        var result = VerificationInitiationDraft(
             subject: subject(id: kind == .employment ? "employment_1" : "education_1", kind: kind),
             documents: [
                 VerificationEvidenceDocument(
                     id: "document_1",
                     documentType: kind == .employment ? "offer_letter" : "transcript",
                     filename: "evidence.pdf",
-                    isUploadComplete: true
+                    isUploadComplete: true,
+                    evidenceRole: kind == .employment ? .primary : nil
                 )
             ]
         )
+        if kind == .employment {
+            result.documents.append(.init(id: "document_2", documentType: "offer_letter", filename: "second.pdf", isUploadComplete: true, evidenceRole: .primary))
+            result.employmentEligibility = .init(eligiblePrimaryCount: 2, minimumRequired: 2, eligible: true)
+        }
+        return result
     }
 
     private func makeSubmittable(_ draft: inout VerificationInitiationDraft) {
-        draft.selectedDocumentIDs = ["document_1"]
+        draft.selectedDocumentIDs = Set(draft.documents.map(\.id))
         draft.contactEmail = "hr@brightpath.example"
         draft.consentsToClaimFields = true
         draft.consentsToEvidence = true

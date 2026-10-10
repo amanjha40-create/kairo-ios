@@ -65,7 +65,7 @@ struct KairoPrimaryButton: View {
 }
 
 enum KairoActionRole {
-    case tertiary, destructiveSecondary, destructivePrimary, icon
+    case tertiary, secondary, destructiveSecondary, destructivePrimary, icon
 }
 
 struct KairoActionStyle: ButtonStyle {
@@ -80,9 +80,9 @@ struct KairoActionStyle: ButtonStyle {
             .frame(minWidth: 44, minHeight: 44)
             .background(background, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))
             .overlay {
-                if role == .destructiveSecondary {
+                if role == .destructiveSecondary || role == .secondary {
                     RoundedRectangle(cornerRadius: KairoCornerRadius.small)
-                        .stroke(KairoColors.danger.opacity(0.4), lineWidth: 1)
+                        .stroke(role == .secondary ? KairoColors.border : KairoColors.danger.opacity(0.4), lineWidth: 1)
                 }
             }
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.45)
@@ -91,6 +91,7 @@ struct KairoActionStyle: ButtonStyle {
     private var foreground: Color {
         switch role {
         case .tertiary, .icon: KairoColors.brandPrimary
+        case .secondary: KairoColors.textPrimary
         case .destructiveSecondary: KairoColors.danger
         case .destructivePrimary: .white
         }
@@ -98,7 +99,7 @@ struct KairoActionStyle: ButtonStyle {
 
     private var background: Color {
         switch role {
-        case .tertiary: .clear
+        case .tertiary, .secondary: .clear
         case .icon: KairoColors.surfaceMuted
         case .destructiveSecondary: KairoColors.danger.opacity(0.05)
         case .destructivePrimary: KairoColors.danger

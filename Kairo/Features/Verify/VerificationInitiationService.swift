@@ -1,9 +1,16 @@
 import Foundation
 
 protocol VerificationInitiationServiceProtocol: Sendable {
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility
     func loadEligibility() async throws -> VerificationInitiationEligibility
     func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument]
     func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult
+}
+
+extension VerificationInitiationServiceProtocol {
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
+        throw VerificationInitiationServiceError.noCompletedEvidence
+    }
 }
 
 actor VerificationInitiationService: VerificationInitiationServiceProtocol {
@@ -60,15 +67,14 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
 
         switch subject.kind {
         case .employment:
-            let page: VerificationDocumentPageDTO<EmploymentVerificationDocumentDTO> = try await get(
-                path: "/employments/\(subject.id)/documents"
-            )
-            documents = page.items.map {
+            let items = try await loadOwnerCollection(EmploymentVerificationDocumentDTO.self, path: "/employments/\(subject.id)/documents", session: sessionService)
+            documents = items.map {
                 VerificationEvidenceDocument(
                     id: $0.id,
                     documentType: $0.documentType,
                     filename: $0.originalFilename,
-                    isUploadComplete: $0.verificationStatus.lowercased() != "pending_upload"
+                    isUploadComplete: EmploymentEvidenceEligibility.isCompleted(status: $0.verificationStatus, checksum: $0.checksumSha256),
+                    evidenceRole: $0.evidenceRole
                 )
             }
         case .education:
@@ -88,15 +94,24 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
         }
 
         let completed = documents.filter(\.isUploadComplete)
-        guard !completed.isEmpty else {
+        guard !completed.isEmpty || subject.kind == .employment else {
             throw VerificationInitiationServiceError.noCompletedEvidence
         }
         return completed
     }
 
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
+        try await get(path: "/employments/\(id)/evidence-eligibility")
+    }
+
     func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult {
         guard draft.canSubmit else {
-            throw VerificationInitiationServiceError.noCompletedEvidence
+            throw draft.subject.kind == .employment ? VerificationInitiationServiceError.insufficientPrimaryEvidence : .noCompletedEvidence
+        }
+        if draft.subject.kind == .employment {
+            guard try await employmentEligibility(id: draft.subject.id).canContinue else {
+                throw VerificationInitiationServiceError.insufficientPrimaryEvidence
+            }
         }
 
         let created: VerificationRequestResponseDTO
@@ -257,6 +272,8 @@ private nonisolated struct EmploymentVerificationDocumentDTO: Decodable {
     let documentType: String
     let originalFilename: String
     let verificationStatus: String
+    let evidenceRole: EmploymentEvidenceRole?
+    let checksumSha256: String?
 }
 
 private nonisolated struct EducationVerificationDocumentDTO: Decodable {

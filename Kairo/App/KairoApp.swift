@@ -66,7 +66,9 @@ struct KairoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if DigiLockerReadQA.current(configuration: configuration) != nil {
+                if SessionRecoveryQA.isEnabled(configuration: configuration) {
+                    SessionRecoveryQARootView(configuration: configuration)
+                } else if DigiLockerReadQA.current(configuration: configuration) != nil {
                     // Exact canonical Hub, no bootstrap/Home requests or account actions.
                     DigiLockerHubView()
                 } else {

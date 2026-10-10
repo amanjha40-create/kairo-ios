@@ -73,6 +73,12 @@ nonisolated struct CareerDocument: Identifiable, Equatable, Sendable {
     let contentType: String
     let byteSize: Int
     let verificationStatus: String
+    var evidenceRole: EmploymentEvidenceRole? = nil
+    var checksumSha256: String? = nil
+
+    var canClassifyLegacyEvidence: Bool {
+        evidenceRole == nil && EmploymentEvidenceEligibility.isCompleted(status: verificationStatus, checksum: checksumSha256)
+    }
 }
 
 nonisolated struct CareerDocumentType: Identifiable, Equatable, Sendable {
@@ -81,6 +87,9 @@ nonisolated struct CareerDocumentType: Identifiable, Equatable, Sendable {
 }
 
 protocol CareerDocumentServiceProtocol: Sendable {
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility
+    func classifyEvidence(_ document: CareerDocument, parent: CareerDocumentParent, role: EmploymentEvidenceRole) async throws
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent) async throws -> [CareerDocument]
     func listDocuments(for parent: CareerDocumentParent) async throws -> [CareerDocument]
     func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType]
     func uploadDocument(
@@ -94,6 +103,17 @@ protocol CareerDocumentServiceProtocol: Sendable {
 }
 
 extension CareerDocumentServiceProtocol {
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
+        throw CareerDocumentServiceError.uploadUnavailable
+    }
+
+    func classifyEvidence(_ document: CareerDocument, parent: CareerDocumentParent, role: EmploymentEvidenceRole) async throws {
+        throw CareerDocumentServiceError.uploadUnavailable
+    }
+
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+    }
     func protectedContent(for parent: CareerDocumentParent) async throws -> ProtectedDocumentContent {
         _ = parent
         throw CareerDocumentServiceError.protectedContentUnavailable
@@ -106,6 +126,7 @@ extension CareerDocumentServiceProtocol {
         _ document: CareerDocument,
         with fileURL: URL,
         documentType: String,
+        evidenceRole: EmploymentEvidenceRole? = nil,
         parent: CareerDocumentParent
     ) async throws -> [CareerDocument] {
         if case .certification = parent {
@@ -115,7 +136,7 @@ extension CareerDocumentServiceProtocol {
         if case .portfolio = parent {
             return try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
         }
-        _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+        _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: document.evidenceRole ?? evidenceRole ?? .primary, to: parent)
         return try await deleteDocument(document, parent: parent)
     }
 }
@@ -197,6 +218,24 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         documentType: String,
         to parent: CareerDocumentParent
     ) async throws -> [CareerDocument] {
+        try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: .primary, to: parent)
+    }
+
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(path: "/employments/\(id)/evidence-eligibility", headers: ["Accept": "application/json"]))
+        return try decoder.decode(EmploymentEvidenceEligibility.self, from: data)
+    }
+
+    func classifyEvidence(_ document: CareerDocument, parent: CareerDocumentParent, role: EmploymentEvidenceRole) async throws {
+        guard case .employment(let id, _, _, _) = parent else { throw CareerDocumentServiceError.uploadUnavailable }
+        // The authenticated backend, not client-supplied owner IDs, authorizes this exact attachment.
+        _ = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/employments/\(id)/documents/\(document.id)/evidence-role", method: .patch,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try encoder.encode(["evidence_role": role.rawValue])))
+    }
+
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent) async throws -> [CareerDocument] {
         guard parent.canUpload else { throw CareerDocumentServiceError.uploadUnavailable }
         if case .certification(let id, _) = parent {
             return try await uploadCertificationDocument(fileURL: fileURL, id: id, parent: parent)
@@ -233,7 +272,8 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
                         documentType: documentType,
                         originalFilename: selection.filename,
                         contentType: selection.contentType,
-                        byteSize: selection.data.count
+                        byteSize: selection.data.count,
+                        evidenceRole: { if case .employment = parent { return evidenceRole }; return nil }()
                     )
                 )
             )
@@ -456,6 +496,8 @@ private nonisolated struct CareerDocumentDTO: Decodable {
     let contentType: String
     let byteSize: Int
     let verificationStatus: String
+    let evidenceRole: EmploymentEvidenceRole?
+    let checksumSha256: String?
 
     var domain: CareerDocument {
         CareerDocument(
@@ -464,7 +506,9 @@ private nonisolated struct CareerDocumentDTO: Decodable {
             originalFilename: originalFilename,
             contentType: contentType,
             byteSize: byteSize,
-            verificationStatus: verificationStatus
+            verificationStatus: verificationStatus,
+            evidenceRole: evidenceRole,
+            checksumSha256: checksumSha256
         )
     }
 }
@@ -474,6 +518,7 @@ private nonisolated struct CareerDocumentUploadIntentRequestDTO: Encodable {
     let originalFilename: String
     let contentType: String
     let byteSize: Int
+    let evidenceRole: EmploymentEvidenceRole?
 }
 
 private nonisolated struct CareerDocumentUploadIntentResponseDTO: Decodable {

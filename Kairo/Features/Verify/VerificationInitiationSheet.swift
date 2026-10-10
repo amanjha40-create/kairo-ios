@@ -63,11 +63,16 @@ final class VerificationInitiationViewModel: ObservableObject {
         guard let subject = selectedSubject, subject.isEligible else { return }
         isLoading = true
         error = nil
+        draft = nil
         defer { isLoading = false }
 
         do {
             let documents = try await service.loadEvidence(for: subject)
-            draft = VerificationInitiationDraft(subject: subject, documents: documents)
+            var loaded = VerificationInitiationDraft(subject: subject, documents: documents)
+            if subject.kind == .employment {
+                loaded.employmentEligibility = try await service.employmentEligibility(id: subject.id)
+            }
+            draft = loaded
         } catch {
             self.error = .map(error, fallbackTitle: "Evidence required")
         }
@@ -276,9 +281,15 @@ struct VerificationInitiationSheet: View {
                 Text("Supporting evidence")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("Select at least one completed document already attached to this Career record.")
+                Text(draft.wrappedValue.subject.kind == .employment
+                     ? "Select at least two distinct completed primary documents. Supporting and unclassified legacy evidence do not count."
+                     : "Select at least one completed document already attached to this Career record.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
+
+                if let eligibility = draft.wrappedValue.employmentEligibility {
+                    Text(eligibility.progress).accessibilityIdentifier("verification.initiation.primaryProgress")
+                }
 
                 ForEach(draft.wrappedValue.documents) { document in
                     Button {
@@ -294,6 +305,10 @@ struct VerificationInitiationSheet: View {
                                 Text(document.displayType)
                                     .font(KairoTypography.caption)
                                     .foregroundStyle(KairoColors.textSecondary)
+                                if draft.wrappedValue.subject.kind == .employment {
+                                    Text(document.evidenceRole?.title ?? "Unclassified legacy evidence — not counted")
+                                        .font(KairoTypography.caption)
+                                }
                             }
                             Spacer()
                         }

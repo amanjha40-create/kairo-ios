@@ -241,10 +241,11 @@ struct CareerRecordDetailView: View {
 
     @ViewBuilder private var actions: some View {
         if let edit = record.edit {
-            Button("Edit") { perform(edit) }.buttonStyle(KairoActionStyle()).accessibilityIdentifier("career.detail.edit")
+            Button { perform(edit) } label: { Label("Edit", systemImage: "pencil") }
+                .buttonStyle(KairoActionStyle(role: .secondary)).accessibilityIdentifier("career.detail.edit")
         }
         if let delete = record.delete {
-            Button("Delete", role: .destructive) { perform(delete) }
+            Button(role: .destructive) { perform(delete) } label: { Label("Delete", systemImage: "trash") }
                 .buttonStyle(KairoActionStyle(role: .destructiveSecondary)).accessibilityIdentifier("career.detail.delete")
         }
     }

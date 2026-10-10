@@ -51,7 +51,11 @@ private actor VerifyNavigationFixtureService: VerifyOverviewServiceProtocol, Ver
             subtitle: "Synthetic navigation role", verificationStatus: .notVerified, hasActiveRequest: false)])
     }
     func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument] {
-        [.init(id: "fixture-document", documentType: "other", filename: "synthetic-navigation.pdf", isUploadComplete: true)]
+        [.init(id: "fixture-document", documentType: "other", filename: "synthetic-navigation.pdf", isUploadComplete: true, evidenceRole: .primary),
+         .init(id: "fixture-document-2", documentType: "other", filename: "synthetic-navigation-2.pdf", isUploadComplete: true, evidenceRole: .primary)]
+    }
+    func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
+        .init(eligiblePrimaryCount: 2, minimumRequired: 2, eligible: true)
     }
     func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult {
         sequence += 1

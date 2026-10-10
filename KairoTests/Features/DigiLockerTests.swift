@@ -4,6 +4,31 @@ import XCTest
 
 @MainActor
 final class DigiLockerTests: XCTestCase {
+    func testVerificationSuccessNeedsReviewAndSafeFailureAlwaysFinishWithoutOAuth() async throws {
+        for verified in [true, false] {
+            let service = DigiLockerServiceStub(
+                status: .init(connected: true, status: .active),
+                trust: try decode(DigiLockerIdentityTrustDTO.self, verified ? String(decoding: Self.trustPayload, as: UTF8.self) : #"{"state":"unverified","sources":[]}"#),
+                history: .init(items: [], identityVerified: verified))
+            let store = DigiLockerStore(service: service)
+            await store.refreshSummary()
+            let success = await store.verify([.pan])
+            XCTAssertTrue(success)
+            XCTAssertFalse(store.isVerifying)
+            XCTAssertEqual(store.history?.identityVerified, verified)
+            XCTAssertEqual(store.identityIsVerified, verified)
+            XCTAssertNil(store.actionErrorMessage)
+            let before = store.history
+            await service.failVerification()
+            let failed = await store.verify([.pan])
+            XCTAssertFalse(failed)
+            XCTAssertFalse(store.isVerifying)
+            XCTAssertEqual(store.history, before)
+            XCTAssertNotNil(store.actionErrorMessage)
+            XCTAssertFalse(store.isConnecting)
+        }
+    }
+
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()
@@ -253,6 +278,8 @@ final class DigiLockerTests: XCTestCase {
 }
 
 private actor DigiLockerServiceStub: DigiLockerServiceProtocol {
+    private var verificationFails = false
+    func failVerification() { verificationFails = true }
     private var currentStatus: DigiLockerStatusDTO
     private let trustValue: DigiLockerIdentityTrustDTO
     private let historyValue: DigiLockerVerificationHistoryDTO
@@ -269,7 +296,10 @@ private actor DigiLockerServiceStub: DigiLockerServiceProtocol {
     func issuedDocuments() async throws -> DigiLockerIssuedDocumentsDTO { DigiLockerIssuedDocumentsDTO(items: []) }
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO { historyValue }
     func identityTrust() async throws -> DigiLockerIdentityTrustDTO { trustValue }
-    func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO { _ = documentTypes; return historyValue }
+    func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO {
+        if verificationFails { throw URLError(.timedOut) }
+        return historyValue
+    }
     func setStatus(_ status: DigiLockerStatusDTO) { currentStatus = status }
     func statusReads() -> Int { reads }
 }

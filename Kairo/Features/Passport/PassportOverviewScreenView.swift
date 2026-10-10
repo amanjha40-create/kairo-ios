@@ -250,13 +250,20 @@ struct PassportOverviewScreenView: View {
             )
             disclosureSummary(content, verified: true)
             disclosureSummary(content, verified: false)
-            employmentSection(content.employment)
-            educationSection(content.education)
-            certificationsSection(content.certifications)
-            skillsSection(content.skills)
-            projectsSection(content.projects)
-            portfolioSection(content.portfolio)
             strengthSummarySection(content.strengthSummary)
+            KairoSection {
+                Text("Career details").font(KairoTypography.sectionTitle)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("candidate.passport.careerDetails")
+                Text("View and manage your employment, education, certifications, projects and other career records.")
+                    .font(KairoTypography.body).foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { router.selectTab(.career) } label: {
+                    Label("View Career", systemImage: "briefcase")
+                }
+                .buttonStyle(KairoActionStyle(role: .secondary))
+                .accessibilityIdentifier("candidate.passport.viewCareer")
+            }
             identitySection(content.identity)
             if case .available = content.timeline {
                 trustTimelineSection(content.timeline)

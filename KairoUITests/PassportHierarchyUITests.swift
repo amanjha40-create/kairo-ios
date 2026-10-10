@@ -13,9 +13,9 @@ final class PassportHierarchyUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(scoreDetails.frame.height, 44)
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.passport.share").count, 1)
         let ids = ["candidate.passport.trustScore", "candidate.passport.share", "passport.summary.verified",
-            "passport.summary.candidateProvided", "candidate.passport.employment", "candidate.passport.education",
-            "candidate.passport.certifications", "candidate.passport.skills", "candidate.passport.projects",
-            "candidate.passport.strength", "candidate.passport.identity", "candidate.passport.download",
+            "passport.summary.candidateProvided", "candidate.passport.strength",
+            "candidate.passport.careerDetails", "candidate.passport.viewCareer",
+            "candidate.passport.identity", "candidate.passport.download",
             "candidate.passport.share.activity.entry"]
         var previous: XCUIElement?
         for id in ids {
@@ -23,6 +23,9 @@ final class PassportHierarchyUITests: XCTestCase {
             reveal(item, app)
             if let previous { XCTAssertLessThan(previous.frame.minY, item.frame.minY, id) }
             previous = item
+        }
+        for removedSection in ["employment", "education", "certifications", "skills", "projects", "portfolio"] {
+            XCTAssertFalse(element("candidate.passport.\(removedSection)", app).exists)
         }
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "self-declared")).firstMatch.exists)
         capture(app, "4C4 owner export and activity")

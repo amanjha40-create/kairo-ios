@@ -71,6 +71,7 @@ nonisolated struct VerificationEvidenceDocument: Identifiable, Equatable, Sendab
     let documentType: String
     let filename: String
     let isUploadComplete: Bool
+    var evidenceRole: EmploymentEvidenceRole? = nil
 
     var displayType: String {
         documentType
@@ -109,16 +110,24 @@ nonisolated struct VerificationInitiationDraft: Equatable, Sendable {
     var candidateNote = ""
     var consentsToClaimFields = false
     var consentsToEvidence = false
+    var employmentEligibility: EmploymentEvidenceEligibility? = nil
 
     var selectedDocuments: [VerificationEvidenceDocument] {
         documents.filter { selectedDocumentIDs.contains($0.id) }
     }
 
     var canSubmit: Bool {
-        !selectedDocuments.isEmpty
+        evidenceReady
             && Self.looksLikeEmail(contactEmail)
             && consentsToClaimFields
             && consentsToEvidence
+    }
+
+    var evidenceReady: Bool {
+        let completed = selectedDocuments.filter(\.isUploadComplete)
+        if subject.kind == .education { return !completed.isEmpty }
+        let primaryIDs = Set(completed.filter { $0.evidenceRole == .primary }.map(\.id))
+        return employmentEligibility?.canContinue == true && primaryIDs.count >= 2
     }
 
     var consentedFields: [String] {
@@ -164,6 +173,7 @@ nonisolated struct VerificationInitiationResult: Equatable, Sendable {
 nonisolated enum VerificationInitiationServiceError: Error, Equatable, LocalizedError, Sendable {
     case noEligibleSubject
     case noCompletedEvidence
+    case insufficientPrimaryEvidence
     case missingRequestIdentifier
     case unsupportedSubject
 
@@ -173,6 +183,8 @@ nonisolated enum VerificationInitiationServiceError: Error, Equatable, Localized
             "No eligible employment or education record is available."
         case .noCompletedEvidence:
             "Add and finish uploading at least one supporting document before requesting verification."
+        case .insufficientPrimaryEvidence:
+            "Add and select at least two distinct completed primary employment documents. Supporting and unclassified legacy files do not count."
         case .missingRequestIdentifier:
             "The server created a request without a usable identifier. Refresh Verify before retrying."
         case .unsupportedSubject:

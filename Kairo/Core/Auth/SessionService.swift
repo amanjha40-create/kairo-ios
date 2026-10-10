@@ -112,8 +112,7 @@ actor SessionService: SessionServiceProtocol {
             try await refreshSession()
             return true
         } catch {
-            try await clearSession()
-            throw SessionServiceError.sessionExpired
+            try await handleRefreshFailure(error)
         }
     }
 
@@ -160,8 +159,7 @@ actor SessionService: SessionServiceProtocol {
                 do {
                     try await refreshSession()
                 } catch {
-                    try await clearSession()
-                    throw SessionServiceError.sessionExpired
+                    try await handleRefreshFailure(error)
                 }
 
                 return try await sendAuthenticatedResponse(
@@ -173,6 +171,22 @@ actor SessionService: SessionServiceProtocol {
 
             throw error
         }
+    }
+
+    private func handleRefreshFailure(_ error: Error) async throws -> Never {
+        // Transport, server, decoding and storage failures do not prove that
+        // the refresh credential is invalid. Preserve it for the normal Retry.
+        let rejectedByServer: Bool
+        if case .api(let apiError) = error as? NetworkError {
+            rejectedByServer = apiError.statusCode == 401 && apiError.code == .unauthorized
+        } else {
+            rejectedByServer = false
+        }
+        if rejectedByServer || error as? SessionServiceError == .missingRefreshToken {
+            try await clearSession()
+            throw SessionServiceError.sessionExpired
+        }
+        throw error
     }
 
     private func refreshSession() async throws {

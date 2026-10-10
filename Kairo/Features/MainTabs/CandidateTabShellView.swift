@@ -121,7 +121,12 @@ struct CandidateTabShellView: View {
                 HomeOverviewContainerView()
             }
         case .career:
-            if uiTestCareerConfiguration.showsAttachedCertificationEditor {
+            if appConfiguration.buildConfiguration == .staging,
+               appConfiguration.environment == .staging,
+               UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
+               ProcessInfo.processInfo.environment["KAIRO_UI_TEST_BATCH2"] == "1" {
+                Batch2EvidenceFixtureView()
+            } else if uiTestCareerConfiguration.showsAttachedCertificationEditor {
                 AttachedCertificationFixtureHostView()
             } else if uiTestCareerConfiguration.showsHierarchyFixture, let state = uiTestCareerConfiguration.state {
                 CareerHierarchyFixtureHostView(state: state)

@@ -13,6 +13,8 @@ struct CareerDocumentsView: View {
     @State private var documents: [CareerDocument] = []
     @State private var documentTypes: [CareerDocumentType] = []
     @State private var selectedType = "other"
+    @State private var selectedEvidenceRole: EmploymentEvidenceRole = .primary
+    @State private var eligibility: EmploymentEvidenceEligibility?
     @State private var isLoading = true
     @State private var isMutating = false
     @State private var isFileImporterPresented = false
@@ -34,6 +36,14 @@ struct CareerDocumentsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
+                    if case .employment = presentation.parent {
+                        KairoSection {
+                            Text(eligibility?.progress ?? "Evidence readiness unavailable")
+                                .font(KairoTypography.bodyStrong).accessibilityIdentifier("career.documents.primaryProgress")
+                            Text("Add at least two distinct, completed primary employment documents. Supporting and unclassified legacy files do not count.")
+                                .font(KairoTypography.body).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     if isLoading {
                         KairoLoadingStateView(title: "Loading documents", message: "KairoID is fetching private document metadata.")
                     } else if documents.isEmpty {
@@ -113,7 +123,19 @@ struct CareerDocumentsView: View {
                     metadata: "\(typeTitle(document.documentType)) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))",
                     source: presentation.parent.title,
                     status: statusTitle(document.verificationStatus),
-                    details: { EmptyView() },
+                    details: {
+                        if case .employment = presentation.parent {
+                            Text(document.evidenceRole?.title ?? "Unclassified legacy evidence — not yet counted toward Employment verification.")
+                                .font(KairoTypography.footnote).fixedSize(horizontal: false, vertical: true)
+                            if document.canClassifyLegacyEvidence, presentation.parent.canUpload {
+                                ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in
+                                    Button(role.title) { classify(document, as: role) }
+                                        .buttonStyle(KairoActionStyle(role: .secondary)).disabled(isMutating)
+                                        .accessibilityIdentifier("career.documents.classify.\(document.id).\(role.rawValue)")
+                                }
+                            }
+                        }
+                    },
                     actions: {
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: KairoSpacing.medium) { rowActions(document) }.disabled(isMutating)
@@ -151,6 +173,12 @@ struct CareerDocumentsView: View {
             Picker("Document type", selection: $selectedType) {
                 ForEach(documentTypes) { option in Text(option.label).tag(option.id) }
             }
+            if case .employment = presentation.parent {
+                Picker("Evidence role", selection: $selectedEvidenceRole) {
+                    ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in Text(role.title).tag(role) }
+                }
+                .accessibilityIdentifier("career.documents.evidenceRole")
+            }
 
             KairoPrimaryButton(
                 title: "Choose file",
@@ -168,6 +196,7 @@ struct CareerDocumentsView: View {
 
     private func load() async {
         errorMessage = nil
+        eligibility = nil
         do {
             let loaded = try await service.listDocuments(for: presentation.parent)
             let types = service.documentTypes(for: presentation.parent)
@@ -179,6 +208,7 @@ struct CareerDocumentsView: View {
                 }
                 isLoading = false
             }
+            try await refreshEligibility()
         } catch {
             await present(error)
         }
@@ -193,6 +223,7 @@ struct CareerDocumentsView: View {
             guard let url = urls.first else { return }
             isMutating = true
             errorMessage = nil
+            eligibility = nil
             Task {
                 do {
                     let loaded: [CareerDocument]
@@ -201,12 +232,14 @@ struct CareerDocumentsView: View {
                             replacement,
                             with: url,
                             documentType: selectedType,
+                            evidenceRole: selectedEvidenceRole,
                             parent: presentation.parent
                         )
                     } else {
                         loaded = try await service.uploadDocument(
                             fileURL: url,
                             documentType: selectedType,
+                            evidenceRole: selectedEvidenceRole,
                             to: presentation.parent
                         )
                     }
@@ -215,6 +248,7 @@ struct CareerDocumentsView: View {
                         isMutating = false
                         refreshStore.candidateDataChanged()
                     }
+                    try await refreshEligibility()
                 } catch { await present(error) }
             }
         case .failure:
@@ -238,12 +272,34 @@ struct CareerDocumentsView: View {
         }
     }
 
+    private func refreshEligibility() async throws {
+        guard case .employment(let id, _, _, _) = presentation.parent else { return }
+        eligibility = nil
+        eligibility = try await service.employmentEligibility(id: id)
+    }
+
+    private func classify(_ document: CareerDocument, as role: EmploymentEvidenceRole) {
+        guard !isMutating else { return }
+        isMutating = true
+        errorMessage = nil
+        eligibility = nil
+        Task {
+            defer { isMutating = false }
+            do {
+                try await service.classifyEvidence(document, parent: presentation.parent, role: role)
+                refreshStore.candidateDataChanged()
+                await load()
+            } catch { await present(error) }
+        }
+    }
+
     private func deletePendingDocument() {
         guard !isMutating else { return }
         guard let document = pendingDelete else { return }
         pendingDelete = nil
         isMutating = true
         errorMessage = nil
+        eligibility = nil
         Task {
             do {
                 let loaded = try await service.deleteDocument(document, parent: presentation.parent)
@@ -252,6 +308,7 @@ struct CareerDocumentsView: View {
                     isMutating = false
                     refreshStore.candidateDataChanged()
                 }
+                try await refreshEligibility()
             } catch { await present(error) }
         }
     }

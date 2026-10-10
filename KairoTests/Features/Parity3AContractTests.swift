@@ -18,6 +18,7 @@ final class Parity3AContractTests: XCTestCase {
             XCTAssertEqual(ProductStatusLanguage.title(for: raw), expected, raw)
             let careerExpected = [
                 "pending_admin_review": "Needs review",
+                "withdrawn_by_candidate": "Candidate-provided",
                 "additional_info_requested": "Needs review"
             ][raw] ?? expected
             XCTAssertEqual(CareerVerificationStatus(rawBackendValue: raw).badgeStyle.title, careerExpected, raw)
@@ -110,6 +111,8 @@ final class Parity3AContractTests: XCTestCase {
             }
             let json: String
             switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/employments/emp/evidence-eligibility"):
+                json = #"{"eligible_primary_count":2,"minimum_required":2,"eligible":true}"#
             case ("GET", "/api/v1/employments"):
                 json = #"[{"id":"emp","job_title":"Edited role","company_name":"Synthetic Company","verification_status":"draft","verification_method":"document_upload"}]"#
             case ("GET", "/api/v1/verification-requests/me"):
@@ -130,8 +133,10 @@ final class Parity3AContractTests: XCTestCase {
         let overview = try await career.loadOverview()
         XCTAssertTrue(try XCTUnwrap(overview.employments.first).allowsCandidateEditing)
         var draft = VerificationInitiationDraft(subject: subject,
-            documents: [.init(id: "doc", documentType: "other", filename: "synthetic.pdf", isUploadComplete: true)])
-        draft.selectedDocumentIDs = ["doc"]
+            documents: [.init(id: "doc", documentType: "other", filename: "synthetic.pdf", isUploadComplete: true, evidenceRole: .primary),
+                        .init(id: "doc2", documentType: "other", filename: "synthetic2.pdf", isUploadComplete: true, evidenceRole: .primary)])
+        draft.employmentEligibility = .init(eligiblePrimaryCount: 2, minimumRequired: 2, eligible: true)
+        draft.selectedDocumentIDs = ["doc", "doc2"]
         draft.contactEmail = "verifier@example.invalid"
         draft.consentsToClaimFields = true
         draft.consentsToEvidence = true

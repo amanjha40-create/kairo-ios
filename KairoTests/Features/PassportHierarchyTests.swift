@@ -21,7 +21,8 @@ final class PassportHierarchyTests: XCTestCase {
         guard case .populated(let content) = PassportOverviewState.populatedFixture().phase else { return XCTFail() }
         XCTAssertEqual(Array(content.visibleSections.prefix(4)), [.trustScore, .share, .verifiedSummary, .candidateProvidedSummary])
         XCTAssertEqual(content.visibleSections.filter { $0 == .share }.count, 1)
-        XCTAssertEqual(Array(content.visibleSections.suffix(4)), [.passportStrength, .identity, .trustTimeline, .actions])
+        XCTAssertEqual(Array(content.visibleSections.suffix(5)), [.passportStrength, .careerDetails, .identity, .trustTimeline, .actions])
+        XCTAssertFalse(content.visibleSections.contains(.employment))
     }
 
     func testStagesAndModeLabelsPreserveExplicitOptInAndSeparateLegacy() {

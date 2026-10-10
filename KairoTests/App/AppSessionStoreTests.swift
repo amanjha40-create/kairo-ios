@@ -17,6 +17,59 @@ final class AppSessionStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func test_transientSessionRefreshFailurePreservesIdentityAndAllowsNormalRetry() async {
+        let router = AppRouter()
+        router.enterMainTabs(selectedTab: .home)
+        let session = StubSessionService(hasAccessToken: true, hasRefreshToken: true, signupSessionID: nil)
+        session.bootstrapError = NetworkError.transport("offline")
+        let store = makeStore(
+            router: router,
+            authService: StubAuthService(user: .fixture, onboardingStatus: .fixture(
+                currentStep: .complete, passportReady: true,
+                completionPercentage: 100, isOnboardingComplete: true
+            )),
+            sessionService: session
+        )
+        let user = UserPublicDTO.fixture.asDomainModel()
+        store.replaceCurrentUser(user)
+        let priorDestination = router.rootDestination
+
+        await store.refreshLaunchRoute()
+
+        guard case .failed = store.launchPhase else {
+            return XCTFail("Transient failure must expose the existing retryable session screen")
+        }
+        XCTAssertEqual(router.rootDestination, priorDestination)
+        XCTAssertEqual(store.currentUser?.id, user.id)
+        XCTAssertFalse(session.didClearSession)
+
+        session.bootstrapError = nil
+        await store.refreshLaunchRoute()
+        XCTAssertEqual(store.launchPhase, .idle)
+        XCTAssertEqual(router.rootDestination, priorDestination)
+        XCTAssertEqual(store.currentUser?.id, user.id)
+        XCTAssertFalse(session.didClearSession)
+    }
+
+    func test_confirmedSessionExpiryStillRoutesToWelcome() async {
+        let router = AppRouter()
+        router.enterMainTabs(selectedTab: .home)
+        let session = StubSessionService(hasAccessToken: true, hasRefreshToken: true, signupSessionID: nil)
+        session.bootstrapError = SessionServiceError.sessionExpired
+        let store = makeStore(
+            router: router,
+            authService: StubAuthService(user: .fixture, onboardingStatus: .fixture(currentStep: .complete)),
+            sessionService: session
+        )
+        store.replaceCurrentUser(UserPublicDTO.fixture.asDomainModel())
+
+        await store.refreshLaunchRoute()
+
+        XCTAssertEqual(store.launchPhase, .idle)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertNil(store.currentUser)
+    }
+
     func test_bootstrapRoutesSignedOutWhenNoStoredSessionExists() async {
         let router = AppRouter()
         let authService = StubAuthService(
@@ -44,10 +97,12 @@ final class AppSessionStoreTests: XCTestCase {
             resumeImportService: StubResumeImportService()
         )
 
+        store.replaceCurrentUser(UserPublicDTO.fixture.asDomainModel())
         await store.refreshLaunchRoute()
 
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath, [])
+        XCTAssertNil(store.currentUser)
     }
 
     func test_bootstrapRoutesToVerifyIdentityWhenSignupSessionExists() async {
@@ -740,6 +795,7 @@ private final class StubSessionService: SessionServiceProtocol {
     let hasRefreshToken: Bool
     var signupSessionID: String?
     private(set) var didClearSession = false
+    var bootstrapError: Error?
 
     init(
         hasAccessToken: Bool,
@@ -762,7 +818,10 @@ private final class StubSessionService: SessionServiceProtocol {
         didClearSession = true
     }
     func logoutRemotely() async throws {}
-    func prepareBootstrapSession() async throws -> Bool { hasAccessToken || hasRefreshToken }
+    func prepareBootstrapSession() async throws -> Bool {
+        if let bootstrapError { throw bootstrapError }
+        return hasAccessToken || hasRefreshToken
+    }
     func sendAuthenticated(_ request: NetworkRequest) async throws -> Data {
         _ = request
         return Data()

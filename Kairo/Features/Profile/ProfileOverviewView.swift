@@ -72,6 +72,9 @@ struct ProfileOverviewSheetView: View {
                 }
                 refreshStore.candidateDataChanged()
             }
+            .onChange(of: refreshStore.revision) { _, _ in
+                Task { await store.load(showLoading: false) }
+            }
             .onChange(of: photoSelection) { _, selection in
                 guard let selection else { return }
                 Task { await prepare(selection) }

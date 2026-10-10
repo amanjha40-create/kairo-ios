@@ -4,6 +4,40 @@ import XCTest
 final class DigiLockerWave1UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testBatch2FixtureVerificationFinishesWithSavedResultsAndResetConsent() {
+        checkFixtureVerification(fails: false)
+    }
+
+    func testBatch2FixtureVerificationFailurePreservesResultsAndExitsLoading() {
+        checkFixtureVerification(fails: true)
+    }
+
+    private func checkFixtureVerification(fails: Bool) {
+        // Existing UI-test dependencies are in-memory; this never calls live Verify or OAuth.
+        let app = launch(fixture: fails ? "consent" : nil)
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+        let pan = app.switches["candidate.digilocker.select.PANCR"].switches.firstMatch
+        revealAbove(pan, in: app); pan.tap()
+        let consent = app.buttons["candidate.digilocker.consent"]
+        reveal(consent, in: app); consent.tap()
+        let verify = app.buttons["candidate.digilocker.verify"]
+        reveal(verify, in: app); XCTAssertTrue(verify.isEnabled); verify.tap()
+        let finished = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            consent.value as? String == "Unchecked" && !verify.isEnabled
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 10), .completed)
+        XCTAssertFalse(app.staticTexts["Checking..."].exists)
+        XCTAssertEqual(app.navigationBars.matching(identifier: "DigiLocker").count, 1)
+        if fails {
+            let error = app.staticTexts["DigiLocker action failed. Verification could not be completed. Review saved results before trying again."]
+            revealAbove(error, in: app)
+            XCTAssertTrue(error.exists)
+        }
+        let saved = app.staticTexts["Verified through DigiLocker"]
+        revealAbove(saved, in: app); XCTAssertTrue(saved.exists)
+    }
+
     func testConsentIsExplicitAndSelectionChangesInvalidateIt() {
         assertConsent(large: false)
     }
