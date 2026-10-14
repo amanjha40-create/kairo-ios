@@ -66,6 +66,7 @@ struct VerifyOverviewScreenView: View {
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
             DigiLockerVerifySections()
+            PermanentAddressEntry()
             filterControl
             phaseContent
         }

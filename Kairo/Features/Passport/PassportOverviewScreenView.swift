@@ -242,6 +242,7 @@ struct PassportOverviewScreenView: View {
 
     private func populatedContent(_ content: PassportOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+            PermanentAddressEntry(passport: true)
             trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
             KairoPrimaryButton(
                 title: "Share",

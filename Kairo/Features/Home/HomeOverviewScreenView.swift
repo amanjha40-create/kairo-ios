@@ -21,6 +21,7 @@ struct HomeOverviewScreenView: View {
                 LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     header
                     content
+                    PermanentAddressEntry()
                 }
                 .padding(.horizontal, KairoSpacing.medium)
                 .padding(.top, KairoSpacing.medium)

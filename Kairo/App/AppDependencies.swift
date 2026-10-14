@@ -23,6 +23,8 @@ struct AppDependencies: Sendable {
     let moreOverviewService: any MoreOverviewServiceProtocol
     let profileService: any ProfileServiceProtocol
     let candidateNotificationService: any CandidateNotificationServiceProtocol
+    var employmentReferencesService: any EmploymentReferencesServing = UnavailableReferencesService()
+    var permanentAddressService: (any PermanentAddressServing)? = nil
 
     static func make(
         configuration: AppConfiguration,
@@ -197,7 +199,11 @@ struct AppDependencies: Sendable {
             passportPDFExportService: passportPDFExportService,
             moreOverviewService: moreOverviewService,
             profileService: profileService,
-            candidateNotificationService: candidateNotificationService
+            candidateNotificationService: candidateNotificationService,
+            employmentReferencesService: EmploymentReferencesService(session: sessionService,
+                enabled: configuration.environment == .staging && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled),
+            permanentAddressService: configuration.environment == .staging && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled
+                ? PermanentAddressService(session: sessionService, enabled: true) : nil
         )
     }
 

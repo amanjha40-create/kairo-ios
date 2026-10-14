@@ -28,6 +28,8 @@
 	<string>$(KAIRO_DEMO_MODE_DEFAULT)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>KairoID uses your precise location only when you start a permanent-address check. Collection stops when you leave or cancel; we do not track you in the background.</string>
 	<key>MinimumOSVersion</key>
 	<string>$(IPHONEOS_DEPLOYMENT_TARGET)</string>
 	<key>UIApplicationSceneManifest</key>

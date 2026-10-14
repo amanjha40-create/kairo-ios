@@ -120,11 +120,13 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
         // Scroll the form, not the software keyboard. Keyboard return/Done is
         // a submit action, not a safe way to dismiss it before testing the CTA.
         for _ in 0..<12 {
-            let keyboardTop = app.keyboards.firstMatch.exists
-                ? app.keyboards.firstMatch.frame.minY : app.frame.maxY
-            if submit.exists && submit.isHittable && submit.frame.maxY < keyboardTop { break }
+            let keyboardVisible = app.keyboards.firstMatch.exists
+            let keyboardTop = keyboardVisible ? app.keyboards.firstMatch.frame.minY : app.frame.maxY
+            // The native Passwords accessory sits above the reported keyboard
+            // frame. Keep the drag and CTA clear of that non-scrollable strip.
+            let bottom = keyboardTop - (keyboardVisible ? 100 : 30)
+            if submit.exists && submit.isHittable && submit.frame.maxY < bottom { break }
             let top = app.navigationBars["Delete account"].frame.maxY + 30
-            let bottom = keyboardTop - 30
             XCTAssertGreaterThan(bottom, top)
             app.coordinate(withNormalizedOffset: .zero)
                 .withOffset(CGVector(dx: 24, dy: bottom))

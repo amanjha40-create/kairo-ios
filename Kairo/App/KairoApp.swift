@@ -66,7 +66,9 @@ struct KairoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if SessionRecoveryQA.isEnabled(configuration: configuration) {
+                if CurrentParityQA.isEnabled(configuration: configuration) {
+                    CurrentParityQARootView()
+                } else if SessionRecoveryQA.isEnabled(configuration: configuration) {
                     SessionRecoveryQARootView(configuration: configuration)
                 } else if DigiLockerReadQA.current(configuration: configuration) != nil {
                     // Exact canonical Hub, no bootstrap/Home requests or account actions.
@@ -92,6 +94,8 @@ struct KairoApp: App {
                 .environment(\.trustScoreService, dependencies.trustScoreService)
                 .environment(\.careerOverviewService, dependencies.careerOverviewService)
                 .environment(\.careerDocumentService, dependencies.careerDocumentService)
+                .environment(\.employmentReferencesService, dependencies.employmentReferencesService)
+                .environment(\.permanentAddressService, dependencies.permanentAddressService)
                 .environment(\.documentVaultService, dependencies.documentVaultService)
                 .environment(\.documentsHubService, dependencies.documentsHubService)
                 .environment(\.documentPackService, dependencies.documentPackService)

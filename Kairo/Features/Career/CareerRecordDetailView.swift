@@ -170,6 +170,9 @@ struct CareerRecordDetailView: View {
                                 accessibilityIdentifier: "career.detail.documents") { openDocuments(documents) }
                         }
                     }
+                    if record.kind == .employment {
+                        EmploymentReferencesView(employmentID: record.id)
+                    }
                     if record.showsVerification {
                         KairoSection(compact: true) {
                             KairoSectionHeading(title: "Verification")
@@ -199,6 +202,7 @@ struct CareerRecordDetailView: View {
                 }
                 .padding(KairoSpacing.medium)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(KairoColors.background.ignoresSafeArea())
             .navigationTitle(record.kind == .portfolio ? "Portfolio item" : "Record details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }

@@ -33,6 +33,7 @@ struct ProfileOverviewSheetView: View {
                     }
                     hero
                     identity
+                    PermanentAddressEntry()
                     professionalInformation
                     skills
                     languages

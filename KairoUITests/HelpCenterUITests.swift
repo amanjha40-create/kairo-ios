@@ -160,11 +160,9 @@ final class HelpCenterUITests: XCTestCase {
     }
 
     private func dismissKeyboard(in app: XCUIApplication) {
-        if app.keyboards.buttons["Search"].exists {
-            app.keyboards.buttons["Search"].tap()
-        } else if app.keyboards.buttons["Return"].exists {
-            app.keyboards.buttons["Return"].tap()
-        }
+        // Xcode may retain off-screen keyboard AX elements after typing. Send the
+        // submit key to the focused field, rather than tapping that stale geometry.
+        app.textFields["candidate.help.search"].typeText("\n")
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
