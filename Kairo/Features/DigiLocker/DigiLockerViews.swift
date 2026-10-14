@@ -520,16 +520,16 @@ struct DigiLockerHubView: View {
     private func connect() {
         guard !authentication.isActive, !isFinishingReturn else { return }
         Task {
-            if configuration.environment == .staging {
+            if DigiLockerReturnParser.scheme(for: configuration.environment) != nil {
                 let revision = store.identityRevision
                 let fixture = DigiLockerReturnFixture.current(configuration: configuration)
                 let readQA = DigiLockerReadQA.current(configuration: configuration)
                 let result: DigiLockerReturnOutcome?
                 if fixture == .invalid {
                     // Parser-only negative fixture; not evidence of system-browser handoff.
-                    result = DigiLockerReturnParser.parse(URL(string: "com.kairoid.staging.digilocker://complete?unexpected=fixture")!)
+                    result = DigiLockerReturnParser.parse(URL(string: "com.kairoid.staging.digilocker://complete?unexpected=fixture")!, environment: configuration.environment)
                 } else {
-                    result = await authentication.connect(authorize: {
+                    result = await authentication.connect(environment: configuration.environment, authorize: {
                         if let readQA { return readQA.completionURL }
                         if let fixture { return fixture.completionURL }
                         return await store.startConnection()

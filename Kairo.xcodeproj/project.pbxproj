@@ -487,6 +487,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = development;
 				KAIRO_BUILD_CONFIGURATION = Development;
+				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.development.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
 				KAIRO_DEMO_MODE_DEFAULT = NO;
@@ -520,6 +521,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = staging;
 				KAIRO_BUILD_CONFIGURATION = Staging;
+				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.staging.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
 				KAIRO_DEMO_MODE_DEFAULT = NO;
@@ -553,6 +555,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = production;
 				KAIRO_BUILD_CONFIGURATION = Production;
+				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
 				KAIRO_DEMO_MODE_DEFAULT = NO;
@@ -772,6 +775,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = development;
 				KAIRO_BUILD_CONFIGURATION = Demo;
+				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.demo.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
 				KAIRO_DEMO_MODE_DEFAULT = YES;

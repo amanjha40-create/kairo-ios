@@ -16,12 +16,19 @@ nonisolated enum DigiLockerReturnOutcome: Equatable, Sendable {
 }
 
 nonisolated enum DigiLockerReturnParser {
-    static let scheme = "com.kairoid.staging.digilocker"
+    static func scheme(for environment: AppEnvironment) -> String? {
+        switch environment {
+        case .staging: "com.kairoid.staging.digilocker"
+        case .production: "com.kairoid.digilocker"
+        case .development: nil
+        }
+    }
 
-    static func parse(_ url: URL) -> DigiLockerReturnOutcome {
+    static func parse(_ url: URL, environment: AppEnvironment) -> DigiLockerReturnOutcome {
+        guard let scheme = scheme(for: environment) else { return .invalid }
         // Match the complete canonical serialization too: encoded keys, whitespace,
         // userinfo, extra separators, paths, ports and fragments are not this contract.
-        switch url.absoluteString {
+        return switch url.absoluteString {
         case "\(scheme)://complete?result=connected": .connected
         case "\(scheme)://complete?result=failed": .failed
         default: .invalid
@@ -31,16 +38,17 @@ nonisolated enum DigiLockerReturnParser {
 
 @MainActor
 protocol DigiLockerBrowserSession: AnyObject {
-    func start(url: URL, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool
+    func start(url: URL, environment: AppEnvironment, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool
     func cancel()
 }
 
-/// Uses system authentication UI. No global scheme, web-view inspection, or credentials.
+/// Only an active system authentication session consumes a return. No global action router.
 @MainActor
 final class SystemDigiLockerBrowserSession: NSObject, DigiLockerBrowserSession, ASWebAuthenticationPresentationContextProviding {
     private var session: ASWebAuthenticationSession?
 
-    func start(url: URL, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool {
+    func start(url: URL, environment: AppEnvironment, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool {
+        guard let scheme = DigiLockerReturnParser.scheme(for: environment) else { return false }
         let handler: ASWebAuthenticationSession.CompletionHandler = { url, error in
             let outcome: DigiLockerReturnOutcome
             if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
@@ -48,15 +56,15 @@ final class SystemDigiLockerBrowserSession: NSObject, DigiLockerBrowserSession, 
             } else if error != nil {
                 outcome = .unavailable
             } else {
-                outcome = url.map(DigiLockerReturnParser.parse) ?? .invalid
+                outcome = url.map { DigiLockerReturnParser.parse($0, environment: environment) } ?? .invalid
             }
             Task { @MainActor in completion(outcome) }
         }
         let session: ASWebAuthenticationSession
         if #available(iOS 17.4, *) {
-            session = ASWebAuthenticationSession(url: url, callback: .customScheme(DigiLockerReturnParser.scheme), completionHandler: handler)
+            session = ASWebAuthenticationSession(url: url, callback: .customScheme(scheme), completionHandler: handler)
         } else {
-            session = ASWebAuthenticationSession(url: url, callbackURLScheme: DigiLockerReturnParser.scheme, completionHandler: handler)
+            session = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme, completionHandler: handler)
         }
         self.session = session
         session.presentationContextProvider = self
@@ -84,7 +92,8 @@ final class DigiLockerAuthenticationCoordinator: ObservableObject {
         self.browser = browser
     }
 
-    func connect(authorize: () async -> URL?) async -> DigiLockerReturnOutcome? {
+    func connect(environment: AppEnvironment, authorize: () async -> URL?) async -> DigiLockerReturnOutcome? {
+        guard DigiLockerReturnParser.scheme(for: environment) != nil else { return .unavailable }
         guard !isActive else { return nil }
         let id = UUID()
         attempt = id
@@ -94,7 +103,7 @@ final class DigiLockerAuthenticationCoordinator: ObservableObject {
         guard attempt == id else { return nil }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
-            if !browser.start(url: url, completion: { [weak self] outcome in
+            if !browser.start(url: url, environment: environment, completion: { [weak self] outcome in
                 self?.finish(outcome, id: id)
             }) { finish(.unavailable, id: id) }
         }

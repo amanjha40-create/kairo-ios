@@ -4,6 +4,70 @@ import XCTest
 final class DigiLockerWave1UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testSafeConnectedReturnSurvivesBackgroundAndKeepsServerTruth() {
+        checkSafeReturn(fixture: "connected", background: true)
+    }
+
+    func testSafeFailedReturnKeepsSameHubAndSavedResults() {
+        checkSafeReturn(fixture: "failed")
+    }
+
+    func testSafeBrowserCancellationKeepsSameHubAndSavedResults() {
+        checkSafeReturn(fixture: "connected", cancel: true)
+    }
+
+    private func checkSafeReturn(fixture: String, background: Bool = false, cancel: Bool = false) {
+        // Only the credential-free Staging /complete page is read. All account
+        // services are synthetic; this cannot authorize, verify, or call a provider.
+        let app = launch(fixture: fixture)
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+        let connect = app.buttons["candidate.digilocker.connect"]
+        reveal(connect, in: app); connect.tap()
+        // System permission/browser elements can be owned by a view service.
+        // Query only the app and Apple's known system hosts, never launch them.
+        let hosts = [app, XCUIApplication(bundleIdentifier: "com.apple.AuthenticationServicesUI"),
+                     XCUIApplication(bundleIdentifier: "com.apple.SafariViewService"),
+                     XCUIApplication(bundleIdentifier: "com.apple.springboard")]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            hosts.contains { host in host.state != .notRunning &&
+                (host.buttons["Continue"].exists || host.links["Return to KairoID on iPhone"].exists) }
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        if let host = hosts.first(where: { $0.state != .notRunning && $0.buttons["Continue"].exists }) {
+            host.buttons["Continue"].tap()
+        }
+        let pageReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            hosts.contains { $0.state != .notRunning && $0.links["Return to KairoID on iPhone"].exists }
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [pageReady], timeout: 30), .completed)
+        guard let browserHost = hosts.first(where: { $0.state != .notRunning && $0.links["Return to KairoID on iPhone"].exists }) else {
+            XCTFail("Safe completion page missing"); return
+        }
+        let action = browserHost.links["Return to KairoID on iPhone"]
+        XCTAssertTrue(action.waitForExistence(timeout: 30))
+        if background {
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            XCTAssertTrue(action.waitForExistence(timeout: 10))
+        }
+        if cancel { browserHost.buttons["Cancel"].tap() } else { action.tap() }
+        XCTAssertTrue(action.waitForNonExistence(timeout: 15))
+        XCTAssertEqual(app.navigationBars.matching(identifier: "DigiLocker").count, 1)
+        let saved = app.staticTexts["Verified through DigiLocker"]
+        revealAbove(saved, in: app)
+        XCTAssertTrue(saved.exists)
+        XCTAssertFalse(app.staticTexts["Connected"].exists)
+        if cancel {
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "DigiLocker connection cancelled.")).firstMatch.exists)
+        }
+        if fixture == "failed" {
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Couldn't connect DigiLocker.")).firstMatch.exists)
+        }
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 10))
+    }
+
     func testBatch2FixtureVerificationFinishesWithSavedResultsAndResetConsent() {
         checkFixtureVerification(fails: false)
     }

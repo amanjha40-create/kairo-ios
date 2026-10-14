@@ -3,10 +3,116 @@ import XCTest
 
 @MainActor
 final class DigiLockerReturnTests: XCTestCase {
+    func testEnvironmentSchemesAndCrossEnvironmentRejection() {
+        XCTAssertNil(DigiLockerReturnParser.scheme(for: .development))
+        for environment: AppEnvironment in [.staging, .production] {
+            let scheme = environment == .staging ? "com.kairoid.staging.digilocker" : "com.kairoid.digilocker"
+            XCTAssertEqual(DigiLockerReturnParser.scheme(for: environment), scheme)
+            for (result, outcome): (String, DigiLockerReturnOutcome) in [("connected", .connected), ("failed", .failed)] {
+                let url = URL(string: "\(scheme)://complete?result=\(result)")!
+                XCTAssertEqual(DigiLockerReturnParser.parse(url, environment: environment), outcome)
+                XCTAssertEqual(DigiLockerReturnParser.parse(url, environment: environment == .staging ? .production : .staging), .invalid)
+                XCTAssertEqual(DigiLockerReturnParser.parse(url, environment: .development), .invalid)
+            }
+        }
+    }
+
+    func testProductionRejectsMalformedAndCredentialBearingCallbacks() {
+        let base = "com.kairoid.digilocker://complete"
+        for value in [base, base + "/?result=connected", base + "?result=unknown",
+                      base + "?result=connected&result=failed", base + "?result=connected#fragment",
+                      base + "?%72esult=connected", base + "?result=con%6Eected",
+                      "com.kairoid.digilocker://evil?result=connected",
+                      "com.kairoid.digilocker://user@complete?result=connected",
+                      "com.kairoid.digilocker://complete:443?result=connected"] +
+            ["code", "access_token", "refresh_token", "state", "client_secret", "candidate_id", "provider_subject", "error"]
+                .map({ base + "?result=connected&\($0)=synthetic" }) {
+            XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: value)!, environment: .production), .invalid)
+        }
+    }
+
+    func testProductionConfigurationCannotBeOverriddenToStaging() {
+        let config = AppConfiguration.resolve(bundleValues: ["KAIROBuildConfiguration": "Production"],
+            environmentVariables: ["KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "true"])
+        XCTAssertEqual(config.environment, .production)
+        XCTAssertFalse(config.isDemoModeEnabled)
+        XCTAssertEqual(config.apiBaseURL.host, "api.kairoid.com")
+        XCTAssertEqual(DigiLockerReturnParser.scheme(for: config.environment), "com.kairoid.digilocker")
+    }
+
+    func testProductionSessionGetsProductionEnvironmentAndConsumesFailedOnce() async {
+        let browser = ReturnBrowserStub()
+        let coordinator = DigiLockerAuthenticationCoordinator(browser: browser)
+        let task = Task { await coordinator.connect(environment: .production) { URL(string: "https://fixture.invalid")! } }
+        while browser.completion == nil { await Task.yield() }
+        XCTAssertEqual(browser.environment, .production)
+        browser.completion?(.failed)
+        browser.completion?(.failed)
+        browser.completion?(.connected)
+        let result = await task.value
+        XCTAssertEqual(result, .failed)
+        XCTAssertEqual(browser.cancels, 1)
+        XCTAssertFalse(coordinator.isActive)
+    }
+
+    func testStaleReturnCannotCompleteANewerAttempt() async {
+        let browser = ReturnBrowserStub()
+        let coordinator = DigiLockerAuthenticationCoordinator(browser: browser)
+        let first = Task { await coordinator.connect(environment: .production) { URL(string: "https://fixture.invalid")! } }
+        while browser.completion == nil { await Task.yield() }
+        let stale = browser.completion
+        coordinator.cancel()
+        let firstResult = await first.value
+        XCTAssertEqual(firstResult, .cancelled)
+        browser.completion = nil
+        let second = Task { await coordinator.connect(environment: .production) { URL(string: "https://fixture.invalid")! } }
+        while browser.completion == nil { await Task.yield() }
+        stale?(.connected)
+        XCTAssertTrue(coordinator.isActive)
+        XCTAssertEqual(browser.cancels, 1)
+        browser.completion?(.connected)
+        let secondResult = await second.value
+        XCTAssertEqual(secondResult, .connected)
+        XCTAssertEqual(browser.cancels, 2)
+    }
+
+    func testUnsupportedEnvironmentDoesNotStartAuthorization() async {
+        let browser = ReturnBrowserStub()
+        let coordinator = DigiLockerAuthenticationCoordinator(browser: browser)
+        let result = await coordinator.connect(environment: .development) { XCTFail("Unsupported authorization"); return nil }
+        XCTAssertEqual(result, .unavailable)
+        XCTAssertEqual(browser.starts, 0)
+    }
+
+    func testColdStartURLDoesNotRouteOrFabricateAConnection() {
+        for environment: AppEnvironment in [.staging, .production] {
+            let config = AppConfiguration.resolve(environmentVariables: ["KAIRO_APP_ENVIRONMENT": environment.rawValue])
+            let router = AppRouter(rootDestination: .mainTabs)
+            for scheme in ["com.kairoid.staging.digilocker", "com.kairoid.digilocker"] {
+                XCTAssertFalse(router.handleIncomingURL(URL(string: "\(scheme)://complete?result=connected")!, configuration: config))
+                XCTAssertNil(router.digiLockerPresentation)
+                XCTAssertEqual(router.rootDestination, .mainTabs)
+            }
+        }
+    }
+
+    func testPreviouslyConnectedTruthSurvivesTransientRefreshFailure() async {
+        let service = ReturnTruthService()
+        let store = DigiLockerStore(service: service)
+        await service.activate()
+        await store.refreshAll()
+        await service.fail()
+        await store.finishAuthentication(.connected, revision: store.identityRevision)
+        XCTAssertEqual(store.status?.connected, true)
+        XCTAssertTrue(store.summaryError)
+        XCTAssertTrue(store.identityIsVerified)
+        XCTAssertEqual(store.history?.items.count, 1)
+    }
+
     func testOnlyCanonicalCredentialFreeCallbacksAreAccepted() {
         let base = "com.kairoid.staging.digilocker://complete"
-        XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: base + "?result=connected")!), .connected)
-        XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: base + "?result=failed")!), .failed)
+        XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: base + "?result=connected")!, environment: .staging), .connected)
+        XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: base + "?result=failed")!, environment: .staging), .failed)
         for value in [
             "other://complete?result=connected", "com.kairoid.staging.digilocker://evil?result=connected",
             base + "/?result=connected", base + "?result=connected#fragment", base + "?result=unknown",
@@ -16,7 +122,7 @@ final class DigiLockerReturnTests: XCTestCase {
             "com.kairoid.staging.digilocker://complete:443?result=connected", base,
             base + "?code=synthetic", base + "?state=synthetic"
         ] {
-            XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: value)!), .invalid)
+            XCTAssertEqual(DigiLockerReturnParser.parse(URL(string: value)!, environment: .staging), .invalid)
         }
     }
 
@@ -24,10 +130,10 @@ final class DigiLockerReturnTests: XCTestCase {
         for outcome: DigiLockerReturnOutcome in [.connected, .failed, .cancelled, .invalid, .unavailable] {
             let browser = ReturnBrowserStub()
             let coordinator = DigiLockerAuthenticationCoordinator(browser: browser)
-            let first = Task { await coordinator.connect { URL(string: "https://fixture.invalid")! } }
+            let first = Task { await coordinator.connect(environment: .staging) { URL(string: "https://fixture.invalid")! } }
             while browser.completion == nil { await Task.yield() }
             XCTAssertTrue(coordinator.isActive)
-            let duplicate = await coordinator.connect { XCTFail("Duplicate authorize"); return nil }
+            let duplicate = await coordinator.connect(environment: .staging) { XCTFail("Duplicate authorize"); return nil }
             XCTAssertNil(duplicate)
             browser.completion?(outcome)
             browser.completion?(.connected)
@@ -42,13 +148,13 @@ final class DigiLockerReturnTests: XCTestCase {
     func testCancelAndStartFailureReleaseSessionWithoutRetry() async {
         let browser = ReturnBrowserStub()
         let coordinator = DigiLockerAuthenticationCoordinator(browser: browser)
-        let first = Task { await coordinator.connect { URL(string: "https://fixture.invalid")! } }
+        let first = Task { await coordinator.connect(environment: .staging) { URL(string: "https://fixture.invalid")! } }
         while browser.completion == nil { await Task.yield() }
         coordinator.cancel()
         let cancelled = await first.value
         XCTAssertEqual(cancelled, .cancelled)
         browser.startsSuccessfully = false
-        let failed = await coordinator.connect { URL(string: "https://fixture.invalid")! }
+        let failed = await coordinator.connect(environment: .staging) { URL(string: "https://fixture.invalid")! }
         XCTAssertEqual(failed, .unavailable)
         XCTAssertFalse(coordinator.isActive)
         XCTAssertEqual(browser.starts, 2)
@@ -128,11 +234,13 @@ final class DigiLockerReturnTests: XCTestCase {
 
 @MainActor
 private final class ReturnBrowserStub: DigiLockerBrowserSession {
+    var environment: AppEnvironment?
     var starts = 0
     var cancels = 0
     var startsSuccessfully = true
     var completion: (@MainActor (DigiLockerReturnOutcome) -> Void)?
-    func start(url: URL, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool {
+    func start(url: URL, environment: AppEnvironment, completion: @escaping @MainActor (DigiLockerReturnOutcome) -> Void) -> Bool {
+        self.environment = environment
         starts += 1
         self.completion = completion
         return startsSuccessfully
