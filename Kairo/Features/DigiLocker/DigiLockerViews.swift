@@ -32,40 +32,10 @@ struct DigiLockerHomeCard: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        KairoSection(compact: true) {
-            HStack(alignment: .center, spacing: KairoSpacing.small) {
-                Label("DigiLocker", systemImage: "checkmark.shield")
-                    .font(KairoTypography.sectionTitle)
-                    .foregroundStyle(KairoColors.textPrimary)
-                Spacer(minLength: KairoSpacing.small)
-                if let status = store.status, !store.summaryError {
-                    DigiLockerStatusChip(state: status.status)
-                }
-            }
-
-            if store.isLoadingSummary && store.status == nil {
-                Text("Checking connection…")
-                    .font(KairoTypography.metadata)
-                    .foregroundStyle(KairoColors.textSecondary)
-            } else if store.summaryError {
-                Text("DigiLocker status unavailable")
-                    .font(KairoTypography.metadata)
-                    .foregroundStyle(KairoColors.textSecondary)
-            } else if store.status?.connected == true {
-                Text("\(store.verifiedDigiLockerSources.count) verified · \(store.attentionDigiLockerSources.count) needs review")
-                    .font(KairoTypography.metadata)
-                    .foregroundStyle(KairoColors.textSecondary)
-            } else {
-                Text("Connect your records to build trust.")
-                    .font(KairoTypography.metadata)
-                    .foregroundStyle(KairoColors.textSecondary)
-            }
-
-            Button(actionTitle) { router.showDigiLocker() }
-                .buttonStyle(KairoActionStyle())
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("candidate.home.digilocker")
-        }
+        KairoCompactDestinationRow(title: "DigiLocker", metadata: metadata,
+            systemImage: "checkmark.shield", accessibilityIdentifier: "candidate.home.digilocker",
+            action: { router.showDigiLocker() })
+        .accessibilityHint(actionTitle)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("candidate.home.digilocker.card")
     }
@@ -74,6 +44,12 @@ struct DigiLockerHomeCard: View {
         if store.summaryError || store.isLoadingSummary { return "View DigiLocker" }
         if store.status?.status == .reconnectRequired { return "Reconnect DigiLocker" }
         return store.status?.connected == true ? "View details" : "Connect DigiLocker"
+    }
+    private var metadata: String {
+        if store.isLoadingSummary && store.status == nil { return "Checking connection…" }
+        if store.summaryError { return "DigiLocker status unavailable" }
+        if store.status?.connected == true { return "\(store.verifiedDigiLockerSources.count) verified · \(store.attentionDigiLockerSources.count) needs review" }
+        return store.status?.status.title ?? "Not connected"
     }
 }
 
@@ -230,11 +206,12 @@ struct DigiLockerHubView: View {
     @StateObject private var authentication = DigiLockerAuthenticationCoordinator()
     @State private var isFinishingReturn = false
     @State private var awaitingBrowserReturn = false
+    @State private var connectionMotion = 0
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     header
                     if DigiLockerReadQA.current(configuration: configuration) != nil {
                         Text("Staging authenticated read QA — writes and OAuth blocked")
@@ -274,13 +251,19 @@ struct DigiLockerHubView: View {
                 consent = DigiLockerConsent()
             }
             .onDisappear { authentication.cancel() }
+            .onChange(of: store.status?.connected) { previous, current in
+                if previous == false && current == true && !store.summaryError { connectionMotion += 1 }
+            }
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
-            Label("Secure connection for verified records", systemImage: "checkmark.shield")
+            HStack {
+                KairoTrustSignature(kind: .connected, trigger: connectionMotion, size: 36)
+                Text("Secure connection for verified records")
+            }
                 .font(KairoTypography.bodyStrong)
                 .foregroundStyle(KairoColors.textPrimary)
             if store.isLoadingSummary && store.status == nil {
@@ -432,36 +415,26 @@ struct DigiLockerHubView: View {
                 Text("Verification is not yet available for this document.")
                     .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
             }
+            if document.supported, let type = DigiLockerDocumentType(rawValue: document.documentType), availableVerificationTypes.contains(type) {
+                Toggle("Select \(type.title)", isOn: Binding(
+                    get: { consent.selected.contains(type) },
+                    set: { consent.select(type, enabled: $0) }))
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("candidate.digilocker.select.\(type.rawValue)")
+                    .accessibilityValue(consent.selected.contains(type) ? "Selected" : "Not selected")
+                    .disabled(store.isVerifying)
+            }
         }
         .padding(.vertical, KairoSpacing.xSmall)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var verificationControls: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
-            Text("Choose identity documents to verify")
-                .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.textPrimary)
-            ForEach(availableVerificationTypes, id: \.self) { type in
-                Toggle(type.title, isOn: Binding(
-                    get: { consent.selected.contains(type) },
-                    set: { enabled in
-                        consent.select(type, enabled: enabled)
-                    }
-                ))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("candidate.digilocker.select.\(type.rawValue)")
-                .accessibilityValue(consent.selected.contains(type) ? "Selected" : "Not selected")
-                .disabled(store.isVerifying)
-            }
-            KairoSection {
-                Text("Selected for verification")
-                    .font(KairoTypography.headline).accessibilityAddTraits(.isHeader)
-                Text(consent.selected.isEmpty ? "No documents selected." : DigiLockerDocumentType.allCases.filter(consent.selected.contains).map(\.title).joined(separator: ", "))
-                    .font(KairoTypography.metadata).fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("candidate.digilocker.selected")
-            }
-            KairoSection {
+            Text(consent.selected.isEmpty ? "Select at least one document to give consent." : DigiLockerDocumentType.allCases.filter(consent.selected.contains).map(\.title).joined(separator: ", "))
+                .font(KairoTypography.metadata).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("candidate.digilocker.selected")
+            if !consent.selected.isEmpty {
                 Text("Consent to verify")
                     .font(KairoTypography.headline).accessibilityAddTraits(.isHeader)
                 Button {
@@ -486,7 +459,8 @@ struct DigiLockerHubView: View {
                     .font(KairoTypography.caption).fixedSize(horizontal: false, vertical: true)
                 Text(consent.canVerify ? "Verify checks the selected documents against your KairoID profile." : "Select at least one document and give consent to enable Verify.")
                     .font(KairoTypography.caption).fixedSize(horizontal: false, vertical: true)
-                KairoPrimaryButton(title: "Verify selected documents", isLoading: store.isVerifying,
+            }
+                KairoPrimaryButton(title: "Verify selected", isLoading: store.isVerifying,
                                    accessibilityIdentifier: "candidate.digilocker.verify") {
                     guard consent.canVerify else { return }
                     let selected = consent.selected
@@ -498,7 +472,6 @@ struct DigiLockerHubView: View {
                     }
                 }
                 .disabled(!consent.canVerify || store.isVerifying)
-            }
         }
         .padding(.top, KairoSpacing.small)
     }

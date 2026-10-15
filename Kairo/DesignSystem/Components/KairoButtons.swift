@@ -8,6 +8,7 @@ struct KairoButtonChrome: ButtonStyle {
     let backgroundColor: Color
     let pressedBackgroundColor: Color
     let borderColor: Color?
+    var shareLift = false
 
     func makeBody(configuration: Configuration) -> some View {
         let resolvedForegroundColor = isEnabled ? foregroundColor : foregroundColor.opacity(0.58)
@@ -26,8 +27,9 @@ struct KairoButtonChrome: ButtonStyle {
                 }
             }
             .opacity(isEnabled ? 1 : 0.92)
-            .scaleEffect(configuration.isPressed && isEnabled && !reduceMotion ? 0.99 : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && isEnabled && !reduceMotion ? 0.96 : 1)
+            .offset(y: shareLift && configuration.isPressed && isEnabled && !reduceMotion ? -2 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 
@@ -35,11 +37,13 @@ struct KairoPrimaryButton: View {
     let title: String
     var isLoading: Bool = false
     var accessibilityIdentifier: String?
+    var shareLift = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: KairoSpacing.xSmall) {
+                if shareLift { Image(systemName: "square.and.arrow.up").accessibilityHidden(true) }
                 if isLoading {
                     ProgressView()
                         .tint(KairoColors.onPrimary)
@@ -58,7 +62,8 @@ struct KairoPrimaryButton: View {
                 foregroundColor: KairoColors.onPrimary,
                 backgroundColor: KairoColors.brandPrimary,
                 pressedBackgroundColor: KairoColors.brandPrimaryPressed,
-                borderColor: nil
+                borderColor: nil,
+                shareLift: shareLift
             )
         )
     }
@@ -71,6 +76,7 @@ enum KairoActionRole {
 struct KairoActionStyle: ButtonStyle {
     var role: KairoActionRole = .tertiary
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -86,6 +92,8 @@ struct KairoActionStyle: ButtonStyle {
                 }
             }
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.45)
+            .scaleEffect(configuration.isPressed && isEnabled && !reduceMotion ? 0.96 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: configuration.isPressed)
     }
 
     private var foreground: Color {

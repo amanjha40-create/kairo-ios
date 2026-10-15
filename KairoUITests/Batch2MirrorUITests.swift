@@ -7,6 +7,8 @@ final class Batch2MirrorUITests: XCTestCase {
     func testOwnerPassportKeepsTrustCompletenessAndNavigatesToCareer() {
         let app = launch()
         app.tabBars.buttons["Passport"].tap()
+        let disclosure = app.buttons["passport.trustSignals.disclosure"]
+        reveal(disclosure, app); disclosure.tap()
         reveal(app.staticTexts["candidate.passport.strength"], app)
         let career = app.buttons["candidate.passport.viewCareer"]
         reveal(career, app)
@@ -53,6 +55,8 @@ final class Batch2MirrorUITests: XCTestCase {
         let app = launch(large: true)
         app.tabBars.buttons["Career"].tap()
         app.buttons["batch2.detail"].tap()
+        let details = app.buttons["career.detail.disclosure"]
+        reveal(details, app); details.tap()
         reveal(app.staticTexts["Jaipur, India"], app)
         XCTAssertFalse(app.staticTexts["Jaipur, United Kingdom"].exists)
         XCTAssertFalse(app.staticTexts["Withdrawn"].exists)

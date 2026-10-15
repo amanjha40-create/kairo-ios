@@ -9,14 +9,18 @@ struct PassportOverviewScreenView: View {
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.kairoMotionEntry) private var motionEntry
     @Environment(\.passportShareService) private var passportShareService
     @Environment(\.passportPDFExportService) private var passportPDFExportService
     @State private var modalDestination: PassportModalDestination?
+    @State private var scoreMemory = PremiumScoreMemory()
+    @State private var shieldEntry: Int?
     @StateObject private var pdfExportModel = PassportPDFExportViewModel()
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 40.0
 
     var body: some View {
         screenContent
+            .onChange(of: motionEntry.identityRevision) { _, _ in scoreMemory = .init(); shieldEntry = nil }
             .refreshableIfAvailable(action: refreshAction)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.passportScreen)
@@ -104,7 +108,7 @@ struct PassportOverviewScreenView: View {
     private var passportHeader: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                profilePlaceholder
+                KairoTrustSignature(trigger: motionEntry.generation, animateInitially: true, history: $shieldEntry)
                 headerCopy
             }
             passportHeroStatus
@@ -242,23 +246,25 @@ struct PassportOverviewScreenView: View {
 
     private func populatedContent(_ content: PassportOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            PermanentAddressEntry(passport: true)
-            trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
             KairoPrimaryButton(
-                title: "Share",
+                title: "Share Trust Passport",
                 accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
+                shareLift: true,
                 action: { modalDestination = .sharePassport }
             )
-            disclosureSummary(content, verified: true)
-            disclosureSummary(content, verified: false)
-            strengthSummarySection(content.strengthSummary)
-            KairoSection {
+            trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
+            PermanentAddressEntry(passport: true)
+            KairoSection(compact: true) {
+                KairoDisclosure(title: "Completeness & trust signals", identifier: "passport.trustSignals.disclosure") {
+                    disclosureSummary(content, verified: true)
+                    disclosureSummary(content, verified: false)
+                    strengthSummarySection(content.strengthSummary)
+                }
+            }
+            KairoSection(compact: true) {
                 Text("Career details").font(KairoTypography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("candidate.passport.careerDetails")
-                Text("View and manage your employment, education, certifications, projects and other career records.")
-                    .font(KairoTypography.body).foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 Button { router.selectTab(.career) } label: {
                     Label("View Career", systemImage: "briefcase")
                 }
@@ -271,6 +277,7 @@ struct PassportOverviewScreenView: View {
             }
             actionsSection
         }
+        .kairoPageEntrance()
     }
 
     private func disclosureSummary(_ content: PassportOverviewContent, verified: Bool) -> some View {
@@ -337,7 +344,7 @@ struct PassportOverviewScreenView: View {
             switch trustScoreContent {
             case .available(let score):
                 HStack(alignment: .firstTextBaseline, spacing: KairoSpacing.xxSmall) {
-                    Text(String(score.value))
+                    KairoAnimatedScore(value: score.value, memory: $scoreMemory)
                         .font(.system(size: scoreSize, weight: .bold))
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.7)
@@ -666,8 +673,8 @@ struct PassportOverviewScreenView: View {
     }
 
     private var actionsSection: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            Text("Export & activity")
+        KairoSection(compact: true) {
+            Text("Sharing & export")
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 

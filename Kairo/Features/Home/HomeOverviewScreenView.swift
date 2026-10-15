@@ -6,6 +6,7 @@ struct HomeOverviewScreenView: View {
     var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.kairoMotionEntry) private var motionEntry
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
@@ -14,6 +15,7 @@ struct HomeOverviewScreenView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 46.0
     @State private var showsDocuments = false
+    @State private var scoreMemory = PremiumScoreMemory()
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -21,7 +23,6 @@ struct HomeOverviewScreenView: View {
                 LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     header
                     content
-                    PermanentAddressEntry()
                 }
                 .padding(.horizontal, KairoSpacing.medium)
                 .padding(.top, KairoSpacing.medium)
@@ -47,6 +48,7 @@ struct HomeOverviewScreenView: View {
         .onAppear { updateGuidedTourReadiness() }
         .onChange(of: state.phase) { _, _ in updateGuidedTourReadiness() }
         .onDisappear { guidedTourCoordinator.setHomeReady(false) }
+        .onChange(of: motionEntry.identityRevision) { _, _ in scoreMemory = .init() }
         .sheet(isPresented: $showsDocuments) { DocumentsHubView() }
     }
 
@@ -129,6 +131,7 @@ struct HomeOverviewScreenView: View {
         .id(GuidedTourTarget.passport)
         .guidedTourTarget(.passport)
         DigiLockerHomeCard()
+        PermanentAddressEntry()
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         careerSection(content, isEmpty: isEmpty)
         recentActivitySection(content.recentActivity)
@@ -152,7 +155,10 @@ struct HomeOverviewScreenView: View {
             .foregroundStyle(.white.opacity(0.74))
             adaptiveLayout {
                 HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
-                    Text(trustScore.score.map(String.init) ?? "Unavailable")
+                    Group {
+                        if let value = trustScore.score { KairoAnimatedScore(value: value, memory: $scoreMemory) }
+                        else { Text("Unavailable") }
+                    }
                         .font(.system(size: trustScore.score == nil ? scoreSize * 0.5 : scoreSize, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
                     if trustScore.score != nil {

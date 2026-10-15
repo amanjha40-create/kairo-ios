@@ -35,6 +35,8 @@ final class CareerHierarchyUITests: XCTestCase {
             XCTAssertEqual(app.staticTexts["career.detail.title"].label, "Trust & Operations Associate")
             XCTAssertEqual(app.descendants(matching: .any)["career.detail.status"].firstMatch.label, "Verified")
             let dates = app.staticTexts["career.detail.field.Employment dates"]
+            XCTAssertFalse(dates.exists)
+            app.buttons["career.detail.disclosure"].tap()
             XCTAssertTrue(dates.exists)
             XCTAssertLessThan(app.descendants(matching: .any)["career.detail.status"].firstMatch.frame.minY, dates.frame.minY)
             keepScreenshot("Wave 2 - Employment detail", app)
@@ -271,7 +273,11 @@ final class CareerHierarchyUITests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
         for _ in 0..<35 {
-            if element.exists && element.isHittable && element.frame.minY > 100 && element.frame.maxY < app.frame.height - 100 { return }
+            // Record sheets have no bottom tab bar. Requiring its reserved 100pt
+            // made XCTest repeatedly scroll a fully visible footer Edit button.
+            let detailSheet = app.navigationBars["Record details"].exists || app.navigationBars["Portfolio item"].exists
+            let bottom = app.frame.height - (detailSheet ? 35 : 100)
+            if element.exists && element.isHittable && element.frame.minY > 100 && element.frame.maxY < bottom { return }
             let earlier = element.exists && element.frame.minY <= 100
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.35 : 0.70))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.65 : 0.40)))

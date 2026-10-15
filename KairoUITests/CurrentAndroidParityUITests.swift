@@ -34,6 +34,7 @@ import XCTest
         open("parity.references.nomination", app)
         reveal(app.buttons["references.nominate"], app).tap()
         reveal(app.textFields["references.name"], app).tap(); app.textFields["references.name"].typeText("Synthetic Manager")
+        app.textFields["references.name"].typeText("\n")
         reveal(app.textFields["Designation"], app).tap(); app.textFields["Designation"].typeText("QA Lead")
         XCTAssertFalse(app.buttons["references.save"].isEnabled)
         // Close the focused keyboard before scrolling to the next field. On a
@@ -62,6 +63,7 @@ import XCTest
         app.navigationBars.buttons["Done"].tap()
         open("parity.references.sent", app)
         XCTAssertTrue(app.staticTexts["Invitation sent"].waitForExistence(timeout: 5))
+        reveal(app.buttons["references.policy"], app).tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Reference completion is separate from employment verification.")).firstMatch.exists)
     }
     func testRequiredDocumentAndZeroOfThreeRemainUnverified() {
@@ -119,7 +121,7 @@ import XCTest
         let app = launch()
         open("parity.address.offline", app)
         XCTAssertTrue(app.staticTexts["address.error"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Refresh verification status"].isEnabled)
+        XCTAssertTrue(app.buttons["Refresh status"].isEnabled)
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(app.navigationBars["Current parity QA"].exists)
     }
@@ -127,7 +129,12 @@ import XCTest
         let app = launch()
         open("parity.address.approved", app)
         reveal(app.buttons["Edit permanent address"], app).tap()
-        reveal(app.buttons["Save permanent address"], app).tap()
+        let save = app.buttons["Save permanent address"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        XCTAssertTrue(save.isEnabled, "An unchanged valid address must remain saveable")
+        XCTAssertTrue(save.isHittable, "The sticky Save action must be reachable without scrolling")
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5), "Successful Save dismisses the editor")
         XCTAssertTrue(app.buttons["Edit permanent address"].waitForExistence(timeout: 5))
         reveal(app.staticTexts["address.document.status"], app)
         XCTAssertEqual(app.staticTexts["address.document.status"].label, "Approved")
@@ -243,6 +250,15 @@ import XCTest
     @discardableResult private func reveal(_ element: XCUIElement, _ app: XCUIApplication) -> XCUIElement {
         for _ in 0..<24 {
             if element.exists && element.isHittable && element.frame.minY > 100 && element.frame.maxY < app.frame.maxY - 55 { return element }
+            // A native switch includes its multiline label in its AX frame.
+            // At XXXL, requiring that whole label to fit oscillates the scroll
+            // position although the control's tap point is already reachable.
+            if element.exists && element.elementType == .switch && element.isHittable &&
+                element.frame.midY > 100 && element.frame.midY < app.frame.maxY - 55 { return element }
+            // At XXXL the full consent label can exceed the viewport. Its native
+            // switch remains reachable; the accessibility audit checks clipping.
+            if element.exists && element.isHittable && element.frame.height > app.frame.height - 155 &&
+                element.frame.intersection(app.frame.insetBy(dx: 0, dy: 100)).height > 160 { return element }
             let down = element.exists && element.frame.minY < 100
             app.coordinate(withNormalizedOffset: .init(dx: 0.8, dy: down ? 0.35 : 0.72))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: .init(dx: 0.8, dy: down ? 0.72 : 0.35)))

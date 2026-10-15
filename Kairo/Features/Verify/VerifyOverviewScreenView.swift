@@ -24,6 +24,7 @@ struct VerifyOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding private var state: VerifyOverviewState
     private let retryAction: (() -> Void)?
@@ -219,10 +220,17 @@ struct VerifyOverviewScreenView: View {
                                     .accessibilityLabel("\(group.title): \(rows.count) requests")
                                     .accessibilityIdentifier("\(group.accessibilityIdentifier).count")
                             }
-                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, request in
+                            ForEach(Array((group == .completed ? Array(rows.prefix(3)) : rows).enumerated()), id: \.element.id) { index, request in
                                 if index > 0 { Divider() }
                                 VerifyCompactRequestRow(request: request) {
                                     presentedSheet = .requestDetail(request.id)
+                                }
+                            }
+                            if group == .completed && rows.count > 3 {
+                                KairoDisclosure(title: "View all \(rows.count) completed requests", identifier: "verify.completed.more") {
+                                    ForEach(Array(rows.dropFirst(3))) { request in
+                                        VerifyCompactRequestRow(request: request) { presentedSheet = .requestDetail(request.id) }
+                                    }
                                 }
                             }
                         }
@@ -230,6 +238,7 @@ struct VerifyOverviewScreenView: View {
                 }
             }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: selectedFilter)
     }
 
     private var activeContent: VerifyOverviewContent? {
@@ -555,42 +564,54 @@ private struct VerifyRequestDetailSheet: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("verify.detail.header")
 
+                    Text(request.requestedItem).font(KairoTypography.bodyStrong)
+                    Text(request.organization).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    nextActionSection
+
                     KairoSection(compact: true) {
-                        sectionHeading("Claim", id: "claim")
+                      KairoDisclosure(title: "Claim", identifier: "verify.detail.section.claim") {
                         detailRow(title: "Requested item", value: request.requestedItem)
                         detailRow(title: "Organization", value: request.organization)
                         detailRow(title: "Requester", value: request.requester)
+                      }
                     }
 
                     KairoSection(compact: true) {
-                        sectionHeading("Consent", id: "consent")
-                        detailRow(title: "Shared fields", value: request.consentedFields.isEmpty
-                            ? "No field consent scope supplied." : request.consentedFields.joined(separator: ", "))
+                      KairoDisclosure(title: "Shared information", summary: "\(VerificationSharedLabels.labels(request.consentedFields).count) fields", identifier: "verify.detail.section.sharing") {
+                        let labels = VerificationSharedLabels.labels(request.consentedFields)
+                        Text(labels.isEmpty ? "No recognized shared fields supplied." : labels.joined(separator: ", "))
+                      }
+                      KairoDisclosure(title: "Consent", identifier: "verify.detail.section.consent") {
                         detailRow(title: "Evidence scope", value: request.consentedEvidenceScope.isEmpty
-                            ? "No evidence consent scope supplied." : request.consentedEvidenceScope.joined(separator: ", "))
+                            ? "No evidence consent scope supplied." : request.consentedEvidenceScope.map(VerificationSharedLabels.evidenceLabel).joined(separator: ", "))
                         if let date = request.consentedAt {
                             detailRow(title: "Consent recorded", value: date.formatted(date: .abbreviated, time: .shortened))
                         }
                         if let version = request.consentVersion, !version.isEmpty {
                             detailRow(title: "Consent version", value: version)
                         }
+                      }
                     }
 
+                    KairoDisclosure(title: "Verification contact", identifier: "verify.detail.section.contact") {
                     if let contact = request.verificationContact {
                         contactCard(contact)
                     } else {
                         KairoSection(compact: true) {
-                            sectionHeading("Verification contact", id: "contact")
                             detailRow(title: "Organization", value: request.organization)
                             Text("No verification contact available.").font(KairoTypography.footnote)
                                 .foregroundStyle(KairoColors.textSecondary)
                         }
                     }
+                    }
 
-                    evidenceCard
+                    if request.status.group == .pending { evidenceCard }
+                    else {
+                        KairoDisclosure(title: "Evidence", summary: "\(request.evidence.count) documents", identifier: "verify.detail.section.evidence") { evidenceCard }
+                    }
 
                     KairoSection(compact: true) {
-                        sectionHeading("Timeline", id: "timeline")
+                      KairoDisclosure(title: "Timeline", summary: "\(request.timeline.count) events", identifier: "verify.detail.section.timeline") {
                         if request.timeline.isEmpty {
                             Text("No timeline events available.").font(KairoTypography.footnote)
                                 .foregroundStyle(KairoColors.textSecondary)
@@ -606,30 +627,20 @@ private struct VerifyRequestDetailSheet: View {
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("verify.detail.event.\(event.id)")
                         }
+                      }
                     }
 
                     if !request.corrections.isEmpty { correctionsCard }
-                    KairoSection(compact: true) {
-                        sectionHeading("Next action", id: "actions")
-                        Text(request.requiredAction).font(KairoTypography.body).foregroundStyle(KairoColors.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        actionButtons
-                        if request.showsCareerRecovery {
-                            Text("Review the linked Career record, make any needed correction, then start a new verification when it is ready.")
-                                .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            KairoSecondaryButton(title: "Open Career record", action: onOpenCareer)
-                        }
-                    }
 
                     KairoSection(compact: true) {
-                        sectionHeading("Additional details", id: "metadata")
+                      KairoDisclosure(title: "Additional details", identifier: "verify.detail.section.metadata") {
                         detailRow(title: "Updated / due", value: request.dateLabel)
                         detailRow(title: "Latest activity", value: request.timelineSummary)
                         detailRow(title: "Supporting note", value: request.supportingNote)
                         if let reviewStatus = request.reviewStatus {
                             detailRow(title: "Review status", value: humanized(reviewStatus))
                         }
+                      }
                     }
                 }
                 .padding(.horizontal, KairoSpacing.medium)
@@ -652,6 +663,19 @@ private struct VerifyRequestDetailSheet: View {
         }
         .interactiveDismissDisabled(actionInFlight != nil)
         .presentationDetents([.large])
+    }
+
+    private var nextActionSection: some View {
+        KairoSection(compact: true) {
+            sectionHeading("Next action", id: "actions")
+            Text(request.requiredAction).font(KairoTypography.body).fixedSize(horizontal: false, vertical: true)
+            actionButtons
+            if request.showsCareerRecovery {
+                Text("Review the linked Career record, make any needed correction, then start a new verification when it is ready.")
+                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                KairoSecondaryButton(title: "Open Career record", action: onOpenCareer)
+            }
+        }
     }
 
     @ViewBuilder
@@ -711,7 +735,6 @@ private struct VerifyRequestDetailSheet: View {
 
     private func contactCard(_ contact: VerifyContactRecord) -> some View {
         KairoSection(compact: true) {
-            sectionHeading("Verification contact", id: "contact")
             detailRow(title: "Name", value: contact.name ?? "Not provided")
             detailRow(title: "Email", value: contact.email)
             detailRow(title: "Role", value: contact.role ?? "Not provided")
@@ -728,7 +751,7 @@ private struct VerifyRequestDetailSheet: View {
 
     private var evidenceCard: some View {
         KairoSection(compact: true) {
-            sectionHeading("Evidence", id: "evidence")
+            sectionHeading("Evidence", id: "evidence.content")
             Text(request.evidenceRequirement).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if request.evidence.isEmpty {

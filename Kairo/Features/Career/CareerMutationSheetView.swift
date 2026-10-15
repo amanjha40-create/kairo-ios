@@ -211,28 +211,10 @@ struct CareerEmploymentEditorSheet: View {
                     }
 
                     if draft.workArrangement != .remote {
-                        KairoTextField(
-                            title: "Work location city",
-                            prompt: "Bengaluru",
-                            text: $draft.workLocationCity,
-                            errorMessage: fieldErrors["work_location_city"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationCity")
-                        )
-
-                        KairoTextField(
-                            title: "Work location country",
-                            prompt: "India",
-                            text: $draft.workLocationCountry,
-                            errorMessage: fieldErrors["work_location_country"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationCountry")
-                        )
-
-                        KairoTextField(
-                            title: "Work location region",
-                            prompt: "Karnataka",
-                            text: $draft.workLocationRegion,
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workLocationRegion")
-                        )
+                        CandidateLocationFields(country: $draft.workLocationCountry, region: $draft.workLocationRegion,
+                            city: $draft.workLocationCity, required: true, identifier: "career.employment.location")
+                        if let error = fieldErrors["work_location_city"] { Text(error).foregroundStyle(KairoColors.danger) }
+                        if let error = fieldErrors["work_location_country"] { Text(error).foregroundStyle(KairoColors.danger) }
                     } else {
                         Text("Remote roles do not require a work location.")
                             .font(KairoTypography.footnote)

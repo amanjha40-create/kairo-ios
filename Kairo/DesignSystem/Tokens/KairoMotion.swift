@@ -21,7 +21,7 @@ enum KairoMotion {
 
         return PageEntrancePlan(
             initialOpacity: 0.96,
-            initialOffset: 6,
+            initialOffset: 3,
             duration: standardDuration
         )
     }
@@ -29,6 +29,7 @@ enum KairoMotion {
 
 private struct KairoPageEntranceModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isVisible = false
 
     private var plan: KairoMotion.PageEntrancePlan {
@@ -52,6 +53,13 @@ private struct KairoPageEntranceModifier: ViewModifier {
                     isVisible = true
                 }
             }
+            .onChange(of: accessibilityReduceMotion) { _, enabled in if enabled { settle() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { settle() } }
+            .onDisappear { settle() }
+    }
+    private func settle() {
+        var transaction = Transaction(); transaction.disablesAnimations = true
+        withTransaction(transaction) { isVisible = true }
     }
 }
 

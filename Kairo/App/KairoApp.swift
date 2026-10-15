@@ -66,7 +66,9 @@ struct KairoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if CurrentParityQA.isEnabled(configuration: configuration) {
+                if FinalMirrorQA.isEnabled(configuration: configuration) {
+                    FinalMirrorQAHostView()
+                } else if CurrentParityQA.isEnabled(configuration: configuration) {
                     CurrentParityQARootView()
                 } else if SessionRecoveryQA.isEnabled(configuration: configuration) {
                     SessionRecoveryQARootView(configuration: configuration)

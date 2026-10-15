@@ -14,6 +14,7 @@ struct EmploymentReferencesView: View {
     @State private var saving = false
     @State private var notice: String?
     @State private var generation = UUID()
+    @State private var completionMotion = 0
 
     var body: some View {
         if service.enabled {
@@ -22,11 +23,13 @@ struct EmploymentReferencesView: View {
                 if loading && summary == nil { ProgressView("Loading references") }
                 if let error { Text(error).accessibilityIdentifier("references.error") }
                 if let summary {
-                    Text("\(summary.completedCount) of \(summary.totalCount) completed").font(.headline)
-                        .accessibilityIdentifier("references.progress")
+                    HStack {
+                        KairoTrustSignature(kind: .references, trigger: completionMotion, size: 36)
+                        Text("\(summary.completedCount) of \(summary.totalCount) completed").font(.headline)
+                            .accessibilityIdentifier("references.progress")
+                    }
                     Text("HR Reference").font(.headline).accessibilityAddTraits(.isHeader)
                     Text(ReferenceCopy.status(summary.hrReference.status))
-                    Text("Completed through your employer's employment verification, without a separate invitation.")
                     Text(summary.reportingManager.relationship == "former_reporting_manager" ? "Former Reporting Manager" : "Reporting Manager").font(.headline).accessibilityAddTraits(.isHeader)
                     Text(ReferenceCopy.status(summary.reportingManager.status))
                     if let name = summary.reportingManager.visibleName { Text(name) }
@@ -36,7 +39,10 @@ struct EmploymentReferencesView: View {
                     if summary.reportingManager.requiresChange {
                         Text("These details cannot be edited directly. Request a manager change to submit a new nomination for HR confirmation.")
                     }
-                    Text("Reference completion is separate from employment verification. A pending or expired reference does not change Verified employment.")
+                    KairoDisclosure(title: "How references work", identifier: "references.policy") {
+                        Text("Completed through your employer's employment verification, without a separate invitation.")
+                        Text("Reference completion is separate from employment verification. A pending or expired reference does not change Verified employment.")
+                    }
                     if let notice { Text(notice) }
                     if editing {
                         if originalManager != summary.reportingManager {
@@ -58,6 +64,9 @@ struct EmploymentReferencesView: View {
             .fixedSize(horizontal: false, vertical: true)
             .task(id: employmentID) { summary = nil; close(); await load() }
             .onChange(of: phase) { _, value in if value == .active { Task { await load() } } }
+            .onChange(of: summary?.completedCount) { previous, current in
+                if let current, PremiumMotion.shouldCelebrate(previous: previous, current: current, target: 2) { completionMotion += 1 }
+            }
             .onDisappear { generation = UUID(); close(); summary = nil; loading = false; saving = false }
         }
     }

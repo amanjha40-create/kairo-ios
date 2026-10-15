@@ -88,7 +88,7 @@ final class DigiLockerWave1UITests: XCTestCase {
         let verify = app.buttons["candidate.digilocker.verify"]
         reveal(verify, in: app); XCTAssertTrue(verify.isEnabled); verify.tap()
         let finished = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            consent.value as? String == "Unchecked" && !verify.isEnabled
+            (fails ? consent.value as? String == "Unchecked" : !consent.exists) && !verify.isEnabled
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 10), .completed)
         XCTAssertFalse(app.staticTexts["Checking..."].exists)
@@ -116,9 +116,7 @@ final class DigiLockerWave1UITests: XCTestCase {
         reveal(entry, in: app); entry.tap()
         let consent = app.buttons["candidate.digilocker.consent"]
         let verify = app.buttons["candidate.digilocker.verify"]
-        reveal(consent, in: app)
-        XCTAssertEqual(consent.value as? String, "Unchecked")
-        XCTAssertFalse(consent.isEnabled)
+        XCTAssertFalse(consent.exists, "Consent appears only after a supported document is selected")
         reveal(verify, in: app)
         XCTAssertFalse(verify.isEnabled)
         let pan = app.switches["candidate.digilocker.select.PANCR"]
@@ -302,7 +300,11 @@ final class DigiLockerWave1UITests: XCTestCase {
 
     private func waitForLabel(_ text: String, in element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
         let predicate = NSPredicate { object, _ in
-            (object as? XCUIElement)?.label.contains(text) == true
+            guard let element = object as? XCUIElement else { return false }
+            // The identity section contains separately focusable disclosure and
+            // provenance children; do not require a combined parent label.
+            return element.label.contains(text) || element.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists
         }
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed

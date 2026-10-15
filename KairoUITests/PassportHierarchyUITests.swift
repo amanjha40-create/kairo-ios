@@ -12,7 +12,9 @@ final class PassportHierarchyUITests: XCTestCase {
         reveal(scoreDetails, app)
         XCTAssertGreaterThanOrEqual(scoreDetails.frame.height, 44)
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.passport.share").count, 1)
-        let ids = ["candidate.passport.trustScore", "candidate.passport.share", "passport.summary.verified",
+        let disclosure = app.buttons["passport.trustSignals.disclosure"]
+        reveal(disclosure, app); XCTAssertEqual(disclosure.value as? String, "Collapsed"); disclosure.tap()
+        let ids = ["candidate.passport.share", "candidate.passport.trustScore", "passport.summary.verified",
             "passport.summary.candidateProvided", "candidate.passport.strength",
             "candidate.passport.careerDetails", "candidate.passport.viewCareer",
             "candidate.passport.identity", "candidate.passport.download",

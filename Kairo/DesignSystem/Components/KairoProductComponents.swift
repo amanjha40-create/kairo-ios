@@ -130,6 +130,7 @@ enum KairoStatusTone: CaseIterable {
 
 /// Callers retain authoritative status copy and explicitly supply its visual meaning.
 struct KairoStatusChip: View {
+    @State private var verifiedTransition = 0
     let title: String
     var tone: KairoStatusTone = .draft
     var systemImage: String? = nil
@@ -141,7 +142,12 @@ struct KairoStatusChip: View {
     }
 
     var body: some View {
-        Label(title, systemImage: systemImage ?? tone.symbol)
+        HStack(spacing: 4) {
+            if tone == .verified {
+                KairoTrustSignature(kind: .verified, trigger: verifiedTransition, animateInitially: verifiedTransition > 0, size: 20)
+            } else { Image(systemName: systemImage ?? tone.symbol).accessibilityHidden(true) }
+            Text(title)
+        }
             .font(KairoTypography.caption)
             .foregroundStyle(tone.color)
             .padding(.horizontal, KairoSpacing.xSmall)
@@ -151,6 +157,7 @@ struct KairoStatusChip: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)
+            .onChange(of: tone) { old, next in if old != .verified && next == .verified { verifiedTransition += 1 } }
     }
 }
 

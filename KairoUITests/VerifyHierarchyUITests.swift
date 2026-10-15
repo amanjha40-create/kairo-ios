@@ -13,6 +13,8 @@ final class VerifyHierarchyUITests: XCTestCase {
     func testNineFiltersHaveExactMembershipAndSelectedState() {
         let app = launch()
         XCTAssertEqual(app.buttons["verify.filter"].value as? String, "Selected: All verification requests")
+        XCTAssertEqual(rows(app).count, 6)
+        reveal(app.buttons["verify.completed.more"], app); app.buttons["verify.completed.more"].tap()
         XCTAssertEqual(rows(app).count, 9)
         for (key, title, id) in choices.dropFirst() {
             select(key, title, app)
@@ -21,6 +23,8 @@ final class VerifyHierarchyUITests: XCTestCase {
             XCTAssertTrue(row(id, app).exists)
         }
         select("all", "All verification requests", app)
+        XCTAssertEqual(rows(app).count, 6)
+        reveal(app.buttons["verify.completed.more"], app); app.buttons["verify.completed.more"].tap()
         XCTAssertEqual(rows(app).count, 9)
     }
 
@@ -90,17 +94,22 @@ final class VerifyHierarchyUITests: XCTestCase {
         let app = launch()
         select("inProgress", "In progress", app)
         row("active", app).tap(); assertDetail("active", app)
-        var previous = app.descendants(matching: .any)["verify.detail.status"].firstMatch
-        for key in ["claim", "consent", "contact", "evidence", "timeline", "actions", "metadata"] {
-            let heading = app.staticTexts["verify.detail.section.\(key)"]
-            reveal(heading, app)
-            XCTAssertLessThan(previous.frame.minY, heading.frame.minY)
-            previous = heading
+        let actions = app.staticTexts["verify.detail.section.actions"]
+        let claim = app.buttons["verify.detail.section.claim"]
+        XCTAssertLessThan(actions.frame.minY, claim.frame.minY)
+        for key in ["claim", "sharing", "consent", "contact", "evidence", "timeline", "metadata"] {
+            let disclosure = app.buttons["verify.detail.section.\(key)"]
+            reveal(disclosure, app)
+            XCTAssertEqual(disclosure.value as? String, "Collapsed")
+            disclosure.tap()
+            XCTAssertEqual(disclosure.value as? String, "Expanded")
         }
-        let fields = app.staticTexts["role, employment_dates"]
+        let fields = app.staticTexts["Role, Employment dates"]
         reveal(fields, app)
         XCTAssertTrue(fields.isHittable)
-        XCTAssertTrue(app.staticTexts["employment_document"].exists)
+        XCTAssertFalse(app.staticTexts["employment_document"].exists)
+        XCTAssertFalse(app.staticTexts["role, employment_dates"].exists)
+        XCTAssertTrue(app.staticTexts["Verification evidence"].exists)
         let unavailable = app.staticTexts["Historical evidence download is unavailable."]
         reveal(unavailable, app)
         XCTAssertFalse(app.buttons["View evidence"].exists)

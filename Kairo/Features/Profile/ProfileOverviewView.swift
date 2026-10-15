@@ -24,7 +24,7 @@ struct ProfileOverviewSheetView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: KairoSpacing.large) {
+                LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     if store.isLoading && store.snapshot.skills.isEmpty {
                         KairoLoadingStateView(
                             title: "Loading Profile",
@@ -34,10 +34,14 @@ struct ProfileOverviewSheetView: View {
                     hero
                     identity
                     PermanentAddressEntry()
-                    professionalInformation
+                    KairoSection(compact: true) {
+                        KairoDisclosure(title: "Personal & professional information") { professionalInformation }
+                    }
                     skills
-                    languages
-                    links
+                    KairoSection(compact: true) {
+                        KairoDisclosure(title: "Languages", summary: "\(store.snapshot.user.languages.count) added") { languages }
+                        KairoDisclosure(title: "Professional links", summary: "\(store.snapshot.user.professionalLinks.count) added") { links }
+                    }
                     if let errorMessage = store.errorMessage {
                         KairoErrorStateView(
                             title: "Profile update unavailable",
@@ -138,7 +142,7 @@ struct ProfileOverviewSheetView: View {
 
     private var hero: some View {
         let photoTitle = store.snapshot.user.avatarURL == nil ? "Add photo" : "Replace photo"
-        return KairoCard {
+        return KairoSection(compact: true) {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     ProfileAvatarView(user: store.snapshot.user)
@@ -202,7 +206,7 @@ struct ProfileOverviewSheetView: View {
     }
 
     private var identity: some View {
-        KairoCard {
+        KairoSection(compact: true) {
             if let attention = digiLockerStore.attentionDigiLockerSources.first {
                 HStack(alignment: .center, spacing: KairoSpacing.small) {
                     KairoSectionHeading(title: "Identity")
@@ -229,11 +233,12 @@ struct ProfileOverviewSheetView: View {
                     .font(KairoTypography.metadata)
                     .foregroundStyle(KairoColors.textSecondary)
             }
-            Text("Only the backend identity result is shown. Sensitive identity values stay private.")
-                .font(KairoTypography.caption)
-                .foregroundStyle(KairoColors.textSecondary)
+            KairoDisclosure(title: "About identity") {
+                Text("Only the backend identity result is shown. Sensitive identity values stay private.")
+                    .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+            }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("candidate.identity.provenance")
     }
 
@@ -389,6 +394,7 @@ private enum ProfileEditor: String, Identifiable {
 
 private struct ProfileAvatarView: View {
     let user: AppUser
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -409,6 +415,8 @@ private struct ProfileAvatarView: View {
         .frame(width: 72, height: 72)
         .clipShape(Circle())
         .overlay(Circle().stroke(KairoColors.border, lineWidth: 1))
+        .contentTransition(.opacity)
+        .animation(.easeOut(duration: reduceMotion ? 0.14 : 0.16), value: user.avatarURL)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Profile photo for \(user.fullName ?? "candidate")")
     }

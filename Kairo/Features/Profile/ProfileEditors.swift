@@ -61,13 +61,9 @@ struct ProfileEditView: View {
                 }
 
                 Section("Location") {
-                    field("City", text: $draft.locationCity, key: "location_city")
-                    field("State / Region", text: $draft.locationRegion, key: "location_region")
-                    field("Country code", text: $draft.locationCountry, key: "location_country", prompt: "IN")
-                    field("Legacy location", text: $draft.location, key: "location", prompt: "Bengaluru, India")
-                    Text("Legacy location remains editable for existing profile compatibility.")
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
+                    CandidateLocationFields(country: $draft.locationCountry, region: $draft.locationRegion,
+                        city: $draft.locationCity, identifier: "candidate.profile.edit.location")
+                    error("location_city"); error("location_region"); error("location_country")
                 }
 
                 if let serverError {

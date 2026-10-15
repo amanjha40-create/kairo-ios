@@ -8,6 +8,8 @@ struct CandidateTabShellView: View {
     @State private var tabFrames: [GuidedTourTarget: CGRect] = [:]
     @State private var homeVisibleWindowFrame: CGRect = .zero
     @State private var isTourOverlayVisible = false
+    @State private var motionEntries: [CandidateTab: Int] = [:]
+    @State private var motionIdentityRevision = 0
     private let uiTestHomeConfiguration: UITestHomeConfiguration
     private let uiTestCareerConfiguration: UITestCareerConfiguration
     private let uiTestVerifyConfiguration: UITestVerifyConfiguration
@@ -26,8 +28,16 @@ struct CandidateTabShellView: View {
         TabView(selection: $router.selectedTab) {
             ForEach(CandidateTab.allCases) { tab in
                 destinationView(for: tab)
+                    .environment(\.kairoMotionEntry, KairoMotionEntry(
+                        generation: motionEntries[tab, default: 0], active: router.selectedTab == tab,
+                        identityRevision: motionIdentityRevision))
                     .tabItem {
-                        Label(tab.title, systemImage: tab.systemImage)
+                        Label {
+                            Text(tab.title)
+                        } icon: {
+                            Image(systemName: tab.systemImage)
+                                .symbolVariant(router.selectedTab == tab ? .fill : .none)
+                        }
                     }
                     .tag(tab)
             }
@@ -96,8 +106,13 @@ struct CandidateTabShellView: View {
             .ignoresSafeArea()
         }
         .onAppear(perform: updateGuidedTourContext)
-        .onChange(of: router.selectedTab) { _, _ in updateGuidedTourContext() }
-        .onChange(of: sessionStore.currentUser?.id) { _, _ in updateGuidedTourContext() }
+        .onChange(of: router.selectedTab) { old, next in
+            if old != next { motionEntries[next, default: 0] += 1 }
+            updateGuidedTourContext()
+        }
+        .onChange(of: sessionStore.currentUser?.id) { _, _ in
+            motionEntries = [:]; motionIdentityRevision += 1; updateGuidedTourContext()
+        }
         .onChange(of: sessionStore.currentUser?.role) { _, _ in updateGuidedTourContext() }
     }
 

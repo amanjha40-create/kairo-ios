@@ -8,21 +8,24 @@ final class ProfileWave3UITests: XCTestCase {
         let app = launchProfile()
 
         XCTAssertTrue(app.descendants(matching: .any)["candidate.profile.hero"].firstMatch.exists)
+        expand("Personal & professional information", in: app)
         XCTAssertTrue(app.staticTexts["Professional information"].exists)
         reveal(app.buttons["candidate.profile.skills.manage"], in: app)
         XCTAssertTrue(app.staticTexts["Skills"].exists)
+        expand("Languages", in: app)
         reveal(app.buttons["candidate.profile.languages.manage"], in: app)
         XCTAssertTrue(app.staticTexts["Languages"].exists)
+        expand("Professional links", in: app)
         reveal(app.buttons["candidate.profile.links.manage"], in: app)
         XCTAssertTrue(app.staticTexts["Professional links"].exists)
 
         let identity = app.descendants(matching: .any)["candidate.identity.provenance"].firstMatch
         reveal(identity, in: app)
-        XCTAssertTrue(identity.label.contains("Identity"))
+        XCTAssertTrue(identity.staticTexts["Identity"].exists)
         XCTAssertTrue(
-            identity.label.contains("Verified") ||
-            identity.label.contains("Needs review") ||
-            identity.label.contains("Not currently verified")
+            identity.staticTexts["Verified"].exists ||
+            identity.staticTexts["Needs review"].exists ||
+            identity.staticTexts["Not currently verified"].exists
         )
         XCTAssertFalse(identity.label.localizedCaseInsensitiveContains("provider-private-uri"))
         XCTAssertFalse(identity.label.range(of: "[A-Z]{5}[0-9]{4}[A-Z]", options: .regularExpression) != nil)
@@ -184,10 +187,18 @@ final class ProfileWave3UITests: XCTestCase {
     }
 
     private func openManager(_ identifier: String, title: String, in app: XCUIApplication) {
+        if identifier.contains("languages") { expand("Languages", in: app) }
+        if identifier.contains("links") { expand("Professional links", in: app) }
         let button = app.buttons[identifier]
         reveal(button, in: app)
         button.tap()
         XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 10))
+    }
+
+    private func expand(_ title: String, in app: XCUIApplication) {
+        let disclosure = app.buttons["disclosure.\(title)"]
+        reveal(disclosure, in: app)
+        if disclosure.value as? String == "Collapsed" { disclosure.tap() }
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {

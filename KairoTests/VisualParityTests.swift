@@ -85,7 +85,7 @@ final class VisualParityTests: XCTestCase {
     func testPageEntranceMotionHasFastSubtleTravel() throws {
         let plan = KairoMotion.pageEntrancePlan(reduceMotion: false)
         XCTAssertEqual(plan.initialOpacity, 0.96)
-        XCTAssertEqual(plan.initialOffset, 6)
+        XCTAssertEqual(plan.initialOffset, 3)
         XCTAssertEqual(plan.duration, KairoMotion.standardDuration)
         XCTAssertLessThanOrEqual(try XCTUnwrap(plan.duration), 0.25)
     }

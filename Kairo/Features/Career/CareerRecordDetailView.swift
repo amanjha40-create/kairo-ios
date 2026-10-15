@@ -132,7 +132,7 @@ struct CareerRecordDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     if !record.metadata.isEmpty || !record.links.isEmpty {
                         KairoSection(compact: true) {
-                            KairoSectionHeading(title: "Details")
+                          KairoDisclosure(title: "Details", identifier: "career.detail.disclosure", initiallyExpanded: record.kind != .employment) {
                             metadata(record.metadata)
                             ForEach(record.links, id: \.title) { link in
                                 Link(destination: link.url) {
@@ -148,6 +148,7 @@ struct CareerRecordDetailView: View {
                                 .accessibilityIdentifier("career.detail.link.\(link.title)")
                                 .accessibilityHint("Opens the supplied website in your browser.")
                             }
+                          }
                         }
                     }
                     if let documents = record.documents {
