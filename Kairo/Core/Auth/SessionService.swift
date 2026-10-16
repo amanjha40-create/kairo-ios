@@ -242,7 +242,8 @@ actor SessionService: SessionServiceProtocol {
             body: request.body,
             allowsSessionRefreshOnUnauthorized: request.allowsSessionRefreshOnUnauthorized,
             requiresProtectedDocumentTransport: request.requiresProtectedDocumentTransport,
-            requiresPrivateJSONTransport: request.requiresPrivateJSONTransport
+            requiresPrivateJSONTransport: request.requiresPrivateJSONTransport,
+            requiresDigiLockerTransport: request.requiresDigiLockerTransport
         )
     }
 

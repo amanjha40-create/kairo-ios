@@ -100,7 +100,7 @@ actor DocumentsHubService: DocumentsHubServiceProtocol {
         var immutableIDs: Set<String> = []
         for request in requests {
             guard let requestID = request.publicId else { continue }
-            let evidence = try await loadOwnerCollection(HubEvidence.self, path: "/verification-requests/\(requestID)/evidence", session: session)
+            let evidence = try await loadEvidence(requestID: requestID)
             for item in evidence {
                 let key: String
                 if let id = item.employmentDocumentId { key = "Employment.\(id)" }
@@ -113,8 +113,18 @@ actor DocumentsHubService: DocumentsHubServiceProtocol {
                 // Use only an attachment confirmed by an owner collection; do not reconstruct
                 // download routes for removed rows or invent Education history support.
                 let source: DocumentsHubSource = current?.source ?? .unavailable
+                let filename: String
+                if case .vault(let document) = source, document.documentType == .aadhaar {
+                    filename = document.documentType.metadataFilename("", contentType: document.contentType)
+                } else if current == nil, item.documentId != nil,
+                          item.employmentDocumentId == nil, item.educationDocumentId == nil,
+                          item.documentType == nil {
+                    filename = "Historical evidence"
+                } else {
+                    filename = item.originalFilename ?? current?.filename ?? "Historical evidence"
+                }
                 rows.append(DocumentsHubRow(id: "evidence.\(requestID).\(item.publicId)", category: .verification,
-                    filename: item.originalFilename ?? current?.filename ?? "Historical evidence",
+                    filename: filename,
                     context: "\(current?.context ?? "Verification request") · Immutable evidence · \(ProductStatusLanguage.title(for: request.status))",
                     contentType: item.mimeType ?? current?.contentType ?? "", byteSize: item.fileSize ?? current?.byteSize ?? 0,
                     status: ProductStatusLanguage.title(for: item.uploadStatus ?? "unknown"), historical: true,
@@ -125,6 +135,24 @@ actor DocumentsHubService: DocumentsHubServiceProtocol {
             var result = row
             if immutableIDs.contains(row.id) { result.immutable = true }
             return result
+        }
+    }
+
+    private func loadEvidence(requestID: String) async throws -> [HubEvidence] {
+        var result: [HubEvidence] = []
+        let decoder = APIJSONCoder.makeDecoder()
+        while true {
+            try Task.checkCancellation()
+            let data = try await session.sendAuthenticated(NetworkRequest(
+                path: "/verification-requests/\(requestID)/evidence",
+                headers: ["Accept": "application/json", "Cache-Control": "no-store"],
+                queryItems: [.init(name: "offset", value: String(result.count)), .init(name: "limit", value: "100")],
+                requiresPrivateJSONTransport: true
+            ))
+            if let array = try? decoder.decode([HubEvidence].self, from: data) { return array }
+            let page = try decoder.decode(OwnerCollectionPage<HubEvidence>.self, from: data)
+            result.append(contentsOf: page.items)
+            if page.items.isEmpty || result.count >= (page.total ?? result.count) { return result }
         }
     }
 }
@@ -155,8 +183,32 @@ private nonisolated struct HubEvidence: Decodable, Sendable {
     let documentId: String?
     let employmentDocumentId: String?
     let educationDocumentId: String?
+    let documentType: String?
     let originalFilename: String?
     let mimeType: String?
     let fileSize: Int?
     let uploadStatus: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case publicId, documentId, employmentDocumentId, educationDocumentId, documentType
+        case originalFilename, mimeType, fileSize, uploadStatus
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        publicId = try values.decode(String.self, forKey: .publicId)
+        documentId = try values.decodeIfPresent(String.self, forKey: .documentId)
+        employmentDocumentId = try values.decodeIfPresent(String.self, forKey: .employmentDocumentId)
+        educationDocumentId = try values.decodeIfPresent(String.self, forKey: .educationDocumentId)
+        mimeType = try values.decodeIfPresent(String.self, forKey: .mimeType)
+        fileSize = try values.decodeIfPresent(Int.self, forKey: .fileSize)
+        uploadStatus = try values.decodeIfPresent(String.self, forKey: .uploadStatus)
+        let type = try values.decodeIfPresent(String.self, forKey: .documentType)
+        documentType = type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? type : nil
+        if documentType == VaultDocumentType.aadhaar.rawValue {
+            originalFilename = VaultDocumentType.aadhaar.metadataFilename("", contentType: mimeType ?? "")
+        } else {
+            originalFilename = try values.decodeIfPresent(String.self, forKey: .originalFilename)
+        }
+    }
 }

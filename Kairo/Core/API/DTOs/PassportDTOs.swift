@@ -141,4 +141,22 @@ nonisolated struct PublicPassportDocumentDTO: Decodable, Equatable, Sendable {
     let originalFilename: String
     let byteSize: Int
     let verificationStatus: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id, documentType, originalFilename, byteSize, verificationStatus
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        documentType = try values.decode(String.self, forKey: .documentType)
+        byteSize = try values.decode(Int.self, forKey: .byteSize)
+        verificationStatus = try values.decode(String.self, forKey: .verificationStatus)
+        // This response has no MIME type; never derive an extension from the private filename.
+        if documentType == "aadhaar" {
+            originalFilename = "Aadhaar document"
+        } else {
+            originalFilename = try values.decode(String.self, forKey: .originalFilename)
+        }
+    }
 }

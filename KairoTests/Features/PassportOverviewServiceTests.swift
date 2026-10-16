@@ -27,6 +27,7 @@ final class PassportOverviewServiceTests: XCTestCase {
         await MockURLProtocolStorage.shared.setHandler { request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-123")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
             XCTAssertEqual(request.url?.absoluteString, "https://staging-api.kairoid.com/api/v1/passport/me")
 
             return (try Self.response(for: request, statusCode: 200), Self.ownerPassportPayload)
@@ -143,6 +144,50 @@ final class PassportOverviewServiceTests: XCTestCase {
         XCTAssertEqual(overview.verificationSummary.skills.total, 1)
     }
 
+    func testPassportPrivateJSONTransportRejectsNonJSONAndDoesNotEchoErrorBody() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("access-123", for: .accessToken)
+        let service = PassportOverviewService(sessionService: SessionService(configuration: makeConfiguration(),
+            networkClient: URLSessionNetworkClient(baseURL: makeConfiguration().apiBaseURL, session: makeMockedURLSession()),
+            tokenStore: tokens))
+        for status in [200, 400] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                XCTAssertEqual(request.url?.path, "/api/v1/passport/me")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+                let mime = status == 200 ? "text/html" : "application/json"
+                let body = status == 200 ? Self.ownerPassportPayload : Data(#"{"detail":"synthetic-private-error"}"#.utf8)
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: status, httpVersion: nil,
+                                                     headerFields: ["Content-Type": mime])), body)
+            }
+            do { _ = try await service.loadOverview(); XCTFail("Private Passport transport must reject this response") }
+            catch { XCTAssertFalse(String(reflecting: error).contains("synthetic-private-error")) }
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func testPassportOwnerFetchSanitizesAadhaarBeforeOverviewState() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("access-123", for: .accessToken)
+        let service = PassportOverviewService(sessionService: SessionService(configuration: makeConfiguration(),
+            networkClient: URLSessionNetworkClient(baseURL: makeConfiguration().apiBaseURL, session: makeMockedURLSession()),
+            tokenStore: tokens))
+        await MockURLProtocolStorage.shared.setHandler { request in
+            var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.ownerPassportPayload) as? [String: Any])
+            var vault = try XCTUnwrap(payload["vault"] as? [String: Any])
+            vault["user_documents"] = [["id": "aadhaar", "document_type": "aadhaar",
+                "original_filename": "synthetic-private-original.pdf", "document_number": "synthetic-number-secret",
+                "byte_size": 128, "verification_status": "pending_review"]]
+            payload["vault"] = vault
+            return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: payload))
+        }
+        let overview = try await service.loadOverview()
+        XCTAssertEqual(overview.vault.userDocuments.first?.originalFilename, "Aadhaar document")
+        XCTAssertFalse(String(reflecting: overview).contains("synthetic-private-original"))
+        XCTAssertFalse(String(reflecting: overview).contains("synthetic-number-secret"))
+    }
+
     private func makeConfiguration() -> AppConfiguration {
         AppConfiguration(
             buildConfiguration: .development,
@@ -159,7 +204,7 @@ final class PassportOverviewServiceTests: XCTestCase {
                 url: try XCTUnwrap(request.url),
                 statusCode: statusCode,
                 httpVersion: nil,
-                headerFields: nil
+                headerFields: ["Content-Type": "application/json"]
             )
         )
     }

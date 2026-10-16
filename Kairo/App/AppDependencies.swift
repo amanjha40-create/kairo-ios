@@ -101,7 +101,10 @@ struct AppDependencies: Sendable {
                 TrustScoreService(sessionService: sessionService)
             }
         let digiLockerService: any DigiLockerServiceProtocol =
-            if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
+            if uiTestConfiguration.isEnabled,
+               let scenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_AADHAAR"] {
+                DigiLockerAadhaarFixtureService(scenario: scenario)
+            } else if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
                 DemoDigiLockerService(returnFixture: DigiLockerReturnFixture.current(configuration: configuration))
             } else {
                 DigiLockerService(sessionService: sessionService)

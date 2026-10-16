@@ -72,6 +72,9 @@ struct DocumentVaultView: View {
             }
             .task { await load() }
             .refreshable { await load() }
+            .onChange(of: selectedType) { _, type in
+                if !type.allowsDocumentNumber { documentNumber = "" }
+            }
             .fileImporter(
                 isPresented: $isFileImporterPresented,
                 allowedContentTypes: [.pdf, .jpeg, .png, .webP],
@@ -134,11 +137,18 @@ struct DocumentVaultView: View {
             .accessibilityIdentifier("candidate.more.documentVault.type")
             .frame(minHeight: 44)
 
-            KairoTextField(
-                title: "Document number",
-                prompt: "Optional",
-                text: $documentNumber
-            )
+            if selectedType.allowsDocumentNumber {
+                KairoTextField(
+                    title: "Document number",
+                    prompt: "Optional",
+                    text: $documentNumber,
+                    accessibilityIdentifier: "vault.documentNumber"
+                )
+            } else {
+                Text("An Aadhaar number is not needed. We use a generic document filename. This does not redact the private file you choose to upload.")
+                    .font(KairoTypography.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Toggle("Include an expiry date", isOn: $includesExpiry)
                 .tint(KairoColors.brandPrimary)
@@ -177,12 +187,12 @@ struct DocumentVaultView: View {
         HStack(alignment: .top, spacing: KairoSpacing.small) {
             Button { view(document) } label: {
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                    CompactDocumentLabel(title: document.documentType.title, filename: document.originalFilename,
+                    CompactDocumentLabel(title: document.documentType.title, filename: metadataFilename(document),
                         context: document.isCurrent ? "Identity & Personal · Current" : "Identity & Personal · Replaced version",
                         metadata: "\(statusTitle(document.verificationStatus)) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))")
                     Text("Added \(document.createdAt.formatted(date: .abbreviated, time: .omitted))")
                         .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
-                if let number = document.documentNumber, !number.isEmpty {
+                if document.documentType.allowsDocumentNumber, let number = document.documentNumber, !number.isEmpty {
                     Text("Document number: \(number)")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
@@ -192,7 +202,7 @@ struct DocumentVaultView: View {
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                 }
-                if let note = document.reviewerNote, !note.isEmpty {
+                if document.documentType != .aadhaar, let note = document.reviewerNote, !note.isEmpty {
                     Text(note)
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
@@ -207,7 +217,7 @@ struct DocumentVaultView: View {
                     Button("Replace") { uploadMode = .replace(document); isFileImporterPresented = true }
                     Button("Delete", role: .destructive) { pendingDelete = document }
                 } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
-                    .disabled(isMutating).accessibilityLabel("More actions for \(document.originalFilename)")
+                    .disabled(isMutating).accessibilityLabel("More actions for \(metadataFilename(document))")
                     .accessibilityIdentifier("vault.actions.\(document.id)")
             }
         }.padding(.vertical, KairoSpacing.small)
@@ -241,10 +251,11 @@ struct DocumentVaultView: View {
                     case .new: replacingDocument = nil
                     case .replace(let document): replacingDocument = document
                     }
+                    let type = replacingDocument?.documentType ?? selectedType
                     let loaded = try await service.uploadDocument(
                         fileURL: url,
-                        type: replacingDocument?.documentType ?? selectedType,
-                        documentNumber: replacingDocument?.documentNumber ?? documentNumber,
+                        type: type,
+                        documentNumber: type.allowsDocumentNumber ? (replacingDocument?.documentNumber ?? documentNumber) : nil,
                         expiresAt: replacingDocument?.expiresAt ?? (includesExpiry ? expiryDate : nil),
                         replacing: replacingDocument?.id
                     )
@@ -271,7 +282,7 @@ struct DocumentVaultView: View {
     private func updateMetadata(document: VaultDocument, number: String?, expiry: Date?) async throws {
         let loaded = try await service.updateMetadata(
             documentID: document.id,
-            documentNumber: number,
+            documentNumber: document.documentType.allowsDocumentNumber ? number : nil,
             expiresAt: expiry
         )
         await MainActor.run {
@@ -282,7 +293,11 @@ struct DocumentVaultView: View {
 
     private func view(_ document: VaultDocument) {
         errorMessage = nil
-        preview = SecureDocumentPreview(vaultDocumentID: document.id, filename: document.originalFilename)
+        preview = SecureDocumentPreview(vaultDocumentID: document.id, filename: metadataFilename(document))
+    }
+
+    private func metadataFilename(_ document: VaultDocument) -> String {
+        document.documentType.metadataFilename(document.originalFilename, contentType: document.contentType)
     }
 
     private func deletePendingDocument() {
@@ -348,7 +363,7 @@ private struct VaultMetadataEditor: View {
     init(document: VaultDocument, onSave: @escaping (String?, Date?) async throws -> Void) {
         self.document = document
         self.onSave = onSave
-        _number = State(initialValue: document.documentNumber ?? "")
+        _number = State(initialValue: document.documentType.allowsDocumentNumber ? (document.documentNumber ?? "") : "")
         _includesExpiry = State(initialValue: document.expiresAt != nil)
         _expiryDate = State(initialValue: document.expiresAt ?? Date())
     }
@@ -357,7 +372,10 @@ private struct VaultMetadataEditor: View {
         NavigationStack {
             Form {
                 Section("Document details") {
-                    TextField("Document number", text: $number)
+                    if document.documentType.allowsDocumentNumber {
+                        TextField("Document number", text: $number)
+                            .accessibilityIdentifier("vault.metadata.documentNumber")
+                    }
                     Toggle("Include expiry date", isOn: $includesExpiry)
                     if includesExpiry {
                         DatePicker("Expiry date", selection: $expiryDate, displayedComponents: .date)
@@ -388,7 +406,7 @@ private struct VaultMetadataEditor: View {
         Task {
             do {
                 try await onSave(
-                    number.trimmingCharacters(in: .whitespacesAndNewlines),
+                    document.documentType.allowsDocumentNumber ? number.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
                     includesExpiry ? expiryDate : nil
                 )
                 await MainActor.run { dismiss() }

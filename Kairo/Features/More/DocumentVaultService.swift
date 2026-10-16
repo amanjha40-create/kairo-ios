@@ -17,6 +17,20 @@ nonisolated struct VaultDocumentType: RawRepresentable, Hashable, Identifiable, 
         .aadhaar, .pan, .passport, .drivingLicense, .voterID, .birthCertificate, .addressProof
     ]
     var allowsNewUpload: Bool { Self.newUploadTypes.contains(self) }
+    var allowsDocumentNumber: Bool { self != .aadhaar }
+
+    func metadataFilename(_ filename: String, contentType: String) -> String {
+        guard self == .aadhaar else { return filename }
+        let suffix: String
+        switch contentType {
+        case "application/pdf": suffix = ".pdf"
+        case "image/jpeg": suffix = ".jpg"
+        case "image/png": suffix = ".png"
+        case "image/webp": suffix = ".webp"
+        default: suffix = ""
+        }
+        return "Aadhaar document" + suffix
+    }
 
     var id: String { rawValue }
 
@@ -85,7 +99,23 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
     }
 
     func listDocuments() async throws -> [VaultDocument] {
-        try await loadOwnerCollection(VaultDocumentDTO.self, path: "/user-documents", session: sessionService).map(\.domain)
+        var result: [VaultDocument] = []
+        while true {
+            try Task.checkCancellation()
+            // Mixed owner collections may contain Aadhaar, including replaced versions.
+            let data = try await sessionService.sendAuthenticated(NetworkRequest(
+                path: "/user-documents",
+                headers: ["Accept": "application/json", "Cache-Control": "no-store"],
+                queryItems: [.init(name: "offset", value: String(result.count)), .init(name: "limit", value: "100")],
+                requiresPrivateJSONTransport: true
+            ))
+            if let array = try? decoder.decode([VaultDocumentDTO].self, from: data) {
+                return array.map(\.domain)
+            }
+            let page = try decoder.decode(VaultDocumentPageDTO.self, from: data)
+            result.append(contentsOf: page.items.map(\.domain))
+            if page.items.isEmpty || result.count >= (page.total ?? result.count) { return result }
+        }
     }
 
     func uploadDocument(
@@ -111,14 +141,15 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
                 body: try encoder.encode(
                     VaultUploadIntentRequestDTO(
                         documentType: type.rawValue,
-                        originalFilename: selection.filename,
+                        originalFilename: type.metadataFilename(selection.filename, contentType: selection.contentType),
                         contentType: selection.contentType,
                         byteSize: selection.data.count,
-                        documentNumber: Self.normalized(documentNumber),
+                        documentNumber: type.allowsDocumentNumber ? Self.normalized(documentNumber) : nil,
                         expiresAt: expiresAt.map(Self.dateString),
                         replacesDocumentId: documentID
                     )
-                )
+                ),
+                requiresPrivateJSONTransport: type == .aadhaar
             )
         )
         let intent = try decoder.decode(VaultUploadIntentResponseDTO.self, from: intentData)
@@ -141,7 +172,8 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
                 headers: ["Accept": "application/json", "Content-Type": "application/json"],
                 body: try encoder.encode(
                     VaultCompleteUploadRequestDTO(checksumSHA256: selection.checksumSHA256)
-                )
+                ),
+                requiresPrivateJSONTransport: type == .aadhaar
             )
         )
         return try await listDocuments()
@@ -152,6 +184,9 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
         documentNumber: String?,
         expiresAt: Date?
     ) async throws -> [VaultDocument] {
+        guard let document = try await listDocuments().first(where: { $0.id == documentID }) else {
+            throw NetworkError.invalidResponse
+        }
         _ = try await sessionService.sendAuthenticated(
             NetworkRequest(
                 path: "/user-documents/\(documentID)",
@@ -159,10 +194,11 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
                 headers: ["Accept": "application/json", "Content-Type": "application/json"],
                 body: try encoder.encode(
                     VaultUpdateRequestDTO(
-                        documentNumber: Self.normalized(documentNumber),
+                        documentNumber: document.documentType.allowsDocumentNumber ? Self.normalized(documentNumber) : nil,
                         expiresAt: expiresAt.map(Self.dateString)
                     )
-                )
+                ),
+                requiresPrivateJSONTransport: document.documentType == .aadhaar
             )
         )
         return try await listDocuments()
@@ -251,6 +287,7 @@ actor DemoDocumentVaultService: DocumentVaultServiceProtocol {
 
 private nonisolated struct VaultDocumentPageDTO: Decodable {
     let items: [VaultDocumentDTO]
+    let total: Int?
 }
 
 private nonisolated struct VaultDocumentDTO: Decodable {
@@ -269,6 +306,39 @@ private nonisolated struct VaultDocumentDTO: Decodable {
     let replacesDocumentId: String?
     let createdAt: Date
     let updatedAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case id, documentType, documentNumber, originalFilename, contentType, byteSize
+        case verificationStatus, verifiedAt, reviewerNote, expiresAt, supersededAt
+        case supersededById, replacesDocumentId, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        documentType = try values.decode(String.self, forKey: .documentType)
+        contentType = try values.decode(String.self, forKey: .contentType)
+        let type = VaultDocumentType(rawValue: documentType)
+        if type == .aadhaar {
+            // Do not decode private metadata, even if a legacy response still sends it.
+            documentNumber = nil
+            reviewerNote = nil
+            originalFilename = type.metadataFilename("", contentType: contentType)
+        } else {
+            documentNumber = try values.decodeIfPresent(String.self, forKey: .documentNumber)
+            reviewerNote = try values.decodeIfPresent(String.self, forKey: .reviewerNote)
+            originalFilename = try values.decode(String.self, forKey: .originalFilename)
+        }
+        byteSize = try values.decode(Int.self, forKey: .byteSize)
+        verificationStatus = try values.decode(String.self, forKey: .verificationStatus)
+        verifiedAt = try values.decodeIfPresent(Date.self, forKey: .verifiedAt)
+        expiresAt = try values.decodeIfPresent(Date.self, forKey: .expiresAt)
+        supersededAt = try values.decodeIfPresent(Date.self, forKey: .supersededAt)
+        supersededById = try values.decodeIfPresent(String.self, forKey: .supersededById)
+        replacesDocumentId = try values.decodeIfPresent(String.self, forKey: .replacesDocumentId)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        updatedAt = try values.decode(Date.self, forKey: .updatedAt)
+    }
 
     var domain: VaultDocument {
         VaultDocument(

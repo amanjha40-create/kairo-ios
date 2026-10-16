@@ -207,6 +207,7 @@ struct DigiLockerHubView: View {
     @State private var isFinishingReturn = false
     @State private var awaitingBrowserReturn = false
     @State private var connectionMotion = 0
+    @State private var recoveryTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -226,6 +227,7 @@ struct DigiLockerHubView: View {
                     }
                     savedSection
                     availableSection
+                    DigiLockerAadhaarView()
                     connectionSection
                 }
                 .padding(.horizontal, KairoSpacing.medium)
@@ -239,23 +241,56 @@ struct DigiLockerHubView: View {
             }
             .refreshable { await refresh() }
             .task {
-                await store.refreshAll()
+                recoveryTask?.cancel()
+                let task = Task {
+                    await recoverInterruptedVerification()
+                    guard !Task.isCancelled else { return }
+                    await store.refreshAll()
+                }
+                recoveryTask = task
+                await task.value
             }
             .onChange(of: scenePhase) { _, phase in
+                if phase != .active {
+                    recoveryTask?.cancel()
+                    recoveryTask = nil
+                    store.cancelAadhaarOperation()
+                }
+                if phase == .active && store.aadhaarNeedsReconciliation {
+                    recoveryTask?.cancel()
+                    recoveryTask = Task { await recoverInterruptedVerification() }
+                }
                 guard phase == .active, awaitingBrowserReturn else { return }
                 awaitingBrowserReturn = false
                 Task { await refresh() }
             }
             .onChange(of: sessionStore.currentUser?.id) { _, _ in
+                recoveryTask?.cancel()
+                recoveryTask = nil
                 authentication.cancel()
                 consent = DigiLockerConsent()
+                store.cancelAadhaarOperation()
             }
-            .onDisappear { authentication.cancel() }
+            .onDisappear {
+                recoveryTask?.cancel()
+                recoveryTask = nil
+                authentication.cancel()
+                store.cancelAadhaarOperation()
+            }
             .onChange(of: store.status?.connected) { previous, current in
                 if previous == false && current == true && !store.summaryError { connectionMotion += 1 }
             }
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
+    }
+
+    private func recoverInterruptedVerification() async {
+        guard store.aadhaarNeedsReconciliation else { return }
+        let revision = store.identityRevision
+        await store.reconcileAadhaarSavedResults()
+        guard !Task.isCancelled, revision == store.identityRevision,
+              !store.aadhaarNeedsReconciliation, !store.summaryError else { return }
+        refreshStore.candidateDataChanged()
     }
 
     private var header: some View {
@@ -357,7 +392,7 @@ struct DigiLockerHubView: View {
             KairoSecondaryButton(title: "Refresh status and results") {
                 Task { await refresh() }
             }
-            .disabled(store.isLoadingSummary || store.isLoadingInventory || authentication.isActive || isFinishingReturn)
+            .disabled(store.isLoadingSummary || store.isLoadingInventory || store.actionInProgress || authentication.isActive || isFinishingReturn)
 
             if let error = store.actionErrorMessage {
                 Text(error)
@@ -377,8 +412,8 @@ struct DigiLockerHubView: View {
                     .foregroundStyle(KairoColors.textPrimary)
                 Spacer(minLength: KairoSpacing.small)
                 KairoStatusChip(
-                    title: DigiLockerPresentation.resultTitle(item.matchResult, current: item.current),
-                    tone: item.current ? .verified : .attention
+                    title: item.documentType == "EAADHAAR" ? (item.isVerified ? "Verified" : "Needs review") : DigiLockerPresentation.resultTitle(item.matchResult, current: item.current),
+                    tone: item.isVerified ? .verified : .attention
                 )
             }
             if item.current, let verifiedAt = item.verifiedAt {
@@ -422,7 +457,7 @@ struct DigiLockerHubView: View {
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("candidate.digilocker.select.\(type.rawValue)")
                     .accessibilityValue(consent.selected.contains(type) ? "Selected" : "Not selected")
-                    .disabled(store.isVerifying)
+                    .disabled(store.actionInProgress)
             }
         }
         .padding(.vertical, KairoSpacing.xSmall)
@@ -450,7 +485,7 @@ struct DigiLockerHubView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(consent.selected.isEmpty || store.isVerifying)
+                .disabled(consent.selected.isEmpty || store.actionInProgress)
                 .accessibilityLabel("Consent to verify. I consent to KairoID retrieving the selected documents from DigiLocker for identity verification.")
                 .accessibilityValue(consent.accepted ? "Checked" : "Unchecked")
                 .accessibilityHint("Required. Select at least one document and check consent to enable Verify.")
@@ -471,7 +506,7 @@ struct DigiLockerHubView: View {
                         } else { consent.accepted = false }
                     }
                 }
-                .disabled(!consent.canVerify || store.isVerifying)
+                .disabled(!consent.canVerify || store.actionInProgress)
         }
         .padding(.top, KairoSpacing.small)
     }
@@ -534,7 +569,17 @@ struct DigiLockerHubView: View {
     }
 
     private func refresh() async {
-        await store.refreshAll()
-        refreshStore.candidateDataChanged()
+        guard !store.actionInProgress else { return }
+        let revision = store.identityRevision
+        recoveryTask?.cancel()
+        let task = Task {
+            if store.aadhaarNeedsReconciliation { await store.reconcileAadhaarSavedResults() }
+            guard !Task.isCancelled, revision == store.identityRevision else { return }
+            await store.refreshAll()
+            guard !Task.isCancelled, revision == store.identityRevision else { return }
+            refreshStore.candidateDataChanged()
+        }
+        recoveryTask = task
+        await task.value
     }
 }

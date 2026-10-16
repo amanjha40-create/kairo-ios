@@ -83,6 +83,45 @@ final class DocumentHierarchyUITests: XCTestCase {
         app.buttons["Birth Certificate"].tap()
         capture(app, "4C5 Vault add document")
     }
+    func testAadhaarUploadHasNoNumberInputAndSwitchingTypesClearsDraft() {
+        let app = launch(); openVault(app)
+        tap("vault.add", app)
+        XCTAssertFalse(element("vault.documentNumber", app).exists)
+        XCTAssertTrue(app.staticTexts["An Aadhaar number is not needed. We use a generic document filename. This does not redact the private file you choose to upload."].exists)
+        tap("candidate.more.documentVault.type", app)
+        app.buttons["PAN"].tap()
+        let number = app.textFields["vault.documentNumber"]
+        reveal(number, app); number.tap(); number.typeText("synthetic-number")
+        tap("candidate.more.documentVault.type", app)
+        app.buttons["Aadhaar"].tap()
+        XCTAssertFalse(element("vault.documentNumber", app).exists)
+        tap("candidate.more.documentVault.type", app)
+        app.buttons["PAN"].tap()
+        XCTAssertFalse((number.value as? String ?? "").contains("synthetic-number"))
+        tap("candidate.more.documentVault.type", app)
+        app.buttons["Driving Licence"].tap()
+        XCTAssertTrue(element("vault.documentNumber", app).exists)
+    }
+    func testAadhaarMetadataAndEditorHidePrivateFieldsInLightAndLargeDarkLayouts() {
+        for large in [false, true] {
+            let app = launch("aadhaar-privacy", large: large); openVault(app)
+            let row = app.buttons["candidate.more.documentVault.document.aadhaar-private"]
+            reveal(row, app)
+            XCTAssertTrue(row.label.contains("Aadhaar document.pdf"))
+            for secret in ["synthetic-number-secret", "synthetic-private-original.pdf", "synthetic-reviewer-secret"] {
+                XCTAssertFalse(row.label.contains(secret))
+            }
+            let menu = app.buttons["vault.actions.aadhaar-private"]
+            reveal(menu, app)
+            XCTAssertEqual(menu.label, "More actions for Aadhaar document.pdf")
+            menu.tap(); app.buttons["Edit details"].tap()
+            XCTAssertTrue(app.navigationBars["Edit details"].waitForExistence(timeout: 5))
+            XCTAssertFalse(element("vault.metadata.documentNumber", app).exists)
+            XCTAssertTrue(app.switches["Include expiry date"].exists)
+            app.buttons["Cancel"].tap()
+            app.terminate()
+        }
+    }
     func testPackSelectionAndReviewOrderExactFilesReadOnly() {
         let app = launch(); openPack(app)
         XCTAssertEqual(app.staticTexts["pack.selectedCount"].label, "0 selected")

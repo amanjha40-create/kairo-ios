@@ -16,7 +16,8 @@ actor PassportOverviewService: PassportOverviewServiceProtocol {
         let data = try await sessionService.sendAuthenticated(
             NetworkRequest(
                 path: "/passport/me",
-                headers: ["Accept": "application/json"]
+                headers: ["Accept": "application/json", "Cache-Control": "no-store"],
+                requiresPrivateJSONTransport: true
             )
         )
 

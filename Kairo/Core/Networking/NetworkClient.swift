@@ -17,6 +17,7 @@ nonisolated struct NetworkRequest: Sendable {
     var allowsSessionRefreshOnUnauthorized = true
     var requiresProtectedDocumentTransport = false
     var requiresPrivateJSONTransport = false
+    var requiresDigiLockerTransport = false
 
     init(
         path: String,
@@ -26,7 +27,8 @@ nonisolated struct NetworkRequest: Sendable {
         body: Data? = nil,
         allowsSessionRefreshOnUnauthorized: Bool = true,
         requiresProtectedDocumentTransport: Bool = false,
-        requiresPrivateJSONTransport: Bool = false
+        requiresPrivateJSONTransport: Bool = false,
+        requiresDigiLockerTransport: Bool = false
     ) {
         self.path = path
         self.method = method
@@ -36,6 +38,7 @@ nonisolated struct NetworkRequest: Sendable {
         self.allowsSessionRefreshOnUnauthorized = allowsSessionRefreshOnUnauthorized
         self.requiresProtectedDocumentTransport = requiresProtectedDocumentTransport
         self.requiresPrivateJSONTransport = requiresPrivateJSONTransport
+        self.requiresDigiLockerTransport = requiresDigiLockerTransport
     }
 }
 

@@ -291,9 +291,15 @@ final class Parity3AContractTests: XCTestCase {
             case "/api/v1/employments/emp/documents", "/api/v1/educations/edu/documents":
                 let id = request.url?.path.contains("employments") == true ? "emp-doc" : "edu-doc"
                 json = "{\"items\":[{\"id\":\"\(id)\",\"document_type\":\"other\",\"original_filename\":\"\(id).pdf\",\"content_type\":\"application/pdf\",\"byte_size\":20,\"verification_status\":\"draft\"}],\"total\":1}"
-            case "/api/v1/user-documents": json = #"{"items":[{"id":"vault","document_type":"other","original_filename":"vault.pdf","content_type":"application/pdf","byte_size":10,"verification_status":"draft","created_at":"2030-01-01T00:00:00Z","updated_at":"2030-01-01T00:00:00Z"}],"total":1}"#
+            case "/api/v1/user-documents":
+                let payload = #"{"items":[{"id":"vault","document_type":"other","original_filename":"vault.pdf","content_type":"application/pdf","byte_size":10,"verification_status":"draft","created_at":"2030-01-01T00:00:00Z","updated_at":"2030-01-01T00:00:00Z"}],"total":1}"#
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                    headerFields: ["Content-Type": "application/json"])), Data(payload.utf8))
             case "/api/v1/verification-requests/me": json = #"[{"public_id":"request","employment_id":"emp","status":"withdrawn_by_candidate"}]"#
-            case "/api/v1/verification-requests/request/evidence": json = #"[{"public_id":"evidence-current","employment_document_id":"emp-doc"},{"public_id":"evidence-historical-education","education_document_id":"old-edu-doc","original_filename":"historic.pdf"},{"public_id":"evidence-removed-employment","employment_document_id":"removed-emp-doc","original_filename":"removed.pdf"}]"#
+            case "/api/v1/verification-requests/request/evidence":
+                let payload = #"[{"public_id":"evidence-current","employment_document_id":"emp-doc"},{"public_id":"evidence-historical-education","education_document_id":"old-edu-doc","original_filename":"historic.pdf"},{"public_id":"evidence-removed-employment","employment_document_id":"removed-emp-doc","original_filename":"removed.pdf"}]"#
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                    headerFields: ["Content-Type": "application/json"])), Data(payload.utf8))
             default: XCTFail("Unexpected hub read"); throw URLError(.badURL)
             }
             return (try Self.response(request), Data(json.utf8))
@@ -333,7 +339,9 @@ final class Parity3AContractTests: XCTestCase {
                     ["id": raw, "document_type": raw, "original_filename": "fixture.pdf", "content_type": "application/pdf",
                      "byte_size": 8, "verification_status": "draft", "created_at": "2030-01-01T00:00:00Z", "updated_at": "2030-01-01T00:00:00Z"] as [String: Any]
                 }
-                return (try Self.response(request), try JSONSerialization.data(withJSONObject: ["items": records]))
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                    headerFields: ["Content-Type": "application/json"])),
+                        try JSONSerialization.data(withJSONObject: ["items": records]))
             }
             return (try Self.response(request), Data("[]".utf8))
         }
@@ -343,6 +351,134 @@ final class Parity3AContractTests: XCTestCase {
             guard case .vault(let document) = row.source else { return XCTFail("Vault source lost") }
             XCTAssertEqual(document.documentType.rawValue, document.id)
             XCTAssertEqual(row.context, "Vault · \(types[document.id]!) · Current")
+        }
+    }
+
+    func testHubSanitizesOnlyExplicitOrOwnerMatchedAadhaarEvidenceFilenames() async throws {
+        let (session, _) = try await makeSession()
+        let hub = DocumentsHubService(
+            career: CareerOverviewService(authService: DemoAuthService(sessionService: session), sessionService: session),
+            documents: CareerDocumentService(sessionService: session), vault: DocumentVaultService(sessionService: session), session: session)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let body: Any
+            switch request.url?.path {
+            case "/api/v1/user-documents":
+                body = ["aadhaar", "pan", "driving_license"].map { type in
+                    ["id": type, "document_type": type, "original_filename": "owner-\(type).pdf",
+                     "content_type": "application/pdf", "byte_size": 8, "verification_status": "draft",
+                     "created_at": "2030-01-01T00:00:00Z", "updated_at": "2030-01-01T00:00:00Z"] as [String: Any]
+                }
+            case "/api/v1/verification-requests/me":
+                body = [["public_id": "request", "status": "pending"]]
+            case "/api/v1/verification-requests/request/evidence":
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+                body = [
+                    ["public_id": "matched", "document_id": "aadhaar", "original_filename": "private-override.pdf"],
+                    ["public_id": "explicit", "document_id": "removed-aadhaar", "document_type": "aadhaar",
+                     "original_filename": ["unexpected": "private-name"], "mime_type": "image/png"],
+                    ["public_id": "no-mime", "document_id": "removed-aadhaar-no-mime", "document_type": "aadhaar",
+                     "original_filename": "private-no-mime.pdf"],
+                    ["public_id": "pan", "document_id": "pan", "document_type": "pan", "original_filename": "pan-evidence.pdf"],
+                    ["public_id": "dl", "document_id": "driving_license", "document_type": "driving_license",
+                     "original_filename": "licence-evidence.pdf"],
+                    ["public_id": "unknown", "document_id": "removed-unknown", "evidence_type": "aadhaar",
+                     "original_filename": "aadhaar-in-filename-only.pdf"],
+                    ["public_id": "future", "document_id": "removed-future", "document_type": "future_identity",
+                     "original_filename": "future-evidence.pdf"]
+                ] as [[String: Any]]
+            default: body = [] as [String]
+            }
+            return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                headerFields: ["Content-Type": "application/json"])),
+                    try JSONSerialization.data(withJSONObject: body))
+        }
+        let rows = try await hub.load()
+        XCTAssertEqual(rows.count, 10)
+        let expected = ["matched": "Aadhaar document.pdf", "explicit": "Aadhaar document.png", "no-mime": "Aadhaar document",
+                        "pan": "pan-evidence.pdf", "dl": "licence-evidence.pdf", "unknown": "Historical evidence",
+                        "future": "future-evidence.pdf"]
+        for (id, filename) in expected {
+            let row = try XCTUnwrap(rows.first(where: { $0.id == "evidence.request.\(id)" }))
+            XCTAssertEqual(row.filename, filename)
+            XCTAssertTrue(row.immutable)
+            XCTAssertFalse(row.canReplace || row.canRemove)
+            XCTAssertEqual(row.canView, ["matched", "pan", "dl"].contains(id))
+        }
+        XCTAssertFalse(String(reflecting: rows).contains("private-override.pdf"))
+        XCTAssertFalse(String(reflecting: rows).contains("private-no-mime.pdf"))
+        XCTAssertFalse(String(reflecting: rows).contains("aadhaar-in-filename-only.pdf"))
+        let owner = try XCTUnwrap(rows.first(where: { $0.id == "vault.aadhaar" }))
+        XCTAssertEqual(owner.filename, "Aadhaar document.pdf")
+        XCTAssertTrue(owner.immutable)
+    }
+
+    func testHubEvidenceReadUsesPrivateJSONTransportAndDoesNotEchoErrorBody() async throws {
+        let (session, _) = try await makeSession()
+        let hub = DocumentsHubService(
+            career: CareerOverviewService(authService: DemoAuthService(sessionService: session), sessionService: session),
+            documents: CareerDocumentService(sessionService: session), vault: DocumentVaultService(sessionService: session), session: session)
+        for status in [200, 400] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                var body = Data("[]".utf8)
+                var mime = "application/json"
+                var code = 200
+                if request.url?.path == "/api/v1/verification-requests/me" {
+                    body = Data(#"[{"public_id":"request","status":"pending"}]"#.utf8)
+                    XCTAssertNil(request.value(forHTTPHeaderField: "Cache-Control"))
+                } else if request.url?.path == "/api/v1/verification-requests/request/evidence" {
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+                    mime = status == 200 ? "text/html" : "application/json"
+                    code = status
+                    body = status == 200 ? Data("[]".utf8) : Data(#"{"detail":"synthetic-private-evidence-error"}"#.utf8)
+                }
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: code, httpVersion: nil,
+                                                     headerFields: ["Content-Type": mime])), body)
+            }
+            do { _ = try await hub.load(); XCTFail("Private evidence transport must reject this response") }
+            catch { XCTAssertFalse(String(reflecting: error).contains("synthetic-private-evidence-error")) }
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.filter { $0.url?.path.hasSuffix("/evidence") == true }.count, 1)
+        }
+    }
+
+    func testHubPrivateEvidencePagingStopsOnEmptyPageOrMissingTotal() async throws {
+        let (session, _) = try await makeSession()
+        let hub = DocumentsHubService(
+            career: CareerOverviewService(authService: DemoAuthService(sessionService: session), sessionService: session),
+            documents: CareerDocumentService(sessionService: session), vault: DocumentVaultService(sessionService: session), session: session)
+        for hasTotal in [false, true] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                var body: Any = [] as [String]
+                if request.url?.path == "/api/v1/verification-requests/me" {
+                    body = [["public_id": "request", "status": "pending"]]
+                } else if request.url?.path == "/api/v1/verification-requests/request/evidence" {
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+                    let offset = URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?
+                        .queryItems?.first(where: { $0.name == "offset" })?.value
+                    if offset == "0" {
+                        var page: [String: Any] = ["items": [["public_id": "unknown", "document_id": "removed",
+                            "original_filename": "synthetic-private-snapshot.pdf"]]]
+                        if hasTotal { page["total"] = 100 }
+                        body = page
+                    } else {
+                        XCTAssertEqual(offset, "1")
+                        body = ["items": [], "total": 100] as [String: Any]
+                    }
+                }
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                     headerFields: ["Content-Type": "application/json"])),
+                        try JSONSerialization.data(withJSONObject: body))
+            }
+            let rows = try await hub.load()
+            XCTAssertEqual(rows.count, 1)
+            XCTAssertEqual(rows.first?.filename, "Historical evidence")
+            XCTAssertEqual(rows.first?.canView, false)
+            XCTAssertFalse(String(reflecting: rows).contains("synthetic-private-snapshot"))
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.filter { $0.url?.path.hasSuffix("/evidence") == true }.count, hasTotal ? 2 : 1)
         }
     }
 

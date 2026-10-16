@@ -267,7 +267,7 @@ final class DigiLockerTests: XCTestCase {
     }
 
     private nonisolated static func response(for request: URLRequest, statusCode: Int = 200) throws -> HTTPURLResponse {
-        try XCTUnwrap(HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: statusCode, httpVersion: nil, headerFields: ["Cache-Control": "no-store"]))
+        try XCTUnwrap(HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: statusCode, httpVersion: nil, headerFields: ["Cache-Control": "no-store", "Content-Type": "application/json"]))
     }
 
     private nonisolated static let statusPayload = Data(#"{"connected":true,"status":"active","connected_at":"2026-09-25T10:00:00Z","consent_valid_until":null,"scopes":["files.issueddocs"]}"#.utf8)

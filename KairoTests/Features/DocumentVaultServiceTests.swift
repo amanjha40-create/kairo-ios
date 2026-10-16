@@ -144,6 +144,320 @@ final class DocumentVaultServiceTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
+    func testAadhaarMetadataIsDiscardedForCurrentAndHistoricalArrayAndPagedResponses() async throws {
+        let service = try await makeService()
+        for paged in [false, true] {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-store")
+                var current = Self.metadataRecord(type: "aadhaar")
+                current["extracted_payload"] = ["number": "synthetic-extracted-secret", "photo": "synthetic-photo"]
+                current["unknown_private_field"] = "synthetic-unknown-secret"
+                var historical = current
+                historical["id"] = "document-history"
+                historical["superseded_at"] = "2030-02-01T00:00:00Z"
+                historical["superseded_by_id"] = "document-current"
+                let records = [current, historical]
+                let payload: Any = paged ? ["items": records, "total": 2] : records
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: payload))
+            }
+            let documents = try await service.listDocuments()
+            XCTAssertEqual(documents.count, 2)
+            XCTAssertTrue(documents[0].isCurrent)
+            XCTAssertFalse(documents[1].isCurrent)
+            XCTAssertEqual(documents[1].supersededByID, "document-current")
+            for document in documents {
+                XCTAssertNil(document.documentNumber)
+                XCTAssertNil(document.reviewerNote)
+                XCTAssertEqual(document.originalFilename, "Aadhaar document.pdf")
+                XCTAssertEqual(document.verificationStatus, "pending_review")
+            }
+            XCTAssertFalse(String(reflecting: documents).contains("synthetic-"))
+        }
+    }
+
+    func testAadhaarNeverDecodesMissingOrMalformedPrivateMetadata() async throws {
+        let service = try await makeService()
+        for omit in [false, true] {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                var record = Self.metadataRecord(type: "aadhaar")
+                for key in ["document_number", "reviewer_note", "original_filename"] {
+                    if omit { record.removeValue(forKey: key) }
+                    else { record[key] = ["unexpected": ["synthetic-private-secret"]] }
+                }
+                record["extracted_payload"] = ["nested": ["synthetic-extracted-secret"]]
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: [record]))
+            }
+            let documents = try await service.listDocuments()
+            let document = try XCTUnwrap(documents.first)
+            XCTAssertNil(document.documentNumber)
+            XCTAssertNil(document.reviewerNote)
+            XCTAssertEqual(document.originalFilename, "Aadhaar document.pdf")
+        }
+    }
+
+    func testAadhaarFilteringAppliesOnEveryPageWithoutChangingPANOrDrivingLicenceMetadata() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let query = URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.queryItems
+            let offset = query?.first(where: { $0.name == "offset" })?.value
+            let type: String
+            switch offset {
+            case "0": type = "pan"
+            case "1": type = "aadhaar"
+            case "2": type = "driving_license"
+            default: throw URLError(.badURL)
+            }
+            return (try Self.response(for: request, statusCode: 200),
+                    try JSONSerialization.data(withJSONObject: ["items": [Self.metadataRecord(type: type)], "total": 3]))
+        }
+        let documents = try await service.listDocuments()
+        XCTAssertEqual(documents.map(\.documentType.rawValue), ["pan", "aadhaar", "driving_license"])
+        XCTAssertNil(documents[1].documentNumber)
+        XCTAssertEqual(documents[1].originalFilename, "Aadhaar document.pdf")
+        for index in [0, 2] {
+            XCTAssertEqual(documents[index].documentNumber, "synthetic-number-secret")
+            XCTAssertEqual(documents[index].originalFilename, "synthetic-private-original.pdf")
+            XCTAssertEqual(documents[index].reviewerNote, "synthetic-reviewer-secret")
+        }
+    }
+
+    func testAadhaarGenericFilenameUsesOnlyAllowlistedContentType() {
+        let expected = ["application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+                        "application/unknown": ""]
+        for (contentType, suffix) in expected {
+            XCTAssertEqual(VaultDocumentType.aadhaar.metadataFilename("synthetic-private-original.pdf", contentType: contentType),
+                           "Aadhaar document" + suffix)
+        }
+        XCTAssertFalse(VaultDocumentType.aadhaar.allowsDocumentNumber)
+        for type in [VaultDocumentType.pan, .drivingLicense] {
+            XCTAssertTrue(type.allowsDocumentNumber)
+            XCTAssertEqual(type.metadataFilename("unchanged.pdf", contentType: "application/pdf"), "unchanged.pdf")
+        }
+    }
+
+    func testVaultPaginationStopsOnEmptyPageOrMissingTotal() async throws {
+        let service = try await makeService()
+        for empty in [false, true] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                let payload: [String: Any] = empty
+                    ? ["items": [], "total": 100]
+                    : ["items": [Self.metadataRecord(type: "aadhaar")]]
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: payload))
+            }
+            let documents = try await service.listDocuments()
+            XCTAssertEqual(documents.count, empty ? 0 : 1)
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func testAadhaarNewAndReplacementUploadsOmitNumberAndPrivateFilenameWithoutRedactingBytes() async throws {
+        let service = try await makeService()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("synthetic-private-original.pdf")
+        let bytes = Data("%PDF-synthetic-private-file-contents".utf8)
+        try bytes.write(to: fileURL)
+        for replacement in [nil, "document-history"] as [String?] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                switch (request.httpMethod, request.url?.path) {
+                case ("POST", "/api/v1/user-documents/upload-intent"):
+                    let body = try requestBodyData(from: request)
+                    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                    XCTAssertEqual(json["document_type"] as? String, "aadhaar")
+                    XCTAssertEqual(json["original_filename"] as? String, "Aadhaar document.pdf")
+                    XCTAssertEqual(json["replaces_document_id"] as? String, replacement)
+                    XCTAssertEqual(json["byte_size"] as? Int, bytes.count)
+                    XCTAssertNil(json["document_number"])
+                    XCTAssertFalse(String(decoding: body, as: UTF8.self).contains("synthetic-"))
+                    return (try Self.response(for: request, statusCode: 201), Self.intentPayload)
+                case ("PUT", "/vault-upload"):
+                    XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                    XCTAssertEqual(try requestBodyData(from: request), bytes)
+                    return (try Self.response(for: request, statusCode: 200), Data())
+                case ("POST", "/api/v1/user-documents/document-current/complete-upload"):
+                    return (try Self.response(for: request, statusCode: 200),
+                            try JSONSerialization.data(withJSONObject: Self.metadataRecord(type: "aadhaar")))
+                case ("GET", "/api/v1/user-documents"):
+                    return (try Self.response(for: request, statusCode: 200),
+                            try JSONSerialization.data(withJSONObject: [Self.metadataRecord(type: "aadhaar")]))
+                default: throw URLError(.badURL)
+                }
+            }
+            let documents = try await service.uploadDocument(fileURL: fileURL, type: .aadhaar,
+                documentNumber: "synthetic-number-secret", expiresAt: nil, replacing: replacement)
+            XCTAssertEqual(documents.first?.originalFilename, "Aadhaar document.pdf")
+            XCTAssertNil(documents.first?.documentNumber)
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.count, 4)
+        }
+    }
+
+    func testMetadataUpdateUsesOwnerTypeToOmitAadhaarNumberButPreservesPANAndDrivingLicence() async throws {
+        let service = try await makeService()
+        for type in ["aadhaar", "pan", "driving_license"] {
+            await MockURLProtocolStorage.shared.reset()
+            await MockURLProtocolStorage.shared.setHandler { request in
+                if request.httpMethod == "PATCH" {
+                    XCTAssertEqual(request.url?.path, "/api/v1/user-documents/document-current")
+                    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: Any])
+                    if type == "aadhaar" { XCTAssertNil(json["document_number"]) }
+                    else { XCTAssertEqual(json["document_number"] as? String, "synthetic-edited-number") }
+                    XCTAssertEqual(json["expires_at"] as? String, "1970-01-01")
+                    if type == "aadhaar" {
+                        return (try Self.response(for: request, statusCode: 200),
+                                try JSONSerialization.data(withJSONObject: Self.metadataRecord(type: type)))
+                    }
+                    return (try Self.response(for: request, statusCode: 204), Data())
+                }
+                XCTAssertEqual(request.httpMethod, "GET")
+                return (try Self.response(for: request, statusCode: 200),
+                        try JSONSerialization.data(withJSONObject: [Self.metadataRecord(type: type)]))
+            }
+            let documents = try await service.updateMetadata(documentID: "document-current",
+                documentNumber: " synthetic-edited-number ", expiresAt: Date(timeIntervalSince1970: 0))
+            if type == "aadhaar" {
+                XCTAssertNil(documents.first?.documentNumber)
+                XCTAssertNil(documents.first?.reviewerNote)
+                XCTAssertEqual(documents.first?.originalFilename, "Aadhaar document.pdf")
+            }
+            let requests = await MockURLProtocolStorage.shared.requests()
+            XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH", "GET"])
+        }
+    }
+
+    func testPANAndDrivingLicenceUploadsKeepOriginalFilenameAndNumber() async throws {
+        let service = try await makeService()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("unchanged.pdf")
+        try Data("%PDF-synthetic-fixture".utf8).write(to: fileURL)
+        for type in [VaultDocumentType.pan, .drivingLicense] {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                switch (request.httpMethod, request.url?.path) {
+                case ("POST", "/api/v1/user-documents/upload-intent"):
+                    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: Any])
+                    XCTAssertEqual(json["document_type"] as? String, type.rawValue)
+                    XCTAssertEqual(json["document_number"] as? String, "synthetic-number")
+                    XCTAssertEqual(json["original_filename"] as? String, "unchanged.pdf")
+                    return (try Self.response(for: request, statusCode: 201), Self.intentPayload)
+                case ("PUT", "/vault-upload"), ("POST", "/api/v1/user-documents/document-current/complete-upload"):
+                    return (try Self.response(for: request, statusCode: 200), Data("{}".utf8))
+                case ("GET", "/api/v1/user-documents"):
+                    return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
+                default: throw URLError(.badURL)
+                }
+            }
+            _ = try await service.uploadDocument(fileURL: fileURL, type: type,
+                documentNumber: " synthetic-number ", expiresAt: nil, replacing: nil)
+        }
+    }
+
+    func testMetadataUpdateWithoutKnownOwnerTypeFailsBeforePatch() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
+        }
+        do {
+            _ = try await service.updateMetadata(documentID: "missing", documentNumber: "synthetic-secret", expiresAt: nil)
+            XCTFail("An unknown document type must not permit number transmission")
+        } catch { XCTAssertEqual(error as? NetworkError, .invalidResponse) }
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET"])
+    }
+
+    func testVaultPrivateMetadataTransportRejectsNonJSONAndDoesNotEchoErrorBody() async throws {
+        let service = try await makeService()
+        for status in [200, 400] {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: status, httpVersion: nil,
+                                              headerFields: ["Content-Type": "text/html"])),
+                 Data("synthetic-private-error-body".utf8))
+            }
+            do { _ = try await service.listDocuments(); XCTFail("Private transport must reject the response") }
+            catch { XCTAssertFalse(String(reflecting: error).contains("synthetic-private-error-body")) }
+        }
+    }
+
+    func testAadhaarPatchResponseUsesPrivateJSONTransport() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.httpMethod == "PATCH" {
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 200, httpVersion: nil,
+                                                     headerFields: ["Content-Type": "text/html"])),
+                        Data("synthetic-private-patch-response".utf8))
+            }
+            return (try Self.response(for: request, statusCode: 200),
+                    try JSONSerialization.data(withJSONObject: [Self.metadataRecord(type: "aadhaar")]))
+        }
+        do {
+            _ = try await service.updateMetadata(documentID: "document-current", documentNumber: "synthetic-secret", expiresAt: nil)
+            XCTFail("Aadhaar PATCH responses must use private JSON transport")
+        } catch { XCTAssertEqual(error as? NetworkError, .invalidResponse) }
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH"])
+    }
+
+    func testAadhaarDeleteStillAcceptsNoContentAndReloadsOwnerCollection() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.httpMethod == "DELETE" {
+                XCTAssertEqual(request.url?.path, "/api/v1/user-documents/aadhaar-current")
+                return (try XCTUnwrap(HTTPURLResponse(url: XCTUnwrap(request.url), statusCode: 204, httpVersion: nil,
+                                                    headerFields: nil)), Data())
+            }
+            XCTAssertEqual(request.url?.path, "/api/v1/user-documents")
+            return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
+        }
+        let documents = try await service.deleteDocument(documentID: "aadhaar-current")
+        XCTAssertTrue(documents.isEmpty)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["DELETE", "GET"])
+    }
+
+    func testPassportAadhaarDocumentDiscardsPrivateFilenameBeforeDomainMapping() throws {
+        let decoder = APIJSONCoder.makeDecoder()
+        let privateValues: [Any] = ["synthetic-private-original.pdf", NSNull(), ["unexpected": "synthetic-private-secret"]]
+        for value in privateValues {
+            var payload = Self.metadataRecord(type: "aadhaar")
+            payload["original_filename"] = value
+            payload["extracted_payload"] = ["secret": "synthetic-private-secret"]
+            let dto = try decoder.decode(PublicPassportDocumentDTO.self, from: JSONSerialization.data(withJSONObject: payload))
+            XCTAssertEqual(dto.originalFilename, "Aadhaar document")
+            XCTAssertEqual(dto.documentType, "aadhaar")
+            XCTAssertEqual(dto.byteSize, 128)
+            XCTAssertEqual(dto.verificationStatus, "pending_review")
+            XCTAssertFalse(String(reflecting: dto).contains("synthetic-"))
+            XCTAssertEqual(PassportDocumentRecordDomain(dto: dto).originalFilename, "Aadhaar document")
+        }
+        var missing = Self.metadataRecord(type: "aadhaar")
+        missing.removeValue(forKey: "original_filename")
+        let dto = try decoder.decode(PublicPassportDocumentDTO.self, from: JSONSerialization.data(withJSONObject: missing))
+        XCTAssertEqual(dto.originalFilename, "Aadhaar document")
+    }
+
+    func testPassportNonAadhaarDocumentFilenamesAreNotClassifiedByTheirNames() throws {
+        for type in ["pan", "driving_license", "other", "future_identity", "EAADHAAR"] {
+            var payload = Self.metadataRecord(type: type)
+            payload["original_filename"] = "aadhaar-in-filename-only.pdf"
+            let dto = try APIJSONCoder.makeDecoder().decode(PublicPassportDocumentDTO.self,
+                from: JSONSerialization.data(withJSONObject: payload))
+            XCTAssertEqual(dto.documentType, type)
+            XCTAssertEqual(dto.originalFilename, "aadhaar-in-filename-only.pdf")
+        }
+    }
+
+    private nonisolated static func metadataRecord(type: String) -> [String: Any] {
+        ["id": "document-current", "document_type": type, "document_number": "synthetic-number-secret",
+         "original_filename": "synthetic-private-original.pdf", "reviewer_note": "synthetic-reviewer-secret",
+         "content_type": "application/pdf", "byte_size": 128, "verification_status": "pending_review",
+         "created_at": "2030-01-01T00:00:00Z", "updated_at": "2030-01-01T00:00:00Z"]
+    }
+
     private func makeService() async throws -> DocumentVaultService {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
@@ -174,7 +488,7 @@ final class DocumentVaultServiceTests: XCTestCase {
                 url: try XCTUnwrap(request.url),
                 statusCode: statusCode,
                 httpVersion: nil,
-                headerFields: nil
+                headerFields: ["Content-Type": "application/json"]
             )
         )
     }

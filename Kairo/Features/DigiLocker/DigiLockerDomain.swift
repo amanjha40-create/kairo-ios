@@ -113,6 +113,14 @@ nonisolated struct DigiLockerVerificationDTO: Decodable, Equatable, Sendable, Id
     let verifiedAt: Date?
 
     var id: String { "\(source.rawValue).\(documentType)" }
+
+    var isVerified: Bool {
+        guard current, matchResult == .verifiedMatch else { return false }
+        guard documentType == "EAADHAAR" else { return true }
+        guard source == .digilocker, integrityResult == "verified", let verifiedAt else { return false }
+        return verifiedAt.timeIntervalSince1970.isFinite
+            && verifiedAt.timeIntervalSince1970 > 0 && verifiedAt <= Date()
+    }
 }
 
 nonisolated struct DigiLockerVerificationHistoryDTO: Decodable, Equatable, Sendable {
@@ -173,6 +181,7 @@ nonisolated enum DigiLockerPresentation {
         switch type {
         case DigiLockerDocumentType.pan.rawValue: "PAN"
         case DigiLockerDocumentType.drivingLicence.rawValue: "Driving Licence"
+        case "EAADHAAR": "e-Aadhaar"
         case "identity": "Identity"
         case "DGCER": "Degree"
         case "HSCER": "Class XII certificate"
@@ -195,5 +204,60 @@ nonisolated enum DigiLockerPresentation {
 
     static func safeReason(_ reason: DigiLockerMismatchReason?) -> String {
         reason?.safeMessage ?? "Review your profile and document details"
+    }
+}
+
+/// Normalize unrecognized free-form types before any provider string reaches app state.
+private nonisolated enum DigiLockerDecodedDocumentType: String, Decodable {
+    case identity, pan = "PANCR", drivingLicence = "DRVLC", aadhaar = "EAADHAAR"
+    case degree = "DGCER", classXII = "HSCER", classX = "SSCER"
+    case classXIIMarksheet = "HSMRK", classXMarksheet = "SSMRK"
+
+    static func decode<K: CodingKey>(from container: KeyedDecodingContainer<K>, forKey key: K) throws -> String {
+        guard let value = try? container.decode(Self.self, forKey: key) else {
+            return "unknown"
+        }
+        return value.rawValue
+    }
+}
+
+extension DigiLockerTrustSourceDTO {
+    private nonisolated enum CodingKeys: String, CodingKey { case source, documentType, current, matchResult, reason }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        source = try container.decode(DigiLockerSource.self, forKey: .source)
+        documentType = try DigiLockerDecodedDocumentType.decode(from: container, forKey: .documentType)
+        current = try container.decode(Bool.self, forKey: .current)
+        matchResult = try container.decode(DigiLockerMatchResult.self, forKey: .matchResult)
+        reason = try container.decodeIfPresent(DigiLockerMismatchReason.self, forKey: .reason)
+    }
+}
+
+extension DigiLockerVerificationDTO {
+    private nonisolated enum CodingKeys: String, CodingKey {
+        case documentType, source, current, matchResult, matchReason, integrityResult, verifiedAt
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        documentType = try DigiLockerDecodedDocumentType.decode(from: container, forKey: .documentType)
+        source = try container.decode(DigiLockerSource.self, forKey: .source)
+        current = try container.decode(Bool.self, forKey: .current)
+        matchResult = try container.decode(DigiLockerMatchResult.self, forKey: .matchResult)
+        matchReason = try container.decodeIfPresent(DigiLockerMismatchReason.self, forKey: .matchReason)
+        let integrity = try container.decode(String.self, forKey: .integrityResult)
+        integrityResult = ["verified", "failed", "unverified"].contains(integrity) ? integrity : "unknown"
+        do { verifiedAt = try container.decodeIfPresent(Date.self, forKey: .verifiedAt) }
+        catch { throw DigiLockerServiceError.invalidResponse }
+    }
+}
+
+extension DigiLockerIssuedDocumentDTO {
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        documentType = try DigiLockerDecodedDocumentType.decode(from: container, forKey: .documentType)
+        let declaredSupported = try container.decode(Bool.self, forKey: .supported)
+        supported = documentType != "unknown" && declaredSupported
     }
 }

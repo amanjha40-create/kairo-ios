@@ -16,6 +16,14 @@ actor DocumentHierarchyFixtures: DocumentsHubServiceProtocol, DocumentVaultServi
         [vaultDocument("birth", type: .birthCertificate), vaultDocument("government", type: .governmentID),
          vaultDocument("other", type: .other), vaultDocument("historical", type: .aadhaar, historical: true)]
     }
+    private var fixtureVaultDocuments: [VaultDocument] {
+        guard scenario == "aadhaar-privacy" else { return Self.vaultDocuments }
+        return [VaultDocument(id: "aadhaar-private", documentType: .aadhaar, documentNumber: "synthetic-number-secret",
+            originalFilename: "synthetic-private-original.pdf", contentType: "application/pdf", byteSize: 1024,
+            verificationStatus: "pending_review", verifiedAt: nil, reviewerNote: "synthetic-reviewer-secret", expiresAt: nil,
+            supersededAt: nil, supersededByID: nil, replacesDocumentID: nil,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000), updatedAt: Date(timeIntervalSince1970: 1_800_000_000))]
+    }
     func load() async throws -> [DocumentsHubRow] {
         if scenario == "error" { throw NetworkError.unavailableInDemoMode }
         if scenario == "empty" { return [] }
@@ -31,14 +39,14 @@ actor DocumentHierarchyFixtures: DocumentsHubServiceProtocol, DocumentVaultServi
                 context: parent.title, contentType: document.contentType, byteSize: document.byteSize,
                 status: "Candidate-provided", historical: false, immutable: false, source: .career(parent, document)))
         }
-        rows += Self.vaultDocuments.map { document in
+        rows += fixtureVaultDocuments.map { document in
             .init(id: "vault.\(document.id)", category: .other, filename: document.originalFilename,
                 context: "Vault · \(document.documentType.title)", contentType: document.contentType, byteSize: document.byteSize,
                 status: "Candidate-provided", historical: !document.isCurrent, immutable: !document.isCurrent, source: .vault(document))
         }
         return rows
     }
-    func listDocuments() async throws -> [VaultDocument] { scenario == "empty" ? [] : Self.vaultDocuments }
+    func listDocuments() async throws -> [VaultDocument] { scenario == "empty" ? [] : fixtureVaultDocuments }
     func uploadDocument(fileURL: URL, type: VaultDocumentType, documentNumber: String?, expiresAt: Date?, replacing documentID: String?) async throws -> [VaultDocument] { throw NetworkError.unavailableInDemoMode }
     func updateMetadata(documentID: String, documentNumber: String?, expiresAt: Date?) async throws -> [VaultDocument] { throw NetworkError.unavailableInDemoMode }
     func content(documentID: String) async throws -> ProtectedDocumentContent { throw NetworkError.unavailableInDemoMode }

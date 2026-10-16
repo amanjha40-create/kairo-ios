@@ -10,6 +10,9 @@ struct URLSessionNetworkClient: NetworkClient {
 
     func sendResponse(_ request: NetworkRequest) async throws -> NetworkResponse {
         let urlRequest = try makeURLRequest(for: request)
+        if request.requiresDigiLockerTransport {
+            return try await DigiLockerPrivateTransport.send(urlRequest, protocolClasses: session.configuration.protocolClasses)
+        }
         if request.requiresPrivateJSONTransport {
             return try await PrivateDocumentPackTransport.send(urlRequest, protocolClasses: session.configuration.protocolClasses)
         }
