@@ -157,11 +157,7 @@ final class DigiLockerWave1UITests: XCTestCase {
     }
 
     private func revealAbove(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<25 {
-            if element.exists && element.isHittable && element.frame.minY > 120 { return }
-            app.swipeDown()
-        }
-        XCTAssertTrue(element.isHittable)
+        reveal(element, in: app)
     }
 
     func test_homeSummaryOpensNativeHubWithSeparatedTruth() {
@@ -285,17 +281,37 @@ final class DigiLockerWave1UITests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<30 {
-            // XXXL consent may be taller than the viewport; disabled controls are
-            // inspected, not tapped. Require a visible portion, not the whole frame.
-            let viewport = app.frame.insetBy(dx: 0, dy: 140)
+            let viewport = visibleScrollFrame(in: app)
             if element.exists, element.frame.intersection(viewport).height >= min(44, element.frame.height),
                element.isHittable || !element.isEnabled { return }
-            app.swipeUp()
+            // Move toward the target in bounded steps, including after overshoot.
+            let towardAbove = element.exists && element.frame.midY < viewport.midY
+            let startY = viewport.minY + viewport.height * (towardAbove ? 0.3 : 0.7)
+            let endY = viewport.minY + viewport.height * (towardAbove ? 0.7 : 0.3)
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: startY - app.frame.minY))
+            let end = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: endY - app.frame.minY))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
         XCTAssertTrue(element.exists)
         XCTAssertTrue(element.isHittable || !element.isEnabled)
-        XCTAssertGreaterThanOrEqual(element.frame.intersection(app.frame.insetBy(dx: 0, dy: 140)).height,
+        XCTAssertGreaterThanOrEqual(element.frame.intersection(visibleScrollFrame(in: app)).height,
                                     min(44, element.frame.height))
+    }
+
+    private func visibleScrollFrame(in app: XCUIApplication) -> CGRect {
+        let scroll = app.scrollViews.firstMatch
+        var viewport = scroll.exists ? scroll.frame.intersection(app.frame) : app.frame
+        let navigation = app.navigationBars.firstMatch
+        if navigation.exists && navigation.frame.intersects(viewport) {
+            let top = max(viewport.minY, navigation.frame.maxY)
+            viewport = CGRect(x: viewport.minX, y: top, width: viewport.width, height: max(0, viewport.maxY - top))
+        }
+        let tabBar = app.tabBars.firstMatch
+        if tabBar.exists && tabBar.isHittable && tabBar.frame.intersects(viewport) {
+            viewport.size.height = max(0, tabBar.frame.minY - viewport.minY)
+        }
+        return viewport.insetBy(dx: 8, dy: 8)
     }
 
     private func waitForLabel(_ text: String, in element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
