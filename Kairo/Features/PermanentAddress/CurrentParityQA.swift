@@ -20,6 +20,7 @@ actor CurrentParityFixtures: PermanentAddressServing, EmploymentReferencesServin
     private var documentState: AddressDocumentState
     private var references: CandidateReferences
     private let scenario: String
+    private var readFailure = false
     private(set) var starts = 0
     private(set) var completions = 0
     private(set) var cancellations = 0
@@ -34,6 +35,24 @@ actor CurrentParityFixtures: PermanentAddressServing, EmploymentReferencesServin
             documentStatus: doc, successfulGpsChecks: scenario == "verified" ? 3 : scenario == "one" ? 1 : 0,
             requiredGpsChecks: 3, canStartLocation: true)
         documentState = .init(documentId: doc == "REQUIRED" ? nil : Self.documentID, documentType: "utility_bill", status: doc)
+        if scenario == "feature_off" { addressState = .init(enabled: false, status: "NOT_STARTED") }
+        if scenario == "no_address" { addressState = .init(enabled: true, status: "NOT_STARTED") }
+        if scenario == "two" || scenario == "three" {
+            addressState.successfulGpsChecks = scenario == "two" ? 2 : 3
+            addressState.canStartLocation = false
+        }
+        if scenario.hasPrefix("manual_") {
+            addressState.manualReviewStatus = String(scenario.dropFirst(7))
+            addressState.canStartLocation = false
+        }
+        if scenario == "manual_approved" {
+            addressState.targetSource = "onsite_confirmation_manual_review"
+            addressState.successfulGpsChecks = 1
+        }
+        if scenario == "same_day" {
+            addressState.successfulGpsChecks = 1; addressState.todayComplete = true
+            addressState.canStartLocation = false
+        }
         let complete = scenario == "completed"
         let managerStatus = ["former":"completed", "confirmed":"ready_to_invite", "withheld":"ready_to_invite", "sent":"invitation_sent", "expired":"expired", "cannot_confirm":"cannot_confirm"][scenario] ?? (complete ? "completed" : "not_started")
         references = .init(employmentId: Self.employmentID, completedCount: complete ? 2 : 1, totalCount: 2,
@@ -45,9 +64,11 @@ actor CurrentParityFixtures: PermanentAddressServing, EmploymentReferencesServin
                 identityWithheld: scenario == "withheld"))
     }
     func state() async throws -> PermanentAddressState {
-        if scenario == "offline" { throw URLError(.notConnectedToInternet) }
+        if scenario == "offline" || scenario == "provider_unavailable" || readFailure { throw URLError(.notConnectedToInternet) }
         return addressState
     }
+    func setReadFailure(_ value: Bool) { readFailure = value }
+    func setState(_ value: PermanentAddressState) { addressState = value }
     func save(_ address: ClaimedPermanentAddress) async throws -> PermanentAddressState {
         guard address.isValid else { throw NetworkError.invalidResponse }
         if address == addressState.claimedAddress { return addressState }
@@ -123,8 +144,10 @@ actor CurrentParityFixtures: PermanentAddressServing, EmploymentReferencesServin
 }
 
 struct CurrentParityQARootView: View {
-    @State private var selected: String?
-    private let scenarios = ["required", "one", "review", "approved", "verified", "correction", "rejected", "uploaded", "offline", "denied", "disabled", "timeout", "upload_failure"]
+    @State private var selected: String? = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_ADDRESS_SCENARIO"]
+    private let scenarios = ["required", "one", "review", "approved", "verified", "correction", "rejected", "uploaded", "offline", "denied", "disabled", "timeout", "upload_failure",
+        "feature_off", "no_address", "two", "three", "same_day", "manual_pending", "manual_in_review", "manual_waiting_for_address_document",
+        "manual_additional_evidence_requested", "manual_correction_requested", "manual_rejected", "manual_historical_target_not_retained", "manual_review_window_expired", "manual_approved", "provider_unavailable"]
     var body: some View {
         NavigationStack {
             List {

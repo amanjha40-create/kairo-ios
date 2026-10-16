@@ -43,13 +43,37 @@ nonisolated struct PermanentAddressState: Codable, Equatable, Sendable {
     var geocodeStatus: String?
     var targetConfirmationRequired: Bool?
     var targetSource: String?
+    var manualReviewStatus: String?
     var successfulGpsChecks: Int?
     var requiredGpsChecks: Int?
     var todayComplete: Bool?
     var canStartLocation: Bool?
     var lastLocationResult: String?
     var expiresAt: Date?
-    var isVerified: Bool { status == "PERMANENT_ADDRESS_VERIFIED" }
+    var isVerified: Bool { enabled && status == "PERMANENT_ADDRESS_VERIFIED" }
+    var reviewMessage: String? {
+        guard !isVerified else { return nil }
+        switch manualReviewStatus {
+        case "pending", "in_review": return "Review pending. We'll update your status when the review is complete."
+        case "waiting_for_address_document": return "Review pending. Provide an address document to continue."
+        case "additional_evidence_requested": return "Additional evidence requested. Please review your address document."
+        case "correction_requested": return "Correction required. Please review and correct your claimed address."
+        case "rejected": return "Review rejected. Review your address and evidence before trying again."
+        case "historical_target_not_retained": return "This earlier check can no longer be reviewed. Refresh status to see the next available action."
+        case "review_window_expired": return "The review window has expired. Refresh status to see the next available action."
+        case "approved": return firstCheckMessage == nil ? "Location review approved. Your current progress is shown above." : nil
+        case nil: return nil
+        default: return "Review status unavailable. Refresh status before continuing."
+        }
+    }
+    var firstCheckMessage: String? {
+        guard successfulGpsChecks == 1 else { return nil }
+        switch targetSource {
+        case "onsite_confirmation_manual_review": return "Check 1 confirmed via review. 2 more checks are required on different days."
+        case "onsite_confirmation": return "Location confirmed. 2 more checks are required on different days."
+        default: return nil
+        }
+    }
     var progress: String { "\(successfulGpsChecks ?? 0) of \(requiredGpsChecks ?? 3) completed" }
     var label: String {
         ["NOT_STARTED":"Not started", "DOCUMENT_REQUIRED":"Address document required", "DOCUMENT_UNDER_REVIEW":"Address document under review",

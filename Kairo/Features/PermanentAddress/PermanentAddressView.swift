@@ -30,11 +30,12 @@ struct PermanentAddressView: View {
                                 KairoSection(compact: true) {
                                     KairoSectionHeading(title: "Your claimed address")
                                     Text(claimed.display)
-                                    Button("Edit permanent address") { address = claimed; editing = true }.disabled(model.busy)
+                                    Button("Edit permanent address") { address = claimed; editing = true }.disabled(!model.actionsAvailable)
                                 }
                             } else {
                                 Button("Add permanent address") { address = .init(); editing = true }
                                     .buttonStyle(KairoActionStyle())
+                                    .disabled(!model.actionsAvailable)
                             }
                             if state.addressVersionId != nil {
                                 progress(state)
@@ -80,7 +81,9 @@ struct PermanentAddressView: View {
             KairoSectionHeading(title: "Verification progress")
             Text(state.label).font(.headline).accessibilityIdentifier("address.status")
             Text("Location checks: \(state.progress)").accessibilityIdentifier("address.progress")
-            if state.targetSource == "onsite_confirmation" && state.successfulGpsChecks == 1 { Text("Location confirmed. 2 more checks are required on different days.") }
+            if let message = state.firstCheckMessage { Text(message).accessibilityIdentifier("address.first.check") }
+            if let message = state.reviewMessage { Text(message).accessibilityIdentifier("address.manual.review") }
+            if !model.stateIsCurrent { Text("Status could not be refreshed. Saved results are shown; refresh before continuing.").accessibilityIdentifier("address.stale") }
             if !state.isVerified { Text("Permanent Address: Not yet verified") }
             if state.todayComplete == true { Text("Today's location check is complete. Come back on another day to continue verification.") }
             if state.geocodeStatus == "NEEDS_REVIEW" { Text("We couldn't locate this address precisely enough. Please review your address. Location checks are unavailable until the address is resolved.") }
@@ -120,7 +123,7 @@ struct PermanentAddressView: View {
                 Button("Submit for review") { model.submitDocument(confirmed: confirmed) }
                     .disabled(model.busy || !confirmed).accessibilityIdentifier("address.document.submit")
             }
-        }.disabled(model.busy)
+        }.disabled(!model.actionsAvailable)
     }
     private func locationCard(_ state: PermanentAddressState) -> some View {
         KairoSection(compact: true) {
@@ -133,12 +136,12 @@ struct PermanentAddressView: View {
                 Text("KairoID uses your precise location only during this check to confirm that you are at your claimed address. We do not continuously track your location.")
                 Text("Keep KairoID open and the screen on for 30–60 seconds. Collection stops if you leave, lock the screen or cancel. GPS alone does not verify your permanent address.")
             }
-            if state.canStartLocation != true {
+            if state.canStartLocation != true || !model.stateIsCurrent {
                 Text(state.todayComplete == true ? "Today's location check is complete. Come back on another day." : state.geocodeStatus == "NEEDS_REVIEW" ? "Review your address before starting a location check." : "Location checks are currently unavailable. Refresh status to check availability.")
                     .accessibilityIdentifier("address.location.unavailable")
             }
             Button(state.targetConfirmationRequired == true ? "Confirm my location" : "Verify my location") { model.locate() }
-                .disabled(model.busy || state.canStartLocation != true).accessibilityIdentifier("address.location.start")
+                .disabled(!model.actionsAvailable || state.canStartLocation != true).accessibilityIdentifier("address.location.start")
             if model.locationActive { Button("Cancel location check") { model.cancelLocation() } }
         }
     }
@@ -174,7 +177,7 @@ private struct PermanentAddressEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom) {
                 KairoPrimaryButton(title: "Save permanent address", isLoading: model.busy) { model.save(address) }
-                    .disabled(model.busy || !address.isValid)
+                    .disabled(!model.actionsAvailable || !address.isValid)
                     .padding().background(KairoColors.surface)
             }
             .navigationTitle("Permanent address").navigationBarTitleDisplayMode(.inline)

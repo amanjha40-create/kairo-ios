@@ -205,7 +205,7 @@ struct AppDependencies: Sendable {
             candidateNotificationService: candidateNotificationService,
             employmentReferencesService: EmploymentReferencesService(session: sessionService,
                 enabled: configuration.environment == .staging && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled),
-            permanentAddressService: configuration.environment == .staging && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled
+            permanentAddressService: [.staging, .production].contains(configuration.environment) && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled
                 ? PermanentAddressService(session: sessionService, enabled: true) : nil
         )
     }

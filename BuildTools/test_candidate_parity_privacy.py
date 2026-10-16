@@ -55,7 +55,7 @@ class CandidateParityPrivacyTests(unittest.TestCase):
 
     def test_only_authoritative_status_verifies_and_passport_is_gated(self):
         source = (ADDRESS / "PermanentAddressModels.swift").read_text()
-        self.assertIn('var isVerified: Bool { status == "PERMANENT_ADDRESS_VERIFIED" }', source)
+        self.assertIn('var isVerified: Bool { enabled && status == "PERMANENT_ADDRESS_VERIFIED" }', source)
         view = (ADDRESS / "PermanentAddressView.swift").read_text()
         self.assertIn("!passport || state.isVerified", view)
         self.assertIn("if !passport", view)

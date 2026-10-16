@@ -11,6 +11,8 @@ import Combine
     @Published private(set) var stage: String?
     @Published private(set) var error: String?
     @Published private(set) var documentError: String?
+    @Published private(set) var stateIsCurrent = false
+    var actionsAvailable: Bool { stateIsCurrent && state?.enabled == true && !busy }
     private let service: any PermanentAddressServing
     private let collector: any AddressLocationCollecting
     private var operation: AddressLocationOperation?
@@ -24,7 +26,7 @@ import Combine
         collector.cancel()
         let running = operation; operation = nil
         Task { await running?.cancel() }
-        busy = false; stage = nil; locationActive = false
+        busy = false; stage = nil; locationActive = false; stateIsCurrent = false
     }
     func cancelLocation() { let current = operation; Task { await current?.cancel() } }
     func refresh() {
@@ -39,9 +41,11 @@ import Combine
     private func apply(_ next: PermanentAddressState) {
         if next.addressVersionId != state?.addressVersionId { document = nil; documentError = nil }
         state = next
+        stateIsCurrent = true
+        if !next.enabled { document = nil; policy = nil; documentError = nil }
     }
     private func loadDocument(_ ticket: UUID) async {
-        guard let version = state?.addressVersionId else { return }
+        guard state?.enabled == true, let version = state?.addressVersionId else { return }
         do {
             let next = try await service.document(version: version)
             let options = try await service.policy()
@@ -54,7 +58,7 @@ import Combine
         }
     }
     func save(_ address: ClaimedPermanentAddress) {
-        guard address.isValid else { return }
+        guard actionsAvailable, address.isValid else { return }
         run { [self] ticket in
             let next = try await service.save(address)
             guard generation == ticket else { return }
@@ -62,16 +66,19 @@ import Combine
         }
     }
     func upload(file: URL, type: String, issued: String?) {
-        guard let version = state?.addressVersionId else { return }
+        guard actionsAvailable, policy != nil, let version = state?.addressVersionId else { return }
         run { [self] ticket in
             stage = "Uploading and confirming document with KairoID..."
             let next = try await service.upload(version: version, type: type, file: file, issued: issued)
             guard generation == ticket, state?.addressVersionId == version else { return }
             document = next; documentError = nil
+            let current = try await service.state()
+            guard generation == ticket else { return }
+            apply(current)
         }
     }
     func submitDocument(confirmed: Bool) {
-        guard confirmed, let version = state?.addressVersionId, let document,
+        guard actionsAvailable, confirmed, let version = state?.addressVersionId, let document,
               document.status == "UPLOADED", let id = document.documentId else { return }
         run { [self] ticket in
             stage = "Submitting for review..."
@@ -81,7 +88,7 @@ import Combine
         }
     }
     func locate() {
-        guard !busy, let version = state?.addressVersionId, state?.canStartLocation == true else { return }
+        guard actionsAvailable, let version = state?.addressVersionId, state?.canStartLocation == true else { return }
         let check = AddressLocationOperation(collector: collector, service: service)
         operation = check
         locationActive = true
@@ -99,12 +106,14 @@ import Combine
             }
             operation = nil
             locationActive = false
+            // A failed post-check read must not leave the previous eligibility actionable.
+            stateIsCurrent = false
             if let next = try? await service.state(), generation == ticket { apply(next) }
         }
     }
     private func run(_ body: @escaping @MainActor (UUID) async throws -> Void) {
         guard !busy else { return }
-        busy = true; error = nil
+        busy = true; error = nil; stateIsCurrent = false
         let ticket = generation
         task = Task { [weak self] in
             guard let self else { return }
