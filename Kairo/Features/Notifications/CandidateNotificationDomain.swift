@@ -17,6 +17,11 @@ nonisolated enum CandidateNotificationType: Equatable, Sendable {
 nonisolated enum CandidateNotificationDestination: Equatable, Sendable {
     case verificationRequest(String)
     case verify
+    case documents
+    case sharing
+    case passport
+    case settings
+    case home
     case genericDetail
 }
 
@@ -64,17 +69,23 @@ nonisolated enum CandidateNotificationMapper {
         let destination: CandidateNotificationDestination
         let relatedEntityID: String?
 
-        switch type {
-        case .verificationCompleted:
-            relatedEntityID = dto.metadata["verification_request_public_id"]?.stringValue
-            if let relatedEntityID {
-                destination = .verificationRequest(relatedEntityID)
-            } else {
-                destination = .verify
-            }
-        case .unknown:
+        let event = dto.eventType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // Invitation public IDs are NOT capability tokens or verification request IDs.
+        let requestID = ["verification_request_public_id", "verificationRequestPublicId", "request_public_id", "requestPublicId"]
+            .compactMap { dto.metadata[$0]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil }
+        if let requestID, ["verification", "review", "clarification", "evidence"].contains(where: event.contains) {
+            relatedEntityID = requestID
+            destination = .verificationRequest(requestID)
+        } else {
             relatedEntityID = nil
-            destination = .genericDetail
+            if ["account_", "security_", "password_"].contains(where: event.hasPrefix) { destination = .settings }
+            else if ["document", "resume", "evidence"].contains(where: event.contains) { destination = .documents }
+            else if event.contains("share") { destination = .sharing }
+            else if event.contains("passport") { destination = .passport }
+            else if event.contains("trust_score") { destination = .home }
+            else if type == .verificationCompleted { destination = .verify }
+            else { destination = .genericDetail }
         }
 
         return CandidateNotification(

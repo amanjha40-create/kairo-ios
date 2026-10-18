@@ -40,6 +40,14 @@ struct CareerOverviewScreenView: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(KairoAccessibilityID.careerSummarySection)
+                KairoCompactDestinationRow(
+                    title: "Verification activity",
+                    metadata: "Review invitations, requests and next steps",
+                    systemImage: "checkmark.shield",
+                    accessibilityIdentifier: "career.verification.activity",
+                    action: { router.selectTab(.verify) }
+                )
+                ProductGuidanceView(topic: .career)
                 phaseContent
             }
             .frame(maxWidth: .infinity, alignment: .leading)

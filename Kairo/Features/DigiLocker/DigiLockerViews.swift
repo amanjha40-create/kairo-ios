@@ -295,12 +295,14 @@ struct DigiLockerHubView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            DigiLockerBrandView()
             HStack {
                 KairoTrustSignature(kind: .connected, trigger: connectionMotion, size: 36)
                 Text("Secure connection for verified records")
             }
                 .font(KairoTypography.bodyStrong)
                 .foregroundStyle(KairoColors.textPrimary)
+            ProductGuidanceView(topic: .digiLocker)
             if store.isLoadingSummary && store.status == nil {
                 ProgressView("Checking connection…")
             } else if let status = store.status, !store.summaryError {

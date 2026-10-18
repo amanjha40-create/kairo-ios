@@ -14,7 +14,7 @@ final class ResumeManagementUITests: XCTestCase {
             app.launchEnvironment = ["KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false"]
             app.launch()
             XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: 30))
-            for title in ["Home", "Career", "Verify", "Passport", "More"] {
+            for title in ["Home", "Career", "Passport", "More"] {
                 let tab = app.tabBars.buttons[title]
                 tab.tap(); XCTAssertTrue(tab.isSelected)
                 XCTAssertTrue(app.descendants(matching: .any)

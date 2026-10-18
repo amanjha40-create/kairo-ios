@@ -52,7 +52,7 @@ final class VerifyHierarchyUITests: XCTestCase {
             target.coordinate(withNormalizedOffset: point).tap()
             assertDetail("withdrawn", app)
             app.buttons["Done"].tap()
-            XCTAssertTrue(app.tabBars.buttons["Verify"].isSelected)
+            XCTAssertTrue(app.tabBars.buttons["Career"].isSelected)
             XCTAssertEqual(app.buttons["verify.filter"].value as? String, "Selected: Withdrawn")
         }
     }
@@ -176,7 +176,7 @@ final class VerifyHierarchyUITests: XCTestCase {
             let dark = app.buttons["candidate.more.appearance.dark"]
             reveal(dark, app); dark.tap()
         }
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         XCTAssertTrue(app.buttons["verify.filter"].waitForExistence(timeout: 10))
         return app
     }

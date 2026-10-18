@@ -291,8 +291,10 @@ private struct BasicProfileStepView: View {
     let onBack: () -> Void
 
     @State private var attemptedSubmission = false
+    @FocusState private var focusedField: ManualProfileBasicField?
 
     var body: some View {
+        ScrollViewReader { proxy in
         OnboardingScreenLayout(
             layoutMode: .task,
             eyebrow: ManualProfileStep.basicProfile.stepLabel,
@@ -304,6 +306,11 @@ private struct BasicProfileStepView: View {
                 .frame(maxWidth: 132)
         } content: {
             VStack(spacing: KairoSpacing.medium) {
+                if firstInvalidField != nil {
+                    Text("Check the highlighted profile details before continuing.")
+                        .font(KairoTypography.footnote).foregroundStyle(KairoColors.danger)
+                        .accessibilityIdentifier("onboarding.manualProfile.validationSummary")
+                }
                 if let serverErrorMessage {
                     ManualProfileInlineMessage(message: serverErrorMessage)
                 }
@@ -325,8 +332,10 @@ private struct BasicProfileStepView: View {
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileFullName,
                             accessibilityLabel: "Full name",
                             textContentType: .name,
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .fullName
                         )
+                        .id(ManualProfileBasicField.fullName)
 
                         KairoTextField(
                             title: "Professional Headline",
@@ -336,8 +345,10 @@ private struct BasicProfileStepView: View {
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileHeadline,
                             accessibilityLabel: "Professional headline",
                             textContentType: .jobTitle,
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .professionalHeadline
                         )
+                        .id(ManualProfileBasicField.professionalHeadline)
 
                         KairoTextField(
                             title: "Current Role",
@@ -347,8 +358,10 @@ private struct BasicProfileStepView: View {
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentRole,
                             accessibilityLabel: "Current role",
                             textContentType: .jobTitle,
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .currentRole
                         )
+                        .id(ManualProfileBasicField.currentRole)
 
                         KairoTextField(
                             title: "Industry",
@@ -357,8 +370,10 @@ private struct BasicProfileStepView: View {
                             errorMessage: basicError(for: .industry),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileIndustry,
                             accessibilityLabel: "Industry",
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .industry
                         )
+                        .id(ManualProfileBasicField.industry)
 
                         KairoTextField(
                             title: "Years of Experience",
@@ -367,8 +382,10 @@ private struct BasicProfileStepView: View {
                             errorMessage: basicError(for: .yearsOfExperience),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileYearsOfExperience,
                             accessibilityLabel: "Years of experience",
-                            keyboardType: .numberPad
+                            keyboardType: .numberPad,
+                            focus: $focusedField, focusedField: .yearsOfExperience
                         )
+                        .id(ManualProfileBasicField.yearsOfExperience)
 
                         KairoTextField(
                             title: "Current City",
@@ -377,8 +394,10 @@ private struct BasicProfileStepView: View {
                             errorMessage: basicError(for: .currentCity),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentCity,
                             accessibilityLabel: "Current city",
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .currentCity
                         )
+                        .id(ManualProfileBasicField.currentCity)
 
                         KairoTextField(
                             title: "Current Country",
@@ -387,8 +406,10 @@ private struct BasicProfileStepView: View {
                             errorMessage: basicError(for: .currentCountry),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentCountry,
                             accessibilityLabel: "Current country",
-                            textInputAutocapitalization: .words
+                            textInputAutocapitalization: .words,
+                            focus: $focusedField, focusedField: .currentCountry
                         )
+                        .id(ManualProfileBasicField.currentCountry)
                     }
                 }
             }
@@ -423,6 +444,17 @@ private struct BasicProfileStepView: View {
                 }
             }
         }
+        .onChange(of: focusedField) { _, field in
+            if let field { proxy.scrollTo(field, anchor: .center) }
+        }
+        .onChange(of: backendErrors) { _, _ in
+            focusedField = firstInvalidField
+        }
+        }
+    }
+
+    private var firstInvalidField: ManualProfileBasicField? {
+        ManualProfileBasicField.allCases.first { basicError(for: $0) != nil }
     }
 
     private func basicError(for field: ManualProfileBasicField) -> String? {
@@ -440,6 +472,9 @@ private struct BasicProfileStepView: View {
     private func handleContinue() {
         guard ManualProfileValidation.isBasicProfileValid(draft) else {
             attemptedSubmission = true
+            focusedField = ManualProfileBasicField.allCases.first {
+                ManualProfileValidation.basicProfileError(for: $0, in: draft) != nil
+            }
             return
         }
 

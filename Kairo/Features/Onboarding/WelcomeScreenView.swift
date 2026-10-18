@@ -111,11 +111,7 @@ private struct WelcomePageContent: View {
     var body: some View {
         VStack(spacing: 16) {
             if page == .career {
-                Image("WelcomeBrand")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 174, height: 48)
-                    .accessibilityLabel(ProductBrand.name)
+                KairoIDBrandView(width: 174)
                     .accessibilityIdentifier("onboarding.welcome.wordmark")
             } else {
                 HStack {
@@ -215,7 +211,7 @@ private struct WelcomeArtwork: View {
                         .fill(Color(red: 0.91, green: 0.96, blue: 0.97))
                         .frame(width: 202 * scale, height: 80 * scale)
                         .overlay {
-                            Image("WelcomeBrand").resizable().scaledToFit().padding(8 * scale)
+                            KairoIDBrandView(width: 186 * scale).padding(8 * scale)
                         }
                         .offset(x: (315 - crop.minX) * scale, y: (755 - crop.minY) * scale)
                 }

@@ -199,7 +199,7 @@ final class DigiLockerWave1UITests: XCTestCase {
 
     func test_verifyUsesProviderAsAttributionInsideCanonicalGroups() {
         let app = launch()
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         XCTAssertTrue(app.staticTexts["Needs attention"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Completed"].exists)
         XCTAssertTrue(app.staticTexts["Verified via DigiLocker"].exists)
@@ -253,7 +253,7 @@ final class DigiLockerWave1UITests: XCTestCase {
 
         app.terminate()
         app = launch(appearance: "dark")
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         XCTAssertTrue(app.staticTexts["Verified via DigiLocker"].waitForExistence(timeout: 10))
         attach(app, name: "Wave1-Verify-Provenance-Dark")
         app.tabBars.buttons["Passport"].tap()

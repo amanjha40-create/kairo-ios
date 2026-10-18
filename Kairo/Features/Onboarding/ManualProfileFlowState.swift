@@ -243,7 +243,7 @@ nonisolated struct ManualProfileFlowState: Equatable, Codable, Sendable {
     }
 }
 
-nonisolated enum ManualProfileBasicField: Hashable, Sendable {
+nonisolated enum ManualProfileBasicField: CaseIterable, Hashable, Sendable {
     case fullName
     case professionalHeadline
     case currentRole

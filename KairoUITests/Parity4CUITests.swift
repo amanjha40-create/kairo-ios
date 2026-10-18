@@ -48,12 +48,12 @@ final class Parity4CUITests: XCTestCase {
         XCTAssertTrue(hero.waitForExistence(timeout: 10))
         let passport = app.buttons["candidate.home.viewTrustPassport"]
         reveal(passport, in: app)
+        let attention = app.staticTexts["Needs Your Attention"]
+        reveal(attention, in: app)
+        XCTAssertLessThan(passport.frame.minY, attention.frame.minY)
         let digiLocker = app.buttons["candidate.home.digilocker"]
         reveal(digiLocker, in: app)
-        XCTAssertLessThan(passport.frame.minY, digiLocker.frame.minY)
-        let attention = app.staticTexts["Needs your attention"]
-        reveal(attention, in: app)
-        XCTAssertLessThan(digiLocker.frame.minY, attention.frame.minY)
+        XCTAssertLessThan(attention.frame.minY, digiLocker.frame.minY)
         let career = app.descendants(matching: .any)["candidate.home.career"].firstMatch
         reveal(career, in: app)
         XCTAssertLessThan(attention.frame.minY, career.frame.minY)
@@ -86,9 +86,9 @@ final class Parity4CUITests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)["candidate.home.screen"].firstMatch.waitForExistence(timeout: 10))
             XCTAssertFalse(app.buttons["candidate.home.verificationRequest.action"].exists)
             if state == "empty" {
-                XCTAssertTrue(app.staticTexts["No active verification requests"].exists)
+                XCTAssertTrue(app.staticTexts["No action needed right now"].exists)
             } else {
-                XCTAssertFalse(app.staticTexts["No active verification requests"].exists)
+                XCTAssertFalse(app.staticTexts["No action needed right now"].exists)
                 XCTAssertFalse(app.buttons["candidate.home.documents"].exists)
             }
             app.terminate()

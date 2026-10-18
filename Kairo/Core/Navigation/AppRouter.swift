@@ -5,6 +5,16 @@ import Foundation
 final class AppRouter: ObservableObject {
     @Published private(set) var rootDestination: RootDestination
     @Published var selectedTab: CandidateTab
+    @Published var showsCareerVerification = false
+    @Published var requestedMoreDestination: MoreHubDestination?
+    @Published var showsDocumentsHub = false
+    @Published var trustInvitationPresentation: TrustInvitationPresentation?
+    var pendingTrustInvitation: TrustInvitationPresentation?
+
+    func showMoreSettings() {
+        selectTab(.more)
+        requestedMoreDestination = .settings
+    }
     @Published var onboardingPath: [OnboardingDestination]
     @Published private(set) var publicPassportPresentation: PublicPassportPresentation?
     @Published private(set) var passportActivityRequestID: UUID?
@@ -25,7 +35,8 @@ final class AppRouter: ObservableObject {
         onboardingPath: [OnboardingDestination] = []
     ) {
         self.rootDestination = rootDestination
-        self.selectedTab = selectedTab
+        self.selectedTab = selectedTab == .verify ? .career : selectedTab
+        self.showsCareerVerification = selectedTab == .verify
         self.onboardingPath = onboardingPath
         publicPassportPresentation = nil
         passportActivityRequestID = nil
@@ -108,13 +119,13 @@ final class AppRouter: ObservableObject {
     }
 
     func enterMainTabs(selectedTab: CandidateTab = .home) {
-        rootDestination = .mainTabs
-        self.selectedTab = selectedTab
+        selectTab(selectedTab)
     }
 
     func selectTab(_ tab: CandidateTab) {
         rootDestination = .mainTabs
-        selectedTab = tab
+        selectedTab = tab == .verify ? .career : tab
+        showsCareerVerification = tab == .verify
     }
 
     @discardableResult
@@ -123,6 +134,12 @@ final class AppRouter: ObservableObject {
         configuration: AppConfiguration
     ) -> Bool {
         guard !configuration.isDemoModeEnabled else { return false }
+
+        if configuration.environment == .staging,
+           let invitation = TrustInvitationPresentation.parse(url, allowedHosts: configuration.documentPackHosts) {
+            trustInvitationPresentation = invitation
+            return true
+        }
 
         switch PublicPassportLinkParser.parse(url, allowedHosts: configuration.publicPassportHosts) {
         case .success(let destination):

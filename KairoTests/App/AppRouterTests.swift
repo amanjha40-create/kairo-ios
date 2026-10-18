@@ -44,7 +44,8 @@ final class AppRouterTests: XCTestCase {
 
         XCTAssertEqual(refreshStore.focusedVerificationRequestID, "request_123")
         XCTAssertEqual(router.rootDestination, .mainTabs)
-        XCTAssertEqual(router.selectedTab, .verify)
+        XCTAssertEqual(router.selectedTab, .career)
+        XCTAssertTrue(router.showsCareerVerification)
     }
 
     func test_navigatingToIntermediateOnboardingStepBuildsExpectedPath() {
@@ -142,7 +143,7 @@ final class AppRouterTests: XCTestCase {
     }
 
     func test_lockedNavigationRemainsInExpectedOrder() {
-        XCTAssertEqual(CandidateTab.allCases.map(\.title), ["Home", "Career", "Verify", "Passport", "More"])
+        XCTAssertEqual(CandidateTab.allCases.map(\.title), ["Home", "Career", "Passport", "More"])
         XCTAssertEqual(
             OnboardingStep.allCases.map(\.title),
             [

@@ -74,7 +74,9 @@ struct MoreOverviewScreenView: View {
         }
         .onAppear {
             state.selectAppearance(appearanceStore.selection)
+            openRequestedDestination()
         }
+        .onChange(of: router.requestedMoreDestination) { _, _ in openRequestedDestination() }
         .task { await digiLockerStore.loadSummaryIfNeeded() }
         .onChange(of: appearanceStore.selection) { _, selection in
             state.selectAppearance(selection)
@@ -89,6 +91,12 @@ struct MoreOverviewScreenView: View {
             privacyPolicyURL: appConfiguration.privacyPolicyURL,
             cookiePolicyURL: appConfiguration.cookiePolicyURL
         )
+    }
+
+    private func openRequestedDestination() {
+        guard let destination = router.requestedMoreDestination else { return }
+        navigationPath = [destination]
+        router.requestedMoreDestination = nil
     }
 
     @ViewBuilder

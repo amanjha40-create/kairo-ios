@@ -35,7 +35,7 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
     }
 
     private func prepareAndOpenNewRequest(_ app: XCUIApplication) {
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         XCTAssertTrue(app.buttons["candidate.verify.request.action.fixture-withdrawn"].waitForExistence(timeout: 10))
         app.buttons["fixture.verify.begin"].tap()
         let evidence = app.staticTexts["synthetic-navigation.pdf"]

@@ -63,7 +63,7 @@ struct VerifyOverviewScreenView: View {
 
     var body: some View {
         KairoScreenContainer(
-            title: "Verify",
+            title: "Verification activity",
             titleAccessibilityIdentifier: CandidateTab.verify.titleAccessibilityIdentifier
         ) {
             DigiLockerVerifySections()
@@ -300,7 +300,7 @@ struct VerifyOverviewScreenView: View {
     }
 
     private func presentFocusedRequestIfAvailable() {
-        guard router.selectedTab == .verify, let focusedRequestID else { return }
+        guard router.selectedTab == .career, router.showsCareerVerification, let focusedRequestID else { return }
         switch VerifyFocusedDestination.resolve(target: focusedRequestID,
                                                 authoritativeFocusID: authoritativeFocusedRequestID, state: state) {
         case .pending:

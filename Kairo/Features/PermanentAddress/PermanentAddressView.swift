@@ -21,6 +21,7 @@ struct PermanentAddressView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    ProductGuidanceView(topic: .permanentAddress)
                     if let error = model.error { Text(error).accessibilityIdentifier("address.error") }
                     if let stage = model.stage { ProgressView(stage) }
                     if let state = model.state {

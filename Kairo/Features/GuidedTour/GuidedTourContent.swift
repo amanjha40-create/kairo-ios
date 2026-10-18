@@ -46,7 +46,7 @@ nonisolated enum GuidedTourStep: Int, CaseIterable, Identifiable, Sendable {
         case .career:
             "Add your work, education, skills and supporting evidence here."
         case .verify:
-            "Request and track verification of supported professional information."
+            "Open Verification activity in Career to review invitations and track verification of supported professional information."
         case .more:
             "Access your Vault, settings, Help Center and other KairoID tools from More."
         }

@@ -155,7 +155,7 @@ enum HomeOverviewMapper {
                     priority: 1,
                     systemImage: "checkmark.shield",
                     title: "Start your first verification",
-                    valueStatement: "Use Verify to strengthen your Trust Passport with a reusable trust signal.",
+                    valueStatement: "Open Verification activity in Career to review supported records and next steps.",
                     status: .pending,
                     destinationTab: .verify
                 )
@@ -183,7 +183,7 @@ enum HomeOverviewMapper {
             }
             .map { request in
                 HomeVerificationRequest(
-                    title: request.typeTitle,
+                    title: request.status == .pendingSubjectAcceptance ? "Review invitation" : request.typeTitle,
                     organization: request.organizationName,
                     status: request.status.style.title,
                     authoritativeDestinationID: request.routeID,

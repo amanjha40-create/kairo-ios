@@ -51,6 +51,16 @@ struct AppRootView: View {
         .sheet(item: notificationCenterPresentationBinding) { _ in
             CandidateNotificationCenterView()
         }
+        .sheet(item: $router.trustInvitationPresentation) { invitation in
+            TrustInvitationView(presentation: invitation)
+        }
+        .task {
+            if appConfiguration.buildConfiguration == .staging, appConfiguration.environment == .staging,
+               UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
+               ProcessInfo.processInfo.environment["KAIRO_UI_TEST_TRUST_INVITATION"] == "1" {
+                router.trustInvitationPresentation = TrustInvitationPresentation(token: String(repeating: "synthetic", count: 6))
+            }
+        }
         .sheet(item: trustScorePresentationBinding) { _ in
             TrustScoreDetailView()
         }
@@ -67,6 +77,10 @@ struct AppRootView: View {
             notificationStore.reset()
             candidateDataRefreshStore.resetForIdentityChange()
             digiLockerStore.resetForIdentityChange()
+            if sessionStore.currentUser != nil, let invitation = router.pendingTrustInvitation {
+                router.pendingTrustInvitation = nil
+                router.trustInvitationPresentation = invitation
+            }
         }
     }
 

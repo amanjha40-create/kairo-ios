@@ -14,8 +14,10 @@ struct GuidedTourAnchorPreferenceKey: PreferenceKey {
 
 extension View {
     func guidedTourTarget(_ target: GuidedTourTarget) -> some View {
-        anchorPreference(key: GuidedTourAnchorPreferenceKey.self, value: .bounds) {
-            [target: $0]
+        // The compact Home snapshot contains the Passport CTA. Preserve its
+        // descendant anchor when adding the enclosing Trust Score anchor.
+        transformAnchorPreference(key: GuidedTourAnchorPreferenceKey.self, value: .bounds) { anchors, anchor in
+            anchors[target] = anchor
         }
     }
 }
@@ -133,7 +135,7 @@ final class GuidedTourTabReaderView: UIView {
             ? Array(slots.reversed()) : slots
         let mappings: [(GuidedTourTarget, CandidateTab)] = [
             (.career, .career),
-            (.verify, .verify),
+            (.verify, .career),
             (.more, .more)
         ]
         var frames: [GuidedTourTarget: CGRect] = [:]

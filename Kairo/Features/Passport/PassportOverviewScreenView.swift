@@ -9,6 +9,7 @@ struct PassportOverviewScreenView: View {
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.kairoMotionEntry) private var motionEntry
     @Environment(\.passportShareService) private var passportShareService
     @Environment(\.passportPDFExportService) private var passportPDFExportService
@@ -82,7 +83,6 @@ struct PassportOverviewScreenView: View {
             subtitle: "Your portable professional identity.",
             titleAccessibilityIdentifier: CandidateTab.passport.titleAccessibilityIdentifier
         ) {
-            passportHeader
             content
         }
     }
@@ -108,7 +108,7 @@ struct PassportOverviewScreenView: View {
     private var passportHeader: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                KairoTrustSignature(trigger: motionEntry.generation, animateInitially: true, history: $shieldEntry)
+                TrustPassportMark(size: 54)
                 headerCopy
             }
             passportHeroStatus
@@ -202,7 +202,7 @@ struct PassportOverviewScreenView: View {
 
     private var headerCopy: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-            Text("Passport owner")
+            Text("Trust Passport")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
 
@@ -246,19 +246,31 @@ struct PassportOverviewScreenView: View {
 
     private func populatedContent(_ content: PassportOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            KairoPrimaryButton(
-                title: "Share Trust Passport",
-                accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
-                shareLift: true,
-                action: { modalDestination = .sharePassport }
-            )
-            trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
+            KairoCard {
+                passportHeader
+                Divider()
+                trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
+                KairoPrimaryButton(
+                    title: "Share Trust Passport",
+                    accessibilityIdentifier: KairoAccessibilityID.passportShareAction,
+                    shareLift: true,
+                    action: { modalDestination = .sharePassport }
+                )
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("passport.integratedHero")
+            ProductGuidanceView(topic: .passport)
             PermanentAddressEntry(passport: true)
             KairoSection(compact: true) {
-                KairoDisclosure(title: "Completeness & trust signals", identifier: "passport.trustSignals.disclosure") {
+                Text("Trust Signals").font(KairoTypography.sectionTitle)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Evidence and status behind your Passport. Self-declared information is not verification.")
+                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                strengthSummarySection(PassportSignalPresentation.rows(content))
+                KairoDisclosure(title: "Career record summary", identifier: "passport.trustSignals.disclosure") {
                     disclosureSummary(content, verified: true)
                     disclosureSummary(content, verified: false)
-                    strengthSummarySection(content.strengthSummary)
                 }
             }
             KairoSection(compact: true) {
@@ -334,7 +346,7 @@ struct PassportOverviewScreenView: View {
                 Label("Trust Score", systemImage: "shield")
                     .font(KairoTypography.caption)
                     .tracking(1)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(KairoColors.textSecondary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: KairoSpacing.small)
                 Text(dataSourceLabel)
@@ -346,11 +358,11 @@ struct PassportOverviewScreenView: View {
                 HStack(alignment: .firstTextBaseline, spacing: KairoSpacing.xxSmall) {
                     KairoAnimatedScore(value: score.value, memory: $scoreMemory)
                         .font(.system(size: scoreSize, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(KairoColors.textPrimary)
                         .minimumScaleFactor(0.7)
                     Text("/ 100")
                         .font(KairoTypography.recordTitle)
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(KairoColors.textSecondary)
                 }
                 Text(score.status)
                     .font(KairoTypography.headline)
@@ -359,35 +371,34 @@ struct PassportOverviewScreenView: View {
                     .tint(KairoColors.accent)
                 Text(score.supportingCopy)
                     .font(KairoTypography.footnote)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if score.isFixture {
                     Text("Fixture/demo score")
                         .font(KairoTypography.caption)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(KairoColors.textSecondary)
                 }
             case .unavailable(let unavailable):
                 Text("No score yet")
                     .font(KairoTypography.title)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(KairoColors.textPrimary)
                 Text(unavailable.title)
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.accent)
                 Text(unavailable.message)
                     .font(KairoTypography.footnote)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button { router.showTrustScoreDetails() } label: {
                 Text("View score details")
                     .font(KairoTypography.action)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(KairoColors.textPrimary)
                     .frame(minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
-        .modifier(KairoTrustSurface())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.passportTrustScoreCard)
     }
@@ -395,7 +406,7 @@ struct PassportOverviewScreenView: View {
     private func strengthSummarySection(_ items: [PassportStrengthItem]) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             PassportSectionTitle(
-                title: "Completeness & trust signals",
+                title: "Evidence and status",
                 accessibilityIdentifier: KairoAccessibilityID.passportStrengthSummary
             )
 
@@ -405,23 +416,34 @@ struct PassportOverviewScreenView: View {
                         Divider()
                     }
 
-                    HStack(alignment: .center, spacing: KairoSpacing.medium) {
-                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                            Text(item.title)
-                                .font(KairoTypography.bodyStrong)
-                                .foregroundStyle(KairoColors.textPrimary)
-
-                            Text(item.value)
-                                .font(KairoTypography.footnote)
-                                .foregroundStyle(KairoColors.textSecondary)
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            signalRow(item, vertical: true)
+                        } else {
+                            ViewThatFits(in: .horizontal) {
+                                signalRow(item, vertical: false)
+                                signalRow(item, vertical: true)
+                            }
                         }
-
-                        Spacer(minLength: KairoSpacing.small)
-
-                        PassportBadge(status: item.status)
                     }
                     .padding(.vertical, KairoSpacing.xxSmall)
                 }
+            }
+        }
+    }
+
+    private func signalRow(_ item: PassportStrengthItem, vertical: Bool) -> some View {
+        let layout = vertical ? AnyLayout(VStackLayout(alignment: .leading, spacing: KairoSpacing.small))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: KairoSpacing.medium))
+        return layout {
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text(item.title).font(KairoTypography.bodyStrong).foregroundStyle(KairoColors.textPrimary)
+                Text(item.value).font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !vertical { Spacer(minLength: KairoSpacing.small) }
+            if !["Skills", "Projects"].contains(item.title) && !(item.title == "Certifications" && item.status == .notVerified) {
+                PassportBadge(status: item.status)
             }
         }
     }

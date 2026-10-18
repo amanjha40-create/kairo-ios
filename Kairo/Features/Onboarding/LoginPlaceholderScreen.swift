@@ -132,10 +132,7 @@ struct LoginScreenView: View {
             }
 
             ToolbarItem(placement: .principal) {
-                Text(ProductBrand.name)
-                    .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.textPrimary)
-                    .accessibilityLabel(ProductBrand.name)
+                KairoIDBrandView(width: 100)
             }
         }
     }

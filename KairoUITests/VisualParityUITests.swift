@@ -22,7 +22,7 @@ final class VisualParityUITests: XCTestCase {
         // Hide the Demo banner while retaining isolated UI-test fixtures. The
         // banner otherwise masks the exact no-header layout that failed live.
         let app = launch(appearance: appearance, demoMode: false)
-        for tab in ["Home", "Career", "Passport", "More", "Verify"] {
+        for tab in ["Home", "Career", "Passport", "More"] {
             app.tabBars.buttons[tab].tap()
             XCTAssertTrue(app.tabBars.buttons[tab].isSelected)
             let before = statusBarBackgroundSamples(app)
@@ -64,9 +64,9 @@ final class VisualParityUITests: XCTestCase {
         let app = launch()
         let hero = app.descendants(matching: .any)["candidate.home.trustScore"].firstMatch
         XCTAssertTrue(hero.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["candidate.home.trustScore.details"].exists)
+        XCTAssertTrue(app.buttons["candidate.home.viewTrustPassport"].exists)
         assertBannerDoesNotCoverHeader(app)
-        let attention = app.staticTexts["Needs your attention"]
+        let attention = app.staticTexts["Needs Your Attention"]
         XCTAssertTrue(attention.exists)
         XCTAssertLessThan(hero.frame.minY, attention.frame.minY)
         capture("Home")
@@ -125,7 +125,7 @@ final class VisualParityUITests: XCTestCase {
 
     func testVerifyGroupsAndNextAction() {
         let app = launch()
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         XCTAssertTrue(app.staticTexts["candidate.verify.pendingRequests"].waitForExistence(timeout: 10))
         capture("Verify")
         let request = app.buttons["candidate.verify.request.action.employment-brightpath"]
@@ -183,7 +183,7 @@ final class VisualParityUITests: XCTestCase {
         dark.tap()
         XCTAssertEqual(dark.value as? String, "Selected")
         app.tabBars.buttons["Home"].tap()
-        XCTAssertTrue(app.buttons["candidate.home.trustScore.details"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["candidate.home.viewTrustPassport"].waitForExistence(timeout: 10))
         assertBannerDoesNotCoverHeader(app)
         capture("Home dark large text")
         app.tabBars.buttons["Career"].tap()
@@ -198,7 +198,9 @@ final class VisualParityUITests: XCTestCase {
 
     private func assertBannerDoesNotCoverHeader(_ app: XCUIApplication) {
         let banner = app.staticTexts["demo.banner"]
-        let heading = app.staticTexts["KairoID"].firstMatch
+        // The master logo is decorative; use the visible, accessible Home header
+        // to retain the banner-overlap assertion without duplicating brand speech.
+        let heading = app.staticTexts["candidate.home.greeting"]
         XCTAssertTrue(banner.exists)
         XCTAssertTrue(heading.exists)
         XCTAssertGreaterThanOrEqual(heading.frame.minY, banner.frame.maxY)

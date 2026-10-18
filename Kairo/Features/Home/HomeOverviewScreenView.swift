@@ -70,9 +70,7 @@ struct HomeOverviewScreenView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: KairoSpacing.small) {
             VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                Text(ProductBrand.name)
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.textSecondary)
+                KairoIDBrandView(width: 108)
                 Text("\(state.header.greeting) \(state.header.firstName)")
                     .font(KairoTypography.screenTitle)
                     .foregroundStyle(KairoColors.textPrimary)
@@ -122,17 +120,10 @@ struct HomeOverviewScreenView: View {
         trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
             .id(GuidedTourTarget.trustScore)
             .guidedTourTarget(.trustScore)
-        KairoCompactDestinationRow(
-            title: "Passport", metadata: "View your Trust Passport",
-            systemImage: "person.text.rectangle",
-            accessibilityIdentifier: KairoAccessibilityID.homeViewTrustPassport,
-            action: { router.selectTab(.passport) }
-        )
-        .id(GuidedTourTarget.passport)
-        .guidedTourTarget(.passport)
+        verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
         DigiLockerHomeCard()
         PermanentAddressEntry()
-        verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
+        requestGroup(content.verificationRequests.filter { !$0.needsAttention }, title: "In progress")
         careerSection(content, isEmpty: isEmpty)
         recentActivitySection(content.recentActivity)
         KairoCompactDestinationRow(
@@ -145,15 +136,18 @@ struct HomeOverviewScreenView: View {
 
     private func trustScoreCard(_ trustScore: HomeTrustScore, dataSourceLabel: String) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
-            HStack {
-                Text("TRUST SCORE")
-                    .font(KairoTypography.caption)
-                    .accessibilityLabel("Trust Score")
-                Spacer()
-                Text(dataSourceLabel).font(KairoTypography.caption)
-            }
-            .foregroundStyle(.white.opacity(0.74))
             adaptiveLayout {
+                HStack(alignment: .top, spacing: KairoSpacing.small) {
+                    TrustPassportMark(size: 32, compact: true)
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        Text("Trust Score").font(KairoTypography.headline)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(trustScore.status).font(KairoTypography.footnote)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
                 HStack(alignment: .lastTextBaseline, spacing: KairoSpacing.xSmall) {
                     Group {
                         if let value = trustScore.score { KairoAnimatedScore(value: value, memory: $scoreMemory) }
@@ -162,30 +156,32 @@ struct HomeOverviewScreenView: View {
                         .font(.system(size: trustScore.score == nil ? scoreSize * 0.5 : scoreSize, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
                     if trustScore.score != nil {
-                        Text("/ 100").font(KairoTypography.body).foregroundStyle(.white.opacity(0.74))
+                        Text("/ 100").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                     }
                 }
-                .foregroundStyle(.white)
-                Text(trustScore.status)
-                    .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.accent)
-                    .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(KairoColors.textPrimary)
             }
-            Text(trustScore.supportingCopy)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(.white.opacity(0.82))
-                .fixedSize(horizontal: false, vertical: true)
-            if let progress = trustScore.progress {
-                ProgressView(value: progress).tint(KairoColors.accent)
+            Divider()
+            Button { router.selectTab(.passport) } label: {
+                HStack {
+                    Text("View Trust Passport")
+                    Spacer()
+                    Image(systemName: "arrow.right").accessibilityHidden(true)
+                }
             }
-            Button("View score details") { router.showTrustScoreDetails() }
                 .buttonStyle(.plain)
                 .font(KairoTypography.action)
-                .foregroundStyle(.white)
+                .foregroundStyle(KairoColors.textPrimary)
                 .frame(minHeight: 44)
-                .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreDetails)
+                .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
+                .id(GuidedTourTarget.passport)
+                .guidedTourTarget(.passport)
+            if dataSourceLabel.lowercased().contains("demo") || dataSourceLabel.lowercased().contains("preview") {
+                Text(dataSourceLabel).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+            }
         }
-        .modifier(KairoTrustSurface())
+        .padding(KairoSpacing.medium)
+        .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
     }
@@ -203,19 +199,22 @@ struct HomeOverviewScreenView: View {
     private func verificationRequestsSection(_ requests: [HomeVerificationRequest], available: Bool) -> some View {
         if !available {
             KairoSection(compact: true) {
-                KairoSectionHeading(title: "Verification status unavailable")
+                KairoSectionHeading(title: "Needs Your Attention")
+                Text("Verification status unavailable").font(KairoTypography.bodyStrong)
                 Text("Pull to refresh to check your current verification requests.")
                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
             }
-        } else if requests.isEmpty {
+        } else if requests.filter(\.needsAttention).isEmpty {
             KairoSection(compact: true) {
-                Label("No active verification requests", systemImage: "tray")
+                KairoSectionHeading(title: "Needs Your Attention")
+                Label("No action needed right now", systemImage: "checkmark.circle")
                     .font(KairoTypography.recordTitle).foregroundStyle(KairoColors.textSecondary)
+                Text("Invitations and requests needing your input will appear here.")
+                    .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
             }
             .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
         } else {
-            requestGroup(requests.filter(\.needsAttention), title: "Needs your attention")
-            requestGroup(requests.filter { !$0.needsAttention }, title: "In progress")
+            requestGroup(requests.filter(\.needsAttention), title: "Needs Your Attention")
         }
     }
 

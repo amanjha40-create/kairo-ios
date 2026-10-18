@@ -93,7 +93,7 @@ final class KairoUITests: XCTestCase {
     private let manualProfileEducationContinueButton = "onboarding.manualProfile.education.continue"
     private let homeScreen = "candidate.home.screen"
     private let homeTrustScoreCard = "candidate.home.trustScore"
-    private let homeTrustScoreDetails = "candidate.home.trustScore.details"
+    private let homeTrustScoreDetails = "View score details"
     private let homeViewTrustPassportButton = "candidate.home.viewTrustPassport"
     private let homeStartVerificationButton = "candidate.home.startVerification"
     private let homeVerificationRequest = "candidate.home.verificationRequest"
@@ -247,8 +247,9 @@ final class KairoUITests: XCTestCase {
     func testHomeTrustScoreDetailsOpenCanonicalBackendDrivenSurface() throws {
         let app = launchApp(environment: homeEnvironment())
 
+        openPassportTab(in: app)
         let details = app.buttons[homeTrustScoreDetails]
-        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(details, in: app))
         details.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
@@ -261,8 +262,9 @@ final class KairoUITests: XCTestCase {
     func testTrustScoreConsentWithdrawalReturnsToTruthfulNoScoreState() throws {
         let app = launchApp(environment: homeEnvironment())
 
+        openPassportTab(in: app)
         let details = app.buttons[homeTrustScoreDetails]
-        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(details, in: app))
         details.tap()
 
         let withdraw = app.buttons["candidate.trustScore.consent.withdraw"]
@@ -930,8 +932,9 @@ final class KairoUITests: XCTestCase {
     func testPhase3TrustScoreVisualEvidence() throws {
         let app = launchApp(environment: homeEnvironment())
 
+        openPassportTab(in: app)
         let details = app.buttons[homeTrustScoreDetails]
-        XCTAssertTrue(details.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(details, in: app))
         details.tap()
         XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["72 / 100"].exists)
@@ -948,13 +951,15 @@ final class KairoUITests: XCTestCase {
             ]
         )
 
+        openPassportTab(in: app)
         let trustDetails = app.buttons[homeTrustScoreDetails]
-        XCTAssertTrue(trustDetails.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForElementAfterScrolling(trustDetails, in: app))
         trustDetails.tap()
         XCTAssertTrue(app.descendants(matching: .any)[trustScoreDetail].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["72 / 100"].exists)
         app.navigationBars.buttons.firstMatch.tap()
 
+        app.tabBars.buttons["Home"].tap()
         let notifications = app.buttons[homeNotificationsButton]
         XCTAssertTrue(notifications.waitForExistence(timeout: 10))
         notifications.tap()
@@ -1171,15 +1176,20 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
         confirmation.tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingWelcomeTitle].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons[welcomeExistingAccountButton].exists)
+        XCTAssertTrue(app.buttons[onboardingGetStartedButton].isHittable)
+        XCTAssertFalse(app.tabBars.buttons["Home"].exists)
     }
 
     @MainActor
     func testWelcomeContentAndActionsRemainAvailable() throws {
         let app = launchApp()
 
-        XCTAssertTrue(app.descendants(matching: .any)[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingWelcomeTitle].waitForExistence(timeout: 10))
+        // The master logo is decorative: assert the accessible page content,
+        // and keep duplicate brand speech out of the accessibility hierarchy.
+        XCTAssertFalse(app.descendants(matching: .any)[welcomeWordmark].exists)
         XCTAssertTrue(app.staticTexts[welcomeSupport].waitForExistence(timeout: 10))
 
         let getStarted = app.buttons[onboardingGetStartedButton]
@@ -1193,7 +1203,8 @@ final class KairoUITests: XCTestCase {
         XCUIDevice.shared.press(.home)
         app.activate()
 
-        XCTAssertTrue(app.descendants(matching: .any)[welcomeWordmark].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[onboardingWelcomeTitle].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)[welcomeWordmark].exists)
         XCTAssertTrue(getStarted.isHittable)
         XCTAssertTrue(existingAccount.isHittable)
     }
@@ -1983,25 +1994,8 @@ final class KairoUITests: XCTestCase {
 
     @MainActor
     private func openVerifyTab(in app: XCUIApplication) {
-        let verifyTab = app.tabBars.buttons["Verify"]
-        XCTAssertTrue(verifyTab.waitForExistence(timeout: 10))
-        let verifyScreen = verifyScreenElement(in: app)
-
-        if verifyScreen.exists {
-            return
-        }
-
-        let deadline = Date().addingTimeInterval(10)
-
-        while Date() < deadline {
-            tapWhenHittable(verifyTab, in: app, timeout: 2)
-
-            if verifyScreen.waitForExistence(timeout: 1) {
-                return
-            }
-        }
-
-        XCTAssertTrue(verifyScreen.waitForExistence(timeout: 1))
+        app.openCareerVerification()
+        XCTAssertTrue(verifyScreenElement(in: app).waitForExistence(timeout: 10))
     }
 
     @MainActor

@@ -14,8 +14,8 @@ final class PassportHierarchyUITests: XCTestCase {
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.passport.share").count, 1)
         let disclosure = app.buttons["passport.trustSignals.disclosure"]
         reveal(disclosure, app); XCTAssertEqual(disclosure.value as? String, "Collapsed"); disclosure.tap()
-        let ids = ["candidate.passport.share", "candidate.passport.trustScore", "passport.summary.verified",
-            "passport.summary.candidateProvided", "candidate.passport.strength",
+        let ids = ["candidate.passport.trustScore", "candidate.passport.share", "candidate.passport.strength", "passport.summary.verified",
+            "passport.summary.candidateProvided",
             "candidate.passport.careerDetails", "candidate.passport.viewCareer",
             "candidate.passport.identity", "candidate.passport.download",
             "candidate.passport.share.activity.entry"]
@@ -29,7 +29,7 @@ final class PassportHierarchyUITests: XCTestCase {
         for removedSection in ["employment", "education", "certifications", "skills", "projects", "portfolio"] {
             XCTAssertFalse(element("candidate.passport.\(removedSection)", app).exists)
         }
-        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "self-declared")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Evidence and status behind your Passport. Self-declared information is not verification."].exists)
         capture(app, "4C4 owner export and activity")
     }
 

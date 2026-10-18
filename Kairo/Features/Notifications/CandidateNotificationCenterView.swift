@@ -8,6 +8,7 @@ struct CandidateNotificationCenterView: View {
     @EnvironmentObject private var store: CandidateNotificationStore
 
     @State private var detailPath: [String] = []
+    @State private var pendingDestination: CandidateNotificationDestination?
 
     var body: some View {
         NavigationStack(path: $detailPath) {
@@ -47,6 +48,21 @@ struct CandidateNotificationCenterView: View {
         .accessibilityIdentifier(KairoAccessibilityID.notificationsCenter)
         .task {
             await load()
+        }
+        .onDisappear {
+            guard let destination = pendingDestination else { return }
+            switch destination {
+            case .verificationRequest(let id):
+                refreshStore.focusVerificationRequest(identifier: id)
+                router.selectTab(.verify)
+            case .verify: router.selectTab(.verify)
+            case .documents: router.showsDocumentsHub = true
+            case .sharing: router.showPassportActivity()
+            case .passport: router.selectTab(.passport)
+            case .settings: router.showMoreSettings()
+            case .home: router.selectTab(.home)
+            case .genericDetail: break
+            }
         }
         .alert(
             "Notification action failed",
@@ -174,16 +190,11 @@ struct CandidateNotificationCenterView: View {
                 return
             }
 
-            switch notification.destination {
-            case .verificationRequest(let requestID):
-                refreshStore.verificationRequested(requestID: requestID)
-                dismiss()
-                router.selectTab(.verify)
-            case .verify:
-                dismiss()
-                router.selectTab(.verify)
-            case .genericDetail:
+            if notification.destination == .genericDetail {
                 detailPath.append(notification.id)
+            } else {
+                pendingDestination = notification.destination
+                dismiss()
             }
         }
     }

@@ -82,7 +82,7 @@ final class Parity3AUITests: XCTestCase {
 
     func testWithdrawalRequiresConfirmationAndCanBeCancelled() {
         let app = launch()
-        app.tabBars.buttons["Verify"].tap()
+        app.openCareerVerification()
         let request = app.buttons["candidate.verify.request.action.education-welingkar-review"]
         reveal(request, app); request.tap()
         let withdraw = app.buttons["verify.request.withdraw"]

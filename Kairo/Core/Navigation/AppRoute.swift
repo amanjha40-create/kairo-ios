@@ -51,6 +51,9 @@ enum CandidateTab: String, CaseIterable, Hashable, Identifiable {
     case passport
     case more
 
+    // Verify remains a compatible internal destination, never a top-level tab.
+    static let allCases: [CandidateTab] = [.home, .career, .passport, .more]
+
     var id: String { rawValue }
 }
 

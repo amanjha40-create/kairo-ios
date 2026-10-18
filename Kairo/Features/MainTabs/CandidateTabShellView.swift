@@ -43,6 +43,7 @@ struct CandidateTabShellView: View {
             }
         }
         .tint(KairoColors.accent)
+        .sheet(isPresented: $router.showsDocumentsHub) { DocumentsHubView() }
         .toolbarBackground(Color(hex: 0x07122B), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
@@ -107,6 +108,7 @@ struct CandidateTabShellView: View {
         }
         .onAppear(perform: updateGuidedTourContext)
         .onChange(of: router.selectedTab) { old, next in
+            if next == .verify { router.selectTab(.verify); return }
             if old != next { motionEntries[next, default: 0] += 1 }
             updateGuidedTourContext()
         }
@@ -136,34 +138,15 @@ struct CandidateTabShellView: View {
                 HomeOverviewContainerView()
             }
         case .career:
-            if appConfiguration.buildConfiguration == .staging,
-               appConfiguration.environment == .staging,
-               UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
-               ProcessInfo.processInfo.environment["KAIRO_UI_TEST_BATCH2"] == "1" {
-                Batch2EvidenceFixtureView()
-            } else if uiTestCareerConfiguration.showsAttachedCertificationEditor {
-                AttachedCertificationFixtureHostView()
-            } else if uiTestCareerConfiguration.showsHierarchyFixture, let state = uiTestCareerConfiguration.state {
-                CareerHierarchyFixtureHostView(state: state)
-            } else if let uiTestState = uiTestCareerConfiguration.state {
-                CareerOverviewScreenView(state: uiTestState)
-            } else if appConfiguration.isDemoModeEnabled {
-                CareerOverviewScreenView(state: .default(isDemoMode: true))
-            } else {
-                CareerOverviewContainerView()
+            NavigationStack {
+                careerDestination
+                    .navigationDestination(isPresented: $router.showsCareerVerification) {
+                        verificationDestination
+                            .navigationBarTitleDisplayMode(.inline)
+                    }
             }
         case .verify:
-            if uiTestVerifyConfiguration.showsNavigationRecovery {
-                VerifyNavigationFixtureHostView()
-            } else if uiTestVerifyConfiguration.showsHierarchy, let state = uiTestVerifyConfiguration.state {
-                VerifyHierarchyFixtureHostView(state: state)
-            } else if let uiTestState = uiTestVerifyConfiguration.state {
-                VerifyOverviewFixtureHostView(state: uiTestState)
-            } else if appConfiguration.isDemoModeEnabled {
-                VerifyOverviewFixtureHostView(state: .default(isDemoMode: true))
-            } else {
-                VerifyOverviewContainerView()
-            }
+            verificationDestination
         case .passport:
             if let uiTestState = uiTestPassportConfiguration.state {
                 PassportOverviewScreenView(state: uiTestState)
@@ -181,5 +164,38 @@ struct CandidateTabShellView: View {
                 MoreOverviewContainerView()
             }
         }
+    }
+
+    @ViewBuilder private var careerDestination: some View {
+            if appConfiguration.buildConfiguration == .staging,
+               appConfiguration.environment == .staging,
+               UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
+               ProcessInfo.processInfo.environment["KAIRO_UI_TEST_BATCH2"] == "1" {
+                Batch2EvidenceFixtureView()
+            } else if uiTestCareerConfiguration.showsAttachedCertificationEditor {
+                AttachedCertificationFixtureHostView()
+            } else if uiTestCareerConfiguration.showsHierarchyFixture, let state = uiTestCareerConfiguration.state {
+                CareerHierarchyFixtureHostView(state: state)
+            } else if let uiTestState = uiTestCareerConfiguration.state {
+                CareerOverviewScreenView(state: uiTestState)
+            } else if appConfiguration.isDemoModeEnabled {
+                CareerOverviewScreenView(state: .default(isDemoMode: true))
+            } else {
+                CareerOverviewContainerView()
+            }
+    }
+
+    @ViewBuilder private var verificationDestination: some View {
+            if uiTestVerifyConfiguration.showsNavigationRecovery {
+                VerifyNavigationFixtureHostView()
+            } else if uiTestVerifyConfiguration.showsHierarchy, let state = uiTestVerifyConfiguration.state {
+                VerifyHierarchyFixtureHostView(state: state)
+            } else if let uiTestState = uiTestVerifyConfiguration.state {
+                VerifyOverviewFixtureHostView(state: uiTestState)
+            } else if appConfiguration.isDemoModeEnabled {
+                VerifyOverviewFixtureHostView(state: .default(isDemoMode: true))
+            } else {
+                VerifyOverviewContainerView()
+            }
     }
 }

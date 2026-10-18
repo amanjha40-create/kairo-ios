@@ -25,6 +25,7 @@ struct AppDependencies: Sendable {
     let candidateNotificationService: any CandidateNotificationServiceProtocol
     var employmentReferencesService: any EmploymentReferencesServing = UnavailableReferencesService()
     var permanentAddressService: (any PermanentAddressServing)? = nil
+    var trustInvitationService: (any TrustInvitationServing)? = nil
 
     static func make(
         configuration: AppConfiguration,
@@ -206,7 +207,11 @@ struct AppDependencies: Sendable {
             employmentReferencesService: EmploymentReferencesService(session: sessionService,
                 enabled: configuration.environment == .staging && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled),
             permanentAddressService: [.staging, .production].contains(configuration.environment) && !configuration.isDemoModeEnabled && !uiTestConfiguration.isEnabled
-                ? PermanentAddressService(session: sessionService, enabled: true) : nil
+                ? PermanentAddressService(session: sessionService, enabled: true) : nil,
+            trustInvitationService: configuration.environment == .staging && uiTestConfiguration.isEnabled
+                ? SyntheticTrustInvitationService()
+                : (configuration.environment == .staging && !configuration.isDemoModeEnabled
+                   ? TrustInvitationService(publicClient: networkClient, session: sessionService) : nil)
         )
     }
 

@@ -76,7 +76,7 @@ nonisolated enum HelpCenterContent {
             sections: [
                 HelpContentSection(
                     title: "Choose the role or record",
-                    body: "Open Career and select the employment record you want to verify. Use the verification action if the record is eligible. If a request already exists, open it in Verify to see its current status rather than creating another request."
+                    body: "Open Career and select the employment record you want to verify. Use the verification action if the record is eligible. If a request already exists, open Verification activity in Career to see its current status rather than creating another request."
                 ),
                 HelpContentSection(
                     title: "Review your information",
@@ -92,7 +92,7 @@ nonisolated enum HelpCenterContent {
                 ),
                 HelpContentSection(
                     title: "What happens next",
-                    body: "Follow the status in Verify. A request may show Pending KairoID Review, Awaiting verifier, Verifier reviewing or Needs your attention before an outcome such as Verified, Rejected or Unable to Verify. In progress groups ongoing requests. Timing depends on the review and responding organization; there is no guaranteed completion time."
+                    body: "Follow the status in Career’s Verification activity. A request may show Pending KairoID Review, Awaiting verifier, Verifier reviewing or Needs your attention before an outcome such as Verified, Rejected or Unable to Verify. In progress groups ongoing requests. Timing depends on the review and responding organization; there is no guaranteed completion time."
                 ),
                 HelpContentSection(
                     title: "If more information is needed",
@@ -193,7 +193,7 @@ nonisolated enum HelpCenterContent {
         HelpFAQ(
             id: "editing",
             question: "Can I edit information after adding it?",
-            answer: "Use Edit where it is available on your profile or record. Some submitted, historical or verified information is read-only. For requests needing corrections, follow the actions shown in Verify. Contact support if a needed correction is not available."
+            answer: "Use Edit where it is available on your profile or record. Some submitted, historical or verified information is read-only. For requests needing corrections, follow the actions in Career’s Verification activity. Contact support if a needed correction is not available."
         ),
         HelpFAQ(
             id: "removing-evidence",
@@ -203,7 +203,7 @@ nonisolated enum HelpCenterContent {
         HelpFAQ(
             id: "pending",
             question: "Why is my verification still pending?",
-            answer: "The request may be awaiting KairoID review, a verifier or further information. Open the request in Verify to check its exact status and any action needed. Pending is not a Verified outcome."
+            answer: "The request may be awaiting KairoID review, a verifier or further information. Open Career’s Verification activity to check the request’s exact status and any action needed. Pending is not a Verified outcome."
         ),
         HelpFAQ(
             id: "information",

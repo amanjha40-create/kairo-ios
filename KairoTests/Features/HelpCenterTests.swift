@@ -112,6 +112,8 @@ final class HelpCenterTests: XCTestCase {
         XCTAssertEqual(ProductBrand.supportEmailAddress, "contact@kairoid.com")
         XCTAssertTrue(text.contains("Email support"))
         XCTAssertTrue(text.contains("Do not include passwords, one-time codes or private share links"))
+        XCTAssertTrue(text.contains("Verification activity"))
+        XCTAssertFalse(text.contains("in Verify"))
     }
 
     private var allPublishedText: String {
