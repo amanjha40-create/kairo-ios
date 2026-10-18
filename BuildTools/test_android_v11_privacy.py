@@ -1,5 +1,6 @@
 """Source/asset boundary regressions; no device or external service access."""
 import hashlib
+import struct
 from pathlib import Path
 import unittest
 
@@ -12,10 +13,25 @@ class AndroidV11PrivacyTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),
                          "f772ef83dabc983cb023dbcdc4b1b85f9c6b86ff43150d6cc9513a429aa23145")
 
-    def test_master_retains_original_tm_artwork(self):
-        image = ROOT / "Kairo/Assets.xcassets/KairoIDMaster.imageset/master.jpeg"
+    def test_master_retains_full_color_tm_with_true_alpha(self):
+        # Deterministic alpha extraction from founder JPEG, not generated artwork.
+        image = ROOT / "Kairo/Assets.xcassets/KairoIDMaster.imageset/master.png"
         self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),
-                         "5edc1f81163eece67e93a0f65484b5791bea556d88e1e83b4466f63ad2a64138")
+                         "8ca157afcb154c6dfdea71392d3b21b254c1cfe60f0ce3d42d29f818731e02b1")
+        png = image.read_bytes()
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II", png[16:24]), (1280, 428))
+        self.assertEqual(png[24:26], bytes([8, 6]))  # 8-bit true-color RGBA
+
+    def test_shared_master_presentation_has_no_backplate_or_tint(self):
+        source = (ROOT / "Kairo/Core/Presentation/ProductBrandViews.swift").read_text()
+        master = source.split("struct KairoIDBrandView: View {")[1].split("struct DigiLockerBrandView")[0]
+        self.assertIn('.renderingMode(.original)', master)
+        self.assertIn('.accessibilityHidden(true)', master)
+        self.assertNotIn('.background(', master)
+        self.assertNotIn('.foregroundStyle(', master)
+        home = (ROOT / "Kairo/Features/Home/HomeOverviewScreenView.swift").read_text()
+        self.assertIn('KairoIDBrandView(width: 108)', home)
 
     def test_invitation_capability_uses_private_transport_no_storage_or_logging(self):
         source = (ROOT / "Kairo/Features/Notifications/TrustInvitationView.swift").read_text()

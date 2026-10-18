@@ -59,13 +59,17 @@ struct TrustPassportMark: View {
     }
 }
 
-/// Founder master artwork is preserved intact, including TM and original spacing.
+/// Deterministic alpha extraction preserves the founder master, TM and spacing.
 struct KairoIDBrandView: View {
+    @Environment(\.colorScheme) private var colorScheme
     var width: CGFloat = 180
     var body: some View {
         Image("KairoIDMaster").resizable().renderingMode(.original)
             .scaledToFit().frame(maxWidth: width)
-            .background(.white, in: RoundedRectangle(cornerRadius: 6))
+            // A soft edge shadow supports navy on dark surfaces without tinting
+            // the artwork or placing an opaque rectangle behind it.
+            .shadow(color: colorScheme == .dark ? .white.opacity(0.30) : .clear,
+                    radius: 0.75, x: 0, y: 0)
             .accessibilityHidden(true)
     }
 }
