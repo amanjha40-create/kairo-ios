@@ -59,17 +59,25 @@ struct TrustPassportMark: View {
     }
 }
 
-/// Deterministic alpha extraction preserves the founder master, TM and spacing.
+enum KairoIDBrandVariant: String {
+    case primary = "KairoIDMaster"
+    case monochromeWhite = "KairoIDMasterWhite"
+
+    static func adaptive(dark: Bool) -> Self {
+        dark ? .monochromeWhite : .primary
+    }
+}
+
+/// Both certified assets share the exact master alpha, TM and spacing.
 struct KairoIDBrandView: View {
     @Environment(\.colorScheme) private var colorScheme
     var width: CGFloat = 180
+    // Override only for deliberately fixed-brand backgrounds such as Welcome.
+    var variant: KairoIDBrandVariant?
     var body: some View {
-        Image("KairoIDMaster").resizable().renderingMode(.original)
+        let resolved = variant ?? .adaptive(dark: colorScheme == .dark)
+        Image(resolved.rawValue).resizable().renderingMode(.original)
             .scaledToFit().frame(maxWidth: width)
-            // A soft edge shadow supports navy on dark surfaces without tinting
-            // the artwork or placing an opaque rectangle behind it.
-            .shadow(color: colorScheme == .dark ? .white.opacity(0.30) : .clear,
-                    radius: 0.75, x: 0, y: 0)
             .accessibilityHidden(true)
     }
 }

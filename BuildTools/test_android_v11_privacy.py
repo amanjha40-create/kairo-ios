@@ -30,8 +30,23 @@ class AndroidV11PrivacyTests(unittest.TestCase):
         self.assertIn('.accessibilityHidden(true)', master)
         self.assertNotIn('.background(', master)
         self.assertNotIn('.foregroundStyle(', master)
+        self.assertNotIn('.shadow(', master)
+        self.assertNotIn('.overlay(', master)
+        self.assertIn('.adaptive(dark: colorScheme == .dark)', master)
         home = (ROOT / "Kairo/Features/Home/HomeOverviewScreenView.swift").read_text()
         self.assertIn('KairoIDBrandView(width: 108)', home)
+        welcome = (ROOT / "Kairo/Features/Onboarding/WelcomeScreenView.swift").read_text()
+        self.assertIn('KairoIDBrandView(width: 174, variant: .primary)', welcome)
+        self.assertIn('KairoIDBrandView(width: 186 * scale, variant: .primary)', welcome)
+
+    def test_white_master_is_exact_certified_rgba_asset(self):
+        image = ROOT / "Kairo/Assets.xcassets/KairoIDMasterWhite.imageset/master-white.png"
+        png = image.read_bytes()
+        self.assertEqual(hashlib.sha256(png).hexdigest(),
+                         "8df76eadd4bf8116274092e406086167d0ad80ab1875c713dd9e6692245bd2a7")
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II", png[16:24]), (1280, 428))
+        self.assertEqual(png[24:26], bytes([8, 6]))
 
     def test_invitation_capability_uses_private_transport_no_storage_or_logging(self):
         source = (ROOT / "Kairo/Features/Notifications/TrustInvitationView.swift").read_text()

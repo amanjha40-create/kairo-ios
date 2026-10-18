@@ -8,6 +8,27 @@ import XCTest
     func testHomeLightXXXLKeepsHeaderAndNotificationSeparate() { checkHome(dark: false, large: true) }
     func testHomeDarkXXXLKeepsHeaderAndNotificationSeparate() { checkHome(dark: true, large: true) }
 
+    func testWelcomeLightAndLoginUseFullColorMaster() { checkWelcomeAndLogin(dark: false) }
+    func testWelcomeFixedLightArtworkAndLoginDarkUseAppropriateMasters() { checkWelcomeAndLogin(dark: true) }
+
+    private func checkWelcomeAndLogin(dark: Bool) {
+        let app = launch(dark: dark, large: false, onboarding: true)
+        let login = app.buttons["onboarding.existingAccount"]
+        XCTAssertTrue(login.waitForExistence(timeout: 10))
+        // Welcome and toolbar marks are decorative and intentionally hidden
+        // from accessibility. Unit pixel/source guards prove asset selection;
+        // retained screenshots prove the actual rendering, not AX image names.
+        XCTAssertTrue(app.staticTexts["onboarding.welcome.support"].exists)
+        capture(app, name: "Welcome \(dark ? "dark" : "light") fixed-light brand canvas")
+        login.tap()
+        XCTAssertTrue(app.buttons["onboarding.login.submit"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["onboarding.back"].isHittable)
+        capture(app, name: "Login \(dark ? "dark white" : "light full-color") master")
+        app.buttons["onboarding.back"].tap()
+        XCTAssertTrue(login.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["onboarding.welcome.support"].exists)
+    }
+
     func testDecorativeMasterDoesNotAddVoiceOverElements() throws {
         #if targetEnvironment(simulator)
         throw XCTSkip("Physical VoiceOver speech gate.")
@@ -29,6 +50,7 @@ import XCTest
         XCTAssertTrue(speech.contains("Notifications"))
         XCTAssertFalse(speech.contains("KairoIDMaster"))
         XCTAssertFalse(speech.contains("master.png"))
+        XCTAssertFalse(speech.contains("master-white.png"))
         XCTAssertFalse(speech.localizedCaseInsensitiveContains("trademark"))
         // Synthetic speech is asserted only, never logged or attached.
         #endif
@@ -42,7 +64,8 @@ import XCTest
         XCTAssertFalse(app.tabBars.buttons["Verify"].exists)
         // XCTest snapshots include decorative images; spoken focus is checked
         // separately with the physical VoiceOver service above.
-        XCTAssertTrue(app.images["KairoIDMaster"].exists)
+        XCTAssertTrue(app.images[dark ? "KairoIDMasterWhite" : "KairoIDMaster"].exists)
+        XCTAssertFalse(app.images[dark ? "KairoIDMaster" : "KairoIDMasterWhite"].exists)
         let bell = app.buttons["candidate.home.notifications"]
         XCTAssertTrue(bell.exists)
         XCTAssertLessThanOrEqual(greeting.frame.maxX, bell.frame.minX)
@@ -62,7 +85,14 @@ import XCTest
         XCTAssertTrue(app.tabBars.buttons["Passport"].isSelected)
     }
 
-    private func launch(dark: Bool, large: Bool) -> XCUIApplication {
+    private func capture(_ app: XCUIApplication, name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    private func launch(dark: Bool, large: Bool, onboarding: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES",
             "-kairo.appearance.preference", dark ? "dark" : "light",
@@ -71,6 +101,10 @@ import XCTest
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging",
             "KAIRO_UI_TEST_HOME_STATE": "populated", "KAIRO_UI_TEST_PASSPORT_STATE": "populated",
             "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"]
+        if onboarding {
+            app.launchEnvironment["KAIRO_UI_TEST_ROUTE"] = "onboarding"
+            app.launchEnvironment["KAIRO_UI_TEST_ONBOARDING_STEP"] = "welcome"
+        }
         app.launch()
         return app
     }
