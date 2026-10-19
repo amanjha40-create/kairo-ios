@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class AppSessionStoreTests: XCTestCase {
+    func test_productionCompletedAuthenticationUsesCanonicalHomeRestoration() async {
+        let configuration = AppConfiguration(buildConfiguration: .production, environment: .production,
+            isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
+            keychainService: "synthetic.production.google.home")
+        let router = AppRouter(rootDestination: .onboarding)
+        let session = StubSessionService(hasAccessToken: true, hasRefreshToken: true, signupSessionID: nil)
+        let store = AppSessionStore(configuration: configuration, uiTestConfiguration: .disabled,
+            router: router, authService: StubAuthService(user: .fixture, onboardingStatus: .fixture(
+                currentStep: .complete, passportReady: true, completionPercentage: 100, isOnboardingComplete: true)),
+            sessionService: session, manualProfileService: StubManualProfileService(),
+            resumeImportService: StubResumeImportService(), guidedTourPreferences: AppSessionGuidedTourPreferences())
+        await store.completeAuthenticationAndRoute()
+        XCTAssertEqual(router.rootDestination, .mainTabs)
+        XCTAssertEqual(router.selectedTab, .home)
+        XCTAssertNotNil(store.currentUser)
+        XCTAssertFalse(session.didClearSession)
+    }
+
     override func setUp() {
         super.setUp()
         MainActor.assumeIsolated {

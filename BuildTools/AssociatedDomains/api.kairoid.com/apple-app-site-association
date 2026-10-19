@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["XN5Y3V3CSV.com.kairoid.Kairo"],
+        "components": [
+          { "/": "/auth/google/complete" }
+        ]
+      }
+    ]
+  }
+}

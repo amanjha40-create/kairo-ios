@@ -438,6 +438,37 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(signupSessionID)
     }
 
+    func test_productionParsedHandoffUsesMockedBackendExchangeNotLocalGoogleCredentials() async throws {
+        let configuration = AppConfiguration(buildConfiguration: .production, environment: .production,
+            isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
+            keychainService: "synthetic.production.google.exchange")
+        let tokens = InMemoryTokenStore()
+        let client = URLSessionNetworkClient(baseURL: configuration.apiBaseURL, session: makeMockedURLSession())
+        let session = SessionService(configuration: configuration, networkClient: client, tokenStore: tokens)
+        let auth = AuthService(configuration: configuration, networkClient: client, sessionService: session)
+        let opaque = String(repeating: "synthetic", count: 6)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.host, "api.kairoid.com")
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/google/handoff/exchange")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = try Self.jsonBody(from: request)
+            XCTAssertEqual(Set(body.keys), ["code"])
+            XCTAssertEqual(body["code"] as? String, opaque)
+            return (try XCTUnwrap(HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: 200,
+                httpVersion: nil, headerFields: nil)), Data(#"{"outcome":"LOGIN_COMPLETE","message":"Synthetic success","tokens":{"access_token":"synthetic-access","refresh_token":"synthetic-refresh","token_type":"bearer","expires_in":3600},"signup":null}"#.utf8))
+        }
+        let url = try XCTUnwrap(URL(string: "https://api.kairoid.com/auth/google/complete?code=\(opaque)"))
+        guard case .googleHandoff(let code) = AppLinkParser.parse(url, configuration: configuration) else {
+            return XCTFail("Expected canonical handoff")
+        }
+        let result = try await auth.exchangeGoogleHandoff(code: code)
+        XCTAssertEqual(result.outcome, .loginComplete)
+        let access = try await tokens.readToken(for: .accessToken)
+        let refresh = try await tokens.readToken(for: .refreshToken)
+        XCTAssertEqual(access, "synthetic-access")
+        XCTAssertEqual(refresh, "synthetic-refresh")
+    }
+
     func test_newGoogleIdentityRequiresPhoneAndCannotLeaveAuthenticatedTokens() async throws {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("stale-access", for: .accessToken)

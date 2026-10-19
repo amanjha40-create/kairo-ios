@@ -114,6 +114,54 @@ final class AppRouterTests: XCTestCase {
         XCTAssertTrue(presentation.description.contains("<redacted>"))
     }
 
+    func test_productionGoogleUniversalLinkUsesExistingPrivateHandoffWithoutPrematureLogin() throws {
+        let configuration = productionConfiguration()
+        let code = String(repeating: "synthetic", count: 6)
+        let url = try XCTUnwrap(URL(string: "https://api.kairoid.com/auth/google/complete?code=\(code)"))
+        let router = AppRouter(rootDestination: .onboarding)
+        XCTAssertEqual(AppLinkParser.parse(url, configuration: configuration), .googleHandoff(code: code))
+        XCTAssertTrue(router.handleIncomingURL(url, configuration: configuration))
+        XCTAssertEqual(router.rootDestination, .onboarding, "A link alone must not authenticate")
+        let handoff = try XCTUnwrap(router.googleAuthenticationPresentation)
+        XCTAssertEqual(handoff.handoffCode, code)
+        XCTAssertFalse(handoff.description.contains(code))
+        XCTAssertFalse(String(describing: AppLinkDestination.googleHandoff(code: code)).contains(code))
+        router.dismissGoogleAuthentication()
+        XCTAssertNil(router.googleAuthenticationPresentation)
+        XCTAssertEqual(router.rootDestination, .onboarding)
+    }
+
+    func test_productionGoogleParserRejectsUnrelatedCrossEnvironmentAndMalformedURLs() throws {
+        let code = String(repeating: "synthetic", count: 6)
+        let base = "https://api.kairoid.com/auth/google/complete"
+        let values = [
+            "https://staging-api.kairoid.com/auth/google/complete?code=\(code)",
+            "https://app.kairoid.com/auth/google/complete?code=\(code)",
+            "https://api.kairoid.com/api/v1/auth/google/callback?code=\(code)",
+            "https://api.kairoid.com/auth/google/complete/unrelated?code=\(code)",
+            "http://api.kairoid.com/auth/google/complete?code=\(code)",
+            "https://api.kairoid.com:443/auth/google/complete?code=\(code)",
+            "https://user@api.kairoid.com/auth/google/complete?code=\(code)",
+            base, base + "?code=short", base + "?code=\(code)&code=\(code)",
+            base + "?code=\(code)&state=synthetic", base + "?code=\(code)#fragment",
+            base + "?token=\(code)"
+        ]
+        for value in values {
+            let url = try XCTUnwrap(URL(string: value))
+            XCTAssertNil(AppLinkParser.parse(url, configuration: productionConfiguration()))
+            let router = AppRouter(rootDestination: .onboarding)
+            _ = router.handleIncomingURL(url, configuration: productionConfiguration())
+            XCTAssertNil(router.googleAuthenticationPresentation)
+            XCTAssertEqual(router.rootDestination, .onboarding)
+        }
+    }
+
+    private func productionConfiguration() -> AppConfiguration {
+        AppConfiguration(buildConfiguration: .production, environment: .production,
+            isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
+            keychainService: "synthetic.production.google.tests")
+    }
+
     func test_appLinksRejectWrongSchemeHostExtraQueriesAndShortSecrets() throws {
         let router = AppRouter()
         let configuration = stagingConfiguration()
