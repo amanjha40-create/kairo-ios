@@ -5,6 +5,7 @@ struct MoreOverviewScreenView: View {
     @Environment(\.appConfiguration) private var appConfiguration
     @Environment(\.moreOverviewService) private var moreOverviewService
     @Environment(\.profileService) private var profileService
+    @Environment(\.permanentAddressService) private var permanentAddressService
     @Environment(\.passportPDFExportService) private var passportPDFExportService
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var router: AppRouter
@@ -137,6 +138,13 @@ struct MoreOverviewScreenView: View {
                         accessibilityIdentifier: KairoAccessibilityID.moreViewProfile,
                         action: { handleAccountRow(profile) }
                     )
+                    Divider()
+                }
+                // Navigation stays available even when the secondary status read fails
+                // or the server disables verification. The existing screen owns that state.
+                if permanentAddressService != nil {
+                    MoreNavigationRow(item: MoreSettingsHierarchy.permanentAddressRow,
+                        action: { presentedModal = .permanentAddress })
                     Divider()
                 }
                 hubRow(.settings)
@@ -481,6 +489,10 @@ struct MoreOverviewScreenView: View {
     @ViewBuilder
     private func modalView(for modal: MorePresentedModal) -> some View {
         switch modal {
+        case .permanentAddress:
+            if let permanentAddressService {
+                PermanentAddressView(service: permanentAddressService)
+            }
         case .profile:
             if case .populated(let content) = state.phase {
                 ProfileOverviewSheetView(initialUser: content.user, service: profileService)
@@ -928,6 +940,7 @@ struct MoreOverviewScreenView: View {
 }
 
 private enum MorePresentedModal: Identifiable {
+    case permanentAddress
     case profile
     case password
     case sessions
@@ -939,6 +952,8 @@ private enum MorePresentedModal: Identifiable {
 
     var id: String {
         switch self {
+        case .permanentAddress:
+            "permanentAddress"
         case .profile:
             "profile"
         case .password:

@@ -4,6 +4,46 @@ import XCTest
 final class MoreSettingsHierarchyUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testPermanentAddressVisibleOpensAndReturnsWithoutDuplicateEntry() {
+        let app = launch(variant: "address_no_address")
+        let entry = app.buttons["candidate.more.permanentAddress"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: "candidate.more.permanentAddress").count, 1)
+        XCTAssertEqual(app.tabBars.buttons.count, 4)
+        XCTAssertTrue(app.buttons["candidate.more.viewProfile"].exists)
+        XCTAssertTrue(app.buttons["candidate.more.settings"].exists)
+        entry.tap()
+        XCTAssertTrue(app.navigationBars["Permanent address"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Add permanent address"].waitForExistence(timeout: 10))
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+        app.buttons["candidate.more.viewProfile"].tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["address.entry"].exists)
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "candidate.more.permanentAddress").count, 1)
+    }
+
+    func testPermanentAddressNavigationSurvivesDisabledAndFailedStatus() {
+        for variant in ["address_feature_off", "address_offline"] {
+            let app = launch(variant: variant)
+            let entry = app.buttons["candidate.more.permanentAddress"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10))
+            entry.tap()
+            XCTAssertTrue(app.navigationBars["Permanent address"].waitForExistence(timeout: 10))
+            if variant == "address_feature_off" {
+                XCTAssertTrue(app.staticTexts["Address verification is not available yet."].waitForExistence(timeout: 10))
+            } else {
+                XCTAssertTrue(app.staticTexts["address.error"].waitForExistence(timeout: 10))
+            }
+            XCTAssertFalse(app.buttons["address.location.start"].exists)
+            XCTAssertFalse(app.buttons["Add permanent address"].exists)
+            app.navigationBars.buttons["Done"].tap()
+            XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        }
+    }
+
     func testMoreIsCompactRoutingHubWithNoDestructiveOrPreferenceControls() {
         let app = launch()
         let profile = app.buttons["candidate.more.viewProfile"]

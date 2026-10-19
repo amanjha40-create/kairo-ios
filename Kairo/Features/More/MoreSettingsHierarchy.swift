@@ -19,6 +19,10 @@ enum MoreHubDestination: String, Hashable, CaseIterable {
 }
 
 enum MoreSettingsHierarchy {
+    static let permanentAddressRow = MoreRowItem(
+        id: "candidate.more.permanentAddress", title: "Permanent Address",
+        subtitle: "Verify and maintain your current address", systemImage: "mappin.and.ellipse")
+
     static func accountRows(_ content: MoreOverviewContent) -> [MoreRowItem] {
         content.accountRows.filter { $0.id == "personalInformation" }
     }

@@ -33,7 +33,6 @@ struct ProfileOverviewSheetView: View {
                     }
                     hero
                     identity
-                    PermanentAddressEntry()
                     KairoSection(compact: true) {
                         KairoDisclosure(title: "Personal & professional information") { professionalInformation }
                     }

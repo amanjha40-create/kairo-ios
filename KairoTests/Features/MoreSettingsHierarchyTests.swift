@@ -3,6 +3,15 @@ import XCTest
 
 @MainActor
 final class MoreSettingsHierarchyTests: XCTestCase {
+    func testPermanentAddressIsOneMoreDestinationNotAFifthTab() {
+        let row = MoreSettingsHierarchy.permanentAddressRow
+        XCTAssertEqual(row.id, "candidate.more.permanentAddress")
+        XCTAssertEqual(row.title, "Permanent Address")
+        XCTAssertEqual(row.subtitle, "Verify and maintain your current address")
+        XCTAssertEqual(CandidateTab.allCases, [.home, .career, .passport, .more])
+        XCTAssertFalse(MoreOverviewContent.fixture().accountRows.contains { $0.id == row.id })
+    }
+
     func testHubContainsOnlyRoutingDestinations() {
         XCTAssertEqual(MoreHubDestination.allCases.map(\.rawValue), ["resume", "settings", "support", "legal"])
         XCTAssertEqual(Set(MoreHubDestination.allCases.map { $0.row.id }).count, 4)

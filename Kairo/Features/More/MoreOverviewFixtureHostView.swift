@@ -5,11 +5,17 @@ struct MoreOverviewFixtureHostView: View {
     @State private var showingDeletion = false
     @State private var deletionCalls = 0
     private let deletionFixture: Bool
+    private let addressFixture: CurrentParityFixtures?
 
     init(state: MoreOverviewState) {
         let testing = UITestLaunchConfiguration.current().isEnabled
         let variant = testing ? ProcessInfo.processInfo.environment["KAIRO_UI_TEST_SETTINGS_VARIANT"] : nil
         deletionFixture = variant == "deletion"
+        if let variant, variant.hasPrefix("address_") {
+            addressFixture = CurrentParityFixtures(scenario: String(variant.dropFirst("address_".count)))
+        } else {
+            addressFixture = nil
+        }
         var initial = state
         if variant == "long" {
             initial.accountSummary = MoreAccountSummary(initials: "QA",
@@ -36,6 +42,7 @@ struct MoreOverviewFixtureHostView: View {
             }
         } else {
             MoreOverviewScreenView(state: $state, isLiveMode: false)
+                .environment(\.permanentAddressService, addressFixture)
         }
     }
 }
