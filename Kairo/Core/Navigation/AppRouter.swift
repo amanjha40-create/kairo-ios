@@ -169,7 +169,9 @@ final class AppRouter: ObservableObject {
             return true
         }
 
-        guard let destination = AppLinkParser.parse(url, configuration: configuration) else {
+        guard let destination = AppLinkParser.parse(url, configuration: configuration, diagnostic: { reason in
+            GoogleReturnDiagnostics.emitParserResult(reason, deliveryID: diagnosticDeliveryID)
+        }) else {
             GoogleReturnDiagnostics.emit(.linkValidated, deliveryID: diagnosticDeliveryID, state: .rejected, link: .init(url))
             return false
         }

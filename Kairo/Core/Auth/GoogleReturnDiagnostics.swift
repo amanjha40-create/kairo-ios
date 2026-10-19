@@ -46,6 +46,17 @@ nonisolated enum GoogleReturnDiagnostics {
     @TaskLocal static var deliveryAttemptID: UUID?
     private static let logger = Logger(subsystem: "com.kairoid.Kairo", category: "GoogleReturn")
 
+    static func parserMessage(_ reason: AppLinkParser.DiagnosticReason, deliveryID: UUID?) -> String {
+        var record = "IOS_OAUTH_PARSER_RESULT reason=\(reason.rawValue)"
+        if let deliveryID { record += " deliveryAttemptID=\(deliveryID.uuidString)" }
+        return record
+    }
+
+    static func emitParserResult(_ reason: AppLinkParser.DiagnosticReason, deliveryID: UUID?) {
+        let record = parserMessage(reason, deliveryID: deliveryID)
+        logger.notice("\(record, privacy: .public)")
+    }
+
     static func message(
         _ event: Event, deliveryID: UUID? = nil, state: State? = nil,
         link: LinkMetadata? = nil, httpStatus: Int? = nil,

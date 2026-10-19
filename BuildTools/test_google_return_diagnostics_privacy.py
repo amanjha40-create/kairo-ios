@@ -29,7 +29,7 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
             settings = config['buildSettings']
             if config['name'] == 'Production':
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Production-Info.plist')
-                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '2')
+                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '3')
             else:
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Info.plist')
                 self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '1')
@@ -47,3 +47,23 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
         self.assertFalse(evidence['behavior_changed'])
         self.assertFalse(evidence['explains_original_zero_exchange_failure'])
         self.assertEqual(len(evidence['gate_exclusions_run_separately_as_red_witnesses']), 2)
+
+    def test_parser_reason_event_has_no_free_text_or_url_inputs(self):
+        source = (ROOT / 'Kairo/Core/Auth/GoogleReturnDiagnostics.swift').read_text()
+        record = source.split('static func parserMessage', 1)[1].split('static func message', 1)[0]
+        self.assertIn('AppLinkParser.DiagnosticReason', record)
+        self.assertIn('deliveryID: UUID?', record)
+        self.assertIn('IOS_OAUTH_PARSER_RESULT reason=', record)
+        for forbidden in ('URL', 'hash', 'code', 'query', 'String?', 'String,', 'description', 'host', 'path'):
+            self.assertNotIn(forbidden, record)
+        router = (ROOT / 'Kairo/Core/Navigation/AppRouter.swift').read_text()
+        self.assertIn('GoogleReturnDiagnostics.emitParserResult(reason, deliveryID: diagnosticDeliveryID)', router)
+
+    def test_equivalence_oracle_is_exact_build2_parser(self):
+        original = subprocess.check_output(['git', 'show',
+            '93b5dcf9f41d616f02942eb2bd9d58ead73bdd3a:Kairo/Core/Navigation/AppLinkRouting.swift'],
+            cwd=ROOT, text=True)
+        oracle = (ROOT / 'KairoTests/App/GoogleParserRejectionTests.swift').read_text().split('private enum Build2ParserOracle {', 1)[1]
+        original_body = original.split('static func parse', 1)[1].split('\n}\n', 1)[0]
+        oracle_body = oracle.split('static func parse', 1)[1].split('\n}\n', 1)[0]
+        self.assertEqual(oracle_body, original_body)
