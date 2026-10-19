@@ -75,6 +75,81 @@ final class GoogleHandoffLifecycleTests: XCTestCase {
         XCTAssertEqual(fixture.network.exchangeCount, 1, "Repeated delivery must not exchange a one-time code twice")
     }
 
+    func test_fragmentIsNeverForwardedToExchange() async throws {
+        let fixture = Fixture()
+        let url = URL(string: fixture.url.absoluteString + "#code=fragment_must_not_be_forwarded&state=synthetic")!
+        mount(fixture)
+        await settle()
+        XCTAssertTrue(fixture.router.handleIncomingURL(url, configuration: fixture.configuration))
+        await assertExchange(fixture)
+        XCTAssertTrue(fixture.network.queryCodeOnly)
+    }
+
+    func test_duplicateWithDifferentFragmentRetainsPresentation() throws {
+        let fixture = Fixture()
+        XCTAssertTrue(fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration))
+        let id = try XCTUnwrap(fixture.router.googleAuthenticationPresentation?.id)
+        let url = URL(string: fixture.url.absoluteString + "#different")!
+        XCTAssertTrue(fixture.router.handleIncomingURL(url, configuration: fixture.configuration))
+        XCTAssertEqual(fixture.router.googleAuthenticationPresentation?.id, id)
+    }
+
+    func test_exchangeClaimIsAtomicAndSurvivesDismissal() async throws {
+        let fixture = Fixture()
+        fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration)
+        let presentation = try XCTUnwrap(fixture.router.googleAuthenticationPresentation)
+        let claims = await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<20 {
+                group.addTask { await fixture.router.beginGoogleHandoffExchange(presentation) }
+            }
+            var successes = 0
+            for await result in group { if result { successes += 1 } }
+            return successes
+        }
+        XCTAssertEqual(claims, 1)
+        fixture.router.dismissGoogleAuthentication()
+        XCTAssertFalse(fixture.router.beginGoogleHandoffExchange(presentation))
+        XCTAssertTrue(fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration))
+        XCTAssertNil(fixture.router.googleAuthenticationPresentation)
+    }
+
+    func test_completedExchangeAndDismissedPresentationCannotReplay() async throws {
+        let fixture = Fixture()
+        mount(fixture)
+        await settle()
+        fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration)
+        await assertExchange(fixture)
+        fixture.router.dismissGoogleAuthentication()
+        await settle()
+        XCTAssertTrue(fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration))
+        await settle()
+        XCTAssertNil(fixture.router.googleAuthenticationPresentation)
+        XCTAssertEqual(fixture.network.exchangeCount, 1)
+    }
+
+    func test_distinctNewHandoffCanStartAfterPriorDismissal() throws {
+        let fixture = Fixture()
+        fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration)
+        let first = try XCTUnwrap(fixture.router.googleAuthenticationPresentation)
+        XCTAssertTrue(fixture.router.beginGoogleHandoffExchange(first))
+        fixture.router.dismissGoogleAuthentication()
+        let next = URL(string: "https://api.kairoid.com/auth/google/complete?code=another_synthetic_0123456789012345678901234")!
+        XCTAssertTrue(fixture.router.handleIncomingURL(next, configuration: fixture.configuration))
+        let second = try XCTUnwrap(fixture.router.googleAuthenticationPresentation)
+        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertTrue(fixture.router.beginGoogleHandoffExchange(second))
+    }
+
+    func test_remountedHandoffViewCannotRestartClaimedExchange() async throws {
+        let fixture = Fixture()
+        fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration)
+        let presentation = try XCTUnwrap(fixture.router.googleAuthenticationPresentation)
+        XCTAssertTrue(fixture.router.beginGoogleHandoffExchange(presentation))
+        mount(fixture)
+        await settle()
+        XCTAssertEqual(fixture.network.exchangeCount, 0)
+    }
+
     private func assertExchange(_ fixture: Fixture) async {
         for _ in 0..<40 {
             if fixture.network.exchangeCount > 0 { break }
@@ -142,12 +217,17 @@ final class GoogleHandoffLifecycleTests: XCTestCase {
 @MainActor
 private final class HandoffNetwork: NetworkClient {
     private(set) var exchangeCount = 0
+    private(set) var queryCodeOnly = false
     var delayResponse = false
     func send(_ request: NetworkRequest) async throws -> Data {
         guard request.path == "/auth/google/handoff/exchange" else {
             throw NetworkError.transport("Synthetic network blocks every other route")
         }
         exchangeCount += 1
+        if let body = request.body,
+           let json = try? JSONSerialization.jsonObject(with: body) as? [String: String] {
+            queryCodeOnly = json == ["code": "synthetic_01234567890123456789012345678901234"]
+        }
         if delayResponse { try await Task.sleep(for: .seconds(3)) }
         return Data(#"{"outcome":"AUTH_FAILED","message":"Synthetic failure","tokens":null,"signup":null}"#.utf8)
     }

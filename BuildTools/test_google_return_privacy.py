@@ -49,7 +49,7 @@ class GoogleReturnPrivacyTests(unittest.TestCase):
         flow = (ROOT / 'Kairo/Features/Onboarding/GoogleAuthenticationFlow.swift').read_text()
         self.assertIn('authService.exchangeGoogleHandoff(', flow)
         self.assertIn('sessionStore.completeAuthenticationAndRoute()', flow)
-        self.assertIn('guard !hasStarted else { return }', flow)
+        self.assertIn('guard !hasStarted, router.beginGoogleHandoffExchange(presentation) else { return }', flow)
         for forbidden in ('print(', 'debugPrint(', 'NSLog(', 'Logger(', 'client_id='):
             self.assertNotIn(forbidden, flow)
 

@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 
 @MainActor
@@ -22,6 +23,10 @@ final class AppRouter: ObservableObject {
     @Published private(set) var trustScorePresentation: TrustScorePresentation?
     @Published private(set) var careerDocumentPresentation: CareerDocumentPresentation?
     @Published private(set) var googleAuthenticationPresentation: GoogleAuthenticationPresentation?
+    // Session-local keyed fingerprints never leave memory, including after dismissal.
+    private let googleHandoffKey = SymmetricKey(size: .bits256)
+    private var deliveredGoogleHandoffs: Set<Data> = []
+    private var startedGoogleHandoffs: Set<Data> = []
     @Published private(set) var digiLockerPresentation: DigiLockerHubPresentation?
     @Published var documentPackPresentation: DocumentPackPresentation?
 
@@ -179,6 +184,7 @@ final class AppRouter: ObservableObject {
         switch destination {
         case .googleHandoff(let code):
             GoogleReturnDiagnostics.emit(.linkValidated, deliveryID: diagnosticDeliveryID, state: .accepted, link: .init(url))
+            guard deliveredGoogleHandoffs.insert(googleHandoffFingerprint(code)).inserted else { return true }
             googleAuthenticationPresentation = GoogleAuthenticationPresentation(
                 handoffCode: code, diagnosticDeliveryID: diagnosticDeliveryID
             )
@@ -236,5 +242,15 @@ final class AppRouter: ObservableObject {
 
     func dismissGoogleAuthentication() {
         googleAuthenticationPresentation = nil
+    }
+
+    func beginGoogleHandoffExchange(_ presentation: GoogleAuthenticationPresentation) -> Bool {
+        guard googleAuthenticationPresentation == presentation else { return false }
+        // Claim synchronously on MainActor before any await, including view remounts.
+        return startedGoogleHandoffs.insert(googleHandoffFingerprint(presentation.handoffCode)).inserted
+    }
+
+    private func googleHandoffFingerprint(_ code: String) -> Data {
+        Data(HMAC<SHA256>.authenticationCode(for: Data(code.utf8), using: googleHandoffKey))
     }
 }

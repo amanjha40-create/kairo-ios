@@ -1,12 +1,13 @@
 {
   "defect": "IOS_OAUTH_DUPLICATE_DELIVERY_DEFECT",
-  "status": "KNOWN DEFECT - duplicate delivery can initiate duplicate exchange",
-  "behavior_changed": false,
+  "status": "FIX IMPLEMENTED - session-local delivery and exchange claims; witnesses required in normal regression",
+  "behavior_changed": true,
   "explains_original_zero_exchange_failure": false,
   "witness_source_baseline": "4f8b963d01a55dcd05c3cd501a53d409f2626ca9",
-  "gate_exclusions_run_separately_as_red_witnesses": [
+  "gate_exclusions_run_separately_as_red_witnesses": [],
+  "regression_witnesses": [
     "KairoTests/GoogleHandoffLifecycleTests/test_duplicateEntryDeliveryRetainsOnePresentationIdentity",
     "KairoTests/GoogleHandoffLifecycleTests/test_duplicateDeliveryDuringExchangeDoesNotStartSecondRequest"
   ],
-  "certification_limit": "This build adds diagnostics only and does not certify exactly-once delivery. Both witness assertions are preserved unchanged."
+  "certification_limit": "Both original witness assertions remain in the full suite. Local single-flight is session-scoped; backend one-time consumption remains authoritative. Real Google retest requires separate approval."
 }

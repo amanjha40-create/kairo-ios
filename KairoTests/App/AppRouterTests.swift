@@ -143,7 +143,7 @@ final class AppRouterTests: XCTestCase {
             "https://api.kairoid.com:443/auth/google/complete?code=\(code)",
             "https://user@api.kairoid.com/auth/google/complete?code=\(code)",
             base, base + "?code=short", base + "?code=\(code)&code=\(code)",
-            base + "?code=\(code)&state=synthetic", base + "?code=\(code)#fragment",
+            base + "?code=\(code)&state=synthetic",
             base + "?token=\(code)"
         ]
         for value in values {

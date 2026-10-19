@@ -1,4 +1,4 @@
-"""Observability-only release contract; no provider or device calls."""
+"""Google return privacy and release contract; no provider or device calls."""
 import json
 from pathlib import Path
 import plistlib
@@ -29,7 +29,7 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
             settings = config['buildSettings']
             if config['name'] == 'Production':
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Production-Info.plist')
-                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '3')
+                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '4')
             else:
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Info.plist')
                 self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '1')
@@ -44,9 +44,20 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
 
     def test_known_defects_remain_explicit(self):
         evidence = json.loads((ROOT / 'BuildTools/google-return-known-defects.json').read_text())
-        self.assertFalse(evidence['behavior_changed'])
+        self.assertTrue(evidence['behavior_changed'])
         self.assertFalse(evidence['explains_original_zero_exchange_failure'])
-        self.assertEqual(len(evidence['gate_exclusions_run_separately_as_red_witnesses']), 2)
+        self.assertEqual(evidence['gate_exclusions_run_separately_as_red_witnesses'], [])
+        self.assertEqual(len(evidence['regression_witnesses']), 2)
+
+    def test_single_flight_identifiers_are_ephemeral_keyed_and_not_logged(self):
+        source = (ROOT / 'Kairo/Core/Navigation/AppRouter.swift').read_text()
+        self.assertIn('private let googleHandoffKey = SymmetricKey(size: .bits256)', source)
+        self.assertIn('HMAC<SHA256>.authenticationCode', source)
+        for forbidden in ('UserDefaults', 'FileManager', 'Keychain', 'logger.'):
+            self.assertNotIn(forbidden, source)
+        self.assertNotRegex(source, r'\b(?:print|debugPrint|NSLog)\s*\(')
+        view = (ROOT / 'Kairo/Features/Onboarding/GoogleAuthenticationFlow.swift').read_text()
+        self.assertIn('router.beginGoogleHandoffExchange(presentation)', view)
 
     def test_parser_reason_event_has_no_free_text_or_url_inputs(self):
         source = (ROOT / 'Kairo/Core/Auth/GoogleReturnDiagnostics.swift').read_text()

@@ -17,7 +17,18 @@ final class GoogleParserRejectionTests: XCTestCase {
         let destination = AppLinkParser.parse(url, configuration: configuration) { reasons.append($0) }
         XCTAssertEqual(reasons, [expected], file: file, line: line)
         XCTAssertEqual(destination != nil, expected == .accepted, file: file, line: line)
-        XCTAssertTrue(destination == Build2ParserOracle.parse(url, configuration: configuration), file: file, line: line)
+        XCTAssertTrue(destination == expectedWithGoogleFragmentPolicy(url), file: file, line: line)
+    }
+
+    private func expectedWithGoogleFragmentPolicy(_ url: URL) -> AppLinkDestination? {
+        var reference = url
+        if configuration.googleHandoffHosts.contains(url.host?.lowercased() ?? ""),
+           url.path == "/auth/google/complete" {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            components.fragment = nil
+            reference = components.url!
+        }
+        return Build2ParserOracle.parse(reference, configuration: configuration)
     }
 
     private func query(_ suffix: String) -> URL { URL(string: base + suffix)! }
@@ -25,8 +36,8 @@ final class GoogleParserRejectionTests: XCTestCase {
     func test_nonHTTPS() { check(URL(string: "http://api.kairoid.com/auth/google/complete?code=\(syntheticCode)")!, .nonHTTPSScheme) }
     func test_userInfo() { check(URL(string: "https://synthetic@api.kairoid.com/auth/google/complete?code=\(syntheticCode)")!, .userInfoPresent) }
     func test_explicitPort() { check(URL(string: "https://api.kairoid.com:443/auth/google/complete?code=\(syntheticCode)")!, .explicitPortPresent) }
-    func test_fragment() { check(query("?code=\(syntheticCode)#synthetic"), .fragmentPresent) }
-    func test_emptyFragment() { check(query("?code=\(syntheticCode)#"), .fragmentPresent) }
+    func test_fragment() { check(query("?code=\(syntheticCode)#synthetic"), .accepted) }
+    func test_emptyFragment() { check(query("?code=\(syntheticCode)#"), .accepted) }
     func test_wrongHost() { check(URL(string: "https://untrusted.invalid/auth/google/complete?code=\(syntheticCode)")!, .hostMismatch) }
     func test_wrongPath() { check(URL(string: "https://api.kairoid.com/other?code=\(syntheticCode)")!, .pathMismatch) }
     func test_zeroQueryItems() { check(query(""), .queryCountInvalid) }
@@ -44,7 +55,7 @@ final class GoogleParserRejectionTests: XCTestCase {
 
     func test_reasonPrecedenceRetainsOriginalGuardOrder() {
         check(URL(string: "http://synthetic@untrusted.invalid:443/other?code=#fragment")!, .nonHTTPSScheme)
-        check(query("?wrong=short#fragment"), .fragmentPresent)
+        check(query("?wrong=short#fragment"), .queryNameInvalid)
         check(query("?wrong=short&code=short"), .queryCountInvalid)
         check(query("?wrong=short"), .queryNameInvalid)
         check(query("?code=%20"), .codeTooShort)
@@ -60,7 +71,7 @@ final class GoogleParserRejectionTests: XCTestCase {
         }
     }
 
-    func test_frozenBuild2EquivalenceAcrossDecodedURLCorpus() {
+    func test_frozenBuild2EquivalenceExceptApprovedGoogleFragmentPolicy() {
         let prefixes = [base, base + "/", "HTTPS://API.KAIROID.COM/auth/google/complete",
             "https://api.kairoid.com/auth/google/%63omplete", "https://api.kairoid.com/Auth/google/complete",
             "https://app.kairoid.com/reset-password-confirm", "https://api.kairoid.com:443/auth/google/complete",
@@ -79,13 +90,47 @@ final class GoogleParserRejectionTests: XCTestCase {
                         var reasons: [AppLinkParser.DiagnosticReason] = []
                         let actual = AppLinkParser.parse(url, configuration: configuration) { reasons.append($0) }
                         // Boolean comparison avoids printing even synthetic credential-bearing destinations.
-                        XCTAssertTrue(actual == Build2ParserOracle.parse(url, configuration: configuration))
+                        XCTAssertTrue(actual == expectedWithGoogleFragmentPolicy(url))
                         XCTAssertEqual(reasons.count, 1)
                         XCTAssertEqual(reasons.first == .accepted, actual != nil)
                     }
                 }
             }
         }
+    }
+
+    func test_fragmentCannotSupplyOrReplaceCode() {
+        check(query("#code=\(syntheticCode)"), .queryCountInvalid)
+        check(query("?code=short#code=\(syntheticCode)"), .codeTooShort)
+        let destination = AppLinkParser.parse(query("?code=\(syntheticCode)#code=other&state=ignored"), configuration: configuration)
+        XCTAssertTrue(destination == .googleHandoff(code: syntheticCode))
+    }
+
+    func test_invalidGoogleContractRemainsInvalidWithFragments() {
+        let invalid = [
+            "http://api.kairoid.com/auth/google/complete?code=\(syntheticCode)",
+            "https://untrusted.invalid/auth/google/complete?code=\(syntheticCode)",
+            "https://api.kairoid.com/other?code=\(syntheticCode)",
+            base + "?code=\(syntheticCode)&extra=synthetic",
+            base + "?code=\(syntheticCode)&code=\(syntheticCode)",
+            base, base + "?code", base + "?code=", base + "?code=short",
+            base + "?code=" + String(repeating: "a", count: 513),
+            base + "?code=\(syntheticCode)%20", base + "?code=\(syntheticCode)%00",
+            "https://api.kairoid.com:443/auth/google/complete?code=\(syntheticCode)",
+            "https://synthetic@api.kairoid.com/auth/google/complete?code=\(syntheticCode)"
+        ]
+        for value in invalid {
+            for fragment in ["#", "#non-auth", "#code=\(syntheticCode)&state=synthetic"] {
+                XCTAssertNil(AppLinkParser.parse(URL(string: value + fragment)!, configuration: configuration))
+            }
+        }
+    }
+
+    func test_passwordResetFragmentPolicyUnchanged() {
+        let reset = "https://app.kairoid.com/reset-password-confirm?token=\(syntheticCode)"
+        check(URL(string: reset)!, .accepted)
+        check(URL(string: reset + "#")!, .fragmentPresent)
+        check(URL(string: reset + "#code=synthetic")!, .fragmentPresent)
     }
 }
 

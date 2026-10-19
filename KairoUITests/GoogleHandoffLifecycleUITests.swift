@@ -39,6 +39,40 @@ final class GoogleHandoffLifecycleUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["candidate.tabShell"].exists)
     }
 
+    func testColdFragmentHandoffReachesHome() {
+        let app = configuredApp()
+        app.terminate()
+        app.open(fragmentHandoff)
+        assertHome(app)
+    }
+
+    func testWarmFragmentHandoffAndCompletedDuplicateKeepHome() {
+        let app = configuredApp()
+        app.launch()
+        app.open(fragmentHandoff)
+        assertHome(app)
+        app.open(handoff)
+        assertHome(app)
+        XCTAssertFalse(app.otherElements["auth.google.handoff"].exists)
+    }
+
+    func testBackgroundFragmentHandoffReachesHomeAndSurvivesReopen() {
+        let app = configuredApp()
+        app.launch()
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
+        app.open(fragmentHandoff)
+        assertHome(app)
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
+        app.activate()
+        assertHome(app)
+    }
+
+    private var fragmentHandoff: URL {
+        URL(string: handoff.absoluteString + "#synthetic-non-auth-fragment")!
+    }
+
     private var handoff: URL {
         URL(string: "https://api.kairoid.com/auth/google/complete?code=synthetic_01234567890123456789012345678901234")!
     }

@@ -134,7 +134,7 @@ struct GoogleAuthenticationHandoffView: View {
         }
         .interactiveDismissDisabled(phase == .exchanging)
         .task {
-            guard !hasStarted else { return }
+            guard !hasStarted, router.beginGoogleHandoffExchange(presentation) else { return }
             hasStarted = true
             await GoogleReturnDiagnostics.$deliveryAttemptID.withValue(presentation.diagnosticDeliveryID) {
                 await exchangeHandoff()

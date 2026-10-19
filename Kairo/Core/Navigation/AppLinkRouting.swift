@@ -38,17 +38,17 @@ nonisolated enum AppLinkParser {
         _ url: URL, configuration: AppConfiguration,
         diagnostic: ((DiagnosticReason) -> Void)? = nil
     ) -> AppLinkDestination? {
-        // Keep the original guard order and Foundation decoding semantics.
+        // Only Google handoffs ignore fragments; query decoding remains unchanged.
         guard url.scheme?.lowercased() == "https" else { diagnostic?(.nonHTTPSScheme); return nil }
         guard url.user == nil, url.password == nil else { diagnostic?(.userInfoPresent); return nil }
         guard url.port == nil else { diagnostic?(.explicitPortPresent); return nil }
-        guard url.fragment == nil else { diagnostic?(.fragmentPresent); return nil }
         guard let host = url.host?.lowercased() else { diagnostic?(.hostMismatch); return nil }
 
         if configuration.googleHandoffHosts.contains(host), url.path == "/auth/google/complete" {
             return privateQueryValue(named: "code", from: url, diagnostic: diagnostic).map(AppLinkDestination.googleHandoff)
         }
 
+        guard url.fragment == nil else { diagnostic?(.fragmentPresent); return nil }
         if configuration.candidateAppLinkHosts.contains(host), url.path == "/reset-password-confirm" {
             return privateQueryValue(named: "token", from: url, diagnostic: diagnostic).map(AppLinkDestination.passwordReset)
         }
