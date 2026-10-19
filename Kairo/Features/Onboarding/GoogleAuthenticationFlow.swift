@@ -136,16 +136,20 @@ struct GoogleAuthenticationHandoffView: View {
         .task {
             guard !hasStarted else { return }
             hasStarted = true
-            await exchangeHandoff()
+            await GoogleReturnDiagnostics.$deliveryAttemptID.withValue(presentation.diagnosticDeliveryID) {
+                await exchangeHandoff()
+            }
         }
         .accessibilityIdentifier(KairoAccessibilityID.googleAuthenticationHandoff)
     }
 
     private func exchangeHandoff() async {
+        GoogleReturnDiagnostics.emit(.exchangeStarted)
         do {
             let response = try await authService.exchangeGoogleHandoff(
                 code: presentation.handoffCode
             )
+            GoogleReturnDiagnostics.emit(.exchangeFinished)
 
             switch response.outcome {
             case .loginComplete:
@@ -166,6 +170,7 @@ struct GoogleAuthenticationHandoffView: View {
                 phase = .failed(response.message)
             }
         } catch {
+            GoogleReturnDiagnostics.emit(.exchangeFailed)
             phase = .failed(Self.message(for: error))
         }
     }

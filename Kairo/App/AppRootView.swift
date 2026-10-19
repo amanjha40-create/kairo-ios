@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AppRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appConfiguration) private var appConfiguration
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var sessionStore: AppSessionStore
@@ -39,11 +40,26 @@ struct AppRootView: View {
             await sessionStore.bootstrapIfNeeded()
         }
         .onOpenURL { url in
-            routeIncomingURL(url)
+            routeIncomingURL(url, entry: .openURLReceived)
         }
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-            guard let url = activity.webpageURL else { return }
-            routeIncomingURL(url)
+            guard let url = activity.webpageURL else {
+                GoogleReturnDiagnostics.emit(.userActivityReceived, link: .init(nil))
+                return
+            }
+            routeIncomingURL(url, entry: .userActivityReceived)
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            let state: GoogleReturnDiagnostics.State = switch phase {
+            case .active: .active
+            case .inactive: .inactive
+            case .background: .background
+            @unknown default: .unknown
+            }
+            GoogleReturnDiagnostics.emit(phase == .active ? .sceneActive : .sceneChanged, state: state)
+        }
+        .onChange(of: router.diagnosticAuthRoot, initial: true) { _, root in
+            GoogleReturnDiagnostics.emit(.authRootChanged, state: root)
         }
         .sheet(item: publicPassportPresentationBinding) { presentation in
             PublicPassportHandoffView(presentation: presentation)
@@ -150,8 +166,10 @@ struct AppRootView: View {
         )
     }
 
-    private func routeIncomingURL(_ url: URL) {
-        router.handleIncomingURL(url, configuration: appConfiguration)
+    private func routeIncomingURL(_ url: URL, entry: GoogleReturnDiagnostics.Event) {
+        let deliveryID = UUID()
+        GoogleReturnDiagnostics.emit(entry, deliveryID: deliveryID, link: .init(url))
+        router.handleIncomingURL(url, configuration: appConfiguration, diagnosticDeliveryID: deliveryID)
     }
 }
 

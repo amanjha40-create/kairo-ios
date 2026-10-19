@@ -42,8 +42,10 @@ class GoogleReturnPrivacyTests(unittest.TestCase):
     def test_native_universal_link_dispatch_and_existing_exchange_are_retained(self):
         root = (ROOT / 'Kairo/App/AppRootView.swift').read_text()
         self.assertIn('.onContinueUserActivity(NSUserActivityTypeBrowsingWeb)', root)
-        self.assertIn('routeIncomingURL(url)', root)
-        self.assertIn('guard let url = activity.webpageURL else { return }', root)
+        self.assertIn('routeIncomingURL(url, entry: .openURLReceived)', root)
+        self.assertIn('routeIncomingURL(url, entry: .userActivityReceived)', root)
+        self.assertIn('guard let url = activity.webpageURL else {', root)
+        self.assertIn('router.handleIncomingURL(url, configuration: appConfiguration, diagnosticDeliveryID: deliveryID)', root)
         flow = (ROOT / 'Kairo/Features/Onboarding/GoogleAuthenticationFlow.swift').read_text()
         self.assertIn('authService.exchangeGoogleHandoff(', flow)
         self.assertIn('sessionStore.completeAuthenticationAndRoute()', flow)

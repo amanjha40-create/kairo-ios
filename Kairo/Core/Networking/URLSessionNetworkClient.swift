@@ -32,9 +32,20 @@ struct URLSessionNetworkClient: NetworkClient {
         #endif
 
         do {
+            if request.path == "/auth/google/handoff/exchange" {
+                GoogleReturnDiagnostics.emit(.exchangeRequestSent,
+                    requestID: urlRequest.value(forHTTPHeaderField: "X-Request-ID").flatMap(UUID.init(uuidString:)),
+                    correlationID: urlRequest.value(forHTTPHeaderField: "X-Correlation-ID").flatMap(UUID.init(uuidString:)))
+            }
             let (data, response) = try await session.data(for: urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw NetworkError.invalidResponse
+            }
+
+            if request.path == "/auth/google/handoff/exchange" {
+                GoogleReturnDiagnostics.emit(.exchangeResponse, httpStatus: httpResponse.statusCode,
+                    requestID: urlRequest.value(forHTTPHeaderField: "X-Request-ID").flatMap(UUID.init(uuidString:)),
+                    correlationID: urlRequest.value(forHTTPHeaderField: "X-Correlation-ID").flatMap(UUID.init(uuidString:)))
             }
 
             #if DEBUG

@@ -25,6 +25,15 @@ final class AppRouter: ObservableObject {
     @Published private(set) var digiLockerPresentation: DigiLockerHubPresentation?
     @Published var documentPackPresentation: DocumentPackPresentation?
 
+    var diagnosticAuthRoot: GoogleReturnDiagnostics.State {
+        guard rootDestination == .onboarding else { return .mainTabs }
+        switch onboardingPath.last {
+        case nil: return .welcome
+        case .loginPlaceholder, .forgotPassword, .resetPassword: return .login
+        case .step, .googlePhoneCompletion: return .onboarding
+        }
+    }
+
     func showDocumentPacks(history: Bool = false) {
         documentPackPresentation = DocumentPackPresentation(history: history)
     }
@@ -131,8 +140,10 @@ final class AppRouter: ObservableObject {
     @discardableResult
     func handleIncomingURL(
         _ url: URL,
-        configuration: AppConfiguration
+        configuration: AppConfiguration,
+        diagnosticDeliveryID: UUID = UUID()
     ) -> Bool {
+        GoogleReturnDiagnostics.emit(.routerReceived, deliveryID: diagnosticDeliveryID, link: .init(url))
         guard !configuration.isDemoModeEnabled else { return false }
 
         if configuration.environment == .staging,
@@ -159,12 +170,17 @@ final class AppRouter: ObservableObject {
         }
 
         guard let destination = AppLinkParser.parse(url, configuration: configuration) else {
+            GoogleReturnDiagnostics.emit(.linkValidated, deliveryID: diagnosticDeliveryID, state: .rejected, link: .init(url))
             return false
         }
 
         switch destination {
         case .googleHandoff(let code):
-            googleAuthenticationPresentation = GoogleAuthenticationPresentation(handoffCode: code)
+            GoogleReturnDiagnostics.emit(.linkValidated, deliveryID: diagnosticDeliveryID, state: .accepted, link: .init(url))
+            googleAuthenticationPresentation = GoogleAuthenticationPresentation(
+                handoffCode: code, diagnosticDeliveryID: diagnosticDeliveryID
+            )
+            GoogleReturnDiagnostics.emit(.presentationCreated, deliveryID: diagnosticDeliveryID)
         case .passwordReset(let token):
             showPasswordReset(token: token)
         }

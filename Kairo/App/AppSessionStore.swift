@@ -63,13 +63,16 @@ final class AppSessionStore: ObservableObject {
     }
 
     func refreshLaunchRoute(armNewAccountTour: Bool = false) async {
+        GoogleReturnDiagnostics.emit(.bootstrapStarted)
         launchPhase = .bootstrapping
 
         do {
             let launchRoute = try await resolveLaunchRoute(armNewAccountTour: armNewAccountTour)
             applyLaunchRoute(launchRoute)
             launchPhase = .idle
+            GoogleReturnDiagnostics.emit(.bootstrapSucceeded, state: router.diagnosticAuthRoot)
         } catch {
+            GoogleReturnDiagnostics.emit(.bootstrapFailed)
             if shouldFallBackToSignedOut(for: error) {
                 currentUser = nil
                 pendingGoogleSignup = nil

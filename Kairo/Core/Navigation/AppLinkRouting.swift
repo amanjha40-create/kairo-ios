@@ -62,10 +62,16 @@ nonisolated enum AppLinkParser {
 struct GoogleAuthenticationPresentation: Identifiable, Equatable, CustomStringConvertible {
     let id: UUID
     let handoffCode: String
+    let diagnosticDeliveryID: UUID?
 
-    init(id: UUID = UUID(), handoffCode: String) {
+    init(id: UUID = UUID(), handoffCode: String, diagnosticDeliveryID: UUID? = nil) {
         self.id = id
         self.handoffCode = handoffCode
+        self.diagnosticDeliveryID = diagnosticDeliveryID
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.handoffCode == rhs.handoffCode
     }
 
     var description: String {
