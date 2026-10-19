@@ -28,13 +28,15 @@ class GoogleReturnPrivacyTests(unittest.TestCase):
             self.assertEqual(settings['PRODUCT_BUNDLE_IDENTIFIER'], 'com.kairoid.Kairo')
             if config['name'] == 'Production':
                 self.assertEqual(settings['CODE_SIGN_ENTITLEMENTS'], 'Kairo-Production.entitlements')
+                self.assertEqual(settings['DEVELOPMENT_TEAM'], 'MVT4T97ZGC')
             else:
                 self.assertNotIn('CODE_SIGN_ENTITLEMENTS', settings)
+                self.assertNotIn('DEVELOPMENT_TEAM', settings)
 
     def test_aasa_only_authorizes_verified_app_and_exact_handoff_path(self):
         payload = json.loads((ROOT / 'BuildTools/AssociatedDomains/api.kairoid.com/apple-app-site-association').read_text())
         self.assertEqual(payload, {'applinks': {'details': [{
-            'appIDs': ['XN5Y3V3CSV.com.kairoid.Kairo'],
+            'appIDs': ['MVT4T97ZGC.com.kairoid.Kairo'],
             'components': [{'/': '/auth/google/complete'}]}]}})
 
     def test_native_universal_link_dispatch_and_existing_exchange_are_retained(self):

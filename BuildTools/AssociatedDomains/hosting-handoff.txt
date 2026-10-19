@@ -1,8 +1,10 @@
 Production Google return: source configuration, NOT a deployment.
 
-Verified identity from the signed 804f63d iPhone QA artifact and its provisioning
-profile: bundle com.kairoid.Kairo; Team ID and application-identifier prefix
-XN5Y3V3CSV; exact application-identifier XN5Y3V3CSV.com.kairoid.Kairo.
+Founder-approved official organization: Aletheon Innovations Private Limited.
+Apple Developer portal confirms the registered explicit App ID com.kairoid.Kairo
+and Team ID / App ID prefix MVT4T97ZGC, with Associated Domains enabled.
+Canonical release application-identifier: MVT4T97ZGC.com.kairoid.Kairo.
+The historical Personal Team identity is obsolete for release; do not publish it.
 Do not substitute a different team/prefix without re-verifying signing and AASA.
 
 Serve api.kairoid.com/apple-app-site-association from this directory verbatim at:
@@ -28,8 +30,9 @@ application-identifier matches the payload and whose signed entitlements contain
 applinks:api.kairoid.com. Allow for Apple's association cache; origin success alone
 does not prove on-device association. Never use a real code in logs or validation.
 
-Current signed development profile lacks com.apple.developer.associated-domains.
-A compatible Apple-authorized profile/capability is a separate signing gate.
+The official paid-team profile must authorize Associated Domains. Inspect the
+actual signed app for application-identifier MVT4T97ZGC.com.kairoid.Kairo and the
+exact associated-domain array ["applinks:api.kairoid.com"] before device QA.
 Do not manually add an entitlement to a signature while retaining an incompatible
 profile, strip it for a passing build, change teams, or enable provisioning updates
 without authorization. Unsigned compilation is NOT signed-device certification.

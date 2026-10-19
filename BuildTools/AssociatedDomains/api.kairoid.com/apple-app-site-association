@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["XN5Y3V3CSV.com.kairoid.Kairo"],
+        "appIDs": ["MVT4T97ZGC.com.kairoid.Kairo"],
         "components": [
           { "/": "/auth/google/complete" }
         ]
