@@ -135,8 +135,8 @@ nonisolated struct ManualProfileFlowState: Equatable, Codable, Sendable {
     ) {
         self.step = step
         self.basicProfile = basicProfile
-        self.employmentEntries = employmentEntries.isEmpty ? [ManualEmploymentEntry.blank(id: 0)] : employmentEntries
-        self.educationEntries = educationEntries.isEmpty ? [ManualEducationEntry.blank(id: 0)] : educationEntries
+        self.employmentEntries = employmentEntries
+        self.educationEntries = educationEntries
         self.nextEmploymentID = max(
             nextEmploymentID,
             (self.employmentEntries.map(\.id).max() ?? -1) + 1
@@ -185,6 +185,15 @@ nonisolated struct ManualProfileFlowState: Equatable, Codable, Sendable {
     mutating func addEmployment() {
         employmentEntries.append(ManualEmploymentEntry.blank(id: nextEmploymentID))
         nextEmploymentID += 1
+    }
+
+    mutating func skipEmployment() {
+        employmentEntries.removeAll { !$0.isPersisted }
+        step = .education
+    }
+
+    mutating func skipEducation() {
+        educationEntries.removeAll { !$0.isPersisted }
     }
 
     mutating func deleteEmployment(id: Int) {
@@ -571,7 +580,7 @@ nonisolated enum ManualProfileValidation {
     }
 
     nonisolated static func areEmploymentEntriesValid(_ entries: [ManualEmploymentEntry]) -> Bool {
-        !entries.isEmpty && entries.allSatisfy(isEmploymentEntryValid)
+        entries.allSatisfy { $0.isPersisted || isEmploymentEntryValid($0) }
     }
 
     nonisolated static func isEmploymentEntryValid(_ entry: ManualEmploymentEntry) -> Bool {
@@ -590,7 +599,7 @@ nonisolated enum ManualProfileValidation {
     }
 
     nonisolated static func areEducationEntriesValid(_ entries: [ManualEducationEntry]) -> Bool {
-        !entries.isEmpty && entries.allSatisfy(isEducationEntryValid)
+        entries.allSatisfy { $0.isPersisted || isEducationEntryValid($0) }
     }
 
     nonisolated static func isEducationEntryValid(_ entry: ManualEducationEntry) -> Bool {

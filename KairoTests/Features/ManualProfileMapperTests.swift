@@ -3,6 +3,16 @@ import XCTest
 @testable import Kairo
 
 final class ManualProfileMapperTests: XCTestCase {
+    func test_zeroExperienceSubmissionEmitsNoEmploymentOrEducationCreates() throws {
+        var draft = makeDraft()
+        draft.basicProfile.yearsOfExperience = "0"
+        draft.skipEmployment()
+        draft.skipEducation()
+        let payload = try ManualProfileMapper.makeSubmissionPayloads(draft: draft, currentUser: makeUser())
+        XCTAssertTrue(payload.employments.isEmpty)
+        XCTAssertTrue(payload.educations.isEmpty)
+        XCTAssertEqual(payload.profile.yearsOfExperience, 0)
+    }
     func test_makeSubmissionPayloadsMapsBasicProfileEmploymentAndEducation() throws {
         let payloads = try ManualProfileMapper.makeSubmissionPayloads(
             draft: makeDraft(),

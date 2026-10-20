@@ -1617,6 +1617,22 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testManualProfileExplicitSkipAllowsZeroEmploymentAndEducation() throws {
+        let app = launchApp(environment: validCreateAccountEnvironment()
+            .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }
+            .merging(manualProfileEnvironment(phase: "employment")) { _, override in override })
+        let skipEmployment = app.buttons["Continue without employment"]
+        XCTAssertTrue(skipEmployment.waitForExistence(timeout: 10))
+        for _ in 0..<8 where !skipEmployment.isHittable { app.swipeUp() }
+        skipEmployment.tap()
+        XCTAssertTrue(app.staticTexts[onboardingManualProfileEducationTitle].waitForExistence(timeout: 10))
+        let skipEducation = app.buttons["Continue without education"]
+        for _ in 0..<8 where !skipEducation.isHittable { app.swipeUp() }
+        skipEducation.tap()
+        XCTAssertTrue(app.staticTexts[onboardingPassportCreatedTitle].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testManualProfileEmploymentCanAddAndRemoveEntry() throws {
         let app = launchApp(environment: validCreateAccountEnvironment()
             .merging(onboardingStepEnvironment("resumeImportOrQuickProfile")) { _, override in override }

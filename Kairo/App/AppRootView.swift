@@ -34,6 +34,7 @@ struct AppRootView: View {
             }
 
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KairoColors.background.ignoresSafeArea())
         .modifier(KairoStatusBarProtection())
         .task {

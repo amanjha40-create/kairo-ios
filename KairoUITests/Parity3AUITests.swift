@@ -2,6 +2,20 @@ import XCTest
 
 @MainActor
 final class Parity3AUITests: XCTestCase {
+    func testCertificationIssueDateCanBeExplicitlyRemovedWithoutRemovingAttachment() {
+        let app = launch(attachedCertification: true)
+        app.tabBars.buttons["Career"].tap()
+        XCTAssertTrue(app.buttons["Edit Certification"].waitForExistence(timeout: 10))
+        app.buttons["Edit Certification"].tap()
+        let toggle = app.switches["Include an issue date"]
+        reveal(toggle, app)
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertTrue(app.datePickers["candidate.career.certification.field.issuedDate"].exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertFalse(app.datePickers["candidate.career.certification.field.issuedDate"].exists)
+        XCTAssertTrue(app.staticTexts["demo-evidence.pdf"].exists)
+    }
     override func setUpWithError() throws { continueAfterFailure = false }
 
     func testAttachedCertificationEditorGuidanceAndCanonicalDocumentActions() {

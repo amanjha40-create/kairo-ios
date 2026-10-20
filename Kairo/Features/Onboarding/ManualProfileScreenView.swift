@@ -660,6 +660,10 @@ private struct EmploymentStepView: View {
                         state.addEmployment()
                     }
                 )
+                KairoSecondaryButton(title: "Continue without employment", action: {
+                    state.skipEmployment()
+                    onContinue()
+                })
             }
         } actions: {
             ViewThatFits(in: .horizontal) {
@@ -873,6 +877,11 @@ private struct EducationStepView: View {
                         state.addEducation()
                     }
                 )
+                KairoSecondaryButton(title: "Continue without education", action: {
+                    state.skipEducation()
+                    onContinue()
+                })
+                .disabled(isSubmitting)
             }
         } actions: {
             ViewThatFits(in: .horizontal) {

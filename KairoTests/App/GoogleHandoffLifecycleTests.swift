@@ -7,11 +7,13 @@ import XCTest
 final class GoogleHandoffLifecycleTests: XCTestCase {
     private var window: UIWindow?
     private var previousKeyWindow: UIWindow?
+    private var measureRoot: ((CGSize) -> CGSize)?
 
     override func tearDown() {
         window?.isHidden = true
         window?.rootViewController = nil
         window = nil
+        measureRoot = nil
         previousKeyWindow?.makeKey()
         previousKeyWindow = nil
         super.tearDown()
@@ -22,6 +24,32 @@ final class GoogleHandoffLifecycleTests: XCTestCase {
         XCTAssertTrue(fixture.router.handleIncomingURL(fixture.url, configuration: fixture.configuration))
         mount(fixture)
         await assertExchange(fixture)
+    }
+
+    func test_productionSessionLoadingFillsSmallAndLargeViewportsInBothAppearances() async throws {
+        let tokens = DelayedEmptyTokenStore()
+        let fixture = Fixture(tokens: tokens)
+        mount(fixture)
+        for _ in 0..<40 {
+            if await tokens.readStarted { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(fixture.store.launchPhase, .bootstrapping)
+        if let controller = window?.rootViewController {
+            for style in [UIUserInterfaceStyle.light, .dark] {
+                controller.overrideUserInterfaceStyle = style
+                for viewport in [CGSize(width: 414, height: 896), CGSize(width: 430, height: 932)] {
+                    let measured = try XCTUnwrap(measureRoot)(viewport)
+                    XCTAssertEqual(measured.width, viewport.width, accuracy: 1)
+                    XCTAssertEqual(measured.height, viewport.height, accuracy: 1)
+                }
+            }
+        } else {
+            XCTFail("Expected the real Production-configured root view")
+        }
+        XCTAssertEqual(fixture.network.exchangeCount, 0)
+        await tokens.releaseReads()
+        await settle()
     }
 
     func test_warmHandoffAfterSignedOutBootstrapStartsExchange() async throws {
@@ -180,7 +208,9 @@ final class GoogleHandoffLifecycleTests: XCTestCase {
             .environment(\.authService, fixture.auth)
             .environment(\.networkClient, fixture.network)
             .environment(\.tokenStore, fixture.tokens)
-        window.rootViewController = UIHostingController(rootView: view)
+        let controller = UIHostingController(rootView: view)
+        measureRoot = { controller.sizeThatFits(in: $0) }
+        window.rootViewController = controller
         window.makeKeyAndVisible()
         self.window = window
     }

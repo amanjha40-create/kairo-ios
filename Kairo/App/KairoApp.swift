@@ -19,7 +19,8 @@ struct KairoApp: App {
             configuration: configuration,
             uiTestConfiguration: uiTestConfiguration
         )
-        let guidedTourPreferences = GuidedTourPreferences()
+        let qaEnabled = LocalBatch1QA.isEnabled(configuration: configuration)
+        let guidedTourPreferences = GuidedTourPreferences(defaults: qaEnabled ? LocalBatch1QA.preferences : .standard)
         let guidedTourTestConfiguration = UITestGuidedTourConfiguration.current(
             launchConfiguration: uiTestConfiguration
         )
@@ -39,7 +40,8 @@ struct KairoApp: App {
         _router = StateObject(wrappedValue: router)
         _sessionStore = StateObject(wrappedValue: AppSessionStore(
             configuration: configuration,
-            uiTestConfiguration: uiTestConfiguration,
+            uiTestConfiguration: LocalBatch1QA.mode("restoring", configuration: configuration)
+                ? .current(arguments: [], environment: [:]) : uiTestConfiguration,
             router: router,
             authService: dependencies.authService,
             sessionService: dependencies.sessionService,
@@ -51,7 +53,12 @@ struct KairoApp: App {
         _candidateNotificationStore = StateObject(wrappedValue: CandidateNotificationStore(
             service: dependencies.candidateNotificationService
         ))
-        _appearanceStore = StateObject(wrappedValue: AppAppearanceStore())
+        let appearanceStore = AppAppearanceStore(defaults: qaEnabled ? LocalBatch1QA.preferences : .standard)
+        if qaEnabled, let appearance = MoreAppearanceOption(
+            rawValue: ProcessInfo.processInfo.environment["KAIRO_LOCAL_BATCH1_APPEARANCE"] ?? "") {
+            appearanceStore.select(appearance)
+        }
+        _appearanceStore = StateObject(wrappedValue: appearanceStore)
         _digiLockerStore = StateObject(wrappedValue: DigiLockerStore(service: dependencies.digiLockerService))
         _guidedTourCoordinator = StateObject(wrappedValue: GuidedTourCoordinator(
             preferences: guidedTourPreferences,
@@ -67,7 +74,9 @@ struct KairoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if FinalMirrorQA.isEnabled(configuration: configuration) {
+                if LocalBatch1QA.mode("unknownDates", configuration: configuration) {
+                    LocalBatch1QADateEditor()
+                } else if FinalMirrorQA.isEnabled(configuration: configuration) {
                     FinalMirrorQAHostView()
                 } else if CurrentParityQA.isEnabled(configuration: configuration) {
                     CurrentParityQARootView()
@@ -80,6 +89,14 @@ struct KairoApp: App {
                     AppRootView()
                 }
             }
+                .overlay(alignment: .top) {
+                    if LocalBatch1QA.isEnabled(configuration: configuration) {
+                        Text("Local Batch 1 QA — network blocked")
+                            .font(.caption2).padding(4).background(KairoColors.surface)
+                            .accessibilityIdentifier("batch1.qa.banner")
+                            .allowsHitTesting(false)
+                    }
+                }
                 .environmentObject(router)
                 .environmentObject(sessionStore)
                 .environmentObject(candidateDataRefreshStore)

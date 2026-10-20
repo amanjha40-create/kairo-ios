@@ -714,6 +714,18 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
             return
         }
 
+        // A confirmed terminal partial batch is immutable. A newer saved review
+        // decision requires a new batch/key; transport retries and simple refetches
+        // must keep the prior key so uncertain imports cannot be duplicated.
+        if liveImportBatch?.isPartiallyCompleted == true,
+           let prior = liveReviewSession,
+           prior.id == review.id,
+           review.status == .reviewing,
+           review.version > prior.version {
+            liveImportBatch = nil
+            importIdempotencyReviewID = nil
+            importIdempotencyKey = nil
+        }
         liveReviewSession = review
         liveReviewPlan = nil
         currentProcessingStatus = .needsReview
@@ -793,6 +805,10 @@ nonisolated struct ResumeImportState: Equatable, Sendable {
         }
         statusTitleOverride = nil
         statusMessageOverride = nil
+    }
+
+    var canReviewPartialImport: Bool {
+        liveImportBatch?.isPartiallyCompleted == true && liveReviewSession != nil
     }
 
     mutating func returnToReviewAfterFailure() {

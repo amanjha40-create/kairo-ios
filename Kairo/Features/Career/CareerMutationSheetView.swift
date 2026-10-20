@@ -177,24 +177,36 @@ struct CareerEmploymentEditorSheet: View {
                         }
                     }
 
-                    CareerDateField(
-                        title: "Start date",
-                        selection: $draft.startDate,
-                        errorMessage: nil,
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "startDate")
-                    )
+                    if mode != .create {
+                        Toggle("Include a start date", isOn: $draft.includesStartDate)
+                            .tint(KairoColors.brandPrimary)
+                    }
+                    if mode == .create || draft.includesStartDate {
+                        CareerDateField(
+                            title: "Start date",
+                            selection: $draft.startDate,
+                            errorMessage: nil,
+                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "startDate")
+                        )
+                    }
 
                     Toggle("I'm currently working here", isOn: $draft.isCurrentlyWorking)
                         .tint(KairoColors.brandPrimary)
                         .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("employment", "currentlyWorking"))
 
                     if !draft.isCurrentlyWorking {
+                        if mode != .create {
+                            Toggle("Include an end date", isOn: $draft.includesEndDate)
+                                .tint(KairoColors.brandPrimary)
+                        }
+                        if mode == .create || draft.includesEndDate {
                         CareerDateField(
                             title: "End date",
                             selection: $draft.endDate,
                             errorMessage: fieldErrors["end_date"],
                             accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "endDate")
                         )
+                        }
                     }
 
                     CareerSelectionMenu(
@@ -343,6 +355,11 @@ struct CareerEducationEditorSheet: View {
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "grade")
                     )
 
+                    if mode != .create {
+                        Toggle("Include a start date", isOn: $draft.includesStartDate)
+                            .tint(KairoColors.brandPrimary)
+                    }
+                    if mode == .create || draft.includesStartDate {
                     CareerDateField(
                         title: "Start date",
                         selection: $draft.startDate,
@@ -361,6 +378,7 @@ struct CareerEducationEditorSheet: View {
                                 draft.startPrecision = option
                             }
                         }
+                    }
                     }
 
                     Toggle("I'm currently studying here", isOn: $draft.isCurrentlyStudying)
@@ -491,12 +509,18 @@ struct CareerCertificationEditorSheet: View {
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "issuer")
                     )
 
+                    if mode != .create {
+                        Toggle("Include an issue date", isOn: $draft.includesIssuedDate)
+                            .tint(KairoColors.brandPrimary)
+                    }
+                    if mode == .create || draft.includesIssuedDate {
                     CareerDateField(
                         title: "Issue date",
                         selection: $draft.issuedDate,
                         errorMessage: nil,
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "issuedDate")
                     )
+                    }
 
                     Toggle("This certification never expires", isOn: $draft.doesNotExpire)
                         .tint(KairoColors.brandPrimary)

@@ -88,8 +88,8 @@ final class DigiLockerAuthenticationCoordinator: ObservableObject {
     private var attempt: UUID?
     private var continuation: CheckedContinuation<DigiLockerReturnOutcome, Never>?
 
-    init(browser: any DigiLockerBrowserSession = SystemDigiLockerBrowserSession()) {
-        self.browser = browser
+    init(browser: (any DigiLockerBrowserSession)? = nil) {
+        self.browser = browser ?? SystemDigiLockerBrowserSession()
     }
 
     func connect(environment: AppEnvironment, authorize: () async -> URL?) async -> DigiLockerReturnOutcome? {

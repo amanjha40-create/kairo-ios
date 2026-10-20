@@ -85,6 +85,7 @@ struct ResumeImportScreenView: View {
             ResumeReviewEditorSheet(
                 item: item,
                 values: $editorValues,
+                errorMessage: state.errorMessage,
                 onCancel: { activeEditorItem = nil },
                 onSave: { Task { await saveEdits(for: item) } }
             )
@@ -640,7 +641,7 @@ struct ResumeImportScreenView: View {
         case .review:
             "Return to Review"
         case .import:
-            "Retry Import"
+            state.canReviewPartialImport ? "Review affected items" : "Retry Import"
         case .onboardingCompletion:
             "Finish Setup"
         case nil:
@@ -663,6 +664,9 @@ struct ResumeImportScreenView: View {
         case .review:
             return { state.returnToReviewAfterFailure() }
         case .import:
+            if state.canReviewPartialImport {
+                return { state.returnToReviewAfterFailure() }
+            }
             return { Task { await retryImportSafely() } }
         case .onboardingCompletion:
             return { Task { await retryOnboardingCompletion() } }
@@ -1266,6 +1270,7 @@ struct ResumeImportScreenView: View {
     }
 
     private func openEditor(for item: ResumeReviewItem) {
+        state.errorMessage = nil
         editorValues = Dictionary(
             uniqueKeysWithValues: ResumeImportMapper.editableFields(for: item).map { field in
                 let resolvedValue = ([field.key] + field.fallbacks)
@@ -1369,7 +1374,10 @@ struct ResumeImportScreenView: View {
             switch networkError {
             case .transport:
                 return "KairoID couldn't reach the network. Check your connection and try again."
-            case .api:
+            case .api(let apiError):
+                if apiError.code == .validationError {
+                    return "Review the edited fields. Use a full YYYY-MM-DD date or leave it blank for an unknown Certification date. If this claim cannot be imported, exclude it and continue with the other claims."
+                }
                 return "KairoID couldn't complete that resume action. Refresh the review and try again."
             case .invalidResponse:
                 return "KairoID received an unexpected resume response. Please try again."
@@ -1390,12 +1398,13 @@ struct ResumeImportScreenView: View {
     }
 
     private func importFailureMessage(for batch: ResumeImportBatch) -> String {
+        let details = ResumeImportMapper.failedItemGuidance(batch: batch, review: state.liveReviewSession)
         if batch.isPartiallyCompleted {
-            return "KairoID imported some approved claims, but some items still need your attention."
+            return "KairoID imported some approved claims, but some items still need your attention. " + details
         }
 
         if batch.failedCount > 0 || batch.blockedCount > 0 {
-            return "Some resume claims still need attention before KairoID can finish the import. Review the latest items and try again."
+            return "Some resume claims still need attention before KairoID can finish the import. " + details
         }
 
         if batch.incompleteCount > 0 {
@@ -1748,6 +1757,7 @@ private struct ResumeDistinctRoleConfirmationSheet: View {
 private struct ResumeReviewEditorSheet: View {
     let item: ResumeReviewItem
     @Binding var values: [String: String]
+    let errorMessage: String?
     let onCancel: () -> Void
     let onSave: () -> Void
 
@@ -1755,6 +1765,12 @@ private struct ResumeReviewEditorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .foregroundStyle(KairoColors.textPrimary)
+                            .accessibilityIdentifier("resume.review.edit.error")
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text("Edit only the fields KairoID currently supports for resume review. Everything else stays exactly as parsed.")
                         .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)

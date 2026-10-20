@@ -14,8 +14,8 @@ struct PermanentAddressView: View {
     @State private var issued = ""
     @State private var confirmed = false
     @State private var locationMotion = 0
-    init(service: any PermanentAddressServing, collector: any AddressLocationCollecting = CoreAddressLocationCollector()) {
-        _model = StateObject(wrappedValue: PermanentAddressStore(service: service, collector: collector))
+    init(service: any PermanentAddressServing, collector: (any AddressLocationCollecting)? = nil) {
+        _model = StateObject(wrappedValue: PermanentAddressStore(service: service, collector: collector ?? CoreAddressLocationCollector()))
     }
     var body: some View {
         NavigationStack {

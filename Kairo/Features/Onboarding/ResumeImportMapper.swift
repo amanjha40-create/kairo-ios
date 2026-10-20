@@ -271,30 +271,28 @@ enum ResumeImportMapper {
         case "profile":
             return [
                 .init(key: "full_name", label: "Full name", keyboard: .default),
-                .init(key: "email", label: "Email", keyboard: .emailAddress),
-                .init(key: "headline", label: "Headline", keyboard: .default),
-                .init(key: "location", label: "Location", keyboard: .default)
+                .init(key: "professional_headline", label: "Headline", keyboard: .default)
             ]
         case "employment":
             return [
                 .init(key: "company_name", label: "Company", keyboard: .default, fallbacks: ["employer_legal_name"]),
                 .init(key: "role_title", label: "Role", keyboard: .default, fallbacks: ["job_title"]),
-                .init(key: "start_date", label: "Start date", keyboard: .default),
-                .init(key: "end_date", label: "End date", keyboard: .default)
+                .init(key: "start_date", label: "Start date", keyboard: .default, fallbacks: ["start_date_display"]),
+                .init(key: "end_date", label: "End date", keyboard: .default, fallbacks: ["end_date_display"])
             ]
         case "education":
             return [
                 .init(key: "institution_name", label: "Institution", keyboard: .default),
                 .init(key: "degree", label: "Degree", keyboard: .default),
                 .init(key: "field_of_study", label: "Field of study", keyboard: .default),
-                .init(key: "start_date", label: "Start date", keyboard: .default),
-                .init(key: "end_date", label: "End date", keyboard: .default)
+                .init(key: "start_date", label: "Start date", keyboard: .default, fallbacks: ["start_date_display"]),
+                .init(key: "end_date", label: "End date", keyboard: .default, fallbacks: ["end_date_display"])
             ]
         case "certification":
             return [
                 .init(key: "title", label: "Certification", keyboard: .default, fallbacks: ["name"]),
                 .init(key: "issuing_organization", label: "Issuer", keyboard: .default),
-                .init(key: "issue_date", label: "Issue date", keyboard: .default)
+                .init(key: "issued_date", label: "Issue date (YYYY-MM-DD)", keyboard: .default)
             ]
         case "project":
             return [
@@ -329,10 +327,36 @@ enum ResumeImportMapper {
             }
 
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Preserve the exact date/precision pair on an unrelated edit. API42
+            // can retain a year/month display with a deliberately null date.
+            let original = ([field.key] + field.fallbacks).compactMap { key -> String? in
+                guard case .string(let string)? = item.editedPayload[key] else { return nil }
+                return string
+            }.first ?? ""
+            if trimmed == original.trimmingCharacters(in: .whitespacesAndNewlines) { continue }
             payload[field.key] = trimmed.isEmpty ? .null : .string(trimmed)
+            if ["employment", "education"].contains(item.claimType),
+               ["start_date", "end_date"].contains(field.key) {
+                // Otherwise API42's normalization resurrects a cleared date
+                // from the stale display alias.
+                payload[field.key + "_display"] = .null
+                payload[field.key + "_precision"] = .null
+            }
         }
 
         return payload
+    }
+
+    nonisolated static func failedItemGuidance(batch: ResumeImportBatch, review: ResumeReviewSession?) -> String {
+        guard let review else { return "Refresh the review to identify the affected items. Already imported records are preserved." }
+        let failedIDs = Set(batch.results.filter { ["failed", "blocked", "incomplete"].contains($0.outcome) }.map(\.reviewItemID))
+        let descriptions = review.items.filter { failedIDs.contains($0.id) }.map { item in
+            let peers = review.items.filter { $0.claimType == item.claimType }
+            let ordinal = (peers.firstIndex(where: { $0.id == item.id }) ?? 0) + 1
+            return "\(groupLabel(for: item.claimType)) item \(ordinal)"
+        }
+        guard !descriptions.isEmpty else { return "Refresh the review to identify the affected items. Already imported records are preserved." }
+        return "Review or exclude: " + descriptions.joined(separator: ", ") + ". Already imported records are preserved."
     }
 
     nonisolated static func selectionUpdateRequest(

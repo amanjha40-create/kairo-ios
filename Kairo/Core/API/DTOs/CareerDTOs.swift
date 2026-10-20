@@ -1,5 +1,85 @@
 import Foundation
 
+// PATCH date fields are deliberate values, including explicit null for removal.
+// Other optional metadata retains omission semantics.
+extension CareerEmploymentUpdateRequestDTO {
+    private nonisolated enum DatePatchKeys: String, CodingKey {
+        case subjectFullName, subjectEmail, employerLegalName, employerTradeName, jobTitle, employmentType, startDate, endDate, workLocationCountry, workLocationRegion, workLocationCity, workArrangement
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: DatePatchKeys.self)
+        try values.encodeIfPresent(subjectFullName, forKey: .subjectFullName)
+        try values.encodeIfPresent(subjectEmail, forKey: .subjectEmail)
+        try values.encodeIfPresent(employerLegalName, forKey: .employerLegalName)
+        try values.encodeIfPresent(employerTradeName, forKey: .employerTradeName)
+        try values.encodeIfPresent(jobTitle, forKey: .jobTitle)
+        try values.encodeIfPresent(employmentType, forKey: .employmentType)
+        try values.encode(startDate, forKey: .startDate)
+        try values.encode(endDate, forKey: .endDate)
+        try values.encodeIfPresent(workLocationCountry, forKey: .workLocationCountry)
+        try values.encodeIfPresent(workLocationRegion, forKey: .workLocationRegion)
+        try values.encodeIfPresent(workLocationCity, forKey: .workLocationCity)
+        try values.encodeIfPresent(workArrangement, forKey: .workArrangement)
+    }
+}
+
+extension CareerEducationUpdateRequestDTO {
+    private nonisolated enum DatePatchKeys: String, CodingKey {
+        case institutionName, degree, fieldOfStudy, educationLevel, grade, startDate, startDatePrecision, endDate, endDatePrecision, isCurrentlyStudying
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: DatePatchKeys.self)
+        try values.encodeIfPresent(institutionName, forKey: .institutionName)
+        try values.encodeIfPresent(degree, forKey: .degree)
+        try values.encodeIfPresent(fieldOfStudy, forKey: .fieldOfStudy)
+        try values.encodeIfPresent(educationLevel, forKey: .educationLevel)
+        try values.encodeIfPresent(grade, forKey: .grade)
+        try values.encode(startDate, forKey: .startDate)
+        try values.encode(startDatePrecision, forKey: .startDatePrecision)
+        try values.encode(endDate, forKey: .endDate)
+        try values.encode(endDatePrecision, forKey: .endDatePrecision)
+        try values.encodeIfPresent(isCurrentlyStudying, forKey: .isCurrentlyStudying)
+    }
+}
+
+extension CareerCertificationUpdateRequestDTO {
+    private nonisolated enum DatePatchKeys: String, CodingKey {
+        case title, issuingOrganization, issuedDate, expiryDate, doesNotExpire, credentialID, credentialURL
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: DatePatchKeys.self)
+        try values.encodeIfPresent(title, forKey: .title)
+        try values.encodeIfPresent(issuingOrganization, forKey: .issuingOrganization)
+        try values.encode(issuedDate, forKey: .issuedDate)
+        try values.encode(expiryDate, forKey: .expiryDate)
+        try values.encodeIfPresent(doesNotExpire, forKey: .doesNotExpire)
+        try values.encodeIfPresent(credentialID, forKey: .credentialID)
+        try values.encodeIfPresent(credentialURL, forKey: .credentialURL)
+    }
+}
+
+extension CareerProjectUpdateRequestDTO {
+    private nonisolated enum DatePatchKeys: String, CodingKey {
+        case title, role, description, startDate, endDate, isOngoing, projectURL, repositoryURL, organizationName
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: DatePatchKeys.self)
+        try values.encodeIfPresent(title, forKey: .title)
+        try values.encodeIfPresent(role, forKey: .role)
+        try values.encodeIfPresent(description, forKey: .description)
+        try values.encode(startDate, forKey: .startDate)
+        try values.encode(endDate, forKey: .endDate)
+        try values.encodeIfPresent(isOngoing, forKey: .isOngoing)
+        try values.encodeIfPresent(projectURL, forKey: .projectURL)
+        try values.encodeIfPresent(repositoryURL, forKey: .repositoryURL)
+        try values.encodeIfPresent(organizationName, forKey: .organizationName)
+    }
+}
+
 nonisolated struct CareerCollectionEnvelopeDTO<Element: Decodable & Equatable & Sendable>: Decodable, Equatable, Sendable {
     let items: [Element]
 

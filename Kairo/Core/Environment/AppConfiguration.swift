@@ -33,7 +33,7 @@ struct UITestLaunchConfiguration {
     }
 
     func validated(for configuration: AppConfiguration) -> UITestLaunchConfiguration {
-        guard configuration.buildConfiguration != .production else {
+        guard configuration.buildConfiguration != .production || LocalBatch1QA.isEnabled(configuration: configuration) else {
             return UITestLaunchConfiguration(
                 isEnabled: false,
                 route: .onboarding,

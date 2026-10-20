@@ -3,6 +3,48 @@ import XCTest
 @testable import Kairo
 
 final class CareerMutationStateTests: XCTestCase {
+    func test_unknownEmploymentDatesSurviveUnrelatedEditAndEncodeExplicitNull() throws {
+        let record = CareerEmploymentRecord(id: "synthetic", subjectFullName: nil, subjectEmail: nil,
+            company: "Synthetic", employerLegalName: "Synthetic", employerTradeName: nil,
+            role: "Engineer", employmentType: "full_time", startDate: nil, endDate: nil,
+            currentlyWorking: false, workLocationCountry: nil, workLocationRegion: nil,
+            verificationMethod: "document", verificationStatus: .notVerified, rawVerificationStatus: "draft")
+        var draft = CareerEmploymentDraft(record: record)
+        draft.jobTitle = "Updated role"
+        XCTAssertFalse(draft.includesStartDate)
+        XCTAssertFalse(draft.includesEndDate)
+        let wire = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(draft.updateRequest())) as! [String: Any]
+        XCTAssertTrue(wire["start_date"] is NSNull)
+        XCTAssertTrue(wire["end_date"] is NSNull)
+    }
+
+    func test_unknownEducationDateAndPrecisionRemainNull() throws {
+        let record = CareerEducationRecord(id: "synthetic", institution: "Synthetic", degree: "Degree",
+            fieldOfStudy: nil, educationLevel: nil, grade: nil, startDate: nil, startDatePrecision: nil,
+            endDate: nil, endDatePrecision: nil, isCurrentlyStudying: false,
+            verificationStatus: .notVerified, rawVerificationStatus: "draft")
+        var draft = CareerEducationDraft(record: record)
+        draft.grade = "Updated"
+        let wire = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(draft.updateRequest())) as! [String: Any]
+        for key in ["start_date", "end_date", "start_date_precision", "end_date_precision"] {
+            XCTAssertTrue(wire[key] is NSNull, key)
+        }
+    }
+
+    func test_explicitOptionalDateRemovalEncodesNullNotOmission() throws {
+        var certification = CareerCertificationDraft()
+        certification.includesIssuedDate = false
+        certification.includesExpiryDate = false
+        let cert = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(certification.updateRequest())) as! [String: Any]
+        XCTAssertTrue(cert["issued_date"] is NSNull)
+        XCTAssertTrue(cert["expiry_date"] is NSNull)
+        var project = CareerProjectDraft()
+        project.includesStartDate = false
+        project.includesEndDate = false
+        let wire = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(project.updateRequest())) as! [String: Any]
+        XCTAssertTrue(wire["start_date"] is NSNull)
+        XCTAssertTrue(wire["end_date"] is NSNull)
+    }
     func test_employmentCreateRequestUsesCurrentUserIdentityAndOmitsEndDateForCurrentRole() {
         var draft = CareerEmploymentDraft()
         draft.employerLegalName = "  Northline Career Services  "
@@ -106,6 +148,7 @@ final class CareerMutationStateTests: XCTestCase {
         XCTAssertEqual(draft.title, "Certified Scrum Product Owner")
         XCTAssertEqual(draft.issuingOrganization, "Scrum Alliance")
         XCTAssertEqual(draft.existingDocumentFilename, "resume.pdf")
+        XCTAssertNil(draft.updateRequest().issuedDate, "Opening an imported unknown date must not invent today")
     }
 
     func test_attachedCertificationFixtureRequiresExplicitUITestLaunchGuard() {

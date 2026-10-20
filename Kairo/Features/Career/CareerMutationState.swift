@@ -137,7 +137,9 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
     var jobTitle = ""
     var employmentType: CareerEmploymentTypeOption = .fullTime
     var startDate = Date()
+    var includesStartDate = true
     var endDate = Date()
+    var includesEndDate = true
     var isCurrentlyWorking = true
     var workArrangement: CareerWorkArrangementOption = .onsite
     var workLocationCity = ""
@@ -153,6 +155,8 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
         employmentType = .init(rawValue: record.employmentType)
         startDate = record.startDate ?? Date()
         endDate = record.endDate ?? Date()
+        includesStartDate = record.startDate != nil
+        includesEndDate = record.endDate != nil
         isCurrentlyWorking = record.currentlyWorking
         workArrangement = .init(rawValue: record.workArrangement)
         workLocationCity = record.workLocationCity ?? ""
@@ -186,7 +190,7 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             }
         }
 
-        if !isCurrentlyWorking, endDate < startDate {
+        if includesStartDate, includesEndDate, !isCurrentlyWorking, endDate < startDate {
             errors["end_date"] = "End date must be after the start date."
         }
 
@@ -219,8 +223,8 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             employerTradeName: normalized(employerTradeName).nonEmpty,
             jobTitle: normalized(jobTitle).nonEmpty,
             employmentType: employmentType.rawValue,
-            startDate: encodedDate(startDate),
-            endDate: isCurrentlyWorking ? nil : encodedDate(endDate),
+            startDate: includesStartDate ? encodedDate(startDate) : nil,
+            endDate: isCurrentlyWorking || !includesEndDate ? nil : encodedDate(endDate),
             workLocationCountry: workArrangement == .remote ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
             workLocationRegion: workArrangement == .remote ? nil : normalized(workLocationRegion).nonEmpty,
             workLocationCity: workArrangement == .remote ? nil : normalized(workLocationCity).nonEmpty,
@@ -236,6 +240,7 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
     var educationLevel: CareerEducationLevelOption?
     var grade = ""
     var startDate = Date()
+    var includesStartDate = true
     var startPrecision: CareerDatePrecisionOption = .year
     var endDate = Date()
     var endPrecision: CareerDatePrecisionOption = .year
@@ -251,6 +256,7 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
         educationLevel = record.educationLevel.map(CareerEducationLevelOption.init(rawValue:))
         grade = record.grade ?? ""
         startDate = record.startDate ?? Date()
+        includesStartDate = record.startDate != nil
         startPrecision = .init(rawValue: record.startDatePrecision)
         if let endDate = record.endDate {
             self.endDate = endDate
@@ -281,7 +287,7 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
             errors["education_level"] = "Choose the education level."
         }
 
-        if !isCurrentlyStudying, includesEndDate, endDate < startDate {
+        if includesStartDate, !isCurrentlyStudying, includesEndDate, endDate < startDate {
             errors["end_date"] = "End date must be after the start date."
         }
 
@@ -310,8 +316,8 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
             fieldOfStudy: normalized(fieldOfStudy).nonEmpty,
             educationLevel: educationLevel?.rawValue,
             grade: normalized(grade).nonEmpty,
-            startDate: encodedDate(startDate, precision: startPrecision),
-            startDatePrecision: startPrecision.rawValue,
+            startDate: includesStartDate ? encodedDate(startDate, precision: startPrecision) : nil,
+            startDatePrecision: includesStartDate ? startPrecision.rawValue : nil,
             endDate: resolvedEndDate(),
             endDatePrecision: resolvedEndDate() == nil ? nil : endPrecision.rawValue,
             isCurrentlyStudying: isCurrentlyStudying
@@ -331,6 +337,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
     var title = ""
     var issuingOrganization = ""
     var issuedDate = Date()
+    var includesIssuedDate = true
     var expiryDate = Date()
     var includesExpiryDate = false
     var doesNotExpire = false
@@ -344,6 +351,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
         title = record.title
         issuingOrganization = record.issuer
         issuedDate = record.issueDate ?? Date()
+        includesIssuedDate = record.issueDate != nil
         if let expiryDate = record.expiryDate {
             self.expiryDate = expiryDate
             includesExpiryDate = true
@@ -369,7 +377,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
             errors["issuing_organization"] = "Enter the issuer."
         }
 
-        if includesExpiryDate, !doesNotExpire, expiryDate < issuedDate {
+        if includesIssuedDate, includesExpiryDate, !doesNotExpire, expiryDate < issuedDate {
             errors["expiry_date"] = "Expiry date must be after the issue date."
         }
 
@@ -396,7 +404,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
         CareerCertificationUpdateRequestDTO(
             title: normalized(title).nonEmpty,
             issuingOrganization: normalized(issuingOrganization).nonEmpty,
-            issuedDate: encodedDate(issuedDate),
+            issuedDate: includesIssuedDate ? encodedDate(issuedDate) : nil,
             expiryDate: resolvedExpiryDate(),
             doesNotExpire: doesNotExpire,
             credentialID: normalized(credentialID).nonEmpty,

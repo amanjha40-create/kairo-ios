@@ -3,6 +3,29 @@ import XCTest
 
 @MainActor
 final class ManualProfileFlowStateTests: XCTestCase {
+    func test_explicitSkipDoesNotCreateBlankCareerRows() {
+        var state = ManualProfileFlowState(step: .employment)
+        state.skipEmployment()
+        XCTAssertEqual(state.step, .education)
+        XCTAssertTrue(state.employmentEntries.isEmpty)
+        state.skipEducation()
+        XCTAssertTrue(state.educationEntries.isEmpty)
+        XCTAssertTrue(state.canContinue)
+    }
+
+    func test_skipPreservesPersistedCareerRecords() {
+        var entry = ManualEmploymentEntry.blank(id: 7)
+        entry.isPersisted = true
+        var state = ManualProfileFlowState(step: .employment, employmentEntries: [entry, .blank(id: 8)])
+        state.skipEmployment()
+        XCTAssertEqual(state.employmentEntries, [entry])
+    }
+
+    func test_emptyRestoredSectionsRemainEmpty() {
+        let state = ManualProfileFlowState(employmentEntries: [], educationEntries: [])
+        XCTAssertTrue(state.employmentEntries.isEmpty)
+        XCTAssertTrue(state.educationEntries.isEmpty)
+    }
     func test_basicProfileRequiresCityAndCountry() {
         let draft = ManualProfileBasicDraft(
             fullName: "",

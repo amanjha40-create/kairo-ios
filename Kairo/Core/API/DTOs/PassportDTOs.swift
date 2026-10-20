@@ -33,9 +33,9 @@ nonisolated struct PassportSharingSummaryDTO: Decodable, Equatable, Sendable {
 nonisolated struct PublicPassportVaultDTO: Decodable, Equatable, Sendable {
     let employments: [PublicPassportEmploymentDTO]
     let educations: [PublicPassportEducationDTO]
-    let internships: [PublicPassportEmploymentDTO]
-    let freelance: [PublicPassportEmploymentDTO]
-    let gigPlatforms: [PublicPassportEmploymentDTO]
+    let internships: [PublicPassportInternshipDTO]
+    let freelance: [PublicPassportFreelanceDTO]
+    let gigPlatforms: [PublicPassportGigDTO]
     let portfolio: [PublicPassportPortfolioDTO]
     let certifications: [PublicPassportCertificationDTO]
     let skills: [PublicPassportSkillDTO]
@@ -59,9 +59,9 @@ nonisolated struct PublicPassportVaultDTO: Decodable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         employments = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .employments) ?? []
         educations = try container.decodeIfPresent([PublicPassportEducationDTO].self, forKey: .educations) ?? []
-        internships = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .internships) ?? []
-        freelance = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .freelance) ?? []
-        gigPlatforms = try container.decodeIfPresent([PublicPassportEmploymentDTO].self, forKey: .gigPlatforms) ?? []
+        internships = try container.decodeIfPresent([PublicPassportInternshipDTO].self, forKey: .internships) ?? []
+        freelance = try container.decodeIfPresent([PublicPassportFreelanceDTO].self, forKey: .freelance) ?? []
+        gigPlatforms = try container.decodeIfPresent([PublicPassportGigDTO].self, forKey: .gigPlatforms) ?? []
         portfolio = try container.decodeIfPresent([PublicPassportPortfolioDTO].self, forKey: .portfolio) ?? []
         certifications = try container.decodeIfPresent([PublicPassportCertificationDTO].self, forKey: .certifications) ?? []
         skills = try container.decodeIfPresent([PublicPassportSkillDTO].self, forKey: .skills) ?? []
@@ -79,6 +79,40 @@ nonisolated struct PublicPassportEmploymentDTO: Decodable, Equatable, Sendable {
     let verificationStatus: String
     let verificationMethod: String
     let documents: [PublicPassportDocumentDTO]
+}
+
+// API42 has distinct contracts for these sections; none is an Employment DTO.
+nonisolated struct PublicPassportInternshipDTO: Decodable, Equatable, Sendable {
+    let id: String
+    let companyName: String?
+    let role: String?
+    let description: String?
+    let startDate: Date?
+    let endDate: Date?
+    let isOngoing: Bool
+    let verificationStatus: String
+}
+
+nonisolated struct PublicPassportFreelanceDTO: Decodable, Equatable, Sendable {
+    let id: String
+    let clientName: String
+    let projectTitle: String
+    let description: String?
+    let startDate: Date
+    let endDate: Date?
+    let isOngoing: Bool
+    let verificationStatus: String
+}
+
+nonisolated struct PublicPassportGigDTO: Decodable, Equatable, Sendable {
+    let id: String
+    let platformName: String
+    let partnerRole: String
+    let startedAt: Date
+    let endedAt: Date?
+    let isActive: Bool
+    let rating: Double?
+    let verificationStatus: String
 }
 
 nonisolated struct PublicPassportEducationDTO: Decodable, Equatable, Sendable {

@@ -3,6 +3,198 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportServiceTests: XCTestCase {
+    @MainActor
+    func test_API43ProductionMockIntakeThroughCurrentEducationImportAndCanonicalCareerReload() async throws {
+        let (service, career) = try await Self.makeServicesOnMainActor(environment: .production)
+        var review = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.reviewSessionPayload) as? [String: Any])
+        var item = try XCTUnwrap((review["items"] as? [[String: Any]])?.first)
+        let claim: [String: Any] = ["claim_type": "education", "institution_name": "Synthetic Institute",
+            "degree": "Synthetic degree", "is_current": true, "start_date": "2024-01-01", "end_date": NSNull()]
+        item["claim_type"] = "education"
+        item["original_payload"] = claim
+        item["edited_payload"] = claim
+        review["items"] = [item]
+        let initialData = try JSONSerialization.data(withJSONObject: review)
+        var updatedClaim = claim
+        updatedClaim["degree"] = "Reviewed degree"
+        item["edited_payload"] = updatedClaim
+        item["version"] = 3
+        review["items"] = [item]
+        review["version"] = 5
+        let updatedData = try JSONSerialization.data(withJSONObject: review)
+        let itemData = try JSONSerialization.data(withJSONObject: item)
+        let parsed = String(decoding: Self.completedResumePayload, as: UTF8.self)
+            .replacingOccurrences(of: "\"processing_status\": \"uploaded\"", with: "\"processing_status\": \"needs_review\"")
+        let planData = Data(String(decoding: Self.reviewPlanPayload, as: UTF8.self)
+            .replacingOccurrences(of: "\"profile\"", with: "\"education\"")
+            .replacingOccurrences(of: "[\"full_name\", \"email\"]", with: "[\"institution_name\", \"degree\", \"is_current\"]").utf8)
+        var batch = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.importBatchPayload) as? [String: Any])
+        batch["status"] = "completed"
+        batch["imported_count"] = 1
+        batch["entity_counts"] = ["education": ["detected": 1, "imported": 1, "incomplete": 0, "failed": 0]]
+        batch["results"] = [["review_item_id": "item_profile", "outcome": "imported", "record_type": "education",
+                             "record_id": "synthetic-education", "warnings": []]]
+        let batchData = try JSONSerialization.data(withJSONObject: batch)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.host, "api.kairoid.com", "Every request is intercepted; none reaches Production")
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/resumes/resume_123"):
+                return (try Self.response(for: request, statusCode: 200), Data(parsed.utf8))
+            case ("GET", "/api/v1/resumes/resume_123/review-session"):
+                return (try Self.response(for: request, statusCode: 200), initialData)
+            case ("PATCH", "/api/v1/resume-reviews/review_123/items/item_profile"):
+                let body = try requestJSONBody(from: request)
+                let sent = try XCTUnwrap(body["edited_payload"] as? [String: Any])
+                XCTAssertEqual(sent["degree"] as? String, "Reviewed degree")
+                XCTAssertEqual(sent["is_current"] as? Bool, true)
+                XCTAssertTrue(sent["end_date"] is NSNull)
+                return (try Self.response(for: request, statusCode: 200), itemData)
+            case ("GET", "/api/v1/resume-reviews/review_123"):
+                return (try Self.response(for: request, statusCode: 200), updatedData)
+            case ("POST", "/api/v1/resume-reviews/review_123/validate"):
+                XCTAssertEqual(try requestJSONBody(from: request)["expected_version"] as? Int, 5)
+                return (try Self.response(for: request, statusCode: 200), planData)
+            case ("POST", "/api/v1/resume-reviews/review_123/import"):
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["expected_version"] as? Int, 8)
+                XCTAssertEqual(body["idempotency_key"] as? String, "synthetic-api43-idempotent")
+                return (try Self.response(for: request, statusCode: 201), batchData)
+            case ("GET", "/api/v1/users/me"):
+                return (try Self.response(for: request, statusCode: 200), Self.userPayload)
+            case ("GET", "/api/v1/educations"):
+                let data = Data(#"[{"id":"synthetic-education","institution_name":"Synthetic Institute","degree":"Reviewed degree","start_date":"2024-01-01","end_date":null,"is_currently_studying":true,"verification_status":"draft"}]"#.utf8)
+                return (try Self.response(for: request, statusCode: 200), data)
+            case ("GET", "/api/v1/employments"), ("GET", "/api/v1/certifications"),
+                 ("GET", "/api/v1/projects"), ("GET", "/api/v1/skills"), ("GET", "/api/v1/portfolio"):
+                return (try Self.response(for: request, statusCode: 200), Data("[]".utf8))
+            default:
+                XCTFail("Unexpected synthetic route")
+                throw URLError(.badURL)
+            }
+        }
+        let intake = try await service.restoreWorkflow(resumeID: "resume_123")
+        let first = try XCTUnwrap(intake.reviewSession?.items.first)
+        let edits = ResumeImportMapper.editedPayload(for: first, using: ["degree": "Reviewed degree"])
+        let saved = try await service.updateReviewItem(reviewID: "review_123", itemID: first.id,
+            payload: ResumeImportMapper.editedPayloadUpdateRequest(for: first, editedPayload: edits))
+        let plan = try await service.validateReview(reviewID: saved.id, expectedVersion: saved.version)
+        XCTAssertTrue(plan.ready)
+        let imported = try await service.importReview(reviewID: saved.id, expectedVersion: plan.version, idempotencyKey: "synthetic-api43-idempotent")
+        let retried = try await service.importReview(reviewID: saved.id, expectedVersion: plan.version, idempotencyKey: "synthetic-api43-idempotent")
+        XCTAssertEqual(imported.id, retried.id)
+        let canonical = try await career.loadOverview()
+        XCTAssertEqual(canonical.educations.count, 1)
+        XCTAssertEqual(canonical.educations[0].degree, "Reviewed degree")
+        XCTAssertTrue(canonical.educations[0].isCurrentlyStudying)
+        XCTAssertNil(canonical.educations[0].endDate)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertFalse(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/v1/educations" })
+    }
+    func test_API43ProductionEducationConflictIsVisibleBeforeImportWithoutPayloadRepair() async throws {
+        let service = try await makeService(environment: .production)
+        let blockedPlan = String(decoding: Self.reviewPlanPayload, as: UTF8.self)
+            .replacingOccurrences(of: "\"ready\": true", with: "\"ready\": false")
+            .replacingOccurrences(of: "\"blockers\": []", with: "\"blockers\": [\"current_claim_has_end_date\"]")
+            .replacingOccurrences(of: "\"claim_type\": \"profile\"", with: "\"claim_type\": \"education\"")
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.host, "api.kairoid.com")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/api/v1/resume-reviews/review_123/validate")
+            return (try Self.response(for: request, statusCode: 200), Data(blockedPlan.utf8))
+        }
+        let plan = try await service.validateReview(reviewID: "review_123", expectedVersion: 7)
+        XCTAssertFalse(plan.ready)
+        XCTAssertEqual(plan.blockers, ["current_claim_has_end_date"])
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertFalse(requests.contains { $0.url?.path.hasSuffix("/import") == true })
+    }
+
+    func test_API43ProductionCurrentEducationEditPreservesNullEndAndCurrentFlag() async throws {
+        let service = try await makeService(environment: .production)
+        var review = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.reviewSessionPayload) as? [String: Any])
+        var item = try XCTUnwrap((review["items"] as? [[String: Any]])?.first)
+        let payload: [String: Any] = ["claim_type": "education", "institution_name": "Synthetic Institute",
+            "degree": "Synthetic degree", "is_current": true, "start_date": "2024-01-01",
+            "start_date_precision": "day", "end_date": NSNull(), "end_date_display": NSNull(),
+            "end_date_precision": NSNull()]
+        item["claim_type"] = "education"
+        item["original_payload"] = payload
+        item["edited_payload"] = payload
+        review["items"] = [item]
+        let reviewData = try JSONSerialization.data(withJSONObject: review)
+        let itemData = try JSONSerialization.data(withJSONObject: item)
+        let mapped = ResumeImportMapper.map(try APIJSONCoder.makeDecoder().decode(ResumeReviewSessionDTO.self, from: reviewData)).items[0]
+        let edited = ResumeImportMapper.editedPayload(for: mapped, using: ["degree": "Updated synthetic degree"])
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.host, "api.kairoid.com")
+            switch request.httpMethod {
+            case "PATCH":
+                let body = try requestJSONBody(from: request)
+                let sent = try XCTUnwrap(body["edited_payload"] as? [String: Any])
+                XCTAssertEqual(sent["is_current"] as? Bool, true)
+                XCTAssertTrue(sent["end_date"] is NSNull)
+                XCTAssertTrue(sent["end_date_display"] is NSNull)
+                XCTAssertEqual(sent["start_date"] as? String, "2024-01-01")
+                return (try Self.response(for: request, statusCode: 200), itemData)
+            case "GET":
+                return (try Self.response(for: request, statusCode: 200), reviewData)
+            default:
+                XCTFail("Only explicit edit/refetch allowed")
+                throw URLError(.badURL)
+            }
+        }
+        let result = try await service.updateReviewItem(reviewID: "review_123", itemID: mapped.id,
+            payload: ResumeImportMapper.editedPayloadUpdateRequest(for: mapped, editedPayload: edited))
+        XCTAssertEqual(result.items[0].editedPayload["is_current"], .bool(true))
+        XCTAssertEqual(result.items[0].editedPayload["end_date"], .null)
+    }
+
+    func test_productionConfiguredCertificationEditSaveRefetchValidateAndImportWire() async throws {
+        let service = try await makeService(environment: .production)
+        var reviewJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.reviewSessionPayload) as? [String: Any])
+        var itemJSON = try XCTUnwrap((reviewJSON["items"] as? [[String: Any]])?.first)
+        let claim: [String: Any] = ["claim_type": "certification", "title": "Synthetic certificate", "issuing_organization": "Synthetic issuer", "issued_date": NSNull()]
+        itemJSON["claim_type"] = "certification"
+        itemJSON["original_payload"] = claim
+        itemJSON["edited_payload"] = claim
+        reviewJSON["items"] = [itemJSON]
+        let reviewData = try JSONSerialization.data(withJSONObject: reviewJSON)
+        let itemData = try JSONSerialization.data(withJSONObject: itemJSON)
+        let item = ResumeImportMapper.map(try APIJSONCoder.makeDecoder().decode(ResumeReviewSessionDTO.self, from: reviewData)).items[0]
+        let edited = ResumeImportMapper.editedPayload(for: item, using: ["issued_date": "2024-01-01"])
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url?.host, "api.kairoid.com", "Mock transport only; no live Production requests")
+            switch (request.httpMethod, request.url?.path) {
+            case ("PATCH", "/api/v1/resume-reviews/review_123/items/item_profile"):
+                let body = try requestJSONBody(from: request)
+                let payload = try XCTUnwrap(body["edited_payload"] as? [String: Any])
+                XCTAssertEqual(payload["issued_date"] as? String, "2024-01-01")
+                XCTAssertNil(payload["issue_date"])
+                XCTAssertEqual(Set(payload.keys), ["claim_type", "title", "issuing_organization", "issued_date"])
+                XCTAssertEqual(body["expected_version"] as? Int, 2)
+                return (try Self.response(for: request, statusCode: 200), itemData)
+            case ("GET", "/api/v1/resume-reviews/review_123"):
+                return (try Self.response(for: request, statusCode: 200), reviewData)
+            case ("POST", "/api/v1/resume-reviews/review_123/validate"):
+                return (try Self.response(for: request, statusCode: 200), Self.reviewPlanPayload)
+            case ("POST", "/api/v1/resume-reviews/review_123/import"):
+                let body = try requestJSONBody(from: request)
+                XCTAssertEqual(body["expected_version"] as? Int, 8)
+                XCTAssertEqual(body["confirmed"] as? Bool, true)
+                return (try Self.response(for: request, statusCode: 200), Self.importBatchPayload)
+            default:
+                XCTFail("Unexpected synthetic route")
+                throw URLError(.badURL)
+            }
+        }
+        let review = try await service.updateReviewItem(reviewID: "review_123", itemID: item.id, payload: ResumeImportMapper.editedPayloadUpdateRequest(for: item, editedPayload: edited))
+        let plan = try await service.validateReview(reviewID: review.id, expectedVersion: review.version)
+        let batch = try await service.importReview(reviewID: review.id, expectedVersion: plan.version, idempotencyKey: "synthetic-batch1")
+        XCTAssertEqual(batch.id, "batch_123")
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.count, 4)
+    }
     func test_deleteUsesExactSelectedIDAuthenticationAnd204WithoutJSONDecode() async throws {
         let service = try await makeService()
         await MockURLProtocolStorage.shared.setHandler { request in
@@ -890,25 +1082,30 @@ final class ResumeImportServiceTests: XCTestCase {
         XCTAssertNil(recovery.completionResult)
     }
 
-    nonisolated private func makeService() async throws -> ResumeImportService {
-        try await Self.makeServiceOnMainActor()
+    nonisolated private func makeService(environment: AppEnvironment = .staging) async throws -> ResumeImportService {
+        try await Self.makeServiceOnMainActor(environment: environment)
     }
 
     @MainActor
-    private static func makeServiceOnMainActor() async throws -> ResumeImportService {
+    private static func makeServiceOnMainActor(environment: AppEnvironment) async throws -> ResumeImportService {
+        try await makeServicesOnMainActor(environment: environment).0
+    }
+
+    @MainActor
+    private static func makeServicesOnMainActor(environment: AppEnvironment) async throws -> (ResumeImportService, CareerOverviewService) {
         let tokenStore = InMemoryTokenStore()
         try await tokenStore.save("access-123", for: .accessToken)
 
         let mockedSession = makeMockedURLSession()
         let networkClient = URLSessionNetworkClient(
-            baseURL: APIConfiguration.baseURL(for: .staging),
+            baseURL: APIConfiguration.baseURL(for: environment),
             session: mockedSession
         )
         let configuration = AppConfiguration(
-            buildConfiguration: .development,
-            environment: .staging,
+            buildConfiguration: environment == .production ? .production : .development,
+            environment: environment,
             isDemoModeEnabled: false,
-            apiBaseURL: APIConfiguration.baseURL(for: .staging),
+            apiBaseURL: APIConfiguration.baseURL(for: environment),
             keychainService: "com.kairoid.Kairo.tests.resumeImport"
         )
         let sessionService = SessionService(
@@ -921,12 +1118,13 @@ final class ResumeImportServiceTests: XCTestCase {
             networkClient: networkClient,
             sessionService: sessionService
         )
-        return ResumeImportService(
+        let resume = ResumeImportService(
             sessionService: sessionService,
             authService: authService,
             consentVersion: configuration.currentResumeImportConsentVersion,
             storageSession: mockedSession
         )
+        return (resume, CareerOverviewService(authService: authService, sessionService: sessionService))
     }
 
     private func assertReviewRecoveryFailure(

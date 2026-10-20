@@ -3,6 +3,65 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportMapperTests: XCTestCase {
+    func test_certificationEditorUsesAPI42IssuedDateKey() {
+        let item = makeItem(id: "certification_1", claimType: "certification", title: "Synthetic certificate")
+        let keys = ResumeImportMapper.editableFields(for: item).map(\.key)
+        XCTAssertTrue(keys.contains("issued_date"))
+        XCTAssertFalse(keys.contains("issue_date"), "API42 forbids unknown claim fields")
+    }
+
+    func test_clearedReviewDatesCannotBeResurrectedByDisplayAliases() {
+        let item = makeItem(id: "employment_1", claimType: "employment", title: "Synthetic", subtitle: "Engineer", additionalPayload: ["start_date": .null, "start_date_display": .string("2020"), "start_date_precision": .string("year")])
+        let payload = ResumeImportMapper.editedPayload(for: item, using: ["start_date": "", "end_date": "2024-12-31"])
+        XCTAssertEqual(payload["start_date"], .null)
+        XCTAssertEqual(payload["start_date_display"], .null)
+        XCTAssertEqual(payload["start_date_precision"], .null)
+        XCTAssertEqual(payload["end_date"], .string("2024-12-31"))
+        XCTAssertEqual(payload["end_date_display"], .null)
+        XCTAssertEqual(payload["end_date_precision"], .null)
+        XCTAssertNil(payload["is_current"], "Editing a date must not invent current-study or employment state")
+    }
+
+    func test_API43CurrentEducationNeverSilentlyChangesCurrentOrDiscardsConflictingDate() {
+        let item = makeItem(id: "education_current", claimType: "education", title: "Synthetic",
+            additionalPayload: ["is_current": .bool(true), "end_date": .null])
+        let edited = ResumeImportMapper.editedPayload(for: item, using: ["end_date": "2026-06-01"])
+        XCTAssertEqual(edited["is_current"], .bool(true))
+        XCTAssertEqual(edited["end_date"], .string("2026-06-01"), "API43 must reject the conflict for explicit review")
+        let valid = ResumeImportMapper.editedPayload(for: item, using: ["degree": "Updated degree"])
+        XCTAssertEqual(valid["is_current"], .bool(true))
+        XCTAssertEqual(valid["end_date"], .null)
+    }
+
+    func test_API43HistoricalContradictionSurvivesUnrelatedEditAndOnlyExplicitClearRemovesDate() {
+        let item = makeItem(id: "education_conflict", claimType: "education", title: "Synthetic",
+            additionalPayload: ["is_current": .bool(true), "end_date": .string("2026-06-01"),
+                                "end_date_display": .string("2026-06-01"), "end_date_precision": .string("day")])
+        let unrelated = ResumeImportMapper.editedPayload(for: item, using: ["degree": "Updated degree"])
+        XCTAssertEqual(unrelated["is_current"], .bool(true))
+        XCTAssertEqual(unrelated["end_date"], item.editedPayload["end_date"])
+        XCTAssertEqual(unrelated["end_date_display"], item.editedPayload["end_date_display"])
+        let cleared = ResumeImportMapper.editedPayload(for: item, using: ["end_date": ""])
+        XCTAssertEqual(cleared["is_current"], .bool(true))
+        for key in ["end_date", "end_date_display", "end_date_precision"] { XCTAssertEqual(cleared[key], .null) }
+        XCTAssertEqual(item.editedPayload["end_date"], .string("2026-06-01"))
+    }
+
+    func test_partialImportGuidanceIdentifiesFailedItemWithoutExposingContent() {
+        let review = ResumeReviewSession(id: "review", resumeID: "resume", parsedResultID: "parsed", status: .reviewing, schemaVersion: "resume_review_v1", version: 1, items: [makeItem(id: "one", claimType: "employment", title: "Private company"), makeItem(id: "two", claimType: "employment", title: "Another private company")], createdAt: .distantPast, updatedAt: .distantPast)
+        let batch = ResumeImportBatch(id: "batch", reviewSessionID: "review", status: "partially_completed", totalCount: 2, importedCount: 1, linkedCount: 0, skippedCount: 0, failedCount: 1, blockedCount: 0, incompleteCount: 0, entityCounts: [:], results: [.init(reviewItemID: "one", outcome: "imported", recordType: "employment", recordID: "record", sanitizedErrorCode: nil, warnings: []), .init(reviewItemID: "two", outcome: "failed", recordType: nil, recordID: nil, sanitizedErrorCode: "validation_error", warnings: [])], createdAt: .distantPast, updatedAt: .distantPast)
+        let guidance = ResumeImportMapper.failedItemGuidance(batch: batch, review: review)
+        XCTAssertTrue(guidance.contains("item 2"))
+        XCTAssertFalse(guidance.contains("item 1"))
+        XCTAssertFalse(guidance.contains("private company"))
+        XCTAssertTrue(guidance.contains("Already imported records are preserved"))
+        XCTAssertTrue(ResumeImportMapper.failedItemGuidance(batch: batch, review: nil).contains("Refresh the review"))
+    }
+
+    func test_profileEditorDoesNotEmitForbiddenEmailOrStringLocation() {
+        let item = makeItem(id: "profile_1", claimType: "profile", title: "Synthetic")
+        XCTAssertEqual(ResumeImportMapper.editableFields(for: item).map(\.key), ["full_name", "professional_headline"])
+    }
     func test_groupedItemsPreservesCandidateReviewOrderAndHidesNonMVPSegments() {
         let session = ResumeReviewSession(
             id: "review_123",
@@ -397,7 +456,8 @@ final class ResumeImportMapperTests: XCTestCase {
         id: String,
         claimType: String,
         title: String,
-        subtitle: String? = nil
+        subtitle: String? = nil,
+        additionalPayload: [String: JSONValue] = [:]
     ) -> ResumeReviewItem {
         var payload: [String: JSONValue] = [:]
         switch claimType {
@@ -413,6 +473,7 @@ final class ResumeImportMapperTests: XCTestCase {
             payload["full_name"] = .string(title)
         }
 
+        payload.merge(additionalPayload) { _, new in new }
         return ResumeReviewItem(
             id: id,
             claimType: claimType,

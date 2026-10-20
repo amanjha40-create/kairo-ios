@@ -4,6 +4,13 @@ import XCTest
 
 @MainActor
 final class PassportOverviewServiceTests: XCTestCase {
+    func test_API42DistinctCareerVaultContractsDecodeWithoutEmploymentOnlyFields() throws {
+        let payload = Data(#"{"internships":[{"id":"internship-1","company_name":"Synthetic","role":null,"description":null,"start_date":null,"end_date":null,"is_ongoing":false,"verification_status":"draft"}],"freelance":[{"id":"freelance-1","client_name":"Synthetic","project_title":"Synthetic","description":null,"start_date":"2025-01-01","end_date":null,"is_ongoing":true,"verification_status":"draft"}],"gig_platforms":[{"id":"gig-1","platform_name":"Synthetic","partner_role":"Partner","started_at":"2025-01-01","ended_at":null,"is_active":true,"rating":null,"verification_status":"draft"}]}"#.utf8)
+        let vault = try APIJSONCoder.makeDecoder().decode(PublicPassportVaultDTO.self, from: payload)
+        XCTAssertEqual(vault.internships.count, 1)
+        XCTAssertEqual(vault.freelance.count, 1)
+        XCTAssertEqual(vault.gigPlatforms.count, 1)
+    }
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()

@@ -12,7 +12,10 @@ final class AppSessionStore: ObservableObject {
     @Published private(set) var launchPhase: LaunchPhase = .idle
     @Published private(set) var currentUser: AppUser? {
         didSet {
-            if oldValue?.id != currentUser?.id { DocumentPreviewFileStore.shared.clear() }
+            if oldValue?.id != currentUser?.id,
+               !LocalBatch1QA.isEnabled(configuration: configuration) {
+                DocumentPreviewFileStore.shared.clear()
+            }
         }
     }
     @Published private(set) var signupRecovery: SignupSessionRecoveryResponseDTO?

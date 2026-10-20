@@ -3,6 +3,31 @@ import XCTest
 
 @MainActor
 final class AppSessionStoreTests: XCTestCase {
+    func test_productionCanonicalCompletedUserIgnoresLocalDraftAndRefreshesWithoutCareerWrites() async {
+        let configuration = AppConfiguration(buildConfiguration: .production, environment: .production,
+            isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
+            keychainService: "synthetic.batch1.canonical")
+        for hasLocalDraft in [false, true] {
+            ManualProfileDraftStore.clear()
+            if hasLocalDraft { ManualProfileDraftStore.save(ManualProfileFlowState()) }
+            let router = AppRouter(rootDestination: .onboarding)
+            let manual = StubManualProfileService()
+            let resume = StubResumeImportService()
+            let session = StubSessionService(hasAccessToken: true, hasRefreshToken: true, signupSessionID: nil)
+            let store = AppSessionStore(configuration: configuration, uiTestConfiguration: .disabled,
+                router: router, authService: StubAuthService(user: .fixture, onboardingStatus: .fixture(
+                    currentStep: .complete, passportReady: true, completionPercentage: 100, isOnboardingComplete: true)),
+                sessionService: session, manualProfileService: manual, resumeImportService: resume,
+                guidedTourPreferences: AppSessionGuidedTourPreferences())
+            await store.bootstrapIfNeeded()
+            XCTAssertEqual(router.rootDestination, .mainTabs)
+            await store.refreshLaunchRoute()
+            XCTAssertEqual(router.rootDestination, .mainTabs)
+            XCTAssertEqual(manual.prepareDraftCallCount, 0)
+            XCTAssertEqual(resume.restoreWorkflowCallCount, 0)
+            XCTAssertTrue(session.authenticatedRequests.isEmpty, "Bootstrap must not emit Career writes")
+        }
+    }
     func test_productionCompletedAuthenticationUsesCanonicalHomeRestoration() async {
         let configuration = AppConfiguration(buildConfiguration: .production, environment: .production,
             isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
@@ -848,9 +873,10 @@ private final class StubSessionService: SessionServiceProtocol {
         return hasAccessToken || hasRefreshToken
     }
     func sendAuthenticated(_ request: NetworkRequest) async throws -> Data {
-        _ = request
+        authenticatedRequests.append(request)
         return Data()
     }
+    private(set) var authenticatedRequests: [NetworkRequest] = []
 }
 
 private final class StubAuthService: AuthServiceProtocol, @unchecked Sendable {

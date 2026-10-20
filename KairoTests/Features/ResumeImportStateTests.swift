@@ -2,6 +2,36 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportStateTests: XCTestCase {
+    func test_partialImportReturnsToReviewButRotatesKeyOnlyAfterNewSavedDecision() {
+        var state = ResumeImportState()
+        state.applyReviewSession(makeReviewSession(status: .partiallyImported))
+        state.applyImportBatch(makeImportBatch(status: "partially_completed"))
+        let originalKey = state.ensureImportIdempotencyKey(for: "review_123")
+        state.setError("Synthetic partial result", stage: .import)
+        XCTAssertTrue(state.canReviewPartialImport)
+        state.returnToReviewAfterFailure()
+        XCTAssertEqual(state.phase, .readyForReview)
+        XCTAssertEqual(state.ensureImportIdempotencyKey(for: "review_123"), originalKey)
+        state.applyReviewSession(makeReviewSession(status: .partiallyImported, version: 5))
+        XCTAssertEqual(state.ensureImportIdempotencyKey(for: "review_123"), originalKey)
+        state.applyReviewSession(makeReviewSession(status: .reviewing, version: 6))
+        XCTAssertNil(state.liveImportBatch)
+        XCTAssertNotEqual(state.ensureImportIdempotencyKey(for: "review_123"), originalKey)
+        XCTAssertEqual(state.phase, .readyForReview)
+    }
+
+    func test_nonterminalImportOrStaleReviewCannotRotateImportKey() {
+        for status in ["processing", "partially_completed", "completed"] {
+            var state = ResumeImportState()
+            state.applyReviewSession(makeReviewSession())
+            state.applyImportBatch(makeImportBatch(status: status))
+            let key = state.ensureImportIdempotencyKey(for: "review_123")
+            state.applyReviewSession(makeReviewSession(version: status == "partially_completed" ? 4 : 5))
+            XCTAssertEqual(state.ensureImportIdempotencyKey(for: "review_123"), key)
+            XCTAssertNotNil(state.liveImportBatch)
+        }
+    }
+
     func test_supportedFileTypesAreAccepted() throws {
         for fileName in ["resume.pdf", "resume.docx"] {
             let file = try ResumeImportFile.make(
@@ -506,7 +536,8 @@ final class ResumeImportStateTests: XCTestCase {
 
     private func makeReviewSession(
         status: ResumeReviewStatus = .reviewing,
-        items: [ResumeReviewItem]? = nil
+        items: [ResumeReviewItem]? = nil,
+        version: Int = 4
     ) -> ResumeReviewSession {
         ResumeReviewSession(
             id: "review_123",
@@ -514,7 +545,7 @@ final class ResumeImportStateTests: XCTestCase {
             parsedResultID: "parsed_123",
             status: status,
             schemaVersion: "resume_review_v1",
-            version: 4,
+            version: version,
             items: items ?? [makeReviewItem()],
             createdAt: Date(timeIntervalSince1970: 1_722_499_300),
             updatedAt: Date(timeIntervalSince1970: 1_722_499_320)

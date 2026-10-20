@@ -35,6 +35,9 @@ struct AppDependencies: Sendable {
         var tokenStore: any TokenStore = configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled
             ? InMemoryTokenStore()
             : KeychainTokenStore(service: configuration.keychainService)
+        if LocalBatch1QA.mode("restoring", configuration: configuration) {
+            tokenStore = LocalBatch1QADelayedTokens()
+        }
 
         // Synthetic UI-test credentials must never reach live services, including
         // unselected tabs refreshed by a Login identity transition.
