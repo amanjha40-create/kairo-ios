@@ -1577,7 +1577,7 @@ final class KairoUITests: XCTestCase {
         continueFromChooseStart(in: app, selecting: chooseStartManualOptionButton)
 
         XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.textFields[manualProfileCurrentCityField].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileCurrentCityField].waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -1589,7 +1589,7 @@ final class KairoUITests: XCTestCase {
         app.buttons[resumeImportManualButton].tap()
 
         XCTAssertTrue(app.staticTexts[onboardingManualProfileTitle].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.textFields[manualProfileCurrentCountryField].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[manualProfileCurrentCountryField].waitForExistence(timeout: 10))
     }
 
     @MainActor

@@ -21,7 +21,7 @@ nonisolated struct ManualEmploymentCreateRequestDTO: Encodable, Equatable, Senda
     let verificationMethod: String
     let startDate: String
     let endDate: String?
-    let workLocationCountry: String
+    let workLocationCountry: String?
     let workLocationRegion: String?
 }
 

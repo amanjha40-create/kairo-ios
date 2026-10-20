@@ -24,11 +24,11 @@ nonisolated enum CareerDatePrecisionOption: String, CaseIterable, Identifiable, 
     var title: String {
         switch self {
         case .day:
-            "Exact day"
+            "Exact date"
         case .month:
-            "Month"
+            "Month & year"
         case .year:
-            "Year"
+            "Year only"
         }
     }
 
@@ -136,15 +136,26 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
     var employerTradeName = ""
     var jobTitle = ""
     var employmentType: CareerEmploymentTypeOption = .fullTime
-    var startDate = Date()
-    var includesStartDate = true
-    var endDate = Date()
-    var includesEndDate = true
+    var startDate = Date() { didSet { includesStartDate = true } }
+    var includesStartDate = false
+    var endDate = Date() { didSet { includesEndDate = true } }
+    var includesEndDate = false
     var isCurrentlyWorking = true
     var workArrangement: CareerWorkArrangementOption = .onsite
     var workLocationCity = ""
     var workLocationCountry = ""
     var workLocationRegion = ""
+    private var originalType: String?
+    private var originalArrangement: String?
+    private var originalCountry: String?
+    private var initialType: CareerEmploymentTypeOption?
+    private var initialArrangement: CareerWorkArrangementOption?
+    var employmentTypeLabel: String { originalType.flatMap { CareerEmploymentTypeOption(rawValue: $0) == nil && employmentType == initialType ? $0 : nil } ?? employmentType.title }
+    var workArrangementLabel: String { originalArrangement.flatMap { CareerWorkArrangementOption(rawValue: $0) == nil && workArrangement == initialArrangement ? $0 : nil } ?? workArrangement.title }
+    mutating func selectEmploymentType(_ value: CareerEmploymentTypeOption) { originalType = nil; initialType = nil; employmentType = value }
+    mutating func selectWorkArrangement(_ value: CareerWorkArrangementOption) { originalArrangement = nil; initialArrangement = nil; workArrangement = value }
+
+    private var originalText: [String: String] = [:]
 
     init() {}
 
@@ -162,6 +173,12 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
         workLocationCity = record.workLocationCity ?? ""
         workLocationCountry = record.workLocationCountry ?? ""
         workLocationRegion = record.workLocationRegion ?? ""
+        originalType = record.employmentType
+        initialType = employmentType
+        originalArrangement = record.workArrangement
+        initialArrangement = workArrangement
+        originalCountry = record.workLocationCountry
+        originalText = ["employerLegalName": employerLegalName, "employerTradeName": employerTradeName, "jobTitle": jobTitle, "workLocationCity": workLocationCity, "workLocationRegion": workLocationRegion]
     }
 
     var displayName: String {
@@ -170,27 +187,28 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             ?? "employment record"
     }
 
-    func validationErrors() -> [String: String] {
+    func validationErrors(mode: CareerMutationMode = .edit) -> [String: String] {
         var errors: [String: String] = [:]
 
-        if normalized(employerLegalName).isEmpty {
-            errors["employer_legal_name"] = "Enter the employer name."
+        if originalText["employerLegalName"] != employerLegalName && (normalized(employerLegalName).count < 2 || employerLegalName.count > 512) {
+            errors["employer_legal_name"] = "Enter an employer name of 2–512 characters."
         }
 
-        if normalized(jobTitle).isEmpty {
+        if originalText["jobTitle"] != jobTitle && (normalized(jobTitle).isEmpty || jobTitle.count > 255) {
             errors["job_title"] = "Enter the job title."
         }
 
         if workArrangement != .remote {
-            if normalized(workLocationCity).isEmpty {
-                errors["work_location_city"] = "Enter the work city."
-            }
-            if ManualProfileNormalization.normalizedCountryCode(workLocationCountry) == nil {
+            if !workLocationCountry.isEmpty, workLocationCountry != originalCountry,
+               ManualProfileNormalization.normalizedCountryCode(workLocationCountry) == nil {
                 errors["work_location_country"] = "Enter a valid country."
             }
         }
 
-        if includesStartDate, includesEndDate, !isCurrentlyWorking, endDate < startDate {
+        if mode == .create && !includesStartDate { errors["start_date"] = "Choose a start date." }
+        if isCurrentlyWorking && includesEndDate { errors["end_date"] = "Remove the end date explicitly, or turn off Currently working." }
+
+        if includesStartDate, includesEndDate, !isCurrentlyWorking, encodedDate(endDate) < encodedDate(startDate) {
             errors["end_date"] = "End date must be after the start date."
         }
 
@@ -207,7 +225,7 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             employmentType: employmentType.rawValue,
             verificationMethod: "document",
             startDate: encodedDate(startDate),
-            endDate: isCurrentlyWorking ? nil : encodedDate(endDate),
+            endDate: includesEndDate ? encodedDate(endDate) : nil,
             workLocationCountry: workArrangement == .remote ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
             workLocationRegion: workArrangement == .remote ? nil : normalized(workLocationRegion).nonEmpty,
             workLocationCity: workArrangement == .remote ? nil : normalized(workLocationCity).nonEmpty,
@@ -219,16 +237,19 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
         CareerEmploymentUpdateRequestDTO(
             subjectFullName: nil,
             subjectEmail: nil,
-            employerLegalName: normalized(employerLegalName).nonEmpty,
-            employerTradeName: normalized(employerTradeName).nonEmpty,
-            jobTitle: normalized(jobTitle).nonEmpty,
-            employmentType: employmentType.rawValue,
+            employerLegalName: originalText["employerLegalName"] == employerLegalName ? nil : normalized(employerLegalName).nonEmpty,
+            employerTradeName: originalText["employerTradeName"] == employerTradeName ? nil : normalized(employerTradeName).nonEmpty,
+            jobTitle: originalText["jobTitle"] == jobTitle ? nil : normalized(jobTitle).nonEmpty,
+            employmentType: initialType != nil && employmentType == initialType && (originalType == nil || CareerEmploymentTypeOption(rawValue: originalType!) == nil) ? nil : employmentType.rawValue,
             startDate: includesStartDate ? encodedDate(startDate) : nil,
-            endDate: isCurrentlyWorking || !includesEndDate ? nil : encodedDate(endDate),
-            workLocationCountry: workArrangement == .remote ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
-            workLocationRegion: workArrangement == .remote ? nil : normalized(workLocationRegion).nonEmpty,
-            workLocationCity: workArrangement == .remote ? nil : normalized(workLocationCity).nonEmpty,
-            workArrangement: workArrangement.rawValue
+            endDate: !includesEndDate ? nil : encodedDate(endDate),
+            workLocationCountry: workLocationCountry == originalCountry ? nil : ManualProfileNormalization.normalizedCountryCode(workLocationCountry),
+            workLocationRegion: workArrangement == .remote ? nil : originalText["workLocationRegion"] == workLocationRegion ? nil : normalized(workLocationRegion).nonEmpty,
+            workLocationCity: workArrangement == .remote ? nil : originalText["workLocationCity"] == workLocationCity ? nil : normalized(workLocationCity).nonEmpty,
+            workArrangement: initialArrangement != nil && workArrangement == initialArrangement && (originalArrangement == nil || CareerWorkArrangementOption(rawValue: originalArrangement!) == nil) ? nil : workArrangement.rawValue,
+            updatesCountry: workLocationCountry != (originalCountry ?? ""),
+            updatesRegion: workArrangement != .remote && workLocationRegion != (originalText["workLocationRegion"] ?? ""),
+            updatesCity: workArrangement != .remote && workLocationCity != (originalText["workLocationCity"] ?? "")
         )
     }
 }
@@ -239,13 +260,26 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
     var fieldOfStudy = ""
     var educationLevel: CareerEducationLevelOption?
     var grade = ""
-    var startDate = Date()
-    var includesStartDate = true
+    var startDate = Date() { didSet { includesStartDate = true } }
+    var includesStartDate = false
     var startPrecision: CareerDatePrecisionOption = .year
-    var endDate = Date()
+    var endDate = Date() { didSet { includesEndDate = true } }
     var endPrecision: CareerDatePrecisionOption = .year
     var isCurrentlyStudying = false
-    var includesEndDate = true
+    var includesEndDate = false
+    private var originalLevel: String?
+    private var initialLevel: CareerEducationLevelOption?
+    private var originalStart: Date?
+    private var originalEnd: Date?
+    private var originalStartPrecision: String?
+    private var originalEndPrecision: String?
+    var educationLevelLabel: String {
+        originalLevel.flatMap { CareerEducationLevelOption(rawValue: $0) == nil && educationLevel == initialLevel ? $0 : nil }
+            ?? educationLevel?.title ?? "Choose education level"
+    }
+    mutating func selectEducationLevel(_ value: CareerEducationLevelOption) { originalLevel = nil; educationLevel = value }
+
+    private var originalText: [String: String] = [:]
 
     init() {}
 
@@ -266,28 +300,40 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
         }
         endPrecision = .init(rawValue: record.endDatePrecision)
         isCurrentlyStudying = record.isCurrentlyStudying
+        originalLevel = record.educationLevel
+        initialLevel = educationLevel
+        originalStart = record.startDate
+        originalEnd = record.endDate
+        originalStartPrecision = record.startDatePrecision
+        originalEndPrecision = record.endDatePrecision
+        originalText = ["institutionName": institutionName, "degree": degree, "fieldOfStudy": fieldOfStudy, "grade": grade]
     }
 
     var displayName: String {
         normalized(institutionName).nonEmpty ?? "education record"
     }
 
-    func validationErrors() -> [String: String] {
+    func validationErrors(mode: CareerMutationMode = .edit) -> [String: String] {
         var errors: [String: String] = [:]
 
-        if normalized(institutionName).isEmpty {
+        if originalText["institutionName"] != institutionName && (normalized(institutionName).isEmpty || institutionName.count > 512) {
             errors["institution_name"] = "Enter the institution."
         }
 
-        if normalized(degree).isEmpty {
+        if originalText["degree"] != degree && (normalized(degree).isEmpty || degree.count > 255) {
             errors["degree"] = "Enter the degree."
         }
 
-        if educationLevel == nil {
+        if educationLevel == nil && mode == .create {
             errors["education_level"] = "Choose the education level."
         }
 
-        if includesStartDate, !isCurrentlyStudying, includesEndDate, endDate < startDate {
+        if mode == .create && !includesStartDate { errors["start_date"] = "Choose a start date." }
+        if isCurrentlyStudying && includesEndDate { errors["end_date"] = "Remove the end date explicitly, or turn off Currently studying." }
+
+        let effectiveStart = mode == .create ? encodedDate(startDate, precision: startPrecision) : updateRequest().startDate
+        if includesStartDate, !isCurrentlyStudying, includesEndDate,
+           let effectiveStart, let effectiveEnd = resolvedEndDate(), effectiveEnd < effectiveStart {
             errors["end_date"] = "End date must be after the start date."
         }
 
@@ -311,39 +357,41 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
 
     func updateRequest() -> CareerEducationUpdateRequestDTO {
         CareerEducationUpdateRequestDTO(
-            institutionName: normalized(institutionName).nonEmpty,
-            degree: normalized(degree).nonEmpty,
-            fieldOfStudy: normalized(fieldOfStudy).nonEmpty,
-            educationLevel: educationLevel?.rawValue,
-            grade: normalized(grade).nonEmpty,
-            startDate: includesStartDate ? encodedDate(startDate, precision: startPrecision) : nil,
-            startDatePrecision: includesStartDate ? startPrecision.rawValue : nil,
+            institutionName: originalText["institutionName"] == institutionName ? nil : normalized(institutionName).nonEmpty,
+            degree: originalText["degree"] == degree ? nil : normalized(degree).nonEmpty,
+            fieldOfStudy: originalText["fieldOfStudy"] == fieldOfStudy ? nil : normalized(fieldOfStudy).nonEmpty,
+            educationLevel: originalLevel != nil && educationLevel == initialLevel && CareerEducationLevelOption(rawValue: originalLevel!) == nil ? nil : educationLevel?.rawValue,
+            grade: originalText["grade"] == grade ? nil : normalized(grade).nonEmpty,
+            startDate: includesStartDate ? encodedDate(startDate, precision: startDate == originalStart && startPrecision == .init(rawValue: originalStartPrecision) ? .day : startPrecision) : nil,
+            startDatePrecision: includesStartDate ? (startDate == originalStart && startPrecision == .init(rawValue: originalStartPrecision) ? originalStartPrecision : startPrecision.rawValue) : nil,
             endDate: resolvedEndDate(),
-            endDatePrecision: resolvedEndDate() == nil ? nil : endPrecision.rawValue,
+            endDatePrecision: resolvedEndDate() == nil ? nil : (endDate == originalEnd && endPrecision == .init(rawValue: originalEndPrecision) ? originalEndPrecision : endPrecision.rawValue),
             isCurrentlyStudying: isCurrentlyStudying
         )
     }
 
     private func resolvedEndDate() -> String? {
-        guard !isCurrentlyStudying, includesEndDate else {
+        guard includesEndDate else {
             return nil
         }
 
-        return encodedDate(endDate, precision: endPrecision)
+        return encodedDate(endDate, precision: endDate == originalEnd && endPrecision == .init(rawValue: originalEndPrecision) ? .day : endPrecision)
     }
 }
 
 nonisolated struct CareerCertificationDraft: Equatable, Sendable {
     var title = ""
     var issuingOrganization = ""
-    var issuedDate = Date()
-    var includesIssuedDate = true
-    var expiryDate = Date()
+    var issuedDate = Date() { didSet { includesIssuedDate = true } }
+    var includesIssuedDate = false
+    var expiryDate = Date() { didSet { includesExpiryDate = true } }
     var includesExpiryDate = false
     var doesNotExpire = false
     var credentialID = ""
     var credentialURL = ""
     var existingDocumentFilename: String?
+
+    private var originalText: [String: String] = [:]
 
     init() {}
 
@@ -360,24 +408,27 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
         credentialID = record.credentialID ?? ""
         credentialURL = record.credentialURL?.absoluteString ?? ""
         existingDocumentFilename = record.originalFilename
+        originalText = ["title": title, "issuingOrganization": issuingOrganization, "credentialID": credentialID]
     }
 
     var displayName: String {
         normalized(title).nonEmpty ?? "certification"
     }
 
-    func validationErrors() -> [String: String] {
+    func validationErrors(mode: CareerMutationMode = .edit) -> [String: String] {
         var errors: [String: String] = [:]
+        if mode == .create && !includesIssuedDate { errors["issued_date"] = "Choose an issue date." }
+        if doesNotExpire && includesExpiryDate { errors["expiry_date"] = "Remove the expiry date explicitly, or turn off Never expires." }
 
-        if normalized(title).isEmpty {
+        if originalText["title"] != title && (normalized(title).isEmpty || title.count > 512) {
             errors["title"] = "Enter the certification title."
         }
 
-        if normalized(issuingOrganization).isEmpty {
+        if originalText["issuingOrganization"] != issuingOrganization && (normalized(issuingOrganization).isEmpty || issuingOrganization.count > 512) {
             errors["issuing_organization"] = "Enter the issuer."
         }
 
-        if includesIssuedDate, includesExpiryDate, !doesNotExpire, expiryDate < issuedDate {
+        if includesIssuedDate, includesExpiryDate, !doesNotExpire, encodedDate(expiryDate) < encodedDate(issuedDate) {
             errors["expiry_date"] = "Expiry date must be after the issue date."
         }
 
@@ -402,18 +453,18 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
 
     func updateRequest() -> CareerCertificationUpdateRequestDTO {
         CareerCertificationUpdateRequestDTO(
-            title: normalized(title).nonEmpty,
-            issuingOrganization: normalized(issuingOrganization).nonEmpty,
+            title: originalText["title"] == title ? nil : normalized(title).nonEmpty,
+            issuingOrganization: originalText["issuingOrganization"] == issuingOrganization ? nil : normalized(issuingOrganization).nonEmpty,
             issuedDate: includesIssuedDate ? encodedDate(issuedDate) : nil,
             expiryDate: resolvedExpiryDate(),
             doesNotExpire: doesNotExpire,
-            credentialID: normalized(credentialID).nonEmpty,
+            credentialID: originalText["credentialID"] == credentialID ? nil : normalized(credentialID).nonEmpty,
             credentialURL: validatedURL(normalized(credentialURL))
         )
     }
 
     private func resolvedExpiryDate() -> String? {
-        guard includesExpiryDate, !doesNotExpire else {
+        guard includesExpiryDate else {
             return nil
         }
 
@@ -425,14 +476,16 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
     var title = ""
     var role = ""
     var description = ""
-    var startDate = Date()
+    var startDate = Date() { didSet { includesStartDate = true } }
     var includesStartDate = false
-    var endDate = Date()
+    var endDate = Date() { didSet { includesEndDate = true } }
     var includesEndDate = false
     var isOngoing = false
     var projectURL = ""
     var repositoryURL = ""
     var organizationName = ""
+
+    private var originalText: [String: String] = [:]
 
     init() {}
 
@@ -452,6 +505,7 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
         projectURL = record.projectURL?.absoluteString ?? ""
         repositoryURL = record.repositoryURL?.absoluteString ?? ""
         organizationName = record.organizationName ?? ""
+        originalText = ["title": title, "role": role, "description": description, "organizationName": organizationName]
     }
 
     var displayName: String {
@@ -460,8 +514,9 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
 
     func validationErrors() -> [String: String] {
         var errors: [String: String] = [:]
+        if isOngoing && includesEndDate { errors["end_date"] = "Remove the end date explicitly, or turn off Ongoing." }
 
-        if normalized(title).isEmpty {
+        if originalText["title"] != title && (normalized(title).isEmpty || title.count > 255) {
             errors["title"] = "Enter the project title."
         }
 
@@ -473,7 +528,7 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
             errors["repository_url"] = "Enter a valid repository URL."
         }
 
-        if includesStartDate, includesEndDate, !isOngoing, endDate < startDate {
+        if includesStartDate, includesEndDate, !isOngoing, encodedDate(endDate) < encodedDate(startDate) {
             errors["end_date"] = "End date must be after the start date."
         }
 
@@ -496,20 +551,20 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
 
     func updateRequest() -> CareerProjectUpdateRequestDTO {
         CareerProjectUpdateRequestDTO(
-            title: normalized(title).nonEmpty,
-            role: normalized(role).nonEmpty,
-            description: normalized(description).nonEmpty,
+            title: originalText["title"] == title ? nil : normalized(title).nonEmpty,
+            role: originalText["role"] == role ? nil : normalized(role).nonEmpty,
+            description: originalText["description"] == description ? nil : normalized(description).nonEmpty,
             startDate: includesStartDate ? encodedDate(startDate) : nil,
             endDate: resolvedEndDate(),
             isOngoing: isOngoing,
             projectURL: validatedURL(normalized(projectURL)),
             repositoryURL: validatedURL(normalized(repositoryURL)),
-            organizationName: normalized(organizationName).nonEmpty
+            organizationName: originalText["organizationName"] == organizationName ? nil : normalized(organizationName).nonEmpty
         )
     }
 
     private func resolvedEndDate() -> String? {
-        guard includesEndDate, !isOngoing else {
+        guard includesEndDate else {
             return nil
         }
 

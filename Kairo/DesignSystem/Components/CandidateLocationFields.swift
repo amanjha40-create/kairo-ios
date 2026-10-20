@@ -32,19 +32,19 @@ struct CandidateLocationFields: View {
             else {
                 CandidatePlacePicker(title: "Country", value: country,
                     options: Locale.Region.isoRegions.map(\.identifier),
-                    allowClear: !required, display: CandidateLocationCatalogue.countryName) { selected in
+                    allowClear: !required, required: required, display: CandidateLocationCatalogue.countryName) { selected in
                         guard selected != country else { return }
                         country = selected; region = ""; city = ""
                     }.accessibilityIdentifier("\(identifier).country")
             }
             if fixedIndia || CandidateLocationCatalogue.isIndia(country) {
                 CandidatePlacePicker(title: "State", value: region, options: CandidateLocationCatalogue.indiaStates,
-                    allowClear: !fixedIndia) { selected in
+                    allowClear: !fixedIndia, required: fixedIndia) { selected in
                         guard selected != region else { return }; region = selected; city = ""
                     }.accessibilityIdentifier("\(identifier).region")
             } else {
                 VStack(alignment: .leading) {
-                    Text("State / Region").font(KairoTypography.caption)
+                    Text("State / Region — Optional").font(KairoTypography.caption)
                     TextField("State / Region", text: Binding(get: { region }, set: { next in
                         guard next != region else { return }; region = String(next.prefix(128)); city = ""
                     })).textContentType(.addressState).accessibilityIdentifier("\(identifier).region")
@@ -52,13 +52,13 @@ struct CandidateLocationFields: View {
             }
             CandidatePlacePicker(title: "City", value: city, options: city.isEmpty ? [] : [city],
                 allowClear: !required && !fixedIndia, allowCustom: true, maxLength: cityMaxLength,
-                context: region.isEmpty ? nil : "City or town in \(region)") { city = $0 }
+                context: region.isEmpty ? nil : "City or town in \(region)", required: required || fixedIndia) { city = $0 }
                 .accessibilityIdentifier("\(identifier).city")
         }
     }
 }
 
-private struct CandidatePlacePicker: View {
+struct CandidatePlacePicker: View {
     let title: String
     let value: String
     let options: [String]
@@ -66,6 +66,7 @@ private struct CandidatePlacePicker: View {
     var allowCustom = false
     var maxLength = 128
     var context: String? = nil
+    var required = false
     var display: (String) -> String = { $0 }
     let select: (String) -> Void
     @State private var presented = false
@@ -80,7 +81,7 @@ private struct CandidatePlacePicker: View {
         VStack(alignment: .leading, spacing: 3) {
             Button { query = ""; presented = true } label: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                    Text(title + (required ? " *" : " — Optional")).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
                     HStack {
                         Text(value.isEmpty ? "Choose \(title.lowercased())" : display(value)).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8); Image(systemName: "chevron.up.chevron.down").accessibilityHidden(true)
@@ -88,9 +89,9 @@ private struct CandidatePlacePicker: View {
                 }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }
             .buttonStyle(KairoActionStyle(role: .secondary))
-            .accessibilityLabel(title).accessibilityValue(value.isEmpty ? "Not selected" : display(value))
+            .accessibilityLabel("\(title), \(required ? "required" : "optional")").accessibilityValue(value.isEmpty ? "Not selected" : display(value))
             .accessibilityHint("Opens searchable choices. Cancel preserves the current value.")
-            if allowCustom { Text("Search or enter your city or town.").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary) }
+            if allowCustom { Text("Search or enter your \(title.lowercased()). Unlisted values are supported.").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary) }
         }
         .sheet(isPresented: $presented) {
             NavigationStack {
@@ -111,13 +112,13 @@ private struct CandidatePlacePicker: View {
                         Button("Use \(trimmed)") { choose(trimmed) }.accessibilityIdentifier("candidate.location.customCity")
                     }
                     if choices.isEmpty && (!allowCustom || trimmed.isEmpty) {
-                        Text(allowCustom ? "Type your city or town to use it." : "No matching choices.")
+                        Text(allowCustom ? "Type your \(title.lowercased()) to use it." : "No matching choices.")
                     }
                 }
                 .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search \(title.lowercased())")
                 .onChange(of: query) { _, next in if next.count > maxLength { query = String(next.prefix(maxLength)) } }
                 .navigationTitle("Choose \(title.lowercased())").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { presented = false } } }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { presented = false }.accessibilityIdentifier("candidate.picker.cancel") } }
             }
         }
     }

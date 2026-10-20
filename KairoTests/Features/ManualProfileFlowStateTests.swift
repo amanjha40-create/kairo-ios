@@ -26,7 +26,7 @@ final class ManualProfileFlowStateTests: XCTestCase {
         XCTAssertTrue(state.employmentEntries.isEmpty)
         XCTAssertTrue(state.educationEntries.isEmpty)
     }
-    func test_basicProfileRequiresCityAndCountry() {
+    func test_basicProfileRequiresCoreFieldsButLocationIsOptional() {
         let draft = ManualProfileBasicDraft(
             fullName: "",
             professionalHeadline: "Trust Operations Specialist",
@@ -53,14 +53,8 @@ final class ManualProfileFlowStateTests: XCTestCase {
             ManualProfileValidation.basicProfileError(for: .yearsOfExperience, in: draft),
             "Enter your years of experience."
         )
-        XCTAssertEqual(
-            ManualProfileValidation.basicProfileError(for: .currentCity, in: draft),
-            "Enter your current city."
-        )
-        XCTAssertEqual(
-            ManualProfileValidation.basicProfileError(for: .currentCountry, in: draft),
-            "Enter your current country."
-        )
+        XCTAssertNil(ManualProfileValidation.basicProfileError(for: .currentCity, in: draft))
+        XCTAssertNil(ManualProfileValidation.basicProfileError(for: .currentCountry, in: draft))
         XCTAssertFalse(ManualProfileValidation.isBasicProfileValid(draft))
     }
 
@@ -119,7 +113,7 @@ final class ManualProfileFlowStateTests: XCTestCase {
         XCTAssertEqual(state.employmentEntries[0].jobTitle, "")
     }
 
-    func test_currentlyWorkingEmploymentClearsEndDateAndValidates() {
+    func test_currentlyWorkingEmploymentPreservesConflictUntilExplicitRemoval() {
         var entry = ManualEmploymentEntry.blank(id: 0)
         entry.company = "Meridian Trust"
         entry.jobTitle = "Trust Operations Specialist"
@@ -137,8 +131,10 @@ final class ManualProfileFlowStateTests: XCTestCase {
             currentEntry.isCurrentlyWorking = true
         }
 
-        XCTAssertEqual(state.employmentEntries[0].endMonth, "")
-        XCTAssertEqual(state.employmentEntries[0].endYear, "")
+        XCTAssertEqual(state.employmentEntries[0].endMonth, "March")
+        XCTAssertEqual(state.employmentEntries[0].endYear, "2024")
+        XCTAssertFalse(ManualProfileValidation.isEmploymentEntryValid(state.employmentEntries[0]))
+        state.updateEmployment(id: 0) { $0.endDay = ""; $0.endMonth = ""; $0.endYear = "" }
         XCTAssertTrue(ManualProfileValidation.isEmploymentEntryValid(state.employmentEntries[0]))
     }
 

@@ -118,7 +118,7 @@ struct CareerEmploymentEditorSheet: View {
     }
 
     private var fieldErrors: [String: String] {
-        draft.validationErrors().merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
+        draft.validationErrors(mode: mode).merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
     }
 
     private var canSave: Bool {
@@ -142,7 +142,7 @@ struct CareerEmploymentEditorSheet: View {
 
                 KairoSection {
                     KairoTextField(
-                        title: "Employer legal name",
+                        title: "Employer legal name" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Northstar Analytics Private Limited",
                         text: $draft.employerLegalName,
                         errorMessage: fieldErrors["employer_legal_name"],
@@ -150,14 +150,15 @@ struct CareerEmploymentEditorSheet: View {
                     )
 
                     KairoTextField(
-                        title: "Employer trade name",
+                        title: "Employer trade name — Optional",
                         prompt: "Northstar Analytics",
                         text: $draft.employerTradeName,
+                        errorMessage: fieldErrors["employer_trade_name"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "employerTradeName")
                     )
 
                     KairoTextField(
-                        title: "Job title",
+                        title: "Job title" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Product Operations Manager",
                         text: $draft.jobTitle,
                         errorMessage: fieldErrors["job_title"],
@@ -165,68 +166,47 @@ struct CareerEmploymentEditorSheet: View {
                     )
 
                     CareerSelectionMenu(
-                        title: "Employment type",
-                        value: draft.employmentType.title,
-                        errorMessage: nil,
+                        title: "Employment type — Optional",
+                        value: draft.employmentTypeLabel,
+                        errorMessage: fieldErrors["employment_type"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "employmentType")
                     ) {
                         ForEach(CareerEmploymentTypeOption.allCases) { option in
                             Button(option.title) {
-                                draft.employmentType = option
+                                draft.selectEmploymentType(option)
                             }
+                            .accessibilityAddTraits(draft.employmentTypeLabel == option.title ? [.isSelected] : [])
                         }
                     }
 
-                    if mode != .create {
-                        Toggle("Include a start date", isOn: $draft.includesStartDate)
-                            .tint(KairoColors.brandPrimary)
-                    }
-                    if mode == .create || draft.includesStartDate {
-                        CareerDateField(
-                            title: "Start date",
-                            selection: $draft.startDate,
-                            errorMessage: nil,
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "startDate")
-                        )
-                    }
+                    CandidateDateField(title: "Start date", selection: Binding(get: { draft.includesStartDate ? draft.startDate : nil }, set: { value in if let value { draft.startDate = value }; draft.includesStartDate = value != nil }), required: mode == .create, errorMessage: fieldErrors["start_date"], identifier: KairoAccessibilityID.careerMutationField("employment", "startDate"))
 
                     Toggle("I'm currently working here", isOn: $draft.isCurrentlyWorking)
                         .tint(KairoColors.brandPrimary)
                         .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("employment", "currentlyWorking"))
 
-                    if !draft.isCurrentlyWorking {
-                        if mode != .create {
-                            Toggle("Include an end date", isOn: $draft.includesEndDate)
-                                .tint(KairoColors.brandPrimary)
-                        }
-                        if mode == .create || draft.includesEndDate {
-                        CareerDateField(
-                            title: "End date",
-                            selection: $draft.endDate,
-                            errorMessage: fieldErrors["end_date"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "endDate")
-                        )
-                        }
-                    }
+                    CandidateDateField(title: "End date", selection: Binding(get: { draft.includesEndDate ? draft.endDate : nil }, set: { value in if let value { draft.endDate = value }; draft.includesEndDate = value != nil }), disabled: draft.isCurrentlyWorking, errorMessage: fieldErrors["end_date"], identifier: KairoAccessibilityID.careerMutationField("employment", "endDate"))
 
                     CareerSelectionMenu(
-                        title: "Work arrangement",
-                        value: draft.workArrangement.title,
-                        errorMessage: nil,
+                        title: "Work arrangement — Optional",
+                        value: draft.workArrangementLabel,
+                        errorMessage: fieldErrors["work_arrangement"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("employment", "workArrangement")
                     ) {
                         ForEach(CareerWorkArrangementOption.allCases) { option in
                             Button(option.title) {
-                                draft.workArrangement = option
+                                draft.selectWorkArrangement(option)
                             }
+                            .accessibilityAddTraits(draft.workArrangementLabel == option.title ? [.isSelected] : [])
                         }
                     }
 
                     if draft.workArrangement != .remote {
                         CandidateLocationFields(country: $draft.workLocationCountry, region: $draft.workLocationRegion,
-                            city: $draft.workLocationCity, required: true, identifier: "career.employment.location")
+                            city: $draft.workLocationCity, required: false, identifier: "career.employment.location")
                         if let error = fieldErrors["work_location_city"] { Text(error).foregroundStyle(KairoColors.danger) }
                         if let error = fieldErrors["work_location_country"] { Text(error).foregroundStyle(KairoColors.danger) }
+                        if let error = fieldErrors["work_location_region"] { Text(error).foregroundStyle(KairoColors.danger) }
                     } else {
                         Text("Remote roles do not require a work location.")
                             .font(KairoTypography.footnote)
@@ -235,6 +215,7 @@ struct CareerEmploymentEditorSheet: View {
                     }
                 }
             }
+            .onChange(of: draft) { _, _ in presentationError = nil }
             .interactiveDismissDisabled(isSaving)
             .disabled(isSaving)
         }
@@ -289,7 +270,7 @@ struct CareerEducationEditorSheet: View {
     }
 
     private var fieldErrors: [String: String] {
-        draft.validationErrors().merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
+        draft.validationErrors(mode: mode).merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
     }
 
     private var canSave: Bool {
@@ -313,59 +294,48 @@ struct CareerEducationEditorSheet: View {
 
                 KairoSection {
                     KairoTextField(
-                        title: "Institution",
+                        title: "Institution" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Riverdale Institute of Technology",
                         text: $draft.institutionName,
                         errorMessage: fieldErrors["institution_name"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "institution")
                     )
 
-                    KairoTextField(
-                        title: "Degree",
-                        prompt: "Bachelor of Technology",
-                        text: $draft.degree,
-                        errorMessage: fieldErrors["degree"],
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "degree")
-                    )
+                    CandidatePlacePicker(title: "Degree", value: draft.degree, options: draft.degree.isEmpty ? [] : [draft.degree], allowCustom: true, maxLength: 255, required: mode == .create) { draft.degree = $0 }
+                        .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("education", "degree"))
+                    if let error = fieldErrors["degree"] { Text(error).foregroundStyle(KairoColors.danger) }
 
                     KairoTextField(
-                        title: "Field of study",
+                        title: "Field of study — Optional",
                         prompt: "Information Technology",
                         text: $draft.fieldOfStudy,
+                        errorMessage: fieldErrors["field_of_study"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "fieldOfStudy")
                     )
 
                     CareerSelectionMenu(
-                        title: "Education level",
-                        value: draft.educationLevel?.title ?? "Choose the education level",
+                        title: "Education level" + (mode == .create ? " *" : " — If changed"),
+                        value: draft.educationLevelLabel,
                         errorMessage: fieldErrors["education_level"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "educationLevel")
                     ) {
                         ForEach(CareerEducationLevelOption.allCases) { option in
                             Button(option.title) {
-                                draft.educationLevel = option
+                                draft.selectEducationLevel(option)
                             }
+                            .accessibilityAddTraits(draft.educationLevelLabel == option.title ? [.isSelected] : [])
                         }
                     }
 
                     KairoTextField(
-                        title: "Grade",
+                        title: "Grade — Optional",
                         prompt: "Optional",
                         text: $draft.grade,
+                        errorMessage: fieldErrors["grade"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "grade")
                     )
 
-                    if mode != .create {
-                        Toggle("Include a start date", isOn: $draft.includesStartDate)
-                            .tint(KairoColors.brandPrimary)
-                    }
-                    if mode == .create || draft.includesStartDate {
-                    CareerDateField(
-                        title: "Start date",
-                        selection: $draft.startDate,
-                        errorMessage: nil,
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "startDate")
-                    )
+                    CandidateDateField(title: "Start date", selection: Binding(get: { draft.includesStartDate ? draft.startDate : nil }, set: { value in if let value { draft.startDate = value }; draft.includesStartDate = value != nil }), precision: draft.startPrecision, required: mode == .create, errorMessage: fieldErrors["start_date"], identifier: KairoAccessibilityID.careerMutationField("education", "startDate"))
 
                     CareerSelectionMenu(
                         title: "Start date precision",
@@ -377,27 +347,15 @@ struct CareerEducationEditorSheet: View {
                             Button(option.title) {
                                 draft.startPrecision = option
                             }
+                            .accessibilityAddTraits(draft.startPrecision == option ? [.isSelected] : [])
                         }
-                    }
                     }
 
                     Toggle("I'm currently studying here", isOn: $draft.isCurrentlyStudying)
                         .tint(KairoColors.brandPrimary)
                         .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("education", "currentlyStudying"))
 
-                    if !draft.isCurrentlyStudying {
-                        Toggle("Include an end date", isOn: $draft.includesEndDate)
-                            .tint(KairoColors.brandPrimary)
-                            .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("education", "includesEndDate"))
-                    }
-
-                    if !draft.isCurrentlyStudying, draft.includesEndDate {
-                        CareerDateField(
-                            title: "End date",
-                            selection: $draft.endDate,
-                            errorMessage: fieldErrors["end_date"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "endDate")
-                        )
+                    CandidateDateField(title: "End date", selection: Binding(get: { draft.includesEndDate ? draft.endDate : nil }, set: { value in if let value { draft.endDate = value }; draft.includesEndDate = value != nil }), precision: draft.endPrecision, disabled: draft.isCurrentlyStudying, errorMessage: fieldErrors["end_date"], identifier: KairoAccessibilityID.careerMutationField("education", "endDate"))
 
                         CareerSelectionMenu(
                             title: "End date precision",
@@ -409,11 +367,12 @@ struct CareerEducationEditorSheet: View {
                                 Button(option.title) {
                                     draft.endPrecision = option
                                 }
+                                .accessibilityAddTraits(draft.endPrecision == option ? [.isSelected] : [])
                             }
                         }
-                    }
                 }
             }
+            .onChange(of: draft) { _, _ in presentationError = nil }
             .interactiveDismissDisabled(isSaving)
             .disabled(isSaving)
         }
@@ -470,7 +429,7 @@ struct CareerCertificationEditorSheet: View {
     }
 
     private var fieldErrors: [String: String] {
-        draft.validationErrors().merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
+        draft.validationErrors(mode: mode).merging(presentationError?.fieldErrors ?? [:]) { current, _ in current }
     }
 
     private var canSave: Bool {
@@ -494,7 +453,7 @@ struct CareerCertificationEditorSheet: View {
 
                 KairoSection {
                     KairoTextField(
-                        title: "Certification title",
+                        title: "Certification title" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Certified Scrum Product Owner",
                         text: $draft.title,
                         errorMessage: fieldErrors["title"],
@@ -502,54 +461,31 @@ struct CareerCertificationEditorSheet: View {
                     )
 
                     KairoTextField(
-                        title: "Issuer",
+                        title: "Issuer" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Scrum Alliance",
                         text: $draft.issuingOrganization,
                         errorMessage: fieldErrors["issuing_organization"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "issuer")
                     )
 
-                    if mode != .create {
-                        Toggle("Include an issue date", isOn: $draft.includesIssuedDate)
-                            .tint(KairoColors.brandPrimary)
-                    }
-                    if mode == .create || draft.includesIssuedDate {
-                    CareerDateField(
-                        title: "Issue date",
-                        selection: $draft.issuedDate,
-                        errorMessage: nil,
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "issuedDate")
-                    )
-                    }
+                    CandidateDateField(title: "Issue date", selection: Binding(get: { draft.includesIssuedDate ? draft.issuedDate : nil }, set: { value in if let value { draft.issuedDate = value }; draft.includesIssuedDate = value != nil }), required: mode == .create, errorMessage: fieldErrors["issued_date"], identifier: KairoAccessibilityID.careerMutationField("certification", "issuedDate"))
 
                     Toggle("This certification never expires", isOn: $draft.doesNotExpire)
                         .tint(KairoColors.brandPrimary)
                         .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("certification", "doesNotExpire"))
 
-                    if !draft.doesNotExpire {
-                        Toggle("Include an expiry date", isOn: $draft.includesExpiryDate)
-                            .tint(KairoColors.brandPrimary)
-                            .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("certification", "includesExpiryDate"))
-                    }
-
-                    if !draft.doesNotExpire, draft.includesExpiryDate {
-                        CareerDateField(
-                            title: "Expiry date",
-                            selection: $draft.expiryDate,
-                            errorMessage: fieldErrors["expiry_date"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "expiryDate")
-                        )
-                    }
+                    CandidateDateField(title: "Expiry date", selection: Binding(get: { draft.includesExpiryDate ? draft.expiryDate : nil }, set: { value in if let value { draft.expiryDate = value }; draft.includesExpiryDate = value != nil }), disabled: draft.doesNotExpire, errorMessage: fieldErrors["expiry_date"], identifier: KairoAccessibilityID.careerMutationField("certification", "expiryDate"))
 
                     KairoTextField(
-                        title: "Credential ID",
+                        title: "Credential ID — Optional",
                         prompt: "Optional",
                         text: $draft.credentialID,
+                        errorMessage: fieldErrors["credential_id"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("certification", "credentialID")
                     )
 
                     KairoTextField(
-                        title: "Credential URL",
+                        title: "Credential URL — Optional",
                         prompt: "https://example.com/credential",
                         text: $draft.credentialURL,
                         errorMessage: fieldErrors["credential_url"],
@@ -598,6 +534,7 @@ struct CareerCertificationEditorSheet: View {
                     }
                 }
             }
+            .onChange(of: draft) { _, _ in presentationError = nil }
             .interactiveDismissDisabled(isSaving)
             .disabled(isSaving)
             .fileImporter(
@@ -693,7 +630,7 @@ struct CareerProjectEditorSheet: View {
 
                 KairoSection {
                     KairoTextField(
-                        title: "Project title",
+                        title: "Project title" + (mode == .create ? " *" : " — If changed"),
                         prompt: "Vendor Intelligence Platform",
                         text: $draft.title,
                         errorMessage: fieldErrors["title"],
@@ -701,60 +638,39 @@ struct CareerProjectEditorSheet: View {
                     )
 
                     KairoTextField(
-                        title: "Role",
+                        title: "Role — Optional",
                         prompt: "Program Lead",
                         text: $draft.role,
+                        errorMessage: fieldErrors["role"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("project", "role")
                     )
 
                     KairoTextField(
-                        title: "Organization",
+                        title: "Organization — Optional",
                         prompt: "Optional",
                         text: $draft.organizationName,
+                        errorMessage: fieldErrors["organization_name"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("project", "organization")
                     )
 
                     KairoTextField(
-                        title: "Description",
+                        title: "Description — Optional",
                         prompt: "Optional",
                         text: $draft.description,
+                        errorMessage: fieldErrors["description"],
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("project", "description")
                     )
 
-                    Toggle("Include a start date", isOn: $draft.includesStartDate)
-                        .tint(KairoColors.brandPrimary)
-                        .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("project", "includesStartDate"))
-
-                    if draft.includesStartDate {
-                        CareerDateField(
-                            title: "Start date",
-                            selection: $draft.startDate,
-                            errorMessage: nil,
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("project", "startDate")
-                        )
-                    }
+                    CandidateDateField(title: "Start date", selection: Binding(get: { draft.includesStartDate ? draft.startDate : nil }, set: { value in if let value { draft.startDate = value }; draft.includesStartDate = value != nil }), errorMessage: fieldErrors["start_date"], identifier: KairoAccessibilityID.careerMutationField("project", "startDate"))
 
                     Toggle("This project is ongoing", isOn: $draft.isOngoing)
                         .tint(KairoColors.brandPrimary)
                         .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("project", "isOngoing"))
 
-                    if !draft.isOngoing {
-                        Toggle("Include an end date", isOn: $draft.includesEndDate)
-                            .tint(KairoColors.brandPrimary)
-                            .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("project", "includesEndDate"))
-                    }
-
-                    if !draft.isOngoing, draft.includesEndDate {
-                        CareerDateField(
-                            title: "End date",
-                            selection: $draft.endDate,
-                            errorMessage: fieldErrors["end_date"],
-                            accessibilityIdentifier: KairoAccessibilityID.careerMutationField("project", "endDate")
-                        )
-                    }
+                    CandidateDateField(title: "End date", selection: Binding(get: { draft.includesEndDate ? draft.endDate : nil }, set: { value in if let value { draft.endDate = value }; draft.includesEndDate = value != nil }), disabled: draft.isOngoing, errorMessage: fieldErrors["end_date"], identifier: KairoAccessibilityID.careerMutationField("project", "endDate"))
 
                     KairoTextField(
-                        title: "Project URL",
+                        title: "Project URL — Optional",
                         prompt: "https://example.com/project",
                         text: $draft.projectURL,
                         errorMessage: fieldErrors["project_url"],
@@ -764,7 +680,7 @@ struct CareerProjectEditorSheet: View {
                     )
 
                     KairoTextField(
-                        title: "Repository URL",
+                        title: "Repository URL — Optional",
                         prompt: "https://github.com/example/repo",
                         text: $draft.repositoryURL,
                         errorMessage: fieldErrors["repository_url"],
@@ -774,6 +690,7 @@ struct CareerProjectEditorSheet: View {
                     )
                 }
             }
+            .onChange(of: draft) { _, _ in presentationError = nil }
             .interactiveDismissDisabled(isSaving)
             .disabled(isSaving)
         }
@@ -1099,7 +1016,7 @@ private struct CareerMutationScaffold<Content: View>: View {
     var body: some View {
         KairoScreenContainer(
             title: title,
-            subtitle: subtitle,
+            subtitle: subtitle + " * Required on create. Other fields are optional. Existing values are preserved until changed.",
             titleAccessibilityIdentifier: "candidate.career.mutation.title",
             scrollBehavior: .scrolls
         ) {
@@ -1142,46 +1059,6 @@ private struct CareerMutationErrorCard: View {
     }
 }
 
-private struct CareerDateField: View {
-    let title: String
-    @Binding var selection: Date
-    let errorMessage: String?
-    let accessibilityIdentifier: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-            Text(title)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-
-            DatePicker(
-                "",
-                selection: $selection,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.compact)
-            .labelsHidden()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, KairoSpacing.medium)
-            .padding(.vertical, KairoSpacing.medium)
-            .background(KairoColors.surfaceMuted.opacity(0.65))
-            .overlay(
-                RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                    .stroke(errorMessage == nil ? KairoColors.border : KairoColors.danger, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
-            .accessibilityIdentifier(accessibilityIdentifier)
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
 private struct CareerSelectionMenu<MenuContent: View>: View {
     let title: String
     let value: String
@@ -1218,6 +1095,8 @@ private struct CareerSelectionMenu<MenuContent: View>: View {
                 .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous))
             }
             .accessibilityIdentifier(accessibilityIdentifier)
+            .accessibilityLabel(title.replacingOccurrences(of: "*", with: ", required"))
+            .accessibilityValue(value)
 
             if let errorMessage {
                 Text(errorMessage)

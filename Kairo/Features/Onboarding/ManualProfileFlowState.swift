@@ -87,7 +87,7 @@ nonisolated struct ManualEmploymentEntry: Equatable, Identifiable, Codable, Send
     var isPersisted = false
     var company = ""
     var jobTitle = ""
-    var employmentType = ""
+    var employmentType = "full_time"
     var workCountry = ""
     var startDay = ""
     var startMonth = ""
@@ -111,6 +111,8 @@ nonisolated struct ManualEducationEntry: Equatable, Identifiable, Codable, Senda
     var fieldOfStudy = ""
     var startYear = ""
     var endYear = ""
+
+    var isCurrentlyStudying: Bool? = nil
 
     static func blank(id: Int) -> ManualEducationEntry {
         ManualEducationEntry(id: id)
@@ -212,11 +214,7 @@ nonisolated struct ManualProfileFlowState: Equatable, Codable, Sendable {
 
         mutate(&employmentEntries[index])
 
-        if employmentEntries[index].isCurrentlyWorking {
-            employmentEntries[index].endDay = ""
-            employmentEntries[index].endMonth = ""
-            employmentEntries[index].endYear = ""
-        }
+        // Current-status changes never silently remove an existing end date.
     }
 
     mutating func addEducation() {
@@ -415,11 +413,6 @@ nonisolated enum ManualProfileNormalization {
 }
 
 nonisolated enum ManualProfileValidation {
-    private nonisolated static var minimumYear: Int { 1950 }
-    private nonisolated static var currentYear: Int {
-        Calendar(identifier: .gregorian).component(.year, from: Date())
-    }
-
     nonisolated static func basicProfileError(
         for field: ManualProfileBasicField,
         in draft: ManualProfileBasicDraft
@@ -444,13 +437,9 @@ nonisolated enum ManualProfileValidation {
         case .yearsOfExperience:
             return yearsOfExperienceValidationMessage(draft.yearsOfExperience)
         case .currentCity:
-            return ManualProfileNormalization.normalized(draft.currentCity).isEmpty
-                ? "Enter your current city."
-                : nil
+            return draft.currentCity.count > 128 ? "Use at most 128 characters." : nil
         case .currentCountry:
-            return ManualProfileNormalization.normalized(draft.currentCountry).isEmpty
-                ? "Enter your current country."
-                : nil
+            return !draft.currentCountry.isEmpty && ManualProfileNormalization.normalizedCountryCode(draft.currentCountry) == nil ? "Choose a valid country." : nil
         }
     }
 
@@ -464,7 +453,7 @@ nonisolated enum ManualProfileValidation {
 
         switch field {
         case .company:
-            return ManualProfileNormalization.normalized(entry.company).isEmpty ? "Enter the company." : nil
+            return ManualProfileNormalization.normalized(entry.company).count < 2 || entry.company.count > 512 ? "Enter a company name of 2–512 characters." : nil
         case .jobTitle:
             return ManualProfileNormalization.normalized(entry.jobTitle).isEmpty ? "Enter the job title." : nil
         case .employmentType:
@@ -477,7 +466,7 @@ nonisolated enum ManualProfileValidation {
                 : nil
         case .workCountry:
             guard !ManualProfileNormalization.normalized(entry.workCountry).isEmpty else {
-                return "Enter the work country."
+                return nil
             }
 
             return ManualProfileNormalization.normalizedCountryCode(entry.workCountry) == nil
@@ -490,18 +479,21 @@ nonisolated enum ManualProfileValidation {
         case .startYear:
             return yearValidationMessage(entry.startYear, emptyMessage: "Enter the start year.")
         case .endDay:
+            if entry.endDay.isEmpty && entry.endMonth.isEmpty && entry.endYear.isEmpty { return nil }
             guard !entry.isCurrentlyWorking else {
-                return nil
+                return "Remove the end date explicitly, or turn off Currently working."
             }
 
             return validatedDay(entry.endDay) == nil ? "Enter a valid end day." : nil
         case .endMonth:
+            if entry.endDay.isEmpty && entry.endMonth.isEmpty && entry.endYear.isEmpty { return nil }
             guard !entry.isCurrentlyWorking else {
                 return nil
             }
 
             return validatedMonth(entry.endMonth) == nil ? "Enter a valid end month." : nil
         case .endYear:
+            if entry.endDay.isEmpty && entry.endMonth.isEmpty && entry.endYear.isEmpty { return nil }
             guard !entry.isCurrentlyWorking else {
                 return nil
             }
@@ -548,12 +540,12 @@ nonisolated enum ManualProfileValidation {
                 ? "Choose a supported education level."
                 : nil
         case .fieldOfStudy:
-            return ManualProfileNormalization.normalized(entry.fieldOfStudy).isEmpty
-                ? "Enter the field of study."
-                : nil
+            return entry.fieldOfStudy.count > 255 ? "Use at most 255 characters." : nil
         case .startYear:
             return yearValidationMessage(entry.startYear, emptyMessage: "Enter the start year.")
         case .endYear:
+            if entry.endYear.isEmpty { return nil }
+            if entry.isCurrentlyStudying == true { return "Remove the end year explicitly, or turn off Currently studying." }
             if let message = yearValidationMessage(entry.endYear, emptyMessage: "Enter the end year.") {
                 return message
             }
@@ -642,16 +634,14 @@ nonisolated enum ManualProfileValidation {
             return emptyMessage
         }
 
-        return validatedYear(normalizedYear) == nil ? "Enter a valid 4-digit year." : nil
+        return validatedYear(normalizedYear) == nil ? "Enter a year from 1 to 9999." : nil
     }
 
     private nonisolated static func validatedYear(_ value: String) -> Int? {
         let normalizedYear = ManualProfileNormalization.normalized(value)
-        guard normalizedYear.count == 4,
-              normalizedYear.allSatisfy(\.isNumber),
+        guard normalizedYear.allSatisfy(\.isNumber),
               let year = Int(normalizedYear),
-              year >= minimumYear,
-              year <= currentYear + 1 else {
+              (1...9999).contains(year) else {
             return nil
         }
 

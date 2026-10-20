@@ -17,9 +17,12 @@ extension CareerEmploymentUpdateRequestDTO {
         try values.encodeIfPresent(employmentType, forKey: .employmentType)
         try values.encode(startDate, forKey: .startDate)
         try values.encode(endDate, forKey: .endDate)
-        try values.encodeIfPresent(workLocationCountry, forKey: .workLocationCountry)
-        try values.encodeIfPresent(workLocationRegion, forKey: .workLocationRegion)
-        try values.encodeIfPresent(workLocationCity, forKey: .workLocationCity)
+        if updatesCountry { try values.encode(workLocationCountry, forKey: .workLocationCountry) }
+        else { try values.encodeIfPresent(workLocationCountry, forKey: .workLocationCountry) }
+        if updatesRegion { try values.encode(workLocationRegion, forKey: .workLocationRegion) }
+        else { try values.encodeIfPresent(workLocationRegion, forKey: .workLocationRegion) }
+        if updatesCity { try values.encode(workLocationCity, forKey: .workLocationCity) }
+        else { try values.encodeIfPresent(workLocationCity, forKey: .workLocationCity) }
         try values.encodeIfPresent(workArrangement, forKey: .workArrangement)
     }
 }
@@ -316,6 +319,10 @@ nonisolated struct CareerEmploymentUpdateRequestDTO: Encodable, Equatable, Senda
     let workLocationRegion: String?
     var workLocationCity: String? = nil
     var workArrangement: String? = nil
+    // Distinguish deliberate optional-location clearing from preserving an unknown legacy value.
+    var updatesCountry = false
+    var updatesRegion = false
+    var updatesCity = false
 }
 
 nonisolated struct CareerEducationCreateRequestDTO: Encodable, Equatable, Sendable {

@@ -156,7 +156,7 @@ final class CareerMutationStateTests: XCTestCase {
         XCTAssertFalse(UITestCareerConfiguration.current(arguments: [], environment: environment).showsAttachedCertificationEditor)
     }
 
-    func test_projectUpdateRequestOmitsEndDateForOngoingProject() {
+    func test_projectOngoingConflictRequiresExplicitEndDateRemoval() {
         var draft = CareerProjectDraft()
         draft.title = "Vendor Intelligence Platform"
         draft.role = "Product Operations Manager"
@@ -169,7 +169,11 @@ final class CareerMutationStateTests: XCTestCase {
         let request = draft.updateRequest()
 
         XCTAssertEqual(request.startDate, "2025-01-01")
-        XCTAssertNil(request.endDate)
+        XCTAssertEqual(request.endDate, "2025-06-01")
+        XCTAssertNotNil(draft.validationErrors()["end_date"])
+        draft.includesEndDate = false
+        XCTAssertNil(draft.updateRequest().endDate)
+        XCTAssertNil(draft.validationErrors()["end_date"])
         XCTAssertEqual(request.isOngoing, true)
     }
 

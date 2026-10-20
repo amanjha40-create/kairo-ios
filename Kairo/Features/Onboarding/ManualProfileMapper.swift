@@ -159,7 +159,7 @@ nonisolated enum ManualProfileMapper {
             employmentType: request.employmentType,
             startDate: request.startDate,
             endDate: request.endDate ?? "",
-            workLocationCountry: request.workLocationCountry,
+            workLocationCountry: request.workLocationCountry ?? "",
             workLocationRegion: ManualProfileNormalization.normalized(request.workLocationRegion ?? "").lowercased()
         )
     }
@@ -226,7 +226,8 @@ nonisolated enum ManualProfileMapper {
             )
         }
 
-        guard let workCountry = ManualProfileNormalization.normalizedCountryCode(entry.workCountry) else {
+        let workCountry = ManualProfileNormalization.normalizedCountryCode(entry.workCountry)
+        if !entry.workCountry.isEmpty && workCountry == nil {
             throw ManualProfileMappingError.employment(
                 entryID: entry.id,
                 field: .workCountry,
@@ -242,7 +243,10 @@ nonisolated enum ManualProfileMapper {
             field: .startDay,
             emptyMessage: "Enter a valid start date."
         )
-        let endDate = entry.isCurrentlyWorking
+        if entry.isCurrentlyWorking && (!entry.endDay.isEmpty || !entry.endMonth.isEmpty || !entry.endYear.isEmpty) {
+            throw ManualProfileMappingError.employment(entryID: entry.id, field: .endDay, message: "Remove the end date explicitly, or turn off Currently working.")
+        }
+        let endDate = (entry.endDay.isEmpty && entry.endMonth.isEmpty && entry.endYear.isEmpty)
             ? nil
             : try employmentDate(
                 entryID: entry.id,
@@ -280,14 +284,18 @@ nonisolated enum ManualProfileMapper {
         }
 
         guard
-            let startYear = Int(ManualProfileNormalization.normalized(entry.startYear)),
-            let endYear = Int(ManualProfileNormalization.normalized(entry.endYear))
+            let startYear = Int(ManualProfileNormalization.normalized(entry.startYear))
         else {
             throw ManualProfileMappingError.education(
                 entryID: entry.id,
                 field: .startYear,
                 message: "Enter valid education years."
             )
+        }
+
+        let endYear = Int(ManualProfileNormalization.normalized(entry.endYear))
+        if !entry.endYear.isEmpty && (endYear == nil || entry.isCurrentlyStudying == true) {
+            throw ManualProfileMappingError.education(entryID: entry.id, field: .endYear, message: "Check the end year or explicitly remove it while currently studying.")
         }
 
         return ManualEducationCreateRequestDTO(
@@ -298,9 +306,9 @@ nonisolated enum ManualProfileMapper {
             grade: nil,
             startDate: formattedYearDate(startYear),
             startDatePrecision: "year",
-            endDate: formattedYearDate(endYear),
-            endDatePrecision: "year",
-            isCurrentlyStudying: false
+            endDate: endYear.map(formattedYearDate),
+            endDatePrecision: endYear == nil ? nil : "year",
+            isCurrentlyStudying: entry.isCurrentlyStudying == true
         )
     }
 
@@ -342,6 +350,7 @@ nonisolated enum ManualProfileMapper {
         entry.degree = ManualProfileNormalization.normalized(dto.degree ?? "")
         entry.educationLevel = displayEducationLevel(dto.educationLevel)
         entry.fieldOfStudy = ManualProfileNormalization.normalized(dto.fieldOfStudy ?? "")
+        entry.isCurrentlyStudying = dto.isCurrentlyStudying
         if let startDate = dto.startDate {
             entry.startYear = calendar.component(.year, from: startDate).description
         }

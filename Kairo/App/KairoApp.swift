@@ -74,7 +74,9 @@ struct KairoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if LocalBatch1QA.mode("unknownDates", configuration: configuration) {
+                if LocalBatch1QA.mode("batch2Forms", configuration: configuration) {
+                    LocalBatch2FormQA()
+                } else if LocalBatch1QA.mode("unknownDates", configuration: configuration) {
                     LocalBatch1QADateEditor()
                 } else if FinalMirrorQA.isEnabled(configuration: configuration) {
                     FinalMirrorQAHostView()

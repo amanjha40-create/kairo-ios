@@ -325,12 +325,12 @@ private struct BasicProfileStepView: View {
                 KairoCard {
                     VStack(spacing: KairoSpacing.medium) {
                         KairoTextField(
-                            title: "Full Name",
+                            title: "Full Name *",
                             prompt: "Enter your full name",
                             text: $draft.fullName,
                             errorMessage: basicError(for: .fullName),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileFullName,
-                            accessibilityLabel: "Full name",
+                            accessibilityLabel: "Full name, required",
                             textContentType: .name,
                             textInputAutocapitalization: .words,
                             focus: $focusedField, focusedField: .fullName
@@ -338,12 +338,12 @@ private struct BasicProfileStepView: View {
                         .id(ManualProfileBasicField.fullName)
 
                         KairoTextField(
-                            title: "Professional Headline",
+                            title: "Professional Headline *",
                             prompt: "Describe your professional focus",
                             text: $draft.professionalHeadline,
                             errorMessage: basicError(for: .professionalHeadline),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileHeadline,
-                            accessibilityLabel: "Professional headline",
+                            accessibilityLabel: "Professional headline, required",
                             textContentType: .jobTitle,
                             textInputAutocapitalization: .words,
                             focus: $focusedField, focusedField: .professionalHeadline
@@ -351,12 +351,12 @@ private struct BasicProfileStepView: View {
                         .id(ManualProfileBasicField.professionalHeadline)
 
                         KairoTextField(
-                            title: "Current Role",
+                            title: "Current Role *",
                             prompt: "Enter your current role",
                             text: $draft.currentRole,
                             errorMessage: basicError(for: .currentRole),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentRole,
-                            accessibilityLabel: "Current role",
+                            accessibilityLabel: "Current role, required",
                             textContentType: .jobTitle,
                             textInputAutocapitalization: .words,
                             focus: $focusedField, focusedField: .currentRole
@@ -364,52 +364,37 @@ private struct BasicProfileStepView: View {
                         .id(ManualProfileBasicField.currentRole)
 
                         KairoTextField(
-                            title: "Industry",
+                            title: "Industry *",
                             prompt: "Enter your industry",
                             text: $draft.industry,
                             errorMessage: basicError(for: .industry),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileIndustry,
-                            accessibilityLabel: "Industry",
+                            accessibilityLabel: "Industry, required",
                             textInputAutocapitalization: .words,
                             focus: $focusedField, focusedField: .industry
                         )
                         .id(ManualProfileBasicField.industry)
 
                         KairoTextField(
-                            title: "Years of Experience",
+                            title: "Years of Experience *",
                             prompt: "Whole years",
                             text: $draft.yearsOfExperience,
                             errorMessage: basicError(for: .yearsOfExperience),
                             accessibilityIdentifier: KairoAccessibilityID.manualProfileYearsOfExperience,
-                            accessibilityLabel: "Years of experience",
+                            accessibilityLabel: "Years of experience, required",
                             keyboardType: .numberPad,
                             focus: $focusedField, focusedField: .yearsOfExperience
                         )
                         .id(ManualProfileBasicField.yearsOfExperience)
 
-                        KairoTextField(
-                            title: "Current City",
-                            prompt: "Enter your current city",
-                            text: $draft.currentCity,
-                            errorMessage: basicError(for: .currentCity),
-                            accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentCity,
-                            accessibilityLabel: "Current city",
-                            textInputAutocapitalization: .words,
-                            focus: $focusedField, focusedField: .currentCity
-                        )
-                        .id(ManualProfileBasicField.currentCity)
-
-                        KairoTextField(
-                            title: "Current Country",
-                            prompt: "Enter your current country",
-                            text: $draft.currentCountry,
-                            errorMessage: basicError(for: .currentCountry),
-                            accessibilityIdentifier: KairoAccessibilityID.manualProfileCurrentCountry,
-                            accessibilityLabel: "Current country",
-                            textInputAutocapitalization: .words,
-                            focus: $focusedField, focusedField: .currentCountry
-                        )
-                        .id(ManualProfileBasicField.currentCountry)
+                        CandidatePlacePicker(title: "Current city", value: draft.currentCity, options: draft.currentCity.isEmpty ? [] : [draft.currentCity], allowClear: true, allowCustom: true) { draft.currentCity = $0 }
+                            .accessibilityIdentifier(KairoAccessibilityID.manualProfileCurrentCity)
+                            .id(ManualProfileBasicField.currentCity)
+                        if let error = basicError(for: .currentCity) { Text(error).foregroundStyle(KairoColors.danger) }
+                        CandidatePlacePicker(title: "Current country", value: draft.currentCountry, options: Locale.Region.isoRegions.map(\.identifier), allowClear: true, display: CandidateLocationCatalogue.countryName) { draft.currentCountry = $0 }
+                            .accessibilityIdentifier(KairoAccessibilityID.manualProfileCurrentCountry)
+                            .id(ManualProfileBasicField.currentCountry)
+                        if let error = basicError(for: .currentCountry) { Text(error).foregroundStyle(KairoColors.danger) }
                     }
                 }
             }
@@ -535,76 +520,33 @@ private struct EmploymentStepView: View {
                             }
 
                             KairoTextField(
-                                title: "Company",
+                                title: "Company *",
                                 prompt: "Enter the company",
                                 text: employmentBinding(for: entry.id, keyPath: \.company),
                                 errorMessage: employmentError(for: .company, in: entry),
                                 accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentCompany(index),
-                                accessibilityLabel: "Company \(index + 1)",
+                                accessibilityLabel: "Company \(index + 1), required",
                                 textInputAutocapitalization: .words
                             )
 
                             KairoTextField(
-                                title: "Job Title",
+                                title: "Job Title *",
                                 prompt: "Enter your job title",
                                 text: employmentBinding(for: entry.id, keyPath: \.jobTitle),
                                 errorMessage: employmentError(for: .jobTitle, in: entry),
                                 accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentJobTitle(index),
-                                accessibilityLabel: "Job title \(index + 1)",
+                                accessibilityLabel: "Job title \(index + 1), required",
                                 textContentType: .jobTitle,
                                 textInputAutocapitalization: .words
                             )
 
-                            KairoTextField(
-                                title: "Employment Type",
-                                prompt: "Full-time, part-time, contract...",
-                                text: employmentBinding(for: entry.id, keyPath: \.employmentType),
-                                errorMessage: employmentError(for: .employmentType, in: entry),
-                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentType(index),
-                                accessibilityLabel: "Employment type \(index + 1)",
-                                textInputAutocapitalization: .words
-                            )
-
-                            KairoTextField(
-                                title: "Work Country",
-                                prompt: "Where was this role based?",
-                                text: employmentBinding(for: entry.id, keyPath: \.workCountry),
-                                errorMessage: employmentError(for: .workCountry, in: entry),
-                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentCountry(index),
-                                accessibilityLabel: "Work country \(index + 1)",
-                                textInputAutocapitalization: .words
-                            )
-
-                            ManualProfileDateTriplet(
-                                title: "Start Date",
-                                dayField: KairoTextField(
-                                    title: "Start Day",
-                                    prompt: "DD",
-                                    text: employmentBinding(for: entry.id, keyPath: \.startDay),
-                                    errorMessage: employmentError(for: .startDay, in: entry),
-                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentStartDay(index),
-                                    accessibilityLabel: "Start day \(index + 1)",
-                                    keyboardType: .numberPad
-                                ),
-                                monthField: KairoTextField(
-                                    title: "Start Month",
-                                    prompt: "January",
-                                    text: employmentBinding(for: entry.id, keyPath: \.startMonth),
-                                    errorMessage: employmentError(for: .startMonth, in: entry),
-                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentStartMonth(index),
-                                    accessibilityLabel: "Start month \(index + 1)",
-                                    textInputAutocapitalization: .words
-                                ),
-                                yearField: KairoTextField(
-                                    title: "Start Year",
-                                    prompt: "YYYY",
-                                    text: employmentBinding(for: entry.id, keyPath: \.startYear),
-                                    errorMessage: employmentError(for: .startYear, in: entry),
-                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentStartYear(index),
-                                    accessibilityLabel: "Start year \(index + 1)",
-                                    keyboardType: .numberPad
-                                )
-                            )
+                            CandidatePlacePicker(title: "Employment type", value: ManualProfileNormalization.normalizedEmploymentType(entry.employmentType) ?? entry.employmentType, options: CareerEmploymentTypeOption.allCases.map(\.rawValue), display: { CareerEmploymentTypeOption(rawValue: $0)?.title ?? $0 }) { value in state.updateEmployment(id: entry.id) { $0.employmentType = value } }
+                                .accessibilityIdentifier(KairoAccessibilityID.manualProfileEmploymentType(index))
+                            if let error = employmentError(for: .employmentType, in: entry) { Text(error).foregroundStyle(KairoColors.danger) }
+                            CandidatePlacePicker(title: "Work country", value: entry.workCountry, options: Locale.Region.isoRegions.map(\.identifier), allowClear: true, display: CandidateLocationCatalogue.countryName) { value in state.updateEmployment(id: entry.id) { $0.workCountry = value } }
+                                .accessibilityIdentifier(KairoAccessibilityID.manualProfileEmploymentCountry(index))
+                            if let error = employmentError(for: .workCountry, in: entry) { Text(error).foregroundStyle(KairoColors.danger) }
+                            CandidateDateField(title: "Start date", selection: employmentDateBinding(entry.id, end: false), required: true, hasIncompleteValue: ![entry.startDay, entry.startMonth, entry.startYear].allSatisfy(\.isEmpty), errorMessage: employmentError(for: .startDay, in: entry) ?? employmentError(for: .startMonth, in: entry) ?? employmentError(for: .startYear, in: entry), identifier: "manual.employment.\(index).startDate")
 
                             Toggle(isOn: employmentToggleBinding(for: entry.id)) {
                                 Text("Currently working here")
@@ -617,38 +559,7 @@ private struct EmploymentStepView: View {
                                 KairoAccessibilityID.manualProfileEmploymentCurrentToggle(index)
                             )
 
-                            if !entry.isCurrentlyWorking {
-                                ManualProfileDateTriplet(
-                                    title: "End Date",
-                                    dayField: KairoTextField(
-                                        title: "End Day",
-                                        prompt: "DD",
-                                        text: employmentBinding(for: entry.id, keyPath: \.endDay),
-                                        errorMessage: employmentError(for: .endDay, in: entry),
-                                        accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentEndDay(index),
-                                        accessibilityLabel: "End day \(index + 1)",
-                                        keyboardType: .numberPad
-                                    ),
-                                    monthField: KairoTextField(
-                                        title: "End Month",
-                                        prompt: "January",
-                                        text: employmentBinding(for: entry.id, keyPath: \.endMonth),
-                                        errorMessage: employmentError(for: .endMonth, in: entry),
-                                        accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentEndMonth(index),
-                                        accessibilityLabel: "End month \(index + 1)",
-                                        textInputAutocapitalization: .words
-                                    ),
-                                    yearField: KairoTextField(
-                                        title: "End Year",
-                                        prompt: "YYYY",
-                                        text: employmentBinding(for: entry.id, keyPath: \.endYear),
-                                        errorMessage: employmentError(for: .endYear, in: entry),
-                                        accessibilityIdentifier: KairoAccessibilityID.manualProfileEmploymentEndYear(index),
-                                        accessibilityLabel: "End year \(index + 1)",
-                                        keyboardType: .numberPad
-                                    )
-                                )
-                            }
+                            CandidateDateField(title: "End date", selection: employmentDateBinding(entry.id, end: true), disabled: entry.isCurrentlyWorking, hasIncompleteValue: ![entry.endDay, entry.endMonth, entry.endYear].allSatisfy(\.isEmpty), errorMessage: employmentError(for: .endDay, in: entry) ?? employmentError(for: .endMonth, in: entry) ?? employmentError(for: .endYear, in: entry), identifier: "manual.employment.\(index).endDate")
                         }
                     }
                 }
@@ -712,6 +623,22 @@ private struct EmploymentStepView: View {
                 }
             }
         )
+    }
+
+    private func employmentDateBinding(_ id: Int, end: Bool) -> Binding<Date?> {
+        Binding(get: {
+            guard let entry = state.employmentEntries.first(where: { $0.id == id }) else { return nil }
+            let year = end ? entry.endYear : entry.startYear
+            guard let month = ManualProfileNormalization.normalizedMonthNumber(end ? entry.endMonth : entry.startMonth),
+                  let day = Int(end ? entry.endDay : entry.startDay) else { return nil }
+            return CandidateDateInput.date(year: year, month: month, day: day)
+        }, set: { value in
+            state.updateEmployment(id: id) { entry in
+                let components = value.map { CandidateDateInput.calendar.dateComponents([.day, .month, .year], from: $0) }
+                if end { entry.endDay = components?.day.map(String.init) ?? ""; entry.endMonth = components?.month.map(String.init) ?? ""; entry.endYear = components?.year.map(String.init) ?? "" }
+                else { entry.startDay = components?.day.map(String.init) ?? ""; entry.startMonth = components?.month.map(String.init) ?? ""; entry.startYear = components?.year.map(String.init) ?? "" }
+            }
+        })
     }
 
     private func employmentToggleBinding(for entryID: Int) -> Binding<Bool> {
@@ -806,66 +733,39 @@ private struct EducationStepView: View {
                             }
 
                             KairoTextField(
-                                title: "Institution",
+                                title: "Institution *",
                                 prompt: "Enter the institution",
                                 text: educationBinding(for: entry.id, keyPath: \.institution),
                                 errorMessage: educationError(for: .institution, in: entry),
                                 accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationInstitution(index),
-                                accessibilityLabel: "Institution \(index + 1)",
+                                accessibilityLabel: "Institution \(index + 1), required",
                                 textInputAutocapitalization: .words
                             )
 
-                            KairoTextField(
-                                title: "Degree",
-                                prompt: "Enter the degree",
-                                text: educationBinding(for: entry.id, keyPath: \.degree),
-                                errorMessage: educationError(for: .degree, in: entry),
-                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationDegree(index),
-                                accessibilityLabel: "Degree \(index + 1)",
-                                textInputAutocapitalization: .words
-                            )
+                            CandidatePlacePicker(title: "Degree", value: entry.degree, options: entry.degree.isEmpty ? [] : [entry.degree], allowCustom: true, maxLength: 255, required: true) { value in state.updateEducation(id: entry.id) { $0.degree = value } }
+                                .accessibilityIdentifier(KairoAccessibilityID.manualProfileEducationDegree(index))
+                            if let error = educationError(for: .degree, in: entry) {
+                                Text(error).foregroundStyle(KairoColors.danger).fixedSize(horizontal: false, vertical: true)
+                            }
+                            CandidatePlacePicker(title: "Education level", value: ManualProfileNormalization.normalizedEducationLevel(entry.educationLevel) ?? entry.educationLevel, options: CareerEducationLevelOption.allCases.map(\.rawValue), required: true, display: { CareerEducationLevelOption(rawValue: $0)?.title ?? $0 }) { value in state.updateEducation(id: entry.id) { $0.educationLevel = value } }
+                                .accessibilityIdentifier(KairoAccessibilityID.manualProfileEducationLevel(index))
+                            if let error = educationError(for: .educationLevel, in: entry) {
+                                Text(error).foregroundStyle(KairoColors.danger).fixedSize(horizontal: false, vertical: true)
+                            }
 
                             KairoTextField(
-                                title: "Education Level",
-                                prompt: "Bachelor's, Master's, Diploma...",
-                                text: educationBinding(for: entry.id, keyPath: \.educationLevel),
-                                errorMessage: educationError(for: .educationLevel, in: entry),
-                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationLevel(index),
-                                accessibilityLabel: "Education level \(index + 1)",
-                                textInputAutocapitalization: .words
-                            )
-
-                            KairoTextField(
-                                title: "Field of Study",
+                                title: "Field of Study — Optional",
                                 prompt: "Enter the field of study",
                                 text: educationBinding(for: entry.id, keyPath: \.fieldOfStudy),
                                 errorMessage: educationError(for: .fieldOfStudy, in: entry),
                                 accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationFieldOfStudy(index),
-                                accessibilityLabel: "Field of study \(index + 1)",
+                                accessibilityLabel: "Field of study \(index + 1), optional",
                                 textInputAutocapitalization: .words
                             )
 
-                            ResponsiveFieldPair {
-                                KairoTextField(
-                                    title: "Start Year",
-                                    prompt: "YYYY",
-                                    text: educationBinding(for: entry.id, keyPath: \.startYear),
-                                    errorMessage: educationError(for: .startYear, in: entry),
-                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationStartYear(index),
-                                    accessibilityLabel: "Education start year \(index + 1)",
-                                    keyboardType: .numberPad
-                                )
-                            } trailing: {
-                                KairoTextField(
-                                    title: "End Year",
-                                    prompt: "YYYY",
-                                    text: educationBinding(for: entry.id, keyPath: \.endYear),
-                                    errorMessage: educationError(for: .endYear, in: entry),
-                                    accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationEndYear(index),
-                                    accessibilityLabel: "Education end year \(index + 1)",
-                                    keyboardType: .numberPad
-                                )
-                            }
+                            CandidateDateField(title: "Start year", selection: educationYearBinding(entry.id, end: false), precision: .year, required: true, hasIncompleteValue: !entry.startYear.isEmpty, errorMessage: educationError(for: .startYear, in: entry), identifier: "manual.education.\(index).startDate")
+                            Toggle("Currently studying here", isOn: Binding(get: { entry.isCurrentlyStudying == true }, set: { value in state.updateEducation(id: entry.id) { $0.isCurrentlyStudying = value } }))
+                            CandidateDateField(title: "End year", selection: educationYearBinding(entry.id, end: true), precision: .year, disabled: entry.isCurrentlyStudying == true, hasIncompleteValue: !entry.endYear.isEmpty, errorMessage: educationError(for: .endYear, in: entry), identifier: "manual.education.\(index).endDate")
                         }
                     }
                 }
@@ -916,6 +816,16 @@ private struct EducationStepView: View {
                 }
             }
         }
+    }
+
+    private func educationYearBinding(_ id: Int, end: Bool) -> Binding<Date?> {
+        Binding(get: {
+            guard let entry = state.educationEntries.first(where: { $0.id == id }) else { return nil }
+            return CandidateDateInput.date(year: end ? entry.endYear : entry.startYear)
+        }, set: { value in
+            let year = value.map { String(CandidateDateInput.calendar.component(.year, from: $0)) } ?? ""
+            state.updateEducation(id: id) { entry in if end { entry.endYear = year } else { entry.startYear = year } }
+        })
     }
 
     private func educationBinding(

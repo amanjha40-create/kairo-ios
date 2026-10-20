@@ -3,6 +3,21 @@ import XCTest
 @testable import Kairo
 
 final class ManualProfileMapperTests: XCTestCase {
+    func test_optionalLocationStudyAndEndDatesAreOmittedUsingAPI43Contract() throws {
+        var draft = makeDraft()
+        draft.basicProfile.currentCity = ""
+        draft.basicProfile.currentCountry = ""
+        draft.updateEmployment(id: 0) { $0.workCountry = ""; $0.isCurrentlyWorking = false; $0.endDay = ""; $0.endMonth = ""; $0.endYear = "" }
+        draft.updateEducation(id: 0) { $0.fieldOfStudy = ""; $0.endYear = ""; $0.isCurrentlyStudying = true }
+        let payload = try ManualProfileMapper.makeSubmissionPayloads(draft: draft, currentUser: makeUser())
+        XCTAssertNil(payload.employments[0].request.workLocationCountry)
+        XCTAssertNil(payload.employments[0].request.endDate)
+        XCTAssertNil(payload.educations[0].request.fieldOfStudy)
+        XCTAssertNil(payload.educations[0].request.endDate)
+        XCTAssertNil(payload.educations[0].request.endDatePrecision)
+        XCTAssertTrue(payload.educations[0].request.isCurrentlyStudying)
+    }
+
     func test_zeroExperienceSubmissionEmitsNoEmploymentOrEducationCreates() throws {
         var draft = makeDraft()
         draft.basicProfile.yearsOfExperience = "0"
