@@ -19,6 +19,19 @@ protocol AuthServiceProtocol: Sendable {
     func logout() async throws
     func currentUser() async throws -> UserPublicDTO
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO
+    func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse
+    func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse
+}
+
+extension AuthServiceProtocol {
+    // Preview/test implementations must explicitly opt in; never fall back to signup.
+    func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
+        throw NetworkError.unavailableInDemoMode
+    }
+
+    func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse {
+        throw NetworkError.unavailableInDemoMode
+    }
 }
 
 actor AuthService: AuthServiceProtocol {
@@ -277,6 +290,41 @@ actor AuthService: AuthServiceProtocol {
             )
         )
         return try APIJSONCoder.makeDecoder().decode(OnboardingStatusResponseDTO.self, from: data)
+    }
+
+    func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
+        try await accountMobileVerification(path: "request", body: EmptyMobileVerificationRequest())
+    }
+
+    func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse {
+        guard code.count == 6, code.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+            throw AccountMobileVerificationError.invalidCode
+        }
+        return try await accountMobileVerification(
+            path: "verify", body: AccountMobileVerificationRequest(code: code)
+        )
+    }
+
+    private func accountMobileVerification<Body: Encodable & Sendable>(
+        path: String, body: Body
+    ) async throws -> AccountMobileVerificationResponse {
+        // Refresh only through a safe canonical read BEFORE the explicit OTP action.
+        // A verification 401 can mean an invalid code, not an expired login.
+        let status = try await onboardingStatus()
+        guard status.emailVerified else { throw AccountMobileVerificationError.emailRequired }
+        if status.phoneVerified {
+            return .init(state: .verified, phoneVerified: true, resendAfterSeconds: 0, expiresInSeconds: 0)
+        }
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/auth/mobile-verification/\(path)",
+            method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try APIJSONCoder.makeEncoder().encode(body),
+            allowsSessionRefreshOnUnauthorized: false
+        ))
+        let response = try APIJSONCoder.makeDecoder().decode(AccountMobileVerificationResponse.self, from: data)
+        guard response.isConsistent else { throw NetworkError.invalidResponse }
+        return response
     }
 
     private func postJSON<Response: Decodable, Body: Encodable & Sendable>(
@@ -573,6 +621,8 @@ actor DemoAuthService: AuthServiceProtocol {
 actor UITestAuthService: AuthServiceProtocol {
     private let sessionService: any SessionServiceProtocol
     private let configuration: UITestAuthConfiguration
+    private var accountMobileVerified = false
+    private let accountMobileScenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_ACCOUNT_MOBILE_RECOVERY"]
 
     init(
         sessionService: any SessionServiceProtocol,
@@ -841,7 +891,36 @@ actor UITestAuthService: AuthServiceProtocol {
     }
 
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO {
-        configuration.onboardingStatus
+        if accountMobileScenario != nil {
+            return .fixture(
+                currentStep: accountMobileVerified ? .completeProfile : .verifyIdentity,
+                emailVerified: true, phoneVerified: accountMobileVerified,
+                completedSteps: accountMobileVerified ? ["verify_email", "verify_phone"] : ["verify_email"],
+                missingRequirements: accountMobileVerified ? ["headline"] : ["verify_phone"]
+            )
+        }
+        return configuration.onboardingStatus
+    }
+
+    func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
+        guard accountMobileScenario != nil else { throw NetworkError.unavailableInDemoMode }
+        if accountMobileScenario == "deliveryFailure" { throw NetworkError.transport("synthetic failure") }
+        if accountMobileScenario == "phoneRequired" {
+            return .init(state: .phoneRequired, phoneVerified: false, resendAfterSeconds: 0, expiresInSeconds: 0)
+        }
+        return .init(state: .codeSent, phoneVerified: false, resendAfterSeconds: 30, expiresInSeconds: 300)
+    }
+
+    func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse {
+        guard accountMobileScenario != nil else { throw NetworkError.unavailableInDemoMode }
+        if accountMobileScenario == "invalidCode" || code != "123456" {
+            throw NetworkError.api(APIError(
+                statusCode: 401, code: .unauthorized, message: "Synthetic invalid code",
+                fieldErrors: [:], globalErrors: [], validationDetails: []
+            ))
+        }
+        accountMobileVerified = true
+        return .init(state: .verified, phoneVerified: true, resendAfterSeconds: 0, expiresInSeconds: 0)
     }
 
     private func signupChannelFixture(channel: String) -> SignupChannelSendResponseDTO {

@@ -663,6 +663,182 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(signupSessionID)
     }
 
+    func test_passwordResetLoginThenMobileRecoveryUsesAuthenticatedContractWithoutSignup() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("old-signup", for: .signupSessionID)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let path = request.url!.path
+            let payload: String
+            switch path {
+            case "/api/v1/auth/reset-password":
+                payload = #"{"message":"Password reset"}"#
+            case "/api/v1/auth/login":
+                payload = #"{"access_token":"test-access","refresh_token":"test-refresh","token_type":"bearer","expires_in":3600}"#
+            case "/api/v1/onboarding/status":
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-access")
+                payload = Self.accountRecoveryStatus
+            case "/api/v1/auth/mobile-verification/request":
+                XCTAssertEqual(request.httpMethod, "POST")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-access")
+                XCTAssertEqual(try Self.jsonBody(from: request).count, 0)
+                payload = #"{"state":"code_sent","phone_verified":false,"resend_after_seconds":30,"expires_in_seconds":300}"#
+            case "/api/v1/auth/mobile-verification/verify":
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-access")
+                let body = try Self.jsonBody(from: request)
+                XCTAssertEqual(Set(body.keys), ["code"])
+                XCTAssertEqual(body["code"] as? String, "123456")
+                payload = #"{"state":"verified","phone_verified":true,"resend_after_seconds":0,"expires_in_seconds":0}"#
+            default:
+                XCTFail("Unexpected route: \(path)")
+                throw NetworkError.invalidURL
+            }
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        _ = try await auth.resetPassword(token: "synthetic-reset", newPassword: "SyntheticPassword123!", confirmPassword: "SyntheticPassword123!")
+        _ = try await auth.login(email: "synthetic@example.com", password: "SyntheticPassword123!")
+        let signup = try await tokens.readToken(for: .signupSessionID)
+        XCTAssertNil(signup)
+        let sent = try await auth.requestAccountMobileVerification()
+        XCTAssertEqual(sent.state, .codeSent)
+        let verified = try await auth.verifyAccountMobile(code: "123456")
+        XCTAssertEqual(verified.state, .verified)
+        let access = try await tokens.readToken(for: .accessToken)
+        XCTAssertEqual(access, "test-access")
+    }
+
+    func test_mobileInvalidCodeDoesNotRefreshReplayOrClearSession() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        try await tokens.save("test-refresh", for: .refreshToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let path = request.url!.path
+            if path == "/api/v1/onboarding/status" {
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(Self.accountRecoveryStatus.utf8))
+            }
+            XCTAssertEqual(path, "/api/v1/auth/mobile-verification/verify")
+            return (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+                    Data(#"{"error":{"code":"unauthorized","message":"Invalid or expired code"}}"#.utf8))
+        }
+        do {
+            _ = try await auth.verifyAccountMobile(code: "123456")
+            XCTFail("Invalid code must fail")
+        } catch NetworkError.api(let error) {
+            XCTAssertEqual(error.code, .unauthorized)
+        } catch {
+            XCTFail("Expected an invalid-code API error, not \(type(of: error))")
+        }
+        let access = try await tokens.readToken(for: .accessToken)
+        let refresh = try await tokens.readToken(for: .refreshToken)
+        XCTAssertEqual(access, "test-access")
+        XCTAssertEqual(refresh, "test-refresh")
+    }
+
+    func test_mobileRecoveryRejectsInvalidCodeBeforeNetworking() async throws {
+        let auth = makeAuthService(tokenStore: InMemoryTokenStore())
+        await MockURLProtocolStorage.shared.setHandler { _ in
+            XCTFail("Malformed code must not cause a request")
+            throw NetworkError.invalidURL
+        }
+        for code in ["", "12345", "1234567", "１２３４５６", "12a456"] {
+            do {
+                _ = try await auth.verifyAccountMobile(code: code)
+                XCTFail("Malformed code accepted")
+            } catch AccountMobileVerificationError.invalidCode {} catch {
+                XCTFail("Wrong error \(type(of: error))")
+            }
+        }
+    }
+
+    func test_mobileRecoveryHonorsVerifiedServerStateWithoutSendingOTP() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url!.path, "/api/v1/onboarding/status")
+            let payload = Self.accountRecoveryStatus.replacingOccurrences(of: #""phone_verified":false"#, with: #""phone_verified":true"#)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let result = try await auth.requestAccountMobileVerification()
+        XCTAssertEqual(result.state, .verified)
+    }
+
+    func test_mobileRecoveryRequiresVerifiedEmailAndDoesNotFallBackToSignup() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url!.path, "/api/v1/onboarding/status")
+            let payload = Self.accountRecoveryStatus.replacingOccurrences(of: #""email_verified":true"#, with: #""email_verified":false"#)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        do {
+            _ = try await auth.requestAccountMobileVerification()
+            XCTFail("Unverified email must fail closed")
+        } catch AccountMobileVerificationError.emailRequired {} catch {
+            XCTFail("Wrong error \(type(of: error))")
+        }
+    }
+
+    func test_mobileRecoveryStateCooldownAndServerTruth() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let path = request.url!.path
+            let payload: String
+            switch path {
+            case "/api/v1/onboarding/status": payload = Self.accountRecoveryStatus
+            case "/api/v1/auth/mobile-verification/request":
+                payload = #"{"state":"code_sent","phone_verified":false,"resend_after_seconds":30,"expires_in_seconds":300}"#
+            case "/api/v1/auth/mobile-verification/verify":
+                payload = #"{"state":"verified","phone_verified":true,"resend_after_seconds":0,"expires_in_seconds":0}"#
+            default: throw NetworkError.invalidURL
+            }
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let state = AccountMobileVerificationState()
+        XCTAssertFalse(state.hasSentCode)
+        let sent = await state.send(using: auth)
+        XCTAssertFalse(sent)
+        XCTAssertTrue(state.hasSentCode)
+        XCTAssertGreaterThan(state.cooldown(), 0)
+        let resend = await state.send(using: auth)
+        XCTAssertFalse(resend)
+        state.code = "123456"
+        XCTAssertTrue(state.canVerify)
+        let needsRefresh = await state.verify(using: auth)
+        XCTAssertTrue(needsRefresh)
+        XCTAssertTrue(state.awaitingStatusRefresh)
+        XCTAssertFalse(state.canVerify)
+        XCTAssertEqual(state.code, "")
+    }
+
+    func test_mobileRecoveryMissingPhoneAndMalformedResponseFailClosed() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let payload = request.url!.path == "/api/v1/onboarding/status"
+                ? Self.accountRecoveryStatus
+                : #"{"state":"phone_required","phone_verified":false,"resend_after_seconds":0,"expires_in_seconds":0}"#
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let state = AccountMobileVerificationState()
+        _ = await state.send(using: auth)
+        XCTAssertTrue(state.phoneRequired)
+        XCTAssertFalse(state.canVerify)
+        XCTAssertFalse(AccountMobileVerificationResponse(state: .verified, phoneVerified: false, resendAfterSeconds: 0, expiresInSeconds: 0).isConsistent)
+        XCTAssertFalse(AccountMobileVerificationResponse(state: .codeSent, phoneVerified: true, resendAfterSeconds: 30, expiresInSeconds: 300).isConsistent)
+    }
+
+    private nonisolated static let accountRecoveryStatus = """
+    {"current_step":"verify_identity","email_verified":true,"phone_verified":false,
+    "passport_ready":false,"completed_steps":["verify_email"],"missing_requirements":["verify_phone"],
+    "next_recommended_step":"verify_identity","completion_percentage":25,"is_onboarding_complete":false}
+    """
+
     private func makeConfiguration() -> AppConfiguration {
         AppConfiguration(
             buildConfiguration: .development,

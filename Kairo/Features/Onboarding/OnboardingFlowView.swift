@@ -65,13 +65,21 @@ struct OnboardingFlowView: View {
                 onContinue: beginVerifyIdentity
             )
         case .verifyIdentity:
-            VerifyIdentityScreenView(
-                createAccountDraft: $flowState.createAccountDraft,
-                state: $flowState.verifyIdentityState,
-                recoveredSession: sessionStore.signupRecovery,
-                googleSignup: sessionStore.pendingGoogleSignup,
-                onStartOver: startOverRecoveredSignup
-            )
+            if let user = sessionStore.currentUser {
+                AccountMobileVerificationScreen(
+                    user: user,
+                    status: sessionStore.authenticatedVerificationStatus
+                )
+                .id(user.id)
+            } else {
+                VerifyIdentityScreenView(
+                    createAccountDraft: $flowState.createAccountDraft,
+                    state: $flowState.verifyIdentityState,
+                    recoveredSession: sessionStore.signupRecovery,
+                    googleSignup: sessionStore.pendingGoogleSignup,
+                    onStartOver: startOverRecoveredSignup
+                )
+            }
         case .chooseStart:
             ChooseStartScreenView(state: $flowState.chooseStartState)
         case .resumeImportOrQuickProfile:

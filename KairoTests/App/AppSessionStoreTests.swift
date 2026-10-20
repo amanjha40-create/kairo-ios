@@ -696,6 +696,8 @@ final class AppSessionStoreTests: XCTestCase {
                 user: .fixture,
                 onboardingStatus: .fixture(
                     currentStep: .verifyIdentity,
+                    emailVerified: true,
+                    phoneVerified: false,
                     nextRecommendedStep: "verify_identity",
                     completionPercentage: 25
                 )
@@ -713,6 +715,11 @@ final class AppSessionStoreTests: XCTestCase {
 
         XCTAssertEqual(router.rootDestination, .onboarding)
         XCTAssertEqual(router.onboardingPath.last, .step(.verifyIdentity))
+        XCTAssertEqual(store.authenticatedVerificationStatus?.emailVerified, true)
+        XCTAssertEqual(store.authenticatedVerificationStatus?.phoneVerified, false)
+        XCTAssertNotNil(store.currentUser)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertNil(store.pendingGoogleSignup)
     }
 
     func test_bootstrapFailsRecoverablyForUnknownOnboardingStep() async {

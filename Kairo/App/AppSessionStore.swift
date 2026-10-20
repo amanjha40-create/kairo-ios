@@ -17,6 +17,7 @@ final class AppSessionStore: ObservableObject {
     }
     @Published private(set) var signupRecovery: SignupSessionRecoveryResponseDTO?
     @Published private(set) var pendingGoogleSignup: SignupStartResponseDTO?
+    @Published private(set) var authenticatedVerificationStatus: OnboardingStatusResponseDTO?
 
     private let configuration: AppConfiguration
     private let uiTestConfiguration: UITestLaunchConfiguration
@@ -63,6 +64,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func refreshLaunchRoute(armNewAccountTour: Bool = false) async {
+        authenticatedVerificationStatus = nil
         GoogleReturnDiagnostics.emit(.bootstrapStarted)
         launchPhase = .bootstrapping
 
@@ -109,6 +111,7 @@ final class AppSessionStore: ObservableObject {
         }
 
         currentUser = nil
+        authenticatedVerificationStatus = nil
         signupRecovery = nil
         pendingGoogleSignup = nil
         guidedTourPreferences.clearPendingStates()
@@ -118,6 +121,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func abandonPendingSignup() async {
+        authenticatedVerificationStatus = nil
         try? await sessionService.clearSignupSessionID()
         signupRecovery = nil
         pendingGoogleSignup = nil
@@ -129,6 +133,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func completeAccountDeletion() async {
+        authenticatedVerificationStatus = nil
         try? await sessionService.clearSession()
         signupRecovery = nil
         pendingGoogleSignup = nil
@@ -140,6 +145,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func continueGooglePhoneSignup(_ signup: SignupStartResponseDTO) {
+        authenticatedVerificationStatus = nil
         currentUser = nil
         signupRecovery = nil
         pendingGoogleSignup = signup
@@ -148,6 +154,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func continueGooglePhoneVerification(_ signup: SignupStartResponseDTO) {
+        authenticatedVerificationStatus = nil
         currentUser = nil
         signupRecovery = nil
         pendingGoogleSignup = signup
@@ -217,6 +224,7 @@ final class AppSessionStore: ObservableObject {
 
         switch currentStep {
         case .verifyIdentity:
+            authenticatedVerificationStatus = onboardingStatus
             return .verifyIdentity
         case .completeProfile:
             if !configuration.isDemoModeEnabled,
