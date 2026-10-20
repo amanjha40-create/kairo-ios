@@ -833,6 +833,146 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertFalse(AccountMobileVerificationResponse(state: .codeSent, phoneVerified: true, resendAfterSeconds: 30, expiresInSeconds: 300).isConsistent)
     }
 
+    func test_missingMobileSavePatchesOnlyPhoneWithoutSendingCodeOrChangingSession() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        try await tokens.save("test-refresh", for: .refreshToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-access")
+            let payload: String
+            switch (request.url!.path, request.httpMethod!) {
+            case ("/api/v1/onboarding/status", "GET"): payload = Self.accountRecoveryStatus
+            case ("/api/v1/users/me", "GET"): payload = Self.recoveryUser(phone: nil)
+            case ("/api/v1/users/me", "PATCH"):
+                let body = try Self.jsonBody(from: request)
+                XCTAssertEqual(Set(body.keys), ["phone"])
+                XCTAssertEqual(body["phone"] as? String, "+919876543210")
+                payload = Self.recoveryUser(phone: "+919876543210")
+            default:
+                XCTFail("Saving must not send OTP, create signup, or modify another route")
+                throw NetworkError.invalidURL
+            }
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let state = AccountMobileVerificationState()
+        state.phone = "98765 43210"
+        let saved = await state.savePhone(using: auth)
+        XCTAssertTrue(saved)
+        XCTAssertFalse(state.hasSentCode)
+        XCTAssertFalse(state.awaitingStatusRefresh)
+        XCTAssertFalse(state.canVerify)
+        XCTAssertEqual(state.phone, "")
+        let access = try await tokens.readToken(for: .accessToken)
+        let refresh = try await tokens.readToken(for: .refreshToken)
+        let signup = try await tokens.readToken(for: .signupSessionID)
+        XCTAssertEqual(access, "test-access")
+        XCTAssertEqual(refresh, "test-refresh")
+        XCTAssertNil(signup)
+    }
+
+    func test_missingMobileRecoveryNeverOverwritesExistingServerPhone() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET", "Existing number must not be replaced")
+            let payload = request.url!.path == "/api/v1/onboarding/status"
+                ? Self.accountRecoveryStatus : Self.recoveryUser(phone: "+919000000001")
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        try await auth.addMissingAccountMobile(phone: "9876543210")
+    }
+
+    func test_missingMobileRejectsMalformedInputWithoutNetworkOrTruncation() async throws {
+        let auth = makeAuthService(tokenStore: InMemoryTokenStore())
+        await MockURLProtocolStorage.shared.setHandler { _ in
+            XCTFail("Invalid input must never reach a request")
+            throw NetworkError.invalidURL
+        }
+        for input in ["", "12345", "987654321012", "+91987654321012345", "9876543210abc", "９８７６５４３２１０", "++919876543210"] {
+            do {
+                try await auth.addMissingAccountMobile(phone: input)
+                XCTFail("Invalid input accepted")
+            } catch AccountMobileVerificationError.invalidPhone {} catch {
+                XCTFail("Wrong error type")
+            }
+        }
+        XCTAssertEqual(AccountMobileProfileRequest.normalizedPhone("+91 (98765) 43210"), "+919876543210")
+        XCTAssertEqual(AccountMobileProfileRequest.normalizedPhone("+1 202-555-0123"), "+12025550123")
+    }
+
+    func test_missingMobileConflictIsSafeAndPreservesDraftAndSession() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let isPatch = request.httpMethod == "PATCH"
+            let payload = isPatch
+                ? #"{"error":{"code":"conflict","message":"Private server detail must not be displayed"}}"#
+                : (request.url!.path == "/api/v1/onboarding/status"
+                   ? Self.accountRecoveryStatus : Self.recoveryUser(phone: nil))
+            return (HTTPURLResponse(url: request.url!, statusCode: isPatch ? 409 : 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let state = AccountMobileVerificationState()
+        state.phone = "9876543210"
+        let saved = await state.savePhone(using: auth)
+        XCTAssertFalse(saved)
+        XCTAssertEqual(state.phone, "9876543210")
+        XCTAssertTrue(state.canSavePhone)
+        XCTAssertFalse(state.hasSentCode)
+        XCTAssertFalse(state.message?.contains("Private server detail") ?? true)
+        let token = try await tokens.readToken(for: .accessToken)
+        XCTAssertEqual(token, "test-access")
+    }
+
+    func test_missingMobileSaveFailureDoesNotAdvanceOrSendCode() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            if request.httpMethod == "PATCH" { throw URLError(.notConnectedToInternet) }
+            let payload = request.url!.path == "/api/v1/onboarding/status"
+                ? Self.accountRecoveryStatus : Self.recoveryUser(phone: nil)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        let state = AccountMobileVerificationState()
+        state.phone = "9876543210"
+        let saved = await state.savePhone(using: auth)
+        XCTAssertFalse(saved)
+        XCTAssertFalse(state.hasSentCode)
+        XCTAssertFalse(state.canVerify)
+        XCTAssertTrue(state.canSavePhone)
+        XCTAssertNotNil(state.message)
+    }
+
+    func test_missingMobileRequiresVerifiedEmailBeforeProfileWrite() async throws {
+        let tokens = InMemoryTokenStore()
+        try await tokens.save("test-access", for: .accessToken)
+        let auth = makeAuthService(tokenStore: tokens)
+        await MockURLProtocolStorage.shared.setHandler { request in
+            XCTAssertEqual(request.url!.path, "/api/v1/onboarding/status")
+            XCTAssertEqual(request.httpMethod, "GET")
+            let payload = Self.accountRecoveryStatus.replacingOccurrences(of: #""email_verified":true"#, with: #""email_verified":false"#)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(payload.utf8))
+        }
+        do {
+            try await auth.addMissingAccountMobile(phone: "9876543210")
+            XCTFail("Unverified email must fail closed")
+        } catch AccountMobileVerificationError.emailRequired {} catch {
+            XCTFail("Wrong error type")
+        }
+    }
+
+    private nonisolated static func recoveryUser(phone: String?) -> String {
+        let phoneJSON = phone.map { "\"\($0)\"" } ?? "null"
+        return """
+        {"id":"synthetic-user","email":"synthetic@example.com","full_name":"Synthetic",
+        "phone":\(phoneJSON),"phone_verified_at":null,"email_verified_at":"2026-10-01T00:00:00Z",
+        "role":"user","is_active":true,"created_at":"2026-10-01T00:00:00Z"}
+        """
+    }
+
     private nonisolated static let accountRecoveryStatus = """
     {"current_step":"verify_identity","email_verified":true,"phone_verified":false,
     "passport_ready":false,"completed_steps":["verify_email"],"missing_requirements":["verify_phone"],

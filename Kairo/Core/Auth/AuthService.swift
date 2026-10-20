@@ -19,12 +19,17 @@ protocol AuthServiceProtocol: Sendable {
     func logout() async throws
     func currentUser() async throws -> UserPublicDTO
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO
+    func addMissingAccountMobile(phone: String) async throws
     func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse
     func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse
 }
 
 extension AuthServiceProtocol {
     // Preview/test implementations must explicitly opt in; never fall back to signup.
+    func addMissingAccountMobile(phone: String) async throws {
+        throw NetworkError.unavailableInDemoMode
+    }
+
     func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
         throw NetworkError.unavailableInDemoMode
     }
@@ -294,6 +299,29 @@ actor AuthService: AuthServiceProtocol {
 
     func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
         try await accountMobileVerification(path: "request", body: EmptyMobileVerificationRequest())
+    }
+
+    func addMissingAccountMobile(phone: String) async throws {
+        guard let normalized = AccountMobileProfileRequest.normalizedPhone(phone) else {
+            throw AccountMobileVerificationError.invalidPhone
+        }
+        let status = try await onboardingStatus()
+        guard status.emailVerified else { throw AccountMobileVerificationError.emailRequired }
+        let user = try await currentUser()
+        // A stale/missing local value must not replace a number already saved.
+        guard user.phone?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else { return }
+        guard !status.phoneVerified else { throw NetworkError.invalidResponse }
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/users/me", method: .patch,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try APIJSONCoder.makeEncoder().encode(AccountMobileProfileRequest(phone: normalized)),
+            allowsSessionRefreshOnUnauthorized: false
+        ))
+        let updated = try APIJSONCoder.makeDecoder().decode(UserPublicDTO.self, from: data)
+        guard updated.id == user.id, updated.phone == normalized,
+              updated.phoneVerifiedAt == nil else { throw NetworkError.invalidResponse }
+        // No OTP or local verification change: the caller refreshes canonical
+        // user/onboarding state before offering a separate Send Code.
     }
 
     func verifyAccountMobile(code: String) async throws -> AccountMobileVerificationResponse {
@@ -622,6 +650,7 @@ actor UITestAuthService: AuthServiceProtocol {
     private let sessionService: any SessionServiceProtocol
     private let configuration: UITestAuthConfiguration
     private var accountMobileVerified = false
+    private var accountMobileAdded: String?
     private let accountMobileScenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_ACCOUNT_MOBILE_RECOVERY"]
 
     init(
@@ -866,7 +895,7 @@ actor UITestAuthService: AuthServiceProtocol {
             email: "aarav@example.com",
             fullName: "Aarav Mehta",
             profileSlug: "aarav-mehta",
-            phone: "+919876543210",
+            phone: accountMobileAdded ?? (accountMobileScenario?.hasPrefix("missingPhone") == true ? nil : "+919876543210"),
             currentRole: "Candidate",
             industry: "Technology",
             yearsOfExperience: 6,
@@ -880,7 +909,8 @@ actor UITestAuthService: AuthServiceProtocol {
             avatarURL: nil,
             role: "user",
             isActive: true,
-            phoneVerifiedAt: Date(timeIntervalSince1970: 1_722_902_400),
+            phoneVerifiedAt: accountMobileScenario == nil || accountMobileVerified
+                ? Date(timeIntervalSince1970: 1_722_902_400) : nil,
             emailVerifiedAt: Date(timeIntervalSince1970: 1_722_902_400),
             employmentOnboardingCompletedAt: nil,
             languages: [],
@@ -902,10 +932,28 @@ actor UITestAuthService: AuthServiceProtocol {
         return configuration.onboardingStatus
     }
 
+    func addMissingAccountMobile(phone: String) async throws {
+        guard accountMobileScenario != nil else { throw NetworkError.unavailableInDemoMode }
+        guard let normalized = AccountMobileProfileRequest.normalizedPhone(phone) else {
+            throw AccountMobileVerificationError.invalidPhone
+        }
+        if accountMobileScenario == "missingPhoneConflict" {
+            throw NetworkError.api(APIError(
+                statusCode: 409, code: .conflict, message: "Synthetic conflict",
+                fieldErrors: [:], globalErrors: [], validationDetails: []
+            ))
+        }
+        if accountMobileScenario == "missingPhoneSaveFailure" {
+            throw NetworkError.transport("synthetic failure")
+        }
+        accountMobileAdded = normalized
+    }
+
     func requestAccountMobileVerification() async throws -> AccountMobileVerificationResponse {
         guard accountMobileScenario != nil else { throw NetworkError.unavailableInDemoMode }
         if accountMobileScenario == "deliveryFailure" { throw NetworkError.transport("synthetic failure") }
-        if accountMobileScenario == "phoneRequired" {
+        if (accountMobileScenario == "phoneRequired" ||
+            accountMobileScenario?.hasPrefix("missingPhone") == true), accountMobileAdded == nil {
             return .init(state: .phoneRequired, phoneVerified: false, resendAfterSeconds: 0, expiresInSeconds: 0)
         }
         return .init(state: .codeSent, phoneVerified: false, resendAfterSeconds: 30, expiresInSeconds: 300)

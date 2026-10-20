@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class AccountMobileVerificationState: ObservableObject {
     @Published var code = ""
+    @Published var phone = ""
     @Published private(set) var isBusy = false
     @Published private(set) var hasSentCode = false
     @Published private(set) var phoneRequired = false
@@ -18,6 +19,40 @@ final class AccountMobileVerificationState: ObservableObject {
     var canVerify: Bool {
         hasSentCode && !isBusy && !awaitingStatusRefresh && !phoneRequired &&
         code.count == 6 && code.allSatisfy { $0.isASCII && $0.isNumber }
+    }
+
+    var canSavePhone: Bool {
+        !isBusy && !awaitingStatusRefresh &&
+        AccountMobileProfileRequest.normalizedPhone(phone) != nil
+    }
+
+    func savePhone(using service: any AuthServiceProtocol) async -> Bool {
+        guard canSavePhone else { return false }
+        isBusy = true
+        message = nil
+        defer { isBusy = false }
+        do {
+            try await service.addMissingAccountMobile(phone: phone)
+            phone = ""
+            code = ""
+            phoneRequired = false
+            hasSentCode = false
+            resendAvailableAt = nil
+            // Saving is not verification and never sends a code. Refresh the
+            // canonical account before showing Send Code for the stored number.
+            return true
+        } catch {
+            if case NetworkError.api(let apiError) = error,
+               apiError.code == .conflict {
+                message = "This mobile number cannot be added to this account. Use another number or contact support."
+            } else if case NetworkError.api(let apiError) = error,
+                      apiError.code == .validationError {
+                message = "Check the mobile number and country code, then try again."
+            } else {
+                message = "The mobile number could not be saved. Refresh status to check your account before trying again."
+            }
+            return false
+        }
     }
 
     func send(using service: any AuthServiceProtocol) async -> Bool {
@@ -91,12 +126,13 @@ final class AccountMobileVerificationState: ObservableObject {
 }
 
 struct AccountMobileVerificationScreen: View {
+    private enum Field: Hashable { case phone, code }
     let user: AppUser
     let status: OnboardingStatusResponseDTO?
     @Environment(\.authService) private var authService
     @EnvironmentObject private var sessionStore: AppSessionStore
     @StateObject private var state = AccountMobileVerificationState()
-    @FocusState private var focus: Bool?
+    @FocusState private var focus: Field?
 
     private var needsPhone: Bool {
         state.phoneRequired || user.phone?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
@@ -126,11 +162,25 @@ struct AccountMobileVerificationScreen: View {
                     Text("Refresh your account status to continue.")
                 } else if status?.emailVerified != true {
                     Text("This account needs email verification. Contact support for account recovery.")
-                } else if needsPhone {
-                    Text("Your account needs a mobile number before verification. Contact support to update your account.")
-                        .accessibilityIdentifier("onboarding.accountVerification.phoneRequired")
                 } else if state.awaitingStatusRefresh || status?.phoneVerified == true {
                     Text("Refresh your account status to continue with verified information.")
+                } else if needsPhone {
+                    Text("Add a mobile number to your existing account, then verify it. Saving your number will not send a code.")
+                        .accessibilityIdentifier("onboarding.accountVerification.phoneRequired")
+                    KairoTextField(
+                        title: "Mobile number",
+                        prompt: "10-digit Indian number or +country code",
+                        text: $state.phone,
+                        accessibilityIdentifier: "onboarding.accountVerification.phone",
+                        accessibilityLabel: "Mobile number",
+                        accessibilityHint: "Enter a 10-digit Indian number, or include plus and your country code for an international number. Save before requesting a code.",
+                        keyboardType: .phonePad,
+                        textContentType: .telephoneNumber,
+                        textInputAutocapitalization: .never,
+                        focus: $focus,
+                        focusedField: .phone
+                    )
+                    .disabled(state.isBusy)
                 } else {
                     Text("We'll send a code to the mobile number saved on your account.")
                     Text("Mobile ending in \(String((user.phone ?? "").suffix(4)))")
@@ -142,7 +192,7 @@ struct AccountMobileVerificationScreen: View {
                             accessibilityIdentifier: "onboarding.accountVerification.code",
                             accessibilityLabel: "Mobile verification code",
                             accessibilityHint: "Enter the latest 6-digit code.",
-                            focus: $focus, focusedField: true
+                            focus: $focus, focusedField: .code
                         )
                         .disabled(state.isBusy)
                     }
@@ -168,6 +218,21 @@ struct AccountMobileVerificationScreen: View {
                 }
             }
         } actions: {
+            if status?.emailVerified == true && status?.phoneVerified == false &&
+                needsPhone && !state.awaitingStatusRefresh {
+                KairoPrimaryButton(
+                    title: "Save mobile number",
+                    accessibilityIdentifier: "onboarding.accountVerification.savePhone"
+                ) {
+                    Task {
+                        if await state.savePhone(using: authService) {
+                            focus = nil
+                            await sessionStore.refreshLaunchRoute()
+                        }
+                    }
+                }
+                .disabled(!state.canSavePhone)
+            }
             if canRequest && state.hasSentCode {
                 KairoPrimaryButton(
                     title: "Verify Mobile",
