@@ -165,7 +165,16 @@ final class DocumentPackUITests: XCTestCase {
         tap(first, app); tap("pack.continue", app)
         let purpose = app.textViews["pack.purpose"].exists ? app.textViews["pack.purpose"] : app.textFields["pack.purpose"]
         XCTAssertTrue(purpose.waitForExistence(timeout: 5)); purpose.tap(); purpose.typeText("Demo QA selected documents")
+        // Finish the multiline Purpose input through the existing visible
+        // dismissal control. Hittable alone does not mean Continue is above
+        // the keyboard on a compact-height phone.
+        let doneEditing = app.buttons["pack.purpose.done"]
+        XCTAssertTrue(doneEditing.isHittable)
+        XCTAssertLessThanOrEqual(doneEditing.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        doneEditing.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         tap("pack.continue", app)
+        XCTAssertTrue(app.buttons["pack.expiry.7"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["pack.expiry.7"].value as? String, "Selected")
         for option in [1, 3, 7, 14, 30] { XCTAssertTrue(app.buttons["pack.expiry.\(option)"].exists) }
         tap("pack.expiry.\(days)", app); tap("pack.continue", app)

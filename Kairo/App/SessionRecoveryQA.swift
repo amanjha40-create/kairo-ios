@@ -8,14 +8,19 @@ enum SessionRecoveryQA {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
+        #if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
         configuration.buildConfiguration == .staging
             && configuration.environment == .staging
             && !configuration.isDemoModeEnabled
             && arguments.contains(UITestLaunchConfiguration.enabledArgument)
             && environment["KAIRO_UI_TEST_SESSION_RECOVERY"] == "1"
+        #else
+        false
+        #endif
     }
 }
 
+#if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
 actor SessionRecoveryQANetwork: NetworkClient {
     enum Mode { case healthy, transient, rejected }
     private var mode: Mode = .healthy
@@ -160,3 +165,11 @@ struct SessionRecoveryQARootView: View {
         }.padding(.top).task { await model.start() }
     }
 }
+#else
+// Keep the root's static type available; the fixture cannot activate or retain
+// its credential-producing model in ordinary Production builds.
+struct SessionRecoveryQARootView: View {
+    init(configuration: AppConfiguration) {}
+    var body: some View { EmptyView() }
+}
+#endif

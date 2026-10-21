@@ -122,11 +122,6 @@ final class Parity4CUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<24 {
-            if element.exists && element.isHittable && element.frame.maxY < app.frame.maxY - 90 { return }
-            app.swipeUp()
-        }
-        XCTAssertTrue(element.exists)
-        XCTAssertTrue(element.isHittable)
+        app.revealContent(element, fullyVisible: true)
     }
 }

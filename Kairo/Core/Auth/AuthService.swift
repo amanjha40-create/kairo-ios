@@ -443,6 +443,8 @@ actor AuthService: AuthServiceProtocol {
     }
 }
 
+#if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
+// Mock credential producers must not be linked into ordinary Production artifacts.
 actor DemoAuthService: AuthServiceProtocol {
     private let sessionService: any SessionServiceProtocol
     private var currentOnboardingStatus = OnboardingStatusResponseDTO.fixture(
@@ -986,6 +988,8 @@ actor UITestAuthService: AuthServiceProtocol {
         )
     }
 }
+
+#endif
 
 nonisolated struct UITestAuthConfiguration: Equatable, Sendable {
     nonisolated enum LoginResult: String, Sendable {

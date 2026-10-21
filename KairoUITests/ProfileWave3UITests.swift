@@ -20,7 +20,7 @@ final class ProfileWave3UITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Professional links"].exists)
 
         let identity = app.descendants(matching: .any)["candidate.identity.provenance"].firstMatch
-        reveal(identity, in: app)
+        app.revealContent(identity, fullyVisible: true, missingTargetIsAbove: true)
         XCTAssertTrue(identity.staticTexts["Identity"].exists)
         XCTAssertTrue(
             identity.staticTexts["Verified"].exists ||
@@ -121,7 +121,7 @@ final class ProfileWave3UITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Add link"].exists)
         XCTAssertEqual(url.value as? String, "javascript:alert(1)")
 
-        replaceText(in: url, with: "example.com/professional")
+        replaceText(in: url, with: "example.com/professional", app: app)
         keepScreenshot("Wave 3 - Professional link editor - Light", app)
         app.buttons["candidate.profile.links.save"].tap()
         XCTAssertTrue(app.staticTexts["example.com"].waitForExistence(timeout: 10))
@@ -150,11 +150,15 @@ final class ProfileWave3UITests: XCTestCase {
         keepScreenshot("Wave 3 - Languages - Dark AXXXL", app)
     }
 
-    private func replaceText(in field: XCUIElement, with text: String) {
+    private func replaceText(in field: XCUIElement, with text: String, app: XCUIApplication) {
         field.tap()
-        // Public keyboard selection replaces the whole value without assuming
-        // which localized items are visible in the native edit menu.
-        field.typeKey("a", modifierFlags: .command)
+        // Command-A synthesizes a hardware keyboard on iOS and can open the
+        // Keyboard Detected system setup sheet. Use the native touch edit menu.
+        field.press(forDuration: 1)
+        let selectAll = app.buttons["Select All"].exists
+            ? app.buttons["Select All"] : app.menuItems["Select All"]
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5))
+        selectAll.tap()
         field.typeText(text)
         XCTAssertEqual(field.value as? String, text)
     }
@@ -202,15 +206,7 @@ final class ProfileWave3UITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<40 {
-            if element.exists, element.isHittable,
-               element.frame.minY > 75, element.frame.maxY < app.frame.height - 65 { return }
-            let isAbove = element.exists && element.frame.minY <= 75
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isAbove ? 0.28 : 0.72))
-                .press(forDuration: 0.04, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isAbove ? 0.68 : 0.35)))
-        }
-        XCTAssertTrue(element.exists)
-        XCTAssertTrue(element.isHittable)
+        app.revealContent(element, fullyVisible: true)
     }
 
     private func closeSearch(in app: XCUIApplication) {

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 
 import endpoint_scan as policy
 
@@ -104,8 +105,85 @@ class EndpointScanTests(unittest.TestCase):
         (self.root / "Documentation.md").write_text("localhost staging-api.kairoid.com")
         self.assertEqual(policy.scan(self.app)["endpointScan"], "PASS")
 
+    def make_ipa(self):
+        ipa = self.root / "Kairo.ipa"
+        with zipfile.ZipFile(ipa, "w") as archive:
+            for path in self.app.rglob("*"):
+                if path.is_file():
+                    archive.write(path, "Payload/Kairo.app/" + path.relative_to(self.app).as_posix())
+        return ipa
+
+    def test_clean_exported_ipa_passes_without_extraction(self):
+        result = policy.scan(self.make_ipa())
+        self.assertEqual(result["mockTokenLiteralScan"], "PASS")
+        self.assertEqual(result["prohibitedMockTokenCount"], 0)
+        self.assertFalse((self.root / "Payload").exists())
+
+    def test_each_mock_literal_rejected_in_app_archive_and_ipa(self):
+        archive = self.root / "Kairo.xcarchive"
+        archived_app = archive / "Products/Applications/Kairo.app"
+        shutil.copytree(self.app, archived_app)
+        for literal in policy.MOCK_TOKEN_LITERALS:
+            for encoding in policy.ENCODINGS:
+                with self.subTest(literal=literal, encoding=encoding):
+                    payload = b"x" * (1024 * 1024 - 3) + literal.encode(encoding)
+                    (self.app / "mock.bin").write_bytes(payload)
+                    (archived_app / "mock.bin").write_bytes(payload)
+                    for artifact in (self.app, archive, self.make_ipa()):
+                        with self.assertRaisesRegex(policy.EndpointError, literal):
+                            policy.scan(artifact)
+
+    def test_exported_ipa_preserves_endpoint_policy(self):
+        for value in policy.PROHIBITED:
+            (self.app / "resource.bin").write_bytes(value.encode())
+            with self.assertRaises(policy.EndpointError):
+                policy.scan(self.make_ipa())
+
+    def test_ipa_rejects_ambiguous_payload_traversal_symlink_and_duplicates(self):
+        for name, mode in (("Payload/Second.app/Info.plist", 0),
+                           ("Payload/Kairo.app/../outside", 0),
+                           ("/outside", 0), ("Payload/Kairo.app/link", 0o120777),
+                           ("Payload/Kairo.app/Info.plist", 0)):
+            with self.subTest(name=name):
+                ipa = self.make_ipa()
+                with zipfile.ZipFile(ipa, "a") as archive:
+                    entry = zipfile.ZipInfo(name)
+                    entry.external_attr = mode << 16
+                    archive.writestr(entry, b"unused")
+                with self.assertRaises(policy.EndpointError):
+                    policy.scan(ipa)
+
+    def test_invalid_ipa_rejected(self):
+        ipa = self.root / "Kairo.ipa"
+        ipa.write_bytes(b"not a zip")
+        with self.assertRaisesRegex(policy.EndpointError, "invalid_ipa"):
+            policy.scan(ipa)
+
 
 class EndpointCompilationTests(unittest.TestCase):
+    def test_mock_credential_implementations_and_factory_share_compile_boundary(self):
+        boundary = "#if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA"
+        auth = (ROOT / "Kairo/Core/Auth/AuthService.swift").read_text()
+        real, mock = auth.split(boundary, 1)
+        mock, remainder = mock.split("#endif", 1)
+        self.assertIn("actor AuthService: AuthServiceProtocol", real)
+        self.assertIn("actor DemoAuthService: AuthServiceProtocol", mock)
+        self.assertIn("actor UITestAuthService: AuthServiceProtocol", mock)
+        for literal in policy.MOCK_TOKEN_LITERALS:
+            self.assertIn('"' + literal + '"', mock)
+            self.assertNotIn(literal, real + remainder)
+        dependencies = (ROOT / "Kairo/App/AppDependencies.swift").read_text()
+        selected = dependencies.split(boundary, 1)[1].split("#endif", 1)[0]
+        ordinary = selected.split("#else", 1)[1]
+        self.assertIn("authService = AuthService(", ordinary)
+        self.assertNotIn("DemoAuthService(", ordinary)
+        self.assertNotIn("UITestAuthService(", ordinary)
+        fixture = (ROOT / "Kairo/App/SessionRecoveryQA.swift").read_text()
+        self.assertIn(boundary + "\nactor SessionRecoveryQANetwork", fixture)
+        stub = fixture.rsplit("#else", 1)[1]
+        self.assertIn("EmptyView()", stub)
+        self.assertNotIn("UITestAuthService", stub)
+
     def test_only_production_project_configuration_sets_flag(self):
         project = json.loads(subprocess.check_output([
             "plutil", "-convert", "json", "-o", "-", str(ROOT / "Kairo.xcodeproj/project.pbxproj")]))

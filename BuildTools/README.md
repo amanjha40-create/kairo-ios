@@ -103,6 +103,29 @@ with the retained distribution record in the meantime.
 
 ## Validation
 
+The read-only Production packaging gate scans every shipping file (including
+embedded frameworks/resources) for non-Production hosts and the four prohibited
+Demo/UI-test token literals, in UTF-8 and UTF-16. It requires the Production API
+in the executable and Production/non-Demo bundle metadata. Run it on each actual
+artifact; a passing app does not substitute for checking a later archive/export:
+
+```sh
+/usr/bin/python3 BuildTools/endpoint_scan.py /path/to/Kairo.app
+/usr/bin/python3 BuildTools/endpoint_scan.py /path/to/Kairo.xcarchive
+/usr/bin/python3 BuildTools/endpoint_scan.py /path/to/Kairo.ipa
+```
+
+IPA inspection reads ZIP entries without extracting them. Ambiguous app payloads,
+duplicate entries, traversal paths and symbolic links fail closed. The scanner
+does not sign, archive, export or upload anything.
+
+Ordinary `KAIRO_PRODUCTION` compilation excludes `DemoAuthService`,
+`UITestAuthService` and their dependent session-recovery fixture. Development,
+Staging and Demo retain these implementations. The separately opt-in,
+development-signed `KAIRO_LOCAL_BATCH1_QA` build also retains its synthetic auth;
+it is not a distributable Production candidate and must not pass the literal gate.
+Normal Production uses the unchanged real `AuthService`.
+
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m unittest discover -s BuildTools -p 'test_*.py' -v
 ```

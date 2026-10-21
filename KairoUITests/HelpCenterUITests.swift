@@ -123,7 +123,10 @@ final class HelpCenterUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Getting started"].waitForExistence(timeout: 10))
         let close = app.buttons["candidate.help.detail.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
-        XCTAssertGreaterThanOrEqual(close.frame.height, 44)
+        // The native toolbar reports 43.99999999999999 for its declared 44pt
+        // target (one CGFloat ULP below 44 after AX coordinate conversion).
+        // Accept only that representable rounding step, not a point/pixel epsilon.
+        XCTAssertGreaterThanOrEqual(close.frame.height.nextUp, 44)
         capture("Help guide dark accessibility XXXL")
     }
 

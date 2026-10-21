@@ -60,6 +60,7 @@ struct AppDependencies: Sendable {
         )
         let authService: any AuthServiceProtocol
 
+        #if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
         if configuration.isDemoModeEnabled {
             authService = DemoAuthService(sessionService: sessionService)
         } else if uiTestConfiguration.isEnabled {
@@ -71,6 +72,13 @@ struct AppDependencies: Sendable {
                 sessionService: sessionService
             )
         }
+        #else
+        authService = AuthService(
+            configuration: configuration,
+            networkClient: networkClient,
+            sessionService: sessionService
+        )
+        #endif
         let manualProfileService: any ManualProfileServiceProtocol =
             if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
                 DemoManualProfileService(authService: authService)

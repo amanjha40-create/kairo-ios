@@ -301,14 +301,7 @@ final class ResumeManagementUITests: XCTestCase {
         XCTAssertTrue(app.buttons["resume.management.upload"].waitForExistence(timeout: 10))
     }
     private func reveal(_ row: XCUIElement, _ app: XCUIApplication) {
-        for _ in 0..<25 {
-            let viewport = CGRect(x: 0, y: 110, width: app.frame.width, height: app.frame.height - 210)
-            if row.exists && row.isHittable && row.frame.intersection(viewport).height >= min(44, row.frame.height) { return }
-            let down = row.exists && row.frame.minY < 110
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.35 : 0.72))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.68 : 0.38)))
-        }
-        XCTFail("Could not reveal \(row.identifier)")
+        app.revealContent(row)
     }
     private func capture(_ name: String) {
         let item = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); item.name = name; item.lifetime = .keepAlways; add(item)

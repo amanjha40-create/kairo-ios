@@ -1300,6 +1300,18 @@ final class KairoUITests: XCTestCase {
             "a-valid-password",
             into: app.secureTextFields[passwordResetNewPasswordField]
         )
+        // Use the form's native Next action instead of dragging through the
+        // focused secure field while confirmation is partly behind the keyboard.
+        // Require the existing focus binding to advance before typing.
+        let nextKey = app.keyboards.buttons["Next:"]
+        XCTAssertTrue(nextKey.waitForExistence(timeout: 5))
+        nextKey.tap()
+        let confirmation = app.secureTextFields[passwordResetConfirmPasswordField]
+        let confirmationFocused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"),
+            object: confirmation
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [confirmationFocused], timeout: 2), .completed)
         enterText(
             "a-valid-password",
             into: app.secureTextFields[passwordResetConfirmPasswordField]

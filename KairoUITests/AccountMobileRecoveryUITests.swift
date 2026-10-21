@@ -130,6 +130,7 @@ final class AccountMobileRecoveryUITests: XCTestCase {
     }
 
     private func login(scenario: String, accessibilityXXXL: Bool = false) -> XCUIApplication {
+        let passwordSavePrompt = PasswordSavePromptSupport()
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
         if accessibilityXXXL {
@@ -142,6 +143,7 @@ final class AccountMobileRecoveryUITests: XCTestCase {
             "KAIRO_UI_TEST_ACCOUNT_MOBILE_RECOVERY": scenario
         ]
         app.launch()
+        passwordSavePrompt.dismissIfPresent(in: self)
         let login = app.buttons["onboarding.existingAccount"]
         XCTAssertTrue(login.waitForExistence(timeout: 10))
         login.tap()
@@ -156,6 +158,7 @@ final class AccountMobileRecoveryUITests: XCTestCase {
         if !submit.isHittable { app.swipeUp() }
         submit.tap()
         XCTAssertTrue(app.descendants(matching: .any)["onboarding.accountVerification.title"].waitForExistence(timeout: 10))
+        passwordSavePrompt.dismissIfPresent(in: self)
         return app
     }
 }

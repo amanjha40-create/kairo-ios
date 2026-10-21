@@ -1,5 +1,21 @@
 import SwiftUI
 
+enum OnboardingLayoutOrientation {
+    static func isLandscape(
+        viewport: CGSize,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        verticalSizeClass: UserInterfaceSizeClass?
+    ) -> Bool {
+        // A portrait phone's keyboard can make the remaining viewport wider
+        // than it is tall. Its traits do not rotate: keep the same form subtree
+        // alive so its focused input and keyboard survive that resize.
+        if horizontalSizeClass == .compact {
+            return verticalSizeClass == .compact
+        }
+        return viewport.width > viewport.height
+    }
+}
+
 enum OnboardingScreenLayoutMode {
     case hero
     case form
@@ -17,6 +33,8 @@ enum OnboardingScreenLayoutMode {
 }
 
 struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var actionBarHeight: CGFloat = 0
 
     let layoutMode: OnboardingScreenLayoutMode
@@ -53,7 +71,11 @@ struct OnboardingScreenLayout<Hero: View, Content: View, Actions: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let isLandscape = geometry.size.width > geometry.size.height
+            let isLandscape = OnboardingLayoutOrientation.isLandscape(
+                viewport: geometry.size,
+                horizontalSizeClass: horizontalSizeClass,
+                verticalSizeClass: verticalSizeClass
+            )
             let topPadding = max(
                 geometry.safeAreaInsets.top + topPadding(for: layoutMode) + topPaddingAdjustment,
                 geometry.safeAreaInsets.top

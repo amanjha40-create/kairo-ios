@@ -86,6 +86,7 @@ import XCTest
         let name = app.textFields["onboarding.manualProfile.fullName"]
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["onboarding.manualProfile.validationSummary"].exists)
         XCTAssertTrue(name.isHittable)
         name.typeText("Synthetic Candidate")
         // Submit through the focused input rather than AX-scrolling the system
@@ -93,6 +94,7 @@ import XCTest
         name.typeText("\n")
         reveal(button, app); button.tap()
         XCTAssertEqual(name.value as? String, "Synthetic Candidate")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["onboarding.manualProfile.headline"].isHittable)
         capture(app, "V1.1 Quick Profile first invalid field synthetic")
     }
@@ -129,11 +131,24 @@ import XCTest
         app.launch(); return app
     }
     private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
+        let scroll = app.scrollViews.firstMatch
+        XCTAssertTrue(scroll.exists)
         for _ in 0..<25 {
-            let bottom = app.keyboards.firstMatch.exists ? app.keyboards.firstMatch.frame.minY : app.frame.maxY - 90
+            let bottom = app.keyboards.firstMatch.exists ? app.keyboards.firstMatch.frame.minY
+                : (app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : app.frame.maxY - 20)
             if element.exists && element.isHittable && element.frame.minY > 80 && element.frame.maxY < bottom { return }
-            let above = element.exists && element.frame.minY < 80
-            if above { app.swipeDown() } else { app.swipeUp() }
+            // A whole-app fling overshoots short rows on SE and can alternate
+            // above/below them forever. Drag within the content viewport by a
+            // bounded distance toward the target instead of crossing the tab bar.
+            let top = max(scroll.frame.minY, 80)
+            let visibleBottom = min(scroll.frame.maxY, bottom)
+            let center = (top + visibleBottom) / 2
+            let delta = element.exists ? element.frame.midY - center : visibleBottom - top
+            let distance = min(max(abs(delta), 30), (visibleBottom - top) * 0.4)
+            let origin = scroll.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: scroll.frame.width * 0.5, dy: center - scroll.frame.minY))
+            let end = start.withOffset(CGVector(dx: 0, dy: delta < 0 ? distance : -distance))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
         XCTAssertTrue(element.isHittable)
     }

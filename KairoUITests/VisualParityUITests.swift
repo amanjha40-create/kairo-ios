@@ -221,12 +221,7 @@ final class VisualParityUITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {
-        for _ in 0..<18 {
-            if element.exists && element.isHittable { return }
-            app.swipeUp()
-        }
-        XCTAssertTrue(element.exists)
-        XCTAssertTrue(element.isHittable)
+        app.revealContent(element)
     }
 
     private func capture(_ name: String) {
