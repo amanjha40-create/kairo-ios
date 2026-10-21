@@ -1,11 +1,14 @@
 import SwiftUI
 
 enum KairoColors {
-    static let background = Color.adaptive(light: 0xFCFDFE, dark: 0x0B1220)
+    static let background = Color.adaptive(light: 0xF3F6F9, dark: 0x0B1220)
     static let surface = Color.adaptive(light: 0xFFFFFF, dark: 0x141F32)
-    static let surfaceMuted = Color.adaptive(light: 0xF1F4F6, dark: 0x202D42)
+    static let surfaceMuted = Color.adaptive(light: 0xEAF0F4, dark: 0x202D42)
     static let surfaceElevated = Color.adaptive(light: 0xFFFFFF, dark: 0x26344A)
-    static let border = Color.adaptive(light: 0xDFE4E8, dark: 0x39465A)
+    static let border = Color.adaptive(light: 0xD4DEE7, dark: 0x39465A)
+    // Opt-in brand hierarchy, not a replacement for semantic status colours.
+    static let surfaceBrand = Color.adaptive(light: 0xE8F5F3, dark: 0x141F32)
+    static let borderBrand = Color.adaptive(light: 0xB4D8D4, dark: 0x39465A)
     static let navy = Color(hex: 0x07122B)
     static let trustNavy = Color(hex: 0x020B20)
     static let brandPrimary = Color.adaptive(light: 0x07122B, dark: 0x12D6C5)

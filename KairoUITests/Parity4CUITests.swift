@@ -51,19 +51,19 @@ final class Parity4CUITests: XCTestCase {
         let attention = app.staticTexts["Needs Your Attention"]
         reveal(attention, in: app)
         XCTAssertLessThan(passport.frame.minY, attention.frame.minY)
-        let digiLocker = app.buttons["candidate.home.digilocker"]
-        reveal(digiLocker, in: app)
-        XCTAssertLessThan(attention.frame.minY, digiLocker.frame.minY)
         let career = app.descendants(matching: .any)["candidate.home.career"].firstMatch
         reveal(career, in: app)
         XCTAssertLessThan(attention.frame.minY, career.frame.minY)
+        let digiLocker = app.buttons["candidate.home.digilocker"]
+        reveal(digiLocker, in: app)
+        XCTAssertLessThan(career.frame.minY, digiLocker.frame.minY)
         let documents = app.buttons["candidate.home.documents"]
         reveal(documents, in: app)
         XCTAssertLessThan(career.frame.minY, documents.frame.minY)
         XCTAssertEqual(app.buttons.matching(identifier: "candidate.home.viewTrustPassport").count, 1)
         let activity = app.descendants(matching: .any)["candidate.home.recentActivity"].firstMatch
         reveal(activity, in: app)
-        XCTAssertLessThan(activity.frame.minY, documents.frame.minY)
+        XCTAssertLessThan(documents.frame.minY, activity.frame.minY)
     }
 
     func testHomeDocumentsOpensCanonicalHubAndPreservesSessionOnReturn() {

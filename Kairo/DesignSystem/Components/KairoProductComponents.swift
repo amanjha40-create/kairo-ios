@@ -33,9 +33,10 @@ struct KairoCompactDestinationRow: View {
         Button(action: action) {
             HStack(alignment: .center, spacing: KairoSpacing.small) {
                 Image(systemName: systemImage)
-                    .font(KairoTypography.headline)
+                    .resizable()
+                    .scaledToFit()
                     .foregroundStyle(KairoColors.brandPrimary)
-                    .frame(width: 24)
+                    .frame(width: 24, height: 24)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(title)

@@ -130,7 +130,10 @@ struct CandidateTabShellView: View {
     private func destinationView(for tab: CandidateTab) -> some View {
         switch tab {
         case .home:
-            if let uiTestState = uiTestHomeConfiguration.state {
+            if UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
+               let scenario = Batch4HomeScenario(rawValue: ProcessInfo.processInfo.environment["KAIRO_UI_TEST_BATCH4_HOME"] ?? "") {
+                Batch4HomeFixtureView(scenario: scenario)
+            } else if let uiTestState = uiTestHomeConfiguration.state {
                 HomeOverviewScreenView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {
                 HomeOverviewScreenView(state: .default(isDemoMode: true))

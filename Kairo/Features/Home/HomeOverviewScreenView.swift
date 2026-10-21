@@ -20,7 +20,7 @@ struct HomeOverviewScreenView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                LazyVStack(alignment: .leading, spacing: KairoSpacing.small) {
                     header
                     content
                 }
@@ -82,13 +82,13 @@ struct HomeOverviewScreenView: View {
             Button(action: { router.showNotificationCenter() }) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(KairoTypography.headline)
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(KairoColors.textPrimary)
                         .frame(width: 44, height: 44)
                         .background(KairoColors.surfaceMuted, in: Circle())
                     if let badge = notificationStore.unreadBadgeText {
                         Text(badge)
-                            .font(.caption2.bold())
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 4)
                             .frame(minWidth: 18, minHeight: 18)
@@ -121,16 +121,27 @@ struct HomeOverviewScreenView: View {
             .id(GuidedTourTarget.trustScore)
             .guidedTourTarget(.trustScore)
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
-        DigiLockerHomeCard()
-        PermanentAddressEntry()
-        requestGroup(content.verificationRequests.filter { !$0.needsAttention }, title: "In progress")
-        careerSection(content, isEmpty: isEmpty)
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            requestGroup(content.verificationRequests.filter { !$0.needsAttention }, title: "In progress")
+            careerSection(content, isEmpty: isEmpty)
+        }
+        .kairoTonalSurface(.standard)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("candidate.home.progressGroup")
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+            KairoSectionHeading(title: "Documents & identity")
+            DigiLockerHomeCard()
+            PermanentAddressEntry()
+            KairoCompactDestinationRow(
+                title: "Documents", metadata: "Career attachments and private documents",
+                systemImage: "doc.on.doc", accessibilityIdentifier: "candidate.home.documents",
+                action: { showsDocuments = true }
+            )
+        }
+        .kairoTonalSurface(.secondary)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("candidate.home.identityGroup")
         recentActivitySection(content.recentActivity)
-        KairoCompactDestinationRow(
-            title: "Documents", metadata: "Career attachments and private documents",
-            systemImage: "doc.on.doc", accessibilityIdentifier: "candidate.home.documents",
-            action: { showsDocuments = true }
-        )
         recentPassportViewsSection(content.recentPassportViews)
     }
 
@@ -139,6 +150,8 @@ struct HomeOverviewScreenView: View {
             adaptiveLayout {
                 HStack(alignment: .top, spacing: KairoSpacing.small) {
                     TrustPassportMark(size: 32, compact: true)
+                        .padding(KairoSpacing.xSmall)
+                        .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium))
                     VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                         Text("Trust Score").font(KairoTypography.headline)
                             .accessibilityAddTraits(.isHeader)
@@ -159,7 +172,7 @@ struct HomeOverviewScreenView: View {
                         Text("/ 100").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                     }
                 }
-                .foregroundStyle(KairoColors.textPrimary)
+                .foregroundStyle(KairoColors.teal)
             }
             Divider()
             Button { router.selectTab(.passport) } label: {
@@ -168,11 +181,12 @@ struct HomeOverviewScreenView: View {
                     Spacer()
                     Image(systemName: "arrow.right").accessibilityHidden(true)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
                 .buttonStyle(.plain)
                 .font(KairoTypography.action)
                 .foregroundStyle(KairoColors.textPrimary)
-                .frame(minHeight: 44)
                 .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
                 .id(GuidedTourTarget.passport)
                 .guidedTourTarget(.passport)
@@ -180,8 +194,7 @@ struct HomeOverviewScreenView: View {
                 Text(dataSourceLabel).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
             }
         }
-        .padding(KairoSpacing.medium)
-        .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
+        .kairoTonalSurface(.primary)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.homeTrustScoreCard)
     }
@@ -204,17 +217,27 @@ struct HomeOverviewScreenView: View {
                 Text("Pull to refresh to check your current verification requests.")
                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
             }
+            .padding(.horizontal, KairoSpacing.xSmall)
         } else if requests.filter(\.needsAttention).isEmpty {
-            KairoSection(compact: true) {
-                KairoSectionHeading(title: "Needs Your Attention")
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text("Needs Your Attention")
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
                 Label("No action needed right now", systemImage: "checkmark.circle")
                     .font(KairoTypography.recordTitle).foregroundStyle(KairoColors.textSecondary)
                 Text("Invitations and requests needing your input will appear here.")
                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
             }
+            .padding(.horizontal, KairoSpacing.xSmall)
+            .padding(.vertical, KairoSpacing.xSmall)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(KairoAccessibilityID.homeVerificationRequest)
         } else {
             requestGroup(requests.filter(\.needsAttention), title: "Needs Your Attention")
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.xxSmall)
+                .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
         }
     }
 
