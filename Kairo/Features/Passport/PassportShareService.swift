@@ -139,7 +139,7 @@ actor PassportShareService: PassportShareServiceProtocol {
         if scheme == "https" {
             return url
         }
-        if environment == .development, scheme == "http", ["localhost", "127.0.0.1"].contains(host) {
+        if environment == .development, scheme == "http", BuildEndpointPolicy.developmentShareHosts.contains(host) {
             return url
         }
         return nil

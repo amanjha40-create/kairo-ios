@@ -145,6 +145,6 @@ nonisolated enum DigiLockerReturnFixture: String, Sendable {
 
     var completionURL: URL {
         // Fixed public safe-result page only; no provider URL or capability parameter.
-        URL(string: "https://staging-api.kairoid.com/api/v1/integrations/digilocker/complete?digilocker_result=\(self == .failed ? "failed" : "connected")")!
+        BuildEndpointPolicy.stagingCompletionURL(failed: self == .failed)
     }
 }

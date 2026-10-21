@@ -16,7 +16,7 @@ nonisolated enum DigiLockerReadQA: String, Sendable {
     static func resolve(configuration: AppConfiguration, arguments: [String], environment: [String: String]) -> Self? {
         guard configuration.buildConfiguration == .staging, configuration.environment == .staging,
               !configuration.isDemoModeEnabled,
-              configuration.apiBaseURL.absoluteString == "https://staging-api.kairoid.com/api/v1",
+              configuration.apiBaseURL == BuildEndpointPolicy.stagingAPIBaseURL,
               arguments.contains("-KAIRO_DIGILOCKER_READ_QA"),
               !arguments.contains("-KAIRO_UI_TESTING") else { return nil }
         return Self(rawValue: environment["KAIRO_DIGILOCKER_READ_QA_MODE"] ?? "")

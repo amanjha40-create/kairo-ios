@@ -247,6 +247,11 @@ def build(args):
     artifact = archive if args.action == "archive" else Path(targets[0]["TARGET_BUILD_DIR"]) / targets[0]["FULL_PRODUCT_NAME"]
     require(verify(artifact, sha, args.configuration, signed=bool(args.team)) == data,
             "artifact_does_not_match_generated_input")
+    if args.configuration == "Production":
+        # Candidate construction must reject packaged endpoint leakage, even when
+        # runtime environment overrides are already disabled.
+        from endpoint_scan import scan
+        scan(artifact)
     xcode = run(["xcodebuild", "-version"]).splitlines()
     require(len(xcode) == 2 and re.fullmatch(r"Xcode [0-9.]+", xcode[0]) and
             re.fullmatch(r"Build version [A-Za-z0-9]+", xcode[1]), "unexpected_toolchain_version")

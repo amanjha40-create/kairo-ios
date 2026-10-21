@@ -35,7 +35,7 @@ nonisolated enum GoogleReturnDiagnostics {
 
         init(_ url: URL?) {
             let host = url?.host?.lowercased()
-            self.host = ["api.kairoid.com", "staging-api.kairoid.com"].contains(host ?? "")
+            self.host = BuildEndpointPolicy.diagnosticHosts.contains(host ?? "")
                 ? host! : "other"
             self.path = url?.path == "/auth/google/complete" ? "/auth/google/complete" : "other"
             hasCode = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?

@@ -151,7 +151,7 @@ struct AppConfiguration: Equatable, Sendable {
     var publicPassportHosts: Set<String> {
         switch environment {
         case .staging:
-            ["d3kpvsn9kfajzc.cloudfront.net"]
+            BuildEndpointPolicy.stagingShareHosts
         case .development, .production:
             []
         }
@@ -159,7 +159,7 @@ struct AppConfiguration: Equatable, Sendable {
 
     var documentPackHosts: Set<String> {
         switch environment {
-        case .staging: ["d3kpvsn9kfajzc.cloudfront.net"]
+        case .staging: BuildEndpointPolicy.stagingShareHosts
         case .development, .production: ["app.kairoid.com"]
         }
     }

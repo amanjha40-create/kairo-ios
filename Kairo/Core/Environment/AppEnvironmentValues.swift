@@ -552,10 +552,10 @@ private actor MissingTokenStore: TokenStore {
 
 private struct AppConfigurationKey: EnvironmentKey {
     static let defaultValue = AppConfiguration(
-        buildConfiguration: .development,
-        environment: .development,
+        buildConfiguration: BuildEndpointPolicy.defaultEnvironment == .production ? .production : .development,
+        environment: BuildEndpointPolicy.defaultEnvironment,
         isDemoModeEnabled: false,
-        apiBaseURL: APIConfiguration.make(for: .development).baseURL,
+        apiBaseURL: APIConfiguration.make(for: BuildEndpointPolicy.defaultEnvironment).baseURL,
         keychainService: "com.kairoid.Kairo.preview"
     )
 }
