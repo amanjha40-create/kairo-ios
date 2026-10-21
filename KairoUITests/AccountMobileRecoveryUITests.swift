@@ -86,6 +86,60 @@ final class AccountMobileRecoveryUITests: XCTestCase {
         XCTAssertFalse(app.textFields["onboarding.accountVerification.code"].exists)
     }
 
+    func testMissingPhoneCanSignOutAndReturnToLoginWithoutRequestingCode() {
+        let app = login(scenario: "missingPhone")
+        XCTAssertFalse(app.buttons["onboarding.accountVerification.send"].exists)
+        signOutAndAssertWelcome(in: app)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["onboarding.existingAccount"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["onboarding.accountVerification.title"].exists)
+        app.buttons["onboarding.existingAccount"].tap()
+        XCTAssertTrue(app.textFields["onboarding.login.email"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["onboarding.accountVerification.title"].exists)
+    }
+
+    func testPhoneConflictCanSignOutWithKeyboardAtAccessibilityXXXL() {
+        let app = login(scenario: "missingPhoneConflict", accessibilityXXXL: true)
+        saveMissingPhone(in: app)
+        XCTAssertTrue(app.staticTexts["onboarding.accountVerification.error"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["onboarding.accountVerification.send"].exists)
+        signOutAndAssertWelcome(in: app)
+    }
+
+    func testStoredUnverifiedPhoneCanSignOutBeforeSendingCode() {
+        let app = login(scenario: "success")
+        XCTAssertTrue(app.buttons["onboarding.accountVerification.send"].exists)
+        XCTAssertFalse(app.textFields["onboarding.accountVerification.code"].exists)
+        signOutAndAssertWelcome(in: app)
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
+        app.activate()
+        XCTAssertTrue(app.buttons["onboarding.existingAccount"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["onboarding.accountVerification.title"].exists)
+    }
+
+    private func signOutAndAssertWelcome(in app: XCUIApplication) {
+        let exit = app.buttons["onboarding.accountVerification.signOut"]
+        XCTAssertTrue(exit.waitForExistence(timeout: 5))
+        XCTAssertEqual(exit.label, "Sign out and use another account")
+        XCTAssertEqual(app.buttons.matching(identifier: "onboarding.accountVerification.signOut").count, 1)
+        let form = app.scrollViews.firstMatch
+        XCTAssertTrue(form.waitForExistence(timeout: 5))
+        for _ in 0..<8 {
+            if exit.isHittable { break }
+            // App-wide swipes start on the SE number keyboard at XXXL.
+            // Scroll the form itself so native keyboard dismissal can run.
+            form.swipeUp()
+        }
+        XCTAssertTrue(exit.isHittable)
+        XCTAssertTrue(exit.isEnabled)
+        exit.tap()
+        XCTAssertTrue(app.buttons["onboarding.existingAccount"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["onboarding.accountVerification.title"].exists)
+        XCTAssertFalse(app.otherElements["candidate.tabShell"].exists)
+    }
+
     func testMissingPhoneEntryAndSaveReachableAtAccessibilityXXXL() {
         let app = login(scenario: "missingPhone", accessibilityXXXL: true)
         saveMissingPhone(in: app)
@@ -133,6 +187,11 @@ final class AccountMobileRecoveryUITests: XCTestCase {
         let passwordSavePrompt = PasswordSavePromptSupport()
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+#if KAIRO_LOCAL_BATCH1_QA
+        // Reuse the existing development-only Production harness for physical
+        // certification; normal/distribution builds cannot enable this gate.
+        app.launchArguments.append("-KAIRO_LOCAL_BATCH1_QA")
+#endif
         if accessibilityXXXL {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }

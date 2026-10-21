@@ -711,6 +711,59 @@ final class AppSessionStoreTests: XCTestCase {
         XCTAssertNil(store.currentUser)
     }
 
+    func test_mobileRecoverySignOutClearsCredentialsAndCannotRestoreAbandonedAccount() async throws {
+        try await assertMobileRecoverySignOut(remoteLogoutFails: false)
+    }
+
+    func test_mobileRecoverySignOutStillClearsCredentialsWhenRemoteLogoutFails() async throws {
+        try await assertMobileRecoverySignOut(remoteLogoutFails: true)
+    }
+
+    private func assertMobileRecoverySignOut(remoteLogoutFails: Bool) async throws {
+        let configuration = makeConfiguration()
+        let tokens = InMemoryTokenStore()
+        for key in TokenKey.allCases {
+            try await tokens.save("synthetic-recovery-\(key.rawValue)", for: key)
+        }
+        let network = MobileRecoveryExitNetwork(remoteLogoutFails: remoteLogoutFails)
+        let session = SessionService(configuration: configuration, networkClient: network, tokenStore: tokens)
+        let auth = AuthService(configuration: configuration, networkClient: network, sessionService: session)
+        let router = AppRouter()
+        let store = makeStore(router: router, authService: auth, sessionService: session)
+        await store.bootstrapIfNeeded()
+        XCTAssertEqual(store.launchPhase, .idle)
+        XCTAssertEqual(router.onboardingPath.last, .step(.verifyIdentity))
+        XCTAssertNotNil(store.currentUser)
+        XCTAssertEqual(store.authenticatedVerificationStatus?.phoneVerified, false)
+
+        await store.signOut()
+
+        XCTAssertEqual(router.rootDestination, .onboarding)
+        XCTAssertTrue(router.onboardingPath.isEmpty)
+        XCTAssertNil(store.currentUser)
+        XCTAssertNil(store.authenticatedVerificationStatus)
+        XCTAssertNil(store.signupRecovery)
+        XCTAssertNil(store.pendingGoogleSignup)
+        for key in TokenKey.allCases {
+            let remaining = try await tokens.readToken(for: key)
+            XCTAssertNil(remaining, "Sign-out must clear every credential/recovery key")
+        }
+
+        // Recreate the app services over the same credential store, rather than
+        // a fresh UI-test launch that would discard in-memory tokens anyway.
+        let restoredSession = SessionService(configuration: configuration, networkClient: network, tokenStore: tokens)
+        let restoredAuth = AuthService(configuration: configuration, networkClient: network, sessionService: restoredSession)
+        let restoredRouter = AppRouter()
+        let restoredStore = makeStore(router: restoredRouter, authService: restoredAuth, sessionService: restoredSession)
+        await restoredStore.bootstrapIfNeeded()
+        XCTAssertEqual(restoredRouter.rootDestination, .onboarding)
+        XCTAssertTrue(restoredRouter.onboardingPath.isEmpty)
+        XCTAssertNil(restoredStore.currentUser)
+        let requests = network.requests
+        XCTAssertEqual(requests, ["GET /users/me", "GET /onboarding/status", "POST /auth/logout"],
+                       "No OTP, account deletion, phone write, provider call or post-signout account restoration")
+    }
+
     func test_bootstrapRoutesToVerifyIdentityForBackendVerifyIdentityStep() async {
         let router = AppRouter()
         let store = AppSessionStore(
@@ -814,6 +867,37 @@ final class AppSessionStoreTests: XCTestCase {
             manualProfileService: StubManualProfileService(),
             resumeImportService: StubResumeImportService()
         )
+    }
+}
+
+@MainActor
+private final class MobileRecoveryExitNetwork: NetworkClient {
+    let remoteLogoutFails: Bool
+    private(set) var requests: [String] = []
+
+    init(remoteLogoutFails: Bool) { self.remoteLogoutFails = remoteLogoutFails }
+
+    func send(_ request: NetworkRequest) async throws -> Data {
+        requests.append("\(request.method.rawValue) \(request.path)")
+        switch (request.method, request.path) {
+        case (.get, "/users/me"):
+            return Data("""
+                {"id":"synthetic-recovery-user","email":"synthetic@example.com","full_name":null,"phone":null,
+                 "role":"candidate","is_active":true,"profile_completion_percentage":25,
+                 "created_at":"2026-01-01T00:00:00Z"}
+                """.utf8)
+        case (.get, "/onboarding/status"):
+            return Data("""
+                {"current_step":"verify_identity","email_verified":true,"phone_verified":false,
+                 "passport_ready":false,"completed_steps":["verify_email"],"missing_requirements":["phone"],
+                 "next_recommended_step":"verify_identity","completion_percentage":25,"is_onboarding_complete":false}
+                """.utf8)
+        case (.post, "/auth/logout"):
+            if remoteLogoutFails { throw NetworkError.transport("synthetic offline") }
+            return Data("{}".utf8)
+        default:
+            throw NetworkError.invalidURL
+        }
     }
 }
 

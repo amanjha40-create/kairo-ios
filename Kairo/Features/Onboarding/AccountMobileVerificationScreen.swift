@@ -132,6 +132,7 @@ struct AccountMobileVerificationScreen: View {
     @Environment(\.authService) private var authService
     @EnvironmentObject private var sessionStore: AppSessionStore
     @StateObject private var state = AccountMobileVerificationState()
+    @State private var isSigningOut = false
     @FocusState private var focus: Field?
 
     private var needsPhone: Bool {
@@ -254,7 +255,22 @@ struct AccountMobileVerificationScreen: View {
                 Task { await sessionStore.refreshLaunchRoute() }
             }
             .disabled(state.isBusy)
+            KairoSecondaryButton(
+                title: "Sign out and use another account",
+                accessibilityIdentifier: "onboarding.accountVerification.signOut"
+            ) {
+                guard !isSigningOut else { return }
+                isSigningOut = true
+                focus = nil
+                Task {
+                    await sessionStore.signOut()
+                    isSigningOut = false
+                }
+            }
+            .accessibilityHint("Signs out on this device and returns to Welcome. Your account is not deleted.")
+            .disabled(state.isBusy || isSigningOut)
         }
+        .disabled(isSigningOut)
         .navigationBarBackButtonHidden(true)
     }
 }
