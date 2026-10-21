@@ -4,6 +4,15 @@ import XCTest
 final class DigiLockerAadhaarUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    override func tearDownWithError() throws {
+        let app = XCUIApplication()
+        attach(app, name: "Synthetic Aadhaar final screen")
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "Synthetic Aadhaar accessibility hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+    }
+
     func testExplicitAvailabilityRequiresSeparateConsentBeforeVerification() {
         let app = launch(scenario: "available")
         openHub(app)
@@ -272,16 +281,27 @@ final class DigiLockerAadhaarUITests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<35 {
-            let viewport = app.frame.insetBy(dx: 0, dy: 140)
+            // The connection action now precedes this section. Use the actual
+            // navigation/home-indicator bounds, not an arbitrary 140pt footer
+            // that excludes reachable controls at the end of the scroll view.
+            let navigation = app.navigationBars.firstMatch
+            let top = navigation.exists ? max(app.frame.minY + 60, navigation.frame.maxY + 8) : app.frame.minY + 100
+            let viewport = CGRect(x: app.frame.minX, y: top, width: app.frame.width,
+                                  height: max(0, app.frame.maxY - 44 - top))
             if element.exists {
                 let visibleHeight = element.frame.intersection(viewport).height
-                if visibleHeight >= min(44, element.frame.height), element.isHittable || !element.isEnabled { return }
-                if element.frame.maxY < viewport.minY || element.frame.minY < viewport.minY {
-                    app.swipeDown()
+                let tapCentreVisible = element.elementType != .button || viewport.contains(
+                    CGPoint(x: element.frame.midX, y: element.frame.midY))
+                if visibleHeight >= min(44, element.frame.height), tapCentreVisible,
+                   element.isHittable || !element.isEnabled { return }
+                if element.frame.midY < viewport.minY {
+                    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                        .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)))
                     continue
                 }
             }
-            app.swipeUp()
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
         }
         XCTFail("Control is not reachable: \(element.identifier)")
     }

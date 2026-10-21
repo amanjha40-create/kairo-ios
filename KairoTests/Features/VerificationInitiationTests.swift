@@ -153,7 +153,8 @@ final class VerificationInitiationTests: XCTestCase {
                     id: "education_document_1",
                     documentType: "transcript",
                     filename: "transcript.pdf",
-                    isUploadComplete: true
+                    isUploadComplete: false,
+                    requiresCompletionValidation: true
                 )
             ]
         )

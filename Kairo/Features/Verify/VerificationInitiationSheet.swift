@@ -69,6 +69,7 @@ final class VerificationInitiationViewModel: ObservableObject {
         do {
             let documents = try await service.loadEvidence(for: subject)
             var loaded = VerificationInitiationDraft(subject: subject, documents: documents)
+            if subject.kind == .education { loaded.contactType = .authorizedRepresentative }
             if subject.kind == .employment {
                 loaded.employmentEligibility = try await service.employmentEligibility(id: subject.id)
             }
@@ -275,23 +276,29 @@ struct VerificationInitiationSheet: View {
                 Text(draft.wrappedValue.subject.subtitle)
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
+                Text(draft.wrappedValue.subject.kind.workflowDescription)
+                    .font(KairoTypography.body)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             KairoSection {
-                Text("Supporting evidence")
+                Text(draft.wrappedValue.subject.kind == .education ? "Education evidence" : "Verification evidence")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
                 Text(draft.wrappedValue.subject.kind == .employment
                      ? "Select at least two distinct completed primary documents. Supporting and unclassified legacy evidence do not count."
-                     : "Select at least one completed document already attached to this Career record.")
+                     : "Select at least one uploaded education document. The server checks upload completion when you submit; a listed file is not proof of a completed upload.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
 
                 if let eligibility = draft.wrappedValue.employmentEligibility {
                     Text(eligibility.progress).accessibilityIdentifier("verification.initiation.primaryProgress")
+                    Text("\(draft.wrappedValue.selectedPrimaryCount) of 2 required primary documents selected")
                 }
 
-                ForEach(draft.wrappedValue.documents) { document in
+                ForEach(draft.wrappedValue.evidenceGroups) { group in
+                    Text(group.title).font(KairoTypography.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(group.documents) { document in
                     Button {
                         model.toggleDocument(document.id)
                     } label: {
@@ -314,24 +321,26 @@ struct VerificationInitiationSheet: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(draft.wrappedValue.selectedDocumentIDs.contains(document.id) ? [.isSelected] : [])
                     .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationEvidence(document.id))
+                }
                 }
             }
 
             KairoSection {
-                Text("Verification contact")
+                Text(draft.wrappedValue.subject.kind.contactHeading)
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                KairoTextField(title: "Contact email", prompt: "hr@organisation.com", text: draft.contactEmail)
+                KairoTextField(title: "Contact email", prompt: draft.wrappedValue.subject.kind.contactEmailPrompt, text: draft.contactEmail)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     .autocorrectionDisabled()
                 KairoTextField(title: "Contact name (optional)", prompt: "Name", text: draft.contactName)
-                KairoTextField(title: "Role (optional)", prompt: "HR manager", text: draft.contactRole)
+                KairoTextField(title: "Role (optional)", prompt: draft.wrappedValue.subject.kind.contactRolePrompt, text: draft.contactRole)
 
                 Picker("Contact type", selection: draft.contactType) {
-                    ForEach(VerificationContactType.allCases, id: \.self) { type in
+                    ForEach(draft.wrappedValue.subject.kind.contactTypes, id: \.self) { type in
                         Text(type.title).tag(type)
                     }
                 }

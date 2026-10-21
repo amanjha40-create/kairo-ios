@@ -21,6 +21,9 @@ struct DocumentVaultView: View {
     @State private var editingDocument: VaultDocument?
     @State private var pendingDelete: VaultDocument?
     @State private var addingDocument = false
+    @State private var selectedFile: URL?
+    @State private var uploadFailed = false
+    @State private var uploadConfirmed = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +41,15 @@ struct DocumentVaultView: View {
                         .accessibilityValue(addingDocument ? "Expanded" : "Collapsed")
                         .accessibilityHint("Shows or hides private upload options")
                     if addingDocument { uploadCard }
+                    if let selectedFile {
+                        EvidenceUploadReview(type: reviewType.title,
+                            filename: reviewType.metadataFilename(selectedFile.lastPathComponent, contentType: ""),
+                            isUploading: isMutating, retry: uploadFailed,
+                            upload: uploadSelection, cancel: clearSelection)
+                    }
+                    if uploadConfirmed {
+                        Text("Document added. Vault was refreshed from KairoID.").accessibilityIdentifier("evidence.added")
+                    }
 
                     if isLoading {
                         KairoLoadingStateView(
@@ -71,7 +83,7 @@ struct DocumentVaultView: View {
                 }
             }
             .task { await load() }
-            .refreshable { await load() }
+            .refreshable { if !isMutating { await load() } }
             .onChange(of: selectedType) { _, type in
                 if !type.allowsDocumentNumber { documentNumber = "" }
             }
@@ -129,10 +141,11 @@ struct DocumentVaultView: View {
 
     private var uploadCard: some View {
         KairoSection {
-            Picker("Document type", selection: $selectedType) {
-                ForEach(VaultDocumentType.newUploadTypes) { type in
-                    Text(type.title).tag(type)
-                }
+            Text("1. Select a private document type").font(KairoTypography.headline)
+            EvidenceTypeSelector(value: selectedType.rawValue,
+                options: VaultDocumentType.newUploadTypes.map { .init(id: $0.rawValue, label: $0.title) }) {
+                selectedType = VaultDocumentType(rawValue: $0)
+                clearSelection()
             }
             .accessibilityIdentifier("candidate.more.documentVault.type")
             .frame(minHeight: 44)
@@ -162,16 +175,17 @@ struct DocumentVaultView: View {
                 isLoading: isMutating,
                 accessibilityIdentifier: "candidate.more.documentVault.upload",
                 action: {
+                    clearSelection()
                     uploadMode = .new
                     isFileImporterPresented = true
                 }
             )
-            .disabled(isMutating)
+            .disabled(isMutating || isLoading)
 
             Text("PDF, JPEG, PNG, or WebP • up to 50 MB")
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
-        }
+        }.disabled(isMutating)
     }
 
     @ViewBuilder private func documentSection(title: String, documents: [VaultDocument]) -> some View {
@@ -214,7 +228,7 @@ struct DocumentVaultView: View {
             if document.isCurrent {
                 Menu {
                     Button("Edit details") { editingDocument = document }
-                    Button("Replace") { uploadMode = .replace(document); isFileImporterPresented = true }
+                    Button("Replace") { clearSelection(); uploadMode = .replace(document); isFileImporterPresented = true }
                     Button("Delete", role: .destructive) { pendingDelete = document }
                 } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()) }
                     .disabled(isMutating).accessibilityLabel("More actions for \(metadataFilename(document))")
@@ -238,9 +252,33 @@ struct DocumentVaultView: View {
     }
 
     private func handleFileSelection(_ result: Result<[URL], Error>) {
+        guard !isMutating else { return }
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            selectedFile = url
+            uploadFailed = false
+            uploadConfirmed = false
+            errorMessage = nil
+        case .failure:
+            errorMessage = "KairoID couldn't read the selected document. Choose a supported file and try again."
+        }
+    }
+
+    private var reviewType: VaultDocumentType {
+        if case .replace(let document) = uploadMode { return document.documentType }
+        return selectedType
+    }
+
+    private func clearSelection() {
+        selectedFile = nil
+        uploadMode = .new
+        uploadFailed = false
+        uploadConfirmed = false
+    }
+
+    private func uploadSelection() {
+        guard !isMutating, let url = selectedFile else { return }
             let mode = uploadMode
             isMutating = true
             errorMessage = nil
@@ -261,6 +299,8 @@ struct DocumentVaultView: View {
                     )
                     await MainActor.run {
                         documents = loaded
+                        clearSelection()
+                        uploadConfirmed = true
                         isMutating = false
                         uploadMode = .new
                         if replacingDocument == nil {
@@ -270,13 +310,10 @@ struct DocumentVaultView: View {
                         refreshStore.candidateDataChanged()
                     }
                 } catch {
+                    uploadFailed = true
                     await present(error)
                 }
             }
-        case .failure(let error):
-            _ = error
-            errorMessage = "KairoID couldn't read the selected document. Choose a supported file and try again."
-        }
     }
 
     private func updateMetadata(document: VaultDocument, number: String?, expiry: Date?) async throws {

@@ -10,6 +10,18 @@ nonisolated enum VerificationInitiationKind: String, CaseIterable, Equatable, Se
         case .education: "Education"
         }
     }
+
+    var contactHeading: String { self == .education ? "Institution contact" : "Employer contact" }
+    var contactEmailPrompt: String { self == .education ? "registrar@institution.edu" : "hr@organisation.com" }
+    var contactRolePrompt: String { self == .education ? "Registrar or authorised representative" : "HR manager" }
+    var contactTypes: [VerificationContactType] {
+        self == .education ? [.authorizedRepresentative, .other] : VerificationContactType.allCases
+    }
+    var workflowDescription: String {
+        self == .education
+            ? "Request review of your institution, qualification and study dates. Add an institution contact and select education evidence. KairoID reviews the request before institution verification; sending it does not mark your education verified."
+            : "Request review of your employer, role and employment dates. Select at least two completed primary documents and provide an employer contact. KairoID reviews the request before organisation verification."
+    }
 }
 
 nonisolated struct VerificationInitiationSubject: Identifiable, Equatable, Sendable {
@@ -72,6 +84,7 @@ nonisolated struct VerificationEvidenceDocument: Identifiable, Equatable, Sendab
     let filename: String
     let isUploadComplete: Bool
     var evidenceRole: EmploymentEvidenceRole? = nil
+    var requiresCompletionValidation = false
 
     var displayType: String {
         documentType
@@ -112,6 +125,19 @@ nonisolated struct VerificationInitiationDraft: Equatable, Sendable {
     var consentsToEvidence = false
     var employmentEligibility: EmploymentEvidenceEligibility? = nil
 
+    var selectedPrimaryCount: Int {
+        Set(selectedDocuments.filter { $0.isUploadComplete && $0.evidenceRole == .primary }.map(\.id)).count
+    }
+
+    var evidenceGroups: [VerificationEvidenceGroup] {
+        guard subject.kind == .employment else { return [.init(title: "Education documents", documents: documents)] }
+        return [
+            .init(title: "Primary evidence — at least two required", documents: documents.filter { $0.evidenceRole == .primary }),
+            .init(title: "Supporting evidence — optional", documents: documents.filter { $0.evidenceRole == .supporting }),
+            .init(title: "Unclassified evidence — not counted", documents: documents.filter { $0.evidenceRole == nil })
+        ].filter { !$0.documents.isEmpty }
+    }
+
     var selectedDocuments: [VerificationEvidenceDocument] {
         documents.filter { selectedDocumentIDs.contains($0.id) }
     }
@@ -124,8 +150,13 @@ nonisolated struct VerificationInitiationDraft: Equatable, Sendable {
     }
 
     var evidenceReady: Bool {
+        guard selectedDocuments.count <= 20 else { return false }
         let completed = selectedDocuments.filter(\.isUploadComplete)
-        if subject.kind == .education { return !completed.isEmpty }
+        if subject.kind == .education {
+            return !selectedDocuments.isEmpty && selectedDocuments.allSatisfy {
+                $0.isUploadComplete || $0.requiresCompletionValidation
+            }
+        }
         let primaryIDs = Set(completed.filter { $0.evidenceRole == .primary }.map(\.id))
         return employmentEligibility?.canContinue == true && primaryIDs.count >= 2
     }
@@ -162,6 +193,12 @@ nonisolated struct VerificationInitiationDraft: Equatable, Sendable {
         let parts = trimmed.split(separator: "@", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && parts[1].contains(".")
     }
+}
+
+nonisolated struct VerificationEvidenceGroup: Identifiable, Equatable, Sendable {
+    let title: String
+    let documents: [VerificationEvidenceDocument]
+    var id: String { title }
 }
 
 nonisolated struct VerificationInitiationResult: Equatable, Sendable {

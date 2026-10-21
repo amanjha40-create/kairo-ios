@@ -2,14 +2,28 @@ import Foundation
 import XCTest
 @testable import Kairo
 
+private final class Batch3UploadStageRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [DocumentUploadStage] = []
+    func append(_ value: DocumentUploadStage) { lock.lock(); defer { lock.unlock() }; storage.append(value) }
+    var values: [DocumentUploadStage] { lock.lock(); defer { lock.unlock() }; return storage }
+}
+
 @MainActor
 final class CareerDocumentServiceTests: XCTestCase {
+    func testEmploymentCatalogueMatchesAllAPI43DocumentTypes() async throws {
+        let service = try await makeService()
+        let values = service.documentTypes(for: .employment(id: "synthetic", title: "Synthetic", canUpload: true, canDelete: true))
+        XCTAssertEqual(Set(values.map(\.id)), Set(["pay_stub", "offer_letter", "appointment_letter", "experience_letter", "payslip", "employment_id_card", "contract", "bank_statement", "form_w2", "form_1099", "employment_contract", "hr_letter", "relieving_letter", "government_id", "other"]))
+        XCTAssertEqual(values.count, 15)
+    }
     func testEmploymentUploadsExplicitPrimaryOrSupportingAndWaitsForCompletion() async throws {
         let service = try await makeService()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
         try Data("%PDF-synthetic-evidence".utf8).write(to: file)
         defer { try? FileManager.default.removeItem(at: file) }
         for role in EmploymentEvidenceRole.allCases {
+            let stages = Batch3UploadStageRecorder()
             await MockURLProtocolStorage.shared.reset()
             await MockURLProtocolStorage.shared.setHandler { request in
                 switch (request.httpMethod, request.url?.host, request.url?.path) {
@@ -29,7 +43,9 @@ final class CareerDocumentServiceTests: XCTestCase {
                 }
             }
             _ = try await service.uploadDocument(fileURL: file, documentType: "other", evidenceRole: role,
-                to: .employment(id: "employment-1", title: "Synthetic", canUpload: true, canDelete: true))
+                to: .employment(id: "employment-1", title: "Synthetic", canUpload: true, canDelete: true),
+                progress: { stages.append($0) })
+            XCTAssertEqual(stages.values, [.uploading, .processing, .refreshing])
             let requests = await MockURLProtocolStorage.shared.requests()
             XCTAssertEqual(requests.map(\.httpMethod), ["POST", "PUT", "POST", "GET"])
         }

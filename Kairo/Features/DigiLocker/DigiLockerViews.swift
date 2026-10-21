@@ -214,6 +214,8 @@ struct DigiLockerHubView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: KairoSpacing.medium) {
                     header
+                    connectionSection
+                    ProductGuidanceView(topic: .digiLocker)
                     if DigiLockerReadQA.current(configuration: configuration) != nil {
                         Text("Staging authenticated read QA — writes and OAuth blocked")
                             .font(KairoTypography.caption)
@@ -228,7 +230,6 @@ struct DigiLockerHubView: View {
                     savedSection
                     availableSection
                     DigiLockerAadhaarView()
-                    connectionSection
                 }
                 .padding(.horizontal, KairoSpacing.medium)
                 .padding(.vertical, KairoSpacing.large)
@@ -298,11 +299,10 @@ struct DigiLockerHubView: View {
             DigiLockerBrandView()
             HStack {
                 KairoTrustSignature(kind: .connected, trigger: connectionMotion, size: 36)
-                Text("Secure connection for verified records")
+                Text(store.status?.connected == true && !store.summaryError ? "DigiLocker connected" : "Connect your DigiLocker")
             }
                 .font(KairoTypography.bodyStrong)
                 .foregroundStyle(KairoColors.textPrimary)
-            ProductGuidanceView(topic: .digiLocker)
             if store.isLoadingSummary && store.status == nil {
                 ProgressView("Checking connection…")
             } else if let status = store.status, !store.summaryError {
@@ -369,12 +369,7 @@ struct DigiLockerHubView: View {
     private var connectionSection: some View {
         KairoSection {
             KairoSectionHeading(title: "Connection")
-            Text("Your credentials stay with DigiLocker. KairoID displays privacy-safe verification results, not source files or identifiers.")
-                .font(KairoTypography.metadata)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if store.status?.connected != true && store.status?.status != .pending && !store.summaryError {
+            if store.status != nil && store.status?.connected != true && store.status?.status != .pending && !store.summaryError {
                 KairoPrimaryButton(
                     title: store.status?.status == .reconnectRequired ? "Reconnect DigiLocker" : "Connect DigiLocker",
                     isLoading: store.isConnecting || authentication.isActive || isFinishingReturn,
@@ -382,6 +377,16 @@ struct DigiLockerHubView: View {
                     action: connect
                 )
                 .disabled(store.isConnecting || authentication.isActive || isFinishingReturn || store.isLoadingSummary)
+            }
+
+            Text("Connecting does not verify your Career records. Choose supported identity documents and give consent separately. Manual uploads remain a separate source.")
+                .font(KairoTypography.metadata)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if store.isConnecting || authentication.isActive || isFinishingReturn {
+                ProgressView(isFinishingReturn ? "Checking connection and saved results…" : "Connecting securely…")
+                    .accessibilityIdentifier("candidate.digilocker.connectionProgress")
             }
 
             if awaitingBrowserReturn || store.status?.status == .pending {

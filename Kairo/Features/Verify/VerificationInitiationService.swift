@@ -78,22 +78,23 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
                 )
             }
         case .education:
-            let page: VerificationDocumentPageDTO<EducationVerificationDocumentDTO> = try await get(
-                path: "/educations/\(subject.id)/documents"
-            )
-            // The current education document response contains only completed document rows;
-            // the backend remains authoritative and revalidates checksum completion at creation.
-            documents = page.items.map {
+            let items = try await loadOwnerCollection(EducationVerificationDocumentDTO.self,
+                path: "/educations/\(subject.id)/documents", session: sessionService)
+            // API43 omits completion metadata and includes pending intents. These rows
+            // are selectable, not proof of completion; draft creation validates it.
+            // Do not probe private content or invent a completion state from "pending".
+            documents = items.map {
                 VerificationEvidenceDocument(
                     id: $0.id,
                     documentType: $0.documentType,
                     filename: $0.originalFilename,
-                    isUploadComplete: true
+                    isUploadComplete: false,
+                    requiresCompletionValidation: true
                 )
             }
         }
 
-        let completed = documents.filter(\.isUploadComplete)
+        let completed = documents.filter { $0.isUploadComplete || (subject.kind == .education && $0.requiresCompletionValidation) }
         guard !completed.isEmpty || subject.kind == .employment else {
             throw VerificationInitiationServiceError.noCompletedEvidence
         }

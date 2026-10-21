@@ -1,5 +1,11 @@
 import Foundation
 
+nonisolated enum DocumentUploadStage: String, Sendable {
+    case uploading = "Uploading private file…"
+    case processing = "Processing upload confirmation…"
+    case refreshing = "Refreshing documents…"
+}
+
 nonisolated enum CareerDocumentParent: Equatable, Sendable {
     case employment(id: String, title: String, canUpload: Bool, canDelete: Bool)
     case education(id: String, title: String)
@@ -50,14 +56,20 @@ nonisolated enum CareerDocumentParent: Equatable, Sendable {
 }
 
 extension CareerDocumentParent {
-    var isCertification: Bool {
+    nonisolated var isCertification: Bool {
         if case .certification = self { return true }
         return false
     }
 
-    var isPortfolio: Bool {
+    nonisolated var isPortfolio: Bool {
         if case .portfolio = self { return true }
         return false
+    }
+
+    nonisolated var hasSingleAttachment: Bool { isCertification || isPortfolio }
+
+    nonisolated func canAddDocument(existing: [CareerDocument]) -> Bool {
+        canUpload && (!hasSingleAttachment || existing.isEmpty)
     }
 }
 
@@ -87,6 +99,8 @@ nonisolated struct CareerDocumentType: Identifiable, Equatable, Sendable {
 }
 
 protocol CareerDocumentServiceProtocol: Sendable {
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent,
+                        progress: @escaping @Sendable (DocumentUploadStage) -> Void) async throws -> [CareerDocument]
     func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility
     func classifyEvidence(_ document: CareerDocument, parent: CareerDocumentParent, role: EmploymentEvidenceRole) async throws
     func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent) async throws -> [CareerDocument]
@@ -103,6 +117,11 @@ protocol CareerDocumentServiceProtocol: Sendable {
 }
 
 extension CareerDocumentServiceProtocol {
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent,
+                        progress: @escaping @Sendable (DocumentUploadStage) -> Void) async throws -> [CareerDocument] {
+        progress(.uploading)
+        return try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: evidenceRole, to: parent)
+    }
     func employmentEligibility(id: String) async throws -> EmploymentEvidenceEligibility {
         throw CareerDocumentServiceError.uploadUnavailable
     }
@@ -127,16 +146,17 @@ extension CareerDocumentServiceProtocol {
         with fileURL: URL,
         documentType: String,
         evidenceRole: EmploymentEvidenceRole? = nil,
-        parent: CareerDocumentParent
+        parent: CareerDocumentParent,
+        progress: @escaping @Sendable (DocumentUploadStage) -> Void = { _ in }
     ) async throws -> [CareerDocument] {
         if case .certification = parent {
             // Completion atomically swaps the attachment; never detach afterward.
-            return try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+            return try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: .primary, to: parent, progress: progress)
         }
         if case .portfolio = parent {
-            return try await uploadDocument(fileURL: fileURL, documentType: documentType, to: parent)
+            return try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: .primary, to: parent, progress: progress)
         }
-        _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: document.evidenceRole ?? evidenceRole ?? .primary, to: parent)
+        _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: document.evidenceRole ?? evidenceRole ?? .primary, to: parent, progress: progress)
         return try await deleteDocument(document, parent: parent)
     }
 }
@@ -163,6 +183,13 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
                 .init(id: "appointment_letter", label: "Appointment letter"),
                 .init(id: "experience_letter", label: "Experience letter"),
                 .init(id: "payslip", label: "Payslip"),
+                .init(id: "pay_stub", label: "Pay stub / Payslip"),
+                .init(id: "employment_id_card", label: "Employment ID card"),
+                .init(id: "contract", label: "Contract"),
+                .init(id: "bank_statement", label: "Bank statement"),
+                .init(id: "form_w2", label: "Form W-2"),
+                .init(id: "form_1099", label: "Form 1099"),
+                .init(id: "government_id", label: "Government ID"),
                 .init(id: "employment_contract", label: "Employment contract"),
                 .init(id: "hr_letter", label: "HR letter"),
                 .init(id: "relieving_letter", label: "Relieving letter"),
@@ -236,12 +263,18 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
     }
 
     func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent) async throws -> [CareerDocument] {
+        try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: evidenceRole, to: parent, progress: { _ in })
+    }
+
+    func uploadDocument(fileURL: URL, documentType: String, evidenceRole: EmploymentEvidenceRole, to parent: CareerDocumentParent,
+                        progress: @escaping @Sendable (DocumentUploadStage) -> Void) async throws -> [CareerDocument] {
         guard parent.canUpload else { throw CareerDocumentServiceError.uploadUnavailable }
+        progress(.uploading)
         if case .certification(let id, _) = parent {
-            return try await uploadCertificationDocument(fileURL: fileURL, id: id, parent: parent)
+            return try await uploadCertificationDocument(fileURL: fileURL, id: id, parent: parent, progress: progress)
         }
         if case .portfolio(let id, _) = parent {
-            return try await uploadPortfolioDocument(fileURL: fileURL, id: id, parent: parent)
+            return try await uploadPortfolioDocument(fileURL: fileURL, id: id, parent: parent, progress: progress)
         }
         let selection = try await transferClient.prepare(
             fileURL: fileURL,
@@ -290,6 +323,7 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             throw error
         }
 
+        progress(.processing)
         _ = try await sessionService.sendAuthenticated(
             NetworkRequest(
                 path: completionPath(intent.documentId),
@@ -300,6 +334,7 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
                 )
             )
         )
+        progress(.refreshing)
         return try await listDocuments(for: parent)
     }
 
@@ -361,20 +396,22 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         try await loadOwnerCollection(CareerDocumentDTO.self, path: path, session: sessionService).map(\.domain)
     }
 
-    private func uploadPortfolioDocument(fileURL: URL, id: String, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+    private func uploadPortfolioDocument(fileURL: URL, id: String, parent: CareerDocumentParent, progress: @Sendable (DocumentUploadStage) -> Void) async throws -> [CareerDocument] {
         let selection = try await transferClient.prepare(fileURL: fileURL, maximumBytes: 50 * 1_024 * 1_024, allowedContentTypes: SecureDocumentTransferClient.careerContentTypes)
         let data = try await sessionService.sendAuthenticated(NetworkRequest(path: "/portfolio/\(id)/upload-intent", method: .post,
             headers: ["Accept": "application/json", "Content-Type": "application/json"],
             body: try encoder.encode(PortfolioUploadIntentDTO(originalFilename: selection.filename, contentType: selection.contentType, byteSize: selection.data.count))))
         let intent = try decoder.decode(PortfolioUploadIntentResponseDTO.self, from: data)
         try await transferClient.upload(selection, to: intent.uploadUrl, requiredHeaders: intent.headersRequired)
+        progress(.processing)
         _ = try await sessionService.sendAuthenticated(NetworkRequest(path: "/portfolio/\(id)/complete-upload", method: .post,
             headers: ["Accept": "application/json", "Content-Type": "application/json"],
             body: try encoder.encode(CareerDocumentCompleteRequestDTO(checksumSHA256: selection.checksumSHA256))))
+        progress(.refreshing)
         return try await listDocuments(for: parent)
     }
 
-    private func uploadCertificationDocument(fileURL: URL, id: String, parent: CareerDocumentParent) async throws -> [CareerDocument] {
+    private func uploadCertificationDocument(fileURL: URL, id: String, parent: CareerDocumentParent, progress: @Sendable (DocumentUploadStage) -> Void) async throws -> [CareerDocument] {
         let selection = try await transferClient.prepare(fileURL: fileURL, maximumBytes: 50 * 1_024 * 1_024, allowedContentTypes: SecureDocumentTransferClient.careerContentTypes)
         let data = try await sessionService.sendAuthenticated(NetworkRequest(
             path: "/certifications/\(id)/document/upload-intent", method: .post,
@@ -384,11 +421,13 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
         let intent = try decoder.decode(CertificationDocumentIntentResponseDTO.self, from: data)
         // The one-use token stays in memory. Incomplete intents expire server-side.
         try await transferClient.upload(selection, to: intent.uploadUrl, requiredHeaders: intent.headersRequired)
+        progress(.processing)
         _ = try await sessionService.sendAuthenticated(NetworkRequest(
             path: "/certifications/\(id)/document/complete-upload", method: .post,
             headers: ["Accept": "application/json", "Content-Type": "application/json"],
             body: try encoder.encode(CertificationDocumentCompletionDTO(uploadToken: intent.uploadToken, checksumSha256: selection.checksumSHA256))
         ))
+        progress(.refreshing)
         return try await listDocuments(for: parent)
     }
 

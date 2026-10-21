@@ -22,9 +22,9 @@ final class Parity4AUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Government ID"].exists)
         XCTAssertFalse(app.buttons["Other"].exists)
         app.buttons["Birth Certificate"].tap()
-        XCTAssertTrue(picker.label.contains("Birth Certificate"))
+        XCTAssertEqual(picker.value as? String, "Birth Certificate")
         picker.tap(); app.buttons["Address Proof"].tap()
-        XCTAssertTrue(picker.label.contains("Address Proof"))
+        XCTAssertEqual(picker.value as? String, "Address Proof")
         // No file selection or upload is performed.
     }
 

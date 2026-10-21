@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 struct CareerDocumentsView: View {
     let presentation: CareerDocumentPresentation
+    /// Supplied only by the isolated local QA host, never by normal app routes.
+    var syntheticSelection: URL? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var preview: SecureDocumentPreview?
@@ -21,6 +23,10 @@ struct CareerDocumentsView: View {
     @State private var pendingReplacement: CareerDocument?
     @State private var pendingDelete: CareerDocument?
     @State private var errorMessage: String?
+    @State private var selectedFile: URL?
+    @State private var uploadFailed = false
+    @State private var uploadConfirmed = false
+    @State private var uploadStage: DocumentUploadStage?
 
     var body: some View {
         NavigationStack {
@@ -56,13 +62,26 @@ struct CareerDocumentsView: View {
                         documentList
                     }
 
-                    if presentation.parent.canUpload {
+                    if presentation.parent.canAddDocument(existing: documents) {
                         uploadControls
+                    } else if presentation.parent.hasSingleAttachment && !documents.isEmpty {
+                        Text("Already added. Use Replace to change this attachment, or Remove before adding another.")
+                            .font(KairoTypography.body).accessibilityIdentifier("evidence.alreadyAdded")
                     } else if case .employment = presentation.parent {
                         Text("Documents cannot be added while this employment record uses employer confirmation or is in a locked workflow state.")
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let selectedFile {
+                        EvidenceUploadReview(type: typeTitle(selectedType), filename: selectedFile.lastPathComponent,
+                            isUploading: isMutating, retry: uploadFailed, stage: uploadStage,
+                            upload: uploadSelection, cancel: clearSelection)
+                    }
+                    if uploadConfirmed {
+                        Text("Document added. The document list was refreshed from KairoID.")
+                            .accessibilityIdentifier("evidence.added")
                     }
 
                     if let errorMessage {
@@ -82,7 +101,7 @@ struct CareerDocumentsView: View {
                 }
             }
             .task { await load() }
-            .refreshable { await load() }
+            .refreshable { if !isMutating { await load() } }
             .fileImporter(
                 isPresented: $isFileImporterPresented,
                 allowedContentTypes: [.pdf, .jpeg, .png],
@@ -117,7 +136,9 @@ struct CareerDocumentsView: View {
     private var documentList: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             KairoSectionHeading(title: "Attached documents", count: documents.count)
-            ForEach(documents) { document in
+            ForEach(documentGroups, id: \.title) { group in
+                KairoSectionHeading(title: group.title, count: group.items.count)
+                ForEach(group.items) { document in
                 KairoDocumentRow(
                     filename: document.originalFilename,
                     metadata: "\(typeTitle(document.documentType)) · \(ByteCountFormatter.string(fromByteCount: Int64(document.byteSize), countStyle: .file))",
@@ -145,7 +166,17 @@ struct CareerDocumentsView: View {
                 )
                 .accessibilityIdentifier(KairoAccessibilityID.careerDocumentRow(document.id))
             }
+            }
         }
+    }
+
+    private var documentGroups: [(title: String, items: [CareerDocument])] {
+        guard case .employment = presentation.parent else { return [("Documents", documents)] }
+        return [
+            ("Primary evidence", documents.filter { $0.evidenceRole == .primary }),
+            ("Supporting evidence — optional", documents.filter { $0.evidenceRole == .supporting }),
+            ("Unclassified evidence — not counted", documents.filter { $0.evidenceRole == nil })
+        ].filter { !$0.1.isEmpty }
     }
 
     @ViewBuilder
@@ -154,9 +185,11 @@ struct CareerDocumentsView: View {
             .buttonStyle(KairoActionStyle())
         if presentation.parent.canDelete {
             Button("Replace") {
+                clearSelection()
                 selectedType = document.documentType
+                selectedEvidenceRole = document.evidenceRole ?? .primary
                 pendingReplacement = document
-                isFileImporterPresented = true
+                chooseFile()
             }
             .buttonStyle(KairoActionStyle())
             Button("Remove", role: .destructive) { pendingDelete = document }
@@ -170,23 +203,28 @@ struct CareerDocumentsView: View {
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 
-            Picker("Document type", selection: $selectedType) {
-                ForEach(documentTypes) { option in Text(option.label).tag(option.id) }
-            }
+            Text("1. Choose evidence purpose and type").font(KairoTypography.headline)
             if case .employment = presentation.parent {
-                Picker("Evidence role", selection: $selectedEvidenceRole) {
-                    ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in Text(role.title).tag(role) }
+                ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in
+                    Button { selectedEvidenceRole = role; clearSelection() } label: {
+                        Label(role.title, systemImage: selectedEvidenceRole == role ? "checkmark.circle.fill" : "circle")
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(KairoActionStyle(role: .secondary)).disabled(isMutating)
+                        .accessibilityAddTraits(selectedEvidenceRole == role ? [.isSelected] : [])
+                        .accessibilityIdentifier("career.documents.evidenceRole.\(role.rawValue)")
                 }
-                .accessibilityIdentifier("career.documents.evidenceRole")
             }
+            EvidenceTypeSelector(value: selectedType, options: documentTypes) { selectedType = $0; clearSelection() }
+                .disabled(isMutating || isLoading)
+            Text("2. Choose a file, then review before uploading").font(KairoTypography.footnote)
 
             KairoPrimaryButton(
                 title: "Choose file",
                 isLoading: isMutating,
                 accessibilityIdentifier: KairoAccessibilityID.careerDocumentUpload,
-                action: { isFileImporterPresented = true }
+                action: { clearSelection(); chooseFile() }
             )
-            .disabled(isMutating)
+            .disabled(isMutating || isLoading || documentTypes.isEmpty)
 
             Text((presentation.parent.isCertification || presentation.parent.isPortfolio) ? "PDF, JPEG, or PNG • up to 50 MB" : "PDF, JPEG, or PNG • up to 20 MB")
                 .font(KairoTypography.caption)
@@ -216,43 +254,75 @@ struct CareerDocumentsView: View {
 
     private func handleFileSelection(_ result: Result<[URL], Error>) {
         guard !isMutating else { return }
-        let replacement = pendingReplacement
-        pendingReplacement = nil
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            isMutating = true
+            selectedFile = url
+            uploadFailed = false
+            uploadConfirmed = false
             errorMessage = nil
-            eligibility = nil
-            Task {
-                do {
-                    let loaded: [CareerDocument]
-                    if let replacement {
-                        loaded = try await service.replaceDocument(
-                            replacement,
-                            with: url,
-                            documentType: selectedType,
-                            evidenceRole: selectedEvidenceRole,
-                            parent: presentation.parent
-                        )
-                    } else {
-                        loaded = try await service.uploadDocument(
-                            fileURL: url,
-                            documentType: selectedType,
-                            evidenceRole: selectedEvidenceRole,
-                            to: presentation.parent
-                        )
-                    }
-                    await MainActor.run {
-                        documents = loaded
-                        isMutating = false
-                        refreshStore.candidateDataChanged()
-                    }
-                    try await refreshEligibility()
-                } catch { await present(error) }
-            }
         case .failure:
             errorMessage = "KairoID couldn't read that file. Choose another supported document."
+        }
+    }
+
+    private func chooseFile() {
+#if KAIRO_LOCAL_BATCH1_QA
+        if LocalBatch1QA.mode("batch3Evidence", configuration: .resolve()), let syntheticSelection {
+            handleFileSelection(.success([syntheticSelection]))
+            return
+        }
+#endif
+        isFileImporterPresented = true
+    }
+
+    private func clearSelection() {
+        selectedFile = nil
+        pendingReplacement = nil
+        uploadFailed = false
+        uploadConfirmed = false
+    }
+
+    private func uploadSelection() {
+        guard !isMutating, let url = selectedFile else { return }
+        let replacement = pendingReplacement
+        let type = selectedType
+        let role = selectedEvidenceRole
+        uploadStage = .uploading
+        let progress: @Sendable (DocumentUploadStage) -> Void = { stage in
+            Task { @MainActor in uploadStage = stage }
+        }
+        isMutating = true
+        errorMessage = nil
+        eligibility = nil
+        Task {
+            do {
+                let loaded: [CareerDocument]
+                if let replacement {
+                    loaded = try await service.replaceDocument(
+                        replacement,
+                        with: url,
+                        documentType: type,
+                        evidenceRole: role,
+                        parent: presentation.parent, progress: progress
+                    )
+                } else {
+                    loaded = try await service.uploadDocument(
+                        fileURL: url,
+                        documentType: type,
+                        evidenceRole: role,
+                        to: presentation.parent, progress: progress
+                    )
+                }
+                await MainActor.run {
+                    documents = loaded
+                    clearSelection()
+                    uploadConfirmed = true
+                    isMutating = false
+                    refreshStore.candidateDataChanged()
+                }
+                try await refreshEligibility()
+            } catch { uploadFailed = true; await present(error) }
         }
     }
 
