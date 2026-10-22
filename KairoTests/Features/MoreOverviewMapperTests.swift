@@ -75,6 +75,8 @@ final class MoreOverviewMapperTests: XCTestCase {
         XCTAssertFalse(content.accountRows.contains(where: { $0.id == "connectedAccounts" }))
         XCTAssertFalse(content.privacyRows.contains(where: { $0.id == "privacySettings" || $0.id == "downloadMyData" }))
         XCTAssertFalse(content.aboutRows.contains(where: { $0.id == "cookiePolicy" || $0.id == "openSourceLicences" }))
+        XCTAssertEqual(content.aboutRows.filter { $0.id == "openDataLicences" }.count, 1)
+        XCTAssertEqual(content.aboutRows.first(where: { $0.id == "openDataLicences" })?.title, "Open Data / Licences")
     }
 
     func test_mapHandlesUnknownNotificationEventTypeWithReadableFallback() {

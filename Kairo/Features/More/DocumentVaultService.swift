@@ -194,8 +194,9 @@ actor DocumentVaultService: DocumentVaultServiceProtocol {
                 headers: ["Accept": "application/json", "Content-Type": "application/json"],
                 body: try encoder.encode(
                     VaultUpdateRequestDTO(
-                        documentNumber: document.documentType.allowsDocumentNumber ? Self.normalized(documentNumber) : nil,
-                        expiresAt: expiresAt.map(Self.dateString)
+                        documentNumber: document.documentType.allowsDocumentNumber
+                            ? .between(document.documentNumber, Self.normalized(documentNumber)) : .unchanged,
+                        expiresAt: .between(document.expiresAt.map(Self.dateString), expiresAt.map(Self.dateString))
                     )
                 ),
                 requiresPrivateJSONTransport: document.documentType == .aadhaar
@@ -382,6 +383,14 @@ private nonisolated struct VaultCompleteUploadRequestDTO: Encodable {
 }
 
 private nonisolated struct VaultUpdateRequestDTO: Encodable {
-    let documentNumber: String?
-    let expiresAt: String?
+    let documentNumber: OptionalFieldChange<String>
+    let expiresAt: OptionalFieldChange<String>
+
+    private enum CodingKeys: String, CodingKey { case documentNumber, expiresAt }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encodeChange(documentNumber, forKey: .documentNumber)
+        try values.encodeChange(expiresAt, forKey: .expiresAt)
+    }
 }

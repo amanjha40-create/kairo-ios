@@ -266,6 +266,12 @@ enum MoreOverviewMapper {
                 title: "Privacy Policy",
                 subtitle: legalSubtitle(isConfigured: destinations.privacyPolicyURL != nil),
                 systemImage: "lock.doc"
+            ),
+            MoreRowItem(
+                id: "openDataLicences",
+                title: "Open Data / Licences",
+                subtitle: "Geography data, attribution, and ODbL source offer.",
+                systemImage: "globe"
             )
         ]
     }

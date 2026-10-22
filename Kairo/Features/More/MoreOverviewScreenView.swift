@@ -645,13 +645,10 @@ struct MoreOverviewScreenView: View {
                 appConfiguration.cookiePolicyURL,
                 title: "Cookie Policy"
             )
-        case "openSourceLicences":
-            presentedModal = .information(
-                MoreInformationSheetModel(
-                    title: "Open-source licences",
-                    subtitle: "Package acknowledgements",
-                    primaryMessage: "A browsable open-source licence screen is not bundled yet in this build. KairoID should add that before release."
-                )
+        case "openDataLicences":
+            handleLegalDestination(
+                URL(string: "https://kairoid.com/open-data/geography/"),
+                title: "Open Data / Licences"
             )
         default:
             break

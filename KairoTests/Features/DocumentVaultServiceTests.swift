@@ -9,6 +9,89 @@ final class DocumentVaultServiceTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testVaultPatchUnchangedPopulatedFieldsAreOmitted() async throws {
+        try await assertMetadataPatch(originalNumber: "fixture-old", number: "fixture-old",
+            originalExpiry: "2030-01-01", expiry: "2030-01-01", expectedKeys: [])
+    }
+
+    func testVaultPatchUnchangedAbsentFieldsAreOmitted() async throws {
+        try await assertMetadataPatch(originalNumber: nil, number: nil,
+            originalExpiry: nil, expiry: nil, expectedKeys: [])
+    }
+
+    func testVaultPatchSetsBothPreviouslyAbsentFields() async throws {
+        try await assertMetadataPatch(originalNumber: nil, number: "fixture-new",
+            originalExpiry: nil, expiry: "2031-02-03", expectedKeys: ["document_number", "expires_at"])
+    }
+
+    func testVaultPatchChangesBothExistingValues() async throws {
+        try await assertMetadataPatch(originalNumber: "fixture-old", number: "fixture-new",
+            originalExpiry: "2030-01-01", expiry: "2031-02-03", expectedKeys: ["document_number", "expires_at"])
+    }
+
+    func testVaultPatchClearsBothFieldsWithNullAndMockedRefetchPreservesOtherMetadata() async throws {
+        try await assertMetadataPatch(originalNumber: "fixture-old", number: nil,
+            originalExpiry: "2030-01-01", expiry: nil, expectedKeys: ["document_number", "expires_at"])
+    }
+
+    func testVaultPatchClearingNumberDoesNotSendUnchangedExpiry() async throws {
+        try await assertMetadataPatch(originalNumber: "fixture-old", number: "  ",
+            originalExpiry: "2030-01-01", expiry: "2030-01-01", expectedKeys: ["document_number"])
+    }
+
+    func testVaultPatchClearingExpiryDoesNotSendUnchangedNumber() async throws {
+        try await assertMetadataPatch(originalNumber: "fixture-old", number: "fixture-old",
+            originalExpiry: "2030-01-01", expiry: nil, expectedKeys: ["expires_at"])
+    }
+
+    // Models API46's omission/set/null contract; not evidence of a live Production write.
+    private func assertMetadataPatch(
+        originalNumber: String?, number: String?, originalExpiry: String?, expiry: String?,
+        expectedKeys: Set<String>
+    ) async throws {
+        var initial = Self.metadataRecord(type: "passport")
+        initial["document_number"] = originalNumber as Any? ?? NSNull()
+        initial["expires_at"] = originalExpiry as Any? ?? NSNull()
+        let store = VaultMetadataContractStore(data: try JSONSerialization.data(withJSONObject: initial))
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let data: Data
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/user-documents"):
+                data = await store.list()
+            case ("PATCH", "/api/v1/user-documents/document-current"):
+                data = try await store.patch(requestBodyData(from: request))
+            default:
+                XCTFail("Unexpected Vault metadata request")
+                throw URLError(.badURL)
+            }
+            return (try Self.response(for: request, statusCode: 200), data)
+        }
+        let service = try await makeService()
+        let date = expiry.flatMap { ISO8601DateFormatter().date(from: $0 + "T00:00:00Z") }
+        let updated = try await service.updateMetadata(documentID: "document-current", documentNumber: number, expiresAt: date)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "PATCH", "GET"])
+        let patch = try XCTUnwrap(requests.first { $0.httpMethod == "PATCH" })
+        let body = try requestJSONBody(from: patch)
+        XCTAssertEqual(Set(body.keys), expectedKeys)
+        let normalized = number?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let expectedNumber = normalized?.isEmpty == true ? nil : normalized
+        for (key, expected) in [("document_number", expectedNumber), ("expires_at", expiry)] where expectedKeys.contains(key) {
+            if let expected { XCTAssertEqual(body[key] as? String, expected) }
+            else { XCTAssertTrue(body[key] is NSNull, "Clear must encode JSON null for \(key)") }
+        }
+        let document = try XCTUnwrap(updated.first)
+        XCTAssertEqual(document.documentNumber, expectedNumber)
+        XCTAssertEqual(document.expiresAt, date)
+        let newService = try await makeService()
+        let refetched = try await newService.listDocuments()
+        XCTAssertEqual(refetched, updated, "A new client must read canonical cleared metadata")
+        let final = try JSONSerialization.jsonObject(with: await store.snapshot()) as? [String: Any]
+        for (key, value) in initial where key != "document_number" && key != "expires_at" {
+            XCTAssertEqual(final?[key] as? AnyHashable, value as? AnyHashable, "Unrelated field \(key) changed")
+        }
+    }
+
     func testNewUploadTaxonomyIsExactlyCanonicalSevenWithNoLegacyChoices() {
         let types = VaultDocumentType.newUploadTypes
         XCTAssertEqual(types.map(\.rawValue), ["aadhaar", "pan", "passport", "driving_license", "voter_id", "birth_certificate", "address_proof"])
@@ -509,4 +592,18 @@ final class DocumentVaultServiceTests: XCTestCase {
         ]}
         """.utf8
     )
+}
+
+private actor VaultMetadataContractStore {
+    private var data: Data
+    init(data: Data) { self.data = data }
+    func snapshot() -> Data { data }
+    func list() -> Data { Data("[".utf8) + data + Data("]".utf8) }
+    func patch(_ body: Data) throws -> Data {
+        var record = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let values = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        for (key, value) in values { record[key] = value }
+        data = try JSONSerialization.data(withJSONObject: record)
+        return data
+    }
 }
