@@ -18,6 +18,7 @@ protocol ProfileServiceProtocol: Sendable {
 actor ProfileService: ProfileServiceProtocol {
     private let session: any SessionServiceProtocol
     private let transfer: SecureDocumentTransferClient
+    private var lastLoadedUser: AppUser?
 
     init(
         session: any SessionServiceProtocol,
@@ -32,12 +33,14 @@ actor ProfileService: ProfileServiceProtocol {
         async let skillsData = session.sendAuthenticated(jsonRequest(path: "/skills"))
         let (resolvedUser, resolvedSkills) = try await (userData, skillsData)
         let decoder = APIJSONCoder.makeDecoder()
-        return ProfileSnapshot(
+        let snapshot = ProfileSnapshot(
             user: try decoder.decode(UserPublicDTO.self, from: resolvedUser).asDomainModel(),
             skills: try decoder.decode([CareerSkillDTO].self, from: resolvedSkills).map {
                 ProfileSkill(id: $0.id, name: $0.name)
             }
         )
+        lastLoadedUser = snapshot.user
+        return snapshot
     }
 
     func update(_ draft: ProfileEditDraft) async throws -> ProfileSnapshot {
@@ -157,11 +160,17 @@ actor ProfileService: ProfileServiceProtocol {
         guard let safeURL = ProfileURLValidator.normalized(url.absoluteString) else {
             throw ProfileServiceError.unsafeURL
         }
+        let existingID = path.split(separator: "/").last.map(String.init)
+        let existing = lastLoadedUser?.professionalLinks.first { $0.id == existingID }
+        let labelChange: OptionalFieldChange<String>? = method == .patch
+            ? (existing.map { .between($0.label, label) } ?? label.map { .set($0) } ?? .clear)
+            : nil
         _ = try await session.sendAuthenticated(
             try jsonRequest(
                 path: path,
                 method: method,
-                body: ProfileLinkMutationDTO(linkType: type, label: label, url: safeURL.absoluteString)
+                body: ProfileLinkMutationDTO(linkType: type, label: label, url: safeURL.absoluteString,
+                    labelChange: labelChange)
             )
         )
         return try await load()

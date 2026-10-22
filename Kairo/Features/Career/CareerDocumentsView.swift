@@ -14,7 +14,7 @@ struct CareerDocumentsView: View {
 
     @State private var documents: [CareerDocument] = []
     @State private var documentTypes: [CareerDocumentType] = []
-    @State private var selectedType = "other"
+    @State private var selectedType = ""
     @State private var selectedEvidenceRole: EmploymentEvidenceRole = .primary
     @State private var eligibility: EmploymentEvidenceEligibility?
     @State private var isLoading = true
@@ -149,7 +149,7 @@ struct CareerDocumentsView: View {
                             Text(document.evidenceRole?.title ?? "Unclassified legacy evidence — not yet counted toward Employment verification.")
                                 .font(KairoTypography.footnote).fixedSize(horizontal: false, vertical: true)
                             if document.canClassifyLegacyEvidence, presentation.parent.canUpload {
-                                ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in
+                                ForEach(EmploymentEvidenceRole.allCases.filter { EmploymentEvidenceTypePolicy.allows(document.documentType, role: $0) }, id: \.self) { role in
                                     Button(role.title) { classify(document, as: role) }
                                         .buttonStyle(KairoActionStyle(role: .secondary)).disabled(isMutating)
                                         .accessibilityIdentifier("career.documents.classify.\(document.id).\(role.rawValue)")
@@ -186,6 +186,10 @@ struct CareerDocumentsView: View {
         if presentation.parent.canDelete {
             Button("Replace") {
                 clearSelection()
+                if case .employment = presentation.parent, !document.canPreserveEmploymentReplacement {
+                    errorMessage = CareerDocumentServiceError.legacyClassificationRequired.localizedDescription
+                    return
+                }
                 selectedType = document.documentType
                 selectedEvidenceRole = document.evidenceRole ?? .primary
                 pendingReplacement = document
@@ -197,6 +201,13 @@ struct CareerDocumentsView: View {
         }
     }
 
+    private var availableDocumentTypes: [CareerDocumentType] {
+        if case .employment = presentation.parent {
+            return EmploymentEvidenceTypePolicy.options(documentTypes, role: selectedEvidenceRole)
+        }
+        return documentTypes
+    }
+
     private var uploadControls: some View {
         KairoSection {
             Text("Add document")
@@ -206,7 +217,12 @@ struct CareerDocumentsView: View {
             Text("1. Choose evidence purpose and type").font(KairoTypography.headline)
             if case .employment = presentation.parent {
                 ForEach(EmploymentEvidenceRole.allCases, id: \.self) { role in
-                    Button { selectedEvidenceRole = role; clearSelection() } label: {
+                    Button {
+                        guard selectedEvidenceRole != role else { return }
+                        selectedEvidenceRole = role
+                        selectedType = ""
+                        clearSelection()
+                    } label: {
                         Label(role.title, systemImage: selectedEvidenceRole == role ? "checkmark.circle.fill" : "circle")
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(KairoActionStyle(role: .secondary)).disabled(isMutating)
@@ -214,7 +230,7 @@ struct CareerDocumentsView: View {
                         .accessibilityIdentifier("career.documents.evidenceRole.\(role.rawValue)")
                 }
             }
-            EvidenceTypeSelector(value: selectedType, options: documentTypes) { selectedType = $0; clearSelection() }
+            EvidenceTypeSelector(value: pendingReplacement == nil ? selectedType : "", options: availableDocumentTypes) { selectedType = $0; clearSelection() }
                 .disabled(isMutating || isLoading)
             Text("2. Choose a file, then review before uploading").font(KairoTypography.footnote)
 
@@ -224,7 +240,7 @@ struct CareerDocumentsView: View {
                 accessibilityIdentifier: KairoAccessibilityID.careerDocumentUpload,
                 action: { clearSelection(); chooseFile() }
             )
-            .disabled(isMutating || isLoading || documentTypes.isEmpty)
+            .disabled(isMutating || isLoading || !availableDocumentTypes.contains { $0.id == selectedType })
 
             Text((presentation.parent.isCertification || presentation.parent.isPortfolio) ? "PDF, JPEG, or PNG • up to 50 MB" : "PDF, JPEG, or PNG • up to 20 MB")
                 .font(KairoTypography.caption)
@@ -241,8 +257,13 @@ struct CareerDocumentsView: View {
             await MainActor.run {
                 documents = loaded
                 documentTypes = types
-                if let first = types.first, !types.contains(where: { $0.id == selectedType }) {
-                    selectedType = first.id
+                if pendingReplacement == nil, !availableDocumentTypes.contains(where: { $0.id == selectedType }) {
+                    if case .employment = presentation.parent {
+                        selectedType = ""
+                    } else {
+                        // Preserve the existing non-Employment upload defaults.
+                        selectedType = types.contains { $0.id == "other" } ? "other" : types.first?.id ?? ""
+                    }
                 }
                 isLoading = false
             }
@@ -285,6 +306,7 @@ struct CareerDocumentsView: View {
 
     private func uploadSelection() {
         guard !isMutating, let url = selectedFile else { return }
+        guard pendingReplacement != nil || availableDocumentTypes.contains(where: { $0.id == selectedType }) else { return }
         let replacement = pendingReplacement
         let type = selectedType
         let role = selectedEvidenceRole

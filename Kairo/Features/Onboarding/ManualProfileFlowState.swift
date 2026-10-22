@@ -58,6 +58,8 @@ nonisolated struct ManualProfileBasicDraft: Equatable, Codable, Sendable {
     var yearsOfExperience = ""
     var currentCity = ""
     var currentCountry = ""
+    // Optional for backward-compatible decoding of saved onboarding drafts.
+    var currentRegion: String? = nil
 
     mutating func prefillFullNameIfNeeded(
         backendFullName: String?,

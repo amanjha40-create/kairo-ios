@@ -23,14 +23,16 @@ final class ProfileServiceTests: XCTestCase {
 
     func test_updateSendsOnlySupportedProfileFieldsAndRefetches() async throws {
         let service = try await makeService()
-        let draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        draft.headline = "Updated synthetic headline"
         await installStandardHandler { request in
             guard request.url?.path == "/api/v1/users/me", request.httpMethod == "PATCH" else { return }
             let body = try requestJSONBody(from: request)
-            XCTAssertEqual(body["full_name"] as? String, "Aarav Mehta")
-            XCTAssertEqual(body["phone"] as? String, "+919876543210")
-            XCTAssertEqual(body["location_region"] as? String, "Karnataka")
-            XCTAssertEqual(body["bio"] as? String, "Product operator focused on portable professional trust.")
+            XCTAssertNil(body["full_name"], "Unchanged identity fields must not be resent")
+            XCTAssertNil(body["phone"])
+            XCTAssertNil(body["location_region"])
+            XCTAssertNil(body["bio"])
+            XCTAssertEqual(body["headline"] as? String, "Updated synthetic headline")
             XCTAssertNil(body["email"])
             XCTAssertNil(body["pan"])
             XCTAssertNil(body["driving_licence_number"])
@@ -54,6 +56,55 @@ final class ProfileServiceTests: XCTestCase {
         _ = try await service.addSkill(name: "Microsoft Excel")
         let requests = await MockURLProtocolStorage.shared.requests()
         XCTAssertEqual(requests.filter { $0.httpMethod == "POST" }.count, 1)
+    }
+
+    func testClearedProfileFieldsStayClearedAfterRefetchAndFreshService() async throws {
+        let state = ProfilePatchTestState(data: Self.profilePayload)
+        await installStatefulHandler(state)
+        let service = try await makeService()
+        var draft = ProfileEditDraft(user: try await service.load().user)
+        draft.headline = ""; draft.bio = ""; draft.locationRegion = ""
+        let saved = try await service.update(draft)
+        XCTAssertNil(saved.user.headline)
+        XCTAssertNil(saved.user.bio)
+        XCTAssertNil(saved.user.locationRegion)
+        let freshService = try await makeService()
+        let reopened = ProfileEditDraft(user: try await freshService.load().user)
+        XCTAssertEqual(reopened.headline, "")
+        XCTAssertEqual(reopened.bio, "")
+        XCTAssertEqual(reopened.locationRegion, "")
+        XCTAssertTrue(try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(reopened.request)) as? [String: String] == [:])
+    }
+
+    func testLinkLabelUnchangedOmittedThenClearPersistsAcrossFreshService() async throws {
+        let state = ProfilePatchTestState(data: Self.profilePayload)
+        await installStatefulHandler(state)
+        let service = try await makeService()
+        _ = try await service.load()
+        let url = try XCTUnwrap(URL(string: "https://www.linkedin.com/in/synthetic"))
+        _ = try await service.updateLink(id: "link-1", type: .linkedin, label: "LinkedIn", url: url)
+        let before = await MockURLProtocolStorage.shared.requests()
+        let unchanged = try XCTUnwrap(before.first { $0.httpMethod == "PATCH" })
+        XCTAssertNil(try requestJSONBody(from: unchanged)["label"])
+        let saved = try await service.updateLink(id: "link-1", type: .linkedin, label: nil, url: url)
+        XCTAssertNil(saved.user.professionalLinks.first?.label)
+        let freshService = try await makeService()
+        let fresh = try await freshService.load()
+        XCTAssertNil(fresh.user.professionalLinks.first?.label)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        let clear = try XCTUnwrap(requests.last { $0.httpMethod == "PATCH" })
+        XCTAssertTrue(try requestJSONBody(from: clear)["label"] is NSNull)
+    }
+
+    private func installStatefulHandler(_ state: ProfilePatchTestState) async {
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let response = try Self.response(for: request, statusCode: 200)
+            if request.httpMethod == "PATCH" {
+                try await state.apply(body: requestBodyData(from: request), link: request.url?.path.hasSuffix("/links/link-1") == true)
+                return (response, Data("{}".utf8))
+            }
+            return (response, request.url?.path == "/api/v1/skills" ? Self.skillsPayload : await state.data())
+        }
     }
 
     func test_languageCreateUpdateAndDeleteUseBackendVocabulary() async throws {
@@ -198,6 +249,24 @@ final class ProfileServiceTests: XCTestCase {
         }
         """.utf8
     )
+}
+
+private actor ProfilePatchTestState {
+    private var payload: Data
+    init(data: Data) { payload = data }
+    func data() -> Data { payload }
+    func apply(body: Data, link: Bool) throws {
+        var profile = try XCTUnwrap(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        let changes = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        if link {
+            var links = try XCTUnwrap(profile["professional_links"] as? [[String: Any]])
+            for (key, value) in changes { links[0][key] = value }
+            profile["professional_links"] = links
+        } else {
+            for (key, value) in changes { profile[key] = value }
+        }
+        payload = try JSONSerialization.data(withJSONObject: profile)
+    }
 }
 
 private func XCTAssertThrowsErrorAsync(

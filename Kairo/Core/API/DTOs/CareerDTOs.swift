@@ -1,7 +1,7 @@
 import Foundation
 
 // PATCH date fields are deliberate values, including explicit null for removal.
-// Other optional metadata retains omission semantics.
+// Optional metadata uses explicit edits; dates retain their established null semantics.
 extension CareerEmploymentUpdateRequestDTO {
     private nonisolated enum DatePatchKeys: String, CodingKey {
         case subjectFullName, subjectEmail, employerLegalName, employerTradeName, jobTitle, employmentType, startDate, endDate, workLocationCountry, workLocationRegion, workLocationCity, workArrangement
@@ -12,7 +12,7 @@ extension CareerEmploymentUpdateRequestDTO {
         try values.encodeIfPresent(subjectFullName, forKey: .subjectFullName)
         try values.encodeIfPresent(subjectEmail, forKey: .subjectEmail)
         try values.encodeIfPresent(employerLegalName, forKey: .employerLegalName)
-        try values.encodeIfPresent(employerTradeName, forKey: .employerTradeName)
+        try values.encodeChange(metadataChanges["employerTradeName"] ?? .supplied(employerTradeName), forKey: .employerTradeName)
         try values.encodeIfPresent(jobTitle, forKey: .jobTitle)
         try values.encodeIfPresent(employmentType, forKey: .employmentType)
         try values.encode(startDate, forKey: .startDate)
@@ -36,9 +36,9 @@ extension CareerEducationUpdateRequestDTO {
         var values = encoder.container(keyedBy: DatePatchKeys.self)
         try values.encodeIfPresent(institutionName, forKey: .institutionName)
         try values.encodeIfPresent(degree, forKey: .degree)
-        try values.encodeIfPresent(fieldOfStudy, forKey: .fieldOfStudy)
+        try values.encodeChange(metadataChanges["fieldOfStudy"] ?? .supplied(fieldOfStudy), forKey: .fieldOfStudy)
         try values.encodeIfPresent(educationLevel, forKey: .educationLevel)
-        try values.encodeIfPresent(grade, forKey: .grade)
+        try values.encodeChange(metadataChanges["grade"] ?? .supplied(grade), forKey: .grade)
         try values.encode(startDate, forKey: .startDate)
         try values.encode(startDatePrecision, forKey: .startDatePrecision)
         try values.encode(endDate, forKey: .endDate)
@@ -59,8 +59,8 @@ extension CareerCertificationUpdateRequestDTO {
         try values.encode(issuedDate, forKey: .issuedDate)
         try values.encode(expiryDate, forKey: .expiryDate)
         try values.encodeIfPresent(doesNotExpire, forKey: .doesNotExpire)
-        try values.encodeIfPresent(credentialID, forKey: .credentialID)
-        try values.encodeIfPresent(credentialURL, forKey: .credentialURL)
+        try values.encodeChange(metadataChanges["credentialID"] ?? .supplied(credentialID), forKey: .credentialID)
+        try values.encodeChange(metadataChanges["credentialURL"] ?? .supplied(credentialURL), forKey: .credentialURL)
     }
 }
 
@@ -72,14 +72,14 @@ extension CareerProjectUpdateRequestDTO {
     nonisolated func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: DatePatchKeys.self)
         try values.encodeIfPresent(title, forKey: .title)
-        try values.encodeIfPresent(role, forKey: .role)
-        try values.encodeIfPresent(description, forKey: .description)
+        try values.encodeChange(metadataChanges["role"] ?? .supplied(role), forKey: .role)
+        try values.encodeChange(metadataChanges["description"] ?? .supplied(description), forKey: .description)
         try values.encode(startDate, forKey: .startDate)
         try values.encode(endDate, forKey: .endDate)
         try values.encodeIfPresent(isOngoing, forKey: .isOngoing)
-        try values.encodeIfPresent(projectURL, forKey: .projectURL)
-        try values.encodeIfPresent(repositoryURL, forKey: .repositoryURL)
-        try values.encodeIfPresent(organizationName, forKey: .organizationName)
+        try values.encodeChange(metadataChanges["projectURL"] ?? .supplied(projectURL), forKey: .projectURL)
+        try values.encodeChange(metadataChanges["repositoryURL"] ?? .supplied(repositoryURL), forKey: .repositoryURL)
+        try values.encodeChange(metadataChanges["organizationName"] ?? .supplied(organizationName), forKey: .organizationName)
     }
 }
 
@@ -323,6 +323,7 @@ nonisolated struct CareerEmploymentUpdateRequestDTO: Encodable, Equatable, Senda
     var updatesCountry = false
     var updatesRegion = false
     var updatesCity = false
+    var metadataChanges: [String: OptionalFieldChange<String>] = [:]
 }
 
 nonisolated struct CareerEducationCreateRequestDTO: Encodable, Equatable, Sendable {
@@ -349,6 +350,7 @@ nonisolated struct CareerEducationUpdateRequestDTO: Encodable, Equatable, Sendab
     let endDate: String?
     let endDatePrecision: String?
     let isCurrentlyStudying: Bool?
+    var metadataChanges: [String: OptionalFieldChange<String>] = [:]
 }
 
 nonisolated struct CareerCertificationCreateRequestDTO: Encodable, Equatable, Sendable {
@@ -369,6 +371,7 @@ nonisolated struct CareerCertificationUpdateRequestDTO: Encodable, Equatable, Se
     let doesNotExpire: Bool?
     let credentialID: String?
     let credentialURL: String?
+    var metadataChanges: [String: OptionalFieldChange<String>] = [:]
 }
 
 nonisolated struct CareerCertificationUploadIntentRequestDTO: Encodable, Equatable, Sendable {
@@ -415,6 +418,7 @@ nonisolated struct CareerProjectUpdateRequestDTO: Encodable, Equatable, Sendable
     let projectURL: String?
     let repositoryURL: String?
     let organizationName: String?
+    var metadataChanges: [String: OptionalFieldChange<String>] = [:]
 }
 
 nonisolated struct CareerSkillCreateRequestDTO: Encodable, Equatable, Sendable {

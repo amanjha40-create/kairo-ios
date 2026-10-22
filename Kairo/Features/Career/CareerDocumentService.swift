@@ -91,6 +91,10 @@ nonisolated struct CareerDocument: Identifiable, Equatable, Sendable {
     var canClassifyLegacyEvidence: Bool {
         evidenceRole == nil && EmploymentEvidenceEligibility.isCompleted(status: verificationStatus, checksum: checksumSha256)
     }
+    var canPreserveEmploymentReplacement: Bool {
+        guard let evidenceRole else { return false }
+        return EmploymentEvidenceTypePolicy.allows(documentType, role: evidenceRole)
+    }
 }
 
 nonisolated struct CareerDocumentType: Identifiable, Equatable, Sendable {
@@ -155,6 +159,9 @@ extension CareerDocumentServiceProtocol {
         }
         if case .portfolio = parent {
             return try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: .primary, to: parent, progress: progress)
+        }
+        if case .employment = parent, !document.canPreserveEmploymentReplacement {
+            throw CareerDocumentServiceError.legacyClassificationRequired
         }
         _ = try await uploadDocument(fileURL: fileURL, documentType: documentType, evidenceRole: document.evidenceRole ?? evidenceRole ?? .primary, to: parent, progress: progress)
         return try await deleteDocument(document, parent: parent)
@@ -508,6 +515,7 @@ nonisolated enum CareerDocumentServiceError: Error, LocalizedError, Equatable {
     case uploadUnavailable
     case deleteUnavailable
     case protectedContentUnavailable
+    case legacyClassificationRequired
 
     var errorDescription: String? {
         switch self {
@@ -520,6 +528,7 @@ nonisolated enum CareerDocumentServiceError: Error, LocalizedError, Equatable {
         case .uploadUnavailable: "This record does not support adding a document in its current state."
         case .deleteUnavailable: "This document cannot be removed in its current state."
         case .protectedContentUnavailable: "This document is not available through the protected viewer."
+        case .legacyClassificationRequired: "This legacy document cannot be replaced without changing its classification. Keep or remove it, or explicitly classify a supported type first."
         }
     }
 }

@@ -469,7 +469,7 @@ struct PassportOverviewScreenView: View {
     }
 
     private func identityRow(title: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: KairoSpacing.medium) {
+        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             Text(title)
                 .font(KairoTypography.caption)
                 .foregroundStyle(KairoColors.textSecondary)
@@ -481,6 +481,7 @@ struct PassportOverviewScreenView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func employmentSection(_ items: [PassportEmploymentRecord]) -> some View {

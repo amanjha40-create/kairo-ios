@@ -9,6 +9,16 @@ nonisolated struct OnboardingProfileUpdateRequestDTO: Encodable, Equatable, Send
     let locationCity: String?
     let locationCountry: String?
     let headline: String
+    var locationRegion: String? = nil
+    var locationChanges: [String: OptionalFieldChange<String>] = [:]
+    func encode(to encoder: Encoder) throws {
+        try encodeOptionalStringChanges(to: encoder, values: [
+            "fullName": fullName, "currentRole": currentRole, "industry": industry, "headline": headline,
+            "location": location, "locationCity": locationCity, "locationRegion": locationRegion, "locationCountry": locationCountry
+        ], changes: locationChanges)
+        var container = encoder.container(keyedBy: PatchFieldKey.self)
+        try container.encode(yearsOfExperience, forKey: .init("yearsOfExperience"))
+    }
 }
 
 nonisolated struct ManualEmploymentCreateRequestDTO: Encodable, Equatable, Sendable {

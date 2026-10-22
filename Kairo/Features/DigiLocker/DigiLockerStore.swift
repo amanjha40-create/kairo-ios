@@ -14,6 +14,7 @@ final class DigiLockerStore: ObservableObject {
     @Published private(set) var summaryError = false
     @Published private(set) var inventoryError = false
     @Published private(set) var actionErrorMessage: String?
+    @Published private(set) var verificationErrorMessage: String?
     @Published private(set) var aadhaarState: DigiLockerAadhaarState = .idle
     @Published var aadhaarConsent = false
     @Published private(set) var aadhaarNeedsReconciliation = false
@@ -129,7 +130,7 @@ final class DigiLockerStore: ObservableObject {
         guard status?.connected == true, !summaryError, !aadhaarNeedsReconciliation, !types.isEmpty, !actionInProgress else { return false }
         let revision = identityRevision
         isVerifying = true
-        actionErrorMessage = nil
+        verificationErrorMessage = nil
         defer { if revision == identityRevision { isVerifying = false } }
         do {
             let response = try await service.verify(documentTypes: DigiLockerDocumentType.allCases.filter(types.contains))
@@ -139,12 +140,12 @@ final class DigiLockerStore: ObservableObject {
             return true
         } catch {
             guard revision == identityRevision, !Task.isCancelled else { return false }
-            actionErrorMessage = "Verification could not be completed. Review saved results before trying again."
+            verificationErrorMessage = "Verification could not be completed. Review saved results before trying again."
             return false
         }
     }
 
-    func clearActionError() { actionErrorMessage = nil }
+    func clearActionError() { actionErrorMessage = nil; verificationErrorMessage = nil }
 
     func checkAadhaarAvailability() async {
         guard status?.connected == true, !summaryError, !aadhaarNeedsReconciliation, !isLoadingSummary, !actionInProgress else { return }
@@ -256,6 +257,7 @@ final class DigiLockerStore: ObservableObject {
         summaryError = false
         inventoryError = false
         actionErrorMessage = nil
+        verificationErrorMessage = nil
         hasLoadedSummary = false
     }
 

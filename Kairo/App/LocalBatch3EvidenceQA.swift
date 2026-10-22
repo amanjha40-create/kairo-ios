@@ -62,7 +62,8 @@ private actor LocalBatch3Documents: CareerDocumentServiceProtocol {
     nonisolated func documentTypes(for parent: CareerDocumentParent) -> [CareerDocumentType] {
         if parent.hasSingleAttachment { return [.init(id: "certificate", label: "Certificate")] }
         if case .education = parent { return [.init(id: "transcript", label: "Transcript"), .init(id: "other", label: "Other")] }
-        return [.init(id: "offer_letter", label: "Offer letter"), .init(id: "other", label: "Other")]
+        return [.init(id: "offer_letter", label: "Offer letter"), .init(id: "other", label: "Other"),
+                .init(id: "bank_statement", label: "Bank statement"), .init(id: "government_id", label: "Government ID")]
     }
     func uploadDocument(fileURL: URL, documentType: String, to parent: CareerDocumentParent) async throws -> [CareerDocument] {
         attempts += 1

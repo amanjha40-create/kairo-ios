@@ -43,6 +43,13 @@ struct MoreProfileDraft: Equatable, Sendable {
     var yearsOfExperience: String
     var currentCity: String
     var currentCountry: String
+    var currentRegion: String = ""
+    private(set) var originalText: [String: String] = [:]
+    private(set) var originalExperience: Int?
+    nonisolated var textValues: [String: String] {
+        ["fullName": fullName, "currentRole": currentRole, "industry": industry,
+         "locationCity": currentCity, "locationRegion": currentRegion, "locationCountry": currentCountry, "headline": professionalHeadline]
+    }
 
     init(
         fullName: String,
@@ -68,7 +75,7 @@ extension MoreProfileDraft {
         self.init(
             fullName: ManualProfileNormalization.normalized(user.fullName ?? ""),
             professionalHeadline: ManualProfileNormalization.normalized(
-                user.headline ?? user.currentRole ?? ""
+                user.headline ?? ""
             ),
             currentRole: ManualProfileNormalization.normalized(user.currentRole ?? ""),
             industry: ManualProfileNormalization.normalized(user.industry ?? ""),
@@ -76,6 +83,9 @@ extension MoreProfileDraft {
             currentCity: ManualProfileNormalization.normalized(user.locationCity ?? ""),
             currentCountry: ManualProfileNormalization.normalized(user.locationCountry ?? "")
         )
+        currentRegion = user.locationRegion ?? ""
+        originalText = textValues
+        originalExperience = user.yearsOfExperience
     }
 }
 

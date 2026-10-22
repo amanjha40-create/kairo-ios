@@ -132,7 +132,7 @@ struct CareerRecordDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     if !record.metadata.isEmpty || !record.links.isEmpty {
                         KairoSection(compact: true) {
-                          KairoDisclosure(title: "Details", identifier: "career.detail.disclosure", initiallyExpanded: record.kind != .employment) {
+                          KairoDisclosure(title: "Details", identifier: "career.detail.disclosure", initiallyExpanded: true) {
                             metadata(record.metadata)
                             ForEach(record.links, id: \.title) { link in
                                 Link(destination: link.url) {

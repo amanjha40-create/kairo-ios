@@ -35,7 +35,9 @@ final class CareerHierarchyUITests: XCTestCase {
             XCTAssertEqual(app.staticTexts["career.detail.title"].label, "Trust & Operations Associate")
             XCTAssertEqual(app.descendants(matching: .any)["career.detail.status"].firstMatch.label, "Verified")
             let dates = app.staticTexts["career.detail.field.Employment dates"]
-            XCTAssertFalse(dates.exists)
+            XCTAssertTrue(dates.exists, "Employment Details opens expanded")
+            app.buttons["career.detail.disclosure"].tap()
+            XCTAssertFalse(dates.exists, "The user can still collapse Details")
             app.buttons["career.detail.disclosure"].tap()
             XCTAssertTrue(dates.exists)
             XCTAssertLessThan(app.descendants(matching: .any)["career.detail.status"].firstMatch.frame.minY, dates.frame.minY)
@@ -259,6 +261,9 @@ final class CareerHierarchyUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES",
                                "-kairo.appearance.preference", large ? "dark" : "light"]
+#if KAIRO_LOCAL_BATCH1_QA
+        app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
+#endif
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",

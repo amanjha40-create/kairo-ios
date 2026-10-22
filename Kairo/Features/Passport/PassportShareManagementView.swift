@@ -586,7 +586,7 @@ private struct PassportShareMutationForm: View {
                 KairoSectionHeading(title: draft.originalShare == nil ? PassportShareHierarchy.stages[2] : "Purpose & expiry")
                 KairoTextField(
                     title: "Purpose (required)",
-                    prompt: "Recruiter link",
+                    prompt: "Describe why you’re sharing",
                     text: $draft.label,
                     errorMessage: draft.purposeValidationMessage,
                     accessibilityIdentifier: KairoAccessibilityID.passportShareLabel

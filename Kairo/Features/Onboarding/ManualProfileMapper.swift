@@ -54,7 +54,8 @@ nonisolated enum ManualProfileMapper {
             ),
             currentCountry: ManualProfileNormalization.normalized(
                 displayCountry(currentUser.locationCountry) ?? locationParts.country ?? ""
-            )
+            ),
+            currentRegion: currentUser.locationRegion
         )
 
         let employmentEntries = employments.enumerated().map { index, employment in
@@ -104,6 +105,11 @@ nonisolated enum ManualProfileMapper {
             )
         }
 
+        let originalLocation = makeRemainingProfileDraft(
+            currentUser: currentUser, signupDraftFullName: nil, employments: [], educations: []
+        ).basicProfile
+        let locationWasEdited = draft.basicProfile.currentCity != originalLocation.currentCity
+            || draft.basicProfile.currentCountry != originalLocation.currentCountry
         let profile = OnboardingProfileUpdateRequestDTO(
             fullName: normalizedFullName,
             currentRole: ManualProfileNormalization.normalized(draft.basicProfile.currentRole),
@@ -112,7 +118,14 @@ nonisolated enum ManualProfileMapper {
             location: location,
             locationCity: normalizedCity.nonEmpty,
             locationCountry: ManualProfileNormalization.normalizedCountryCode(normalizedCountry),
-            headline: ManualProfileNormalization.normalized(draft.basicProfile.professionalHeadline)
+            headline: ManualProfileNormalization.normalized(draft.basicProfile.professionalHeadline),
+            locationRegion: ManualProfileNormalization.normalized(draft.basicProfile.currentRegion ?? "").nonEmpty,
+            locationChanges: [
+                "location": locationWasEdited ? .between(currentUser.location, location) : .unchanged,
+                "locationCity": .edited(original: originalLocation.currentCity, current: draft.basicProfile.currentCity, encoded: normalizedCity.nonEmpty),
+                "locationRegion": .edited(original: originalLocation.currentRegion, current: draft.basicProfile.currentRegion ?? "", encoded: ManualProfileNormalization.normalized(draft.basicProfile.currentRegion ?? "").nonEmpty),
+                "locationCountry": .edited(original: originalLocation.currentCountry, current: draft.basicProfile.currentCountry, encoded: ManualProfileNormalization.normalizedCountryCode(normalizedCountry))
+            ]
         )
 
         let employments: [ManualProfileSubmissionPayloads.EmploymentItem] = try draft.employmentEntries.compactMap { entry in

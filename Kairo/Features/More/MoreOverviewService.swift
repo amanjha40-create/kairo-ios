@@ -45,7 +45,12 @@ actor MoreOverviewService: MoreOverviewServiceProtocol {
             yearsOfExperience: normalizedYears(draft.yearsOfExperience),
             locationCity: normalizedValue(draft.currentCity),
             locationCountry: normalizedValue(draft.currentCountry),
-            headline: normalizedValue(draft.professionalHeadline)
+            headline: normalizedValue(draft.professionalHeadline),
+            locationRegion: normalizedValue(draft.currentRegion),
+            fieldChanges: Dictionary(uniqueKeysWithValues: draft.textValues.map { key, value in
+                (key, OptionalFieldChange<String>.edited(original: draft.originalText[key], current: value, encoded: normalizedValue(value)))
+            }),
+            experienceChange: .between(draft.originalExperience, normalizedYears(draft.yearsOfExperience))
         )
 
         _ = try await sessionService.sendAuthenticated(

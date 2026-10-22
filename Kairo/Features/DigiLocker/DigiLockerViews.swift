@@ -514,6 +514,14 @@ struct DigiLockerHubView: View {
                     }
                 }
                 .disabled(!consent.canVerify || store.actionInProgress)
+            if let error = store.verificationErrorMessage {
+                Text(error)
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("DigiLocker verification failed. \(error)")
+                    .accessibilityIdentifier("candidate.digilocker.verificationError")
+            }
         }
         .padding(.top, KairoSpacing.small)
     }

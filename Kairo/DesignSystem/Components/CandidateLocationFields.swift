@@ -25,6 +25,11 @@ struct CandidateLocationFields: View {
     var required = false
     var cityMaxLength = 128
     var identifier = "candidate.location"
+    @State private var geography = CandidateGeography.empty
+    @State private var loadedCountryKey: String?
+    private var countryKey: String { fixedIndia ? "IN" : country }
+    private var regionOptions: [String] { loadedCountryKey == countryKey ? geography.regions.map(\.name) : [] }
+    private var cityOptions: [String] { loadedCountryKey == countryKey ? geography.cities(in: region) : [] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -37,23 +42,30 @@ struct CandidateLocationFields: View {
                         country = selected; region = ""; city = ""
                     }.accessibilityIdentifier("\(identifier).country")
             }
-            if fixedIndia || CandidateLocationCatalogue.isIndia(country) {
-                CandidatePlacePicker(title: "State", value: region, options: CandidateLocationCatalogue.indiaStates,
+            if !regionOptions.isEmpty || !region.isEmpty {
+                CandidatePlacePicker(title: "State / Province", value: region, options: regionOptions,
                     allowClear: !fixedIndia, required: fixedIndia) { selected in
                         guard selected != region else { return }; region = selected; city = ""
                     }.accessibilityIdentifier("\(identifier).region")
-            } else {
-                VStack(alignment: .leading) {
-                    Text("State / Region — Optional").font(KairoTypography.caption)
-                    TextField("State / Region", text: Binding(get: { region }, set: { next in
-                        guard next != region else { return }; region = String(next.prefix(128)); city = ""
-                    })).textContentType(.addressState).accessibilityIdentifier("\(identifier).region")
-                }
+                    .disabled(countryKey.isEmpty || loadedCountryKey != countryKey)
             }
-            CandidatePlacePicker(title: "City", value: city, options: city.isEmpty ? [] : [city],
-                allowClear: !required && !fixedIndia, allowCustom: true, maxLength: cityMaxLength,
+            CandidatePlacePicker(title: "City", value: city, options: cityOptions,
+                allowClear: !required && !fixedIndia, maxLength: cityMaxLength,
                 context: region.isEmpty ? nil : "City or town in \(region)", required: required || fixedIndia) { city = $0 }
                 .accessibilityIdentifier("\(identifier).city")
+                .disabled(countryKey.isEmpty || loadedCountryKey != countryKey || (!regionOptions.isEmpty && region.isEmpty))
+            if loadedCountryKey == countryKey, !countryKey.isEmpty, cityOptions.isEmpty, regionOptions.isEmpty || !region.isEmpty {
+                Text("No city choices are available for this selection in the offline catalogue. Existing saved values are preserved.")
+                    .font(KairoTypography.caption).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("\(identifier).coverageGap")
+            }
+            Text("Location data: Countries States Cities Database · ODbL 1.0")
+                .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+        }
+        .task(id: countryKey) {
+            // Local country-sized resource only; no location permission or network.
+            geography = CandidateGeography.country(countryKey)
+            loadedCountryKey = countryKey
         }
     }
 }
@@ -67,6 +79,7 @@ struct CandidatePlacePicker: View {
     var maxLength = 128
     var context: String? = nil
     var required = false
+    var placeholder: String? = nil
     var display: (String) -> String = { $0 }
     let select: (String) -> Void
     @State private var presented = false
@@ -79,11 +92,13 @@ struct CandidatePlacePicker: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
+            Text(title + (required ? " *" : " — Optional"))
+                .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                .accessibilityHidden(true)
             Button { query = ""; presented = true } label: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title + (required ? " *" : " — Optional")).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
                     HStack {
-                        Text(value.isEmpty ? "Choose \(title.lowercased())" : display(value)).fixedSize(horizontal: false, vertical: true)
+                        Text(value.isEmpty ? (placeholder ?? "Choose \(title.lowercased())") : display(value)).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8); Image(systemName: "chevron.up.chevron.down").accessibilityHidden(true)
                     }
                 }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())

@@ -94,9 +94,10 @@ final class DigiLockerWave1UITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Checking..."].exists)
         XCTAssertEqual(app.navigationBars.matching(identifier: "DigiLocker").count, 1)
         if fails {
-            let error = app.staticTexts["DigiLocker action failed. Verification could not be completed. Review saved results before trying again."]
-            revealAbove(error, in: app)
+            let error = app.staticTexts["candidate.digilocker.verificationError"]
+            reveal(error, in: app)
             XCTAssertTrue(error.exists)
+            XCTAssertFalse(app.staticTexts["DigiLocker action failed. Verification could not be completed. Review saved results before trying again."].exists)
         }
         let saved = app.staticTexts["Verified through DigiLocker"]
         revealAbove(saved, in: app); XCTAssertTrue(saved.exists)

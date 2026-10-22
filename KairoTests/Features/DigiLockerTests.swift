@@ -24,8 +24,14 @@ final class DigiLockerTests: XCTestCase {
             XCTAssertFalse(failed)
             XCTAssertFalse(store.isVerifying)
             XCTAssertEqual(store.history, before)
-            XCTAssertNotNil(store.actionErrorMessage)
+            XCTAssertNotNil(store.verificationErrorMessage)
+            XCTAssertNil(store.actionErrorMessage, "Verify must not attach its error to Refresh or Connect")
             XCTAssertFalse(store.isConnecting)
+            await store.refreshSummary()
+            XCTAssertEqual(store.history, before)
+            XCTAssertNotNil(store.verificationErrorMessage, "Refreshing saved results must not hide the failed Verify action")
+            store.resetForIdentityChange()
+            XCTAssertNil(store.verificationErrorMessage)
         }
     }
 

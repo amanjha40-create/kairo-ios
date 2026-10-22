@@ -135,6 +135,17 @@ nonisolated struct UserUpdateRequestDTO: Encodable, Equatable, Sendable {
     let locationCity: String?
     let locationCountry: String?
     let headline: String?
+    var locationRegion: String? = nil
+    var fieldChanges: [String: OptionalFieldChange<String>] = [:]
+    var experienceChange: OptionalFieldChange<Int>? = nil
+    func encode(to encoder: Encoder) throws {
+        try encodeOptionalStringChanges(to: encoder, values: [
+            "fullName": fullName, "currentRole": currentRole, "industry": industry,
+            "locationCity": locationCity, "locationRegion": locationRegion, "locationCountry": locationCountry, "headline": headline
+        ], changes: fieldChanges)
+        var container = encoder.container(keyedBy: PatchFieldKey.self)
+        try container.encodeChange(experienceChange ?? .supplied(yearsOfExperience), forKey: .init("yearsOfExperience"))
+    }
 }
 
 private extension KeyedDecodingContainer {

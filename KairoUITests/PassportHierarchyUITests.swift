@@ -5,6 +5,25 @@ import XCTest
 final class PassportHierarchyUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+#if KAIRO_LOCAL_BATCH1_QA
+    func testPostBuild8IdentityWrappingNormalAndXXXL() {
+        for large in [false, true] {
+            let app = launch(large: large, longIdentity: true)
+            for value in ["synthetic.long.identity.wrapping@example.invalid (not verified)",
+                          "+00 00000 00000 (not verified)"] {
+                let row = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", value)).firstMatch
+                reveal(row, app)
+                XCTAssertTrue(row.label.contains(value))
+                XCTAssertGreaterThanOrEqual(row.frame.minX, 0)
+                XCTAssertLessThanOrEqual(row.frame.maxX, app.frame.width)
+                if large { XCTAssertGreaterThan(row.frame.height, 70) }
+                capture(app, "Identity \(value.hasPrefix("+") ? "mobile" : "email") \(large ? "XXXL" : "normal")")
+            }
+            app.terminate()
+        }
+    }
+#endif
+
     func testOwnerTrustShareDisclosureRecordAndExportOrder() {
         let app = launch()
         XCTAssertTrue(app.staticTexts["Aarav Mehta"].exists)
@@ -39,6 +58,10 @@ final class PassportHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Verified only"].exists)
         XCTAssertFalse(app.switches["candidate.passport.share.permission.profile"].exists)
         XCTAssertFalse(app.staticTexts["Legacy sharing policy"].exists)
+        let purpose = app.textFields["candidate.passport.share.label"]
+        reveal(purpose, app)
+        XCTAssertEqual(purpose.placeholderValue, "Describe why you’re sharing")
+        XCTAssertEqual(purpose.value as? String, purpose.placeholderValue, "Empty Purpose must not be prefilled")
         var previous: XCUIElement?
         for title in ["1. Sharing mode", "2. Choose what to share", "3. Purpose & expiry", "4. Review"] {
             let heading = app.staticTexts[title]
@@ -163,13 +186,17 @@ final class PassportHierarchyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["candidate.passport.share.copyLink"].exists)
     }
 
-    private func launch(state: String = "populated", large: Bool = false) -> XCUIApplication {
+    private func launch(state: String = "populated", large: Bool = false, longIdentity: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+#if KAIRO_LOCAL_BATCH1_QA
+        app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
+#endif
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_PASSPORT_STATE": state]
+        if longIdentity { app.launchEnvironment["KAIRO_POSTBUILD8_LONG_IDENTITY"] = "1" }
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Passport"].waitForExistence(timeout: 10))
         if large {

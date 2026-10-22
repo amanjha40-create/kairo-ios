@@ -1239,28 +1239,10 @@ private struct MoreProfileSheetView: View {
                                 onSubmit: { focusedField = .currentCity }
                             )
 
-                            KairoTextField(
-                                title: "Current City",
-                                prompt: "Enter your city",
-                                text: $draft.currentCity,
-                                errorMessage: fieldErrors[.currentCity],
-                                textInputAutocapitalization: .words,
-                                focus: $focusedField,
-                                focusedField: .currentCity,
-                                onSubmit: { focusedField = .currentCountry }
-                            )
-
-                            KairoTextField(
-                                title: "Current Country",
-                                prompt: "Enter your country",
-                                text: $draft.currentCountry,
-                                errorMessage: fieldErrors[.currentCountry],
-                                textInputAutocapitalization: .words,
-                                submitLabel: .done,
-                                focus: $focusedField,
-                                focusedField: .currentCountry,
-                                onSubmit: submit
-                            )
+                            CandidateLocationFields(country: $draft.currentCountry, region: $draft.currentRegion,
+                                city: $draft.currentCity, identifier: "candidate.more.profile.location")
+                            if let error = fieldErrors[.currentCity] { Text(error).foregroundStyle(KairoColors.danger) }
+                            if let error = fieldErrors[.currentCountry] { Text(error).foregroundStyle(KairoColors.danger) }
                         }
                     }
 

@@ -5,6 +5,42 @@ import XCTest
 final class LocalBatch2FormUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testEmployerTradeNameClearSurvivesRefetchAndProcessRelaunch() {
+        verifyClearing(editor: "employment", field: "employerTradeName")
+    }
+    func testCredentialIDClearSurvivesRefetchAndProcessRelaunch() {
+        verifyClearing(editor: "certification", field: "credentialID")
+    }
+    func testFieldOfStudyClearSurvivesRefetchAndProcessRelaunch() {
+        verifyClearing(editor: "education", field: "fieldOfStudy")
+    }
+    func testProjectRoleClearSurvivesRefetchAndProcessRelaunch() {
+        verifyClearing(editor: "project", field: "role")
+    }
+    private func verifyClearing(editor: String, field: String) {
+        let run = UUID().uuidString
+        let app = launch(editor: editor, extra: ["KAIRO_POSTBUILD8_PERSISTENCE_RUN": run])
+        let fieldID = "candidate.career.\(editor).field.\(field)"
+        let input = app.textFields[fieldID]
+        reveal(input, app)
+        XCTAssertEqual(input.value as? String, "Synthetic retained value")
+        input.tap()
+        input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "Synthetic retained value".count) + "\n")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        let save = app.buttons["candidate.career.mutation.save"]
+        reveal(save, app); XCTAssertTrue(save.isEnabled); save.tap()
+        XCTAssertTrue(app.staticTexts["Wire: null; refetch: cleared"].waitForExistence(timeout: 5))
+        reveal(input, app)
+        XCTAssertEqual(input.value as? String, input.placeholderValue)
+        capture(app, "\(editor) explicit null and canonical local refetch")
+        app.terminate()
+        app.launch() // Same disposable run, fresh process and editor draft.
+        XCTAssertTrue(app.staticTexts["Refetched: cleared"].waitForExistence(timeout: 10))
+        reveal(app.textFields[fieldID], app)
+        XCTAssertEqual(app.textFields[fieldID].value as? String, app.textFields[fieldID].placeholderValue)
+        capture(app, "\(editor) cleared after process relaunch — isolated store")
+    }
+
     func testEmploymentLegacyTypeAndExplicitCanonicalSelection() {
         let app = launch()
         let picker = app.buttons["candidate.career.employment.field.employmentType"]
@@ -30,7 +66,7 @@ final class LocalBatch2FormUITests: XCTestCase {
         reveal(remove, app); remove.tap(); XCTAssertEqual(date.value as? String, "Not set")
         capture(app, "Explicit date cancel confirm remove")
     }
-    func testCountrySearchAndUnlistedCity() {
+    func testCountryStateCityDependencyAndNoNewFreeText() {
         let app = launch()
         let country = app.buttons["career.employment.location.country"]
         reveal(country, app); country.tap()
@@ -38,20 +74,51 @@ final class LocalBatch2FormUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("India")
         app.buttons["India"].tap()
         XCTAssertEqual(country.value as? String, "India")
+        let region = app.buttons["career.employment.location.region"]
+        reveal(region, app); region.tap()
+        app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText("Maharashtra")
+        app.buttons["Maharashtra"].tap()
         let city = app.buttons["career.employment.location.city"]
         reveal(city, app); city.tap(); app.searchFields.firstMatch.tap()
         app.searchFields.firstMatch.typeText("Unlisted Synthetic Town")
-        app.buttons["candidate.location.customCity"].tap()
-        XCTAssertEqual(city.value as? String, "Unlisted Synthetic Town")
-        capture(app, "Search country and free form city")
+        XCTAssertFalse(app.buttons["candidate.location.customCity"].exists)
+        // iOS 26's active search replaces the sheet toolbar with its own Close.
+        // End only this known search presentation, then cancel the picker itself.
+        if !app.buttons["candidate.picker.cancel"].exists {
+            XCTAssertTrue(app.searchFields["Search city"].exists)
+            let closeSearch = app.buttons["Close"]
+            XCTAssertTrue(closeSearch.isHittable)
+            closeSearch.tap()
+        }
+        XCTAssertTrue(app.buttons["candidate.picker.cancel"].waitForExistence(timeout: 5))
+        app.buttons["candidate.picker.cancel"].tap()
+        XCTAssertEqual(city.value as? String, "Not selected")
+        city.tap(); app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText("Mumbai")
+        app.buttons["Mumbai"].tap()
+        XCTAssertEqual(city.value as? String, "Mumbai")
+        reveal(region, app); region.tap()
+        app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText("Karnataka")
+        app.buttons["Karnataka"].tap()
+        XCTAssertEqual(city.value as? String, "Not selected")
+        capture(app, "Dependent controlled city selection")
     }
     func testEducationDegreeLevelAndPrecisionUpdates() {
         let app = launch(editor: "education")
         let degree = app.buttons["candidate.career.education.field.degree"]
-        reveal(degree, app); degree.tap(); app.searchFields.firstMatch.tap()
-        app.searchFields.firstMatch.typeText("Unlisted specialist qualification")
-        app.buttons["candidate.location.customCity"].tap()
-        XCTAssertEqual(degree.value as? String, "Unlisted specialist qualification")
+        reveal(degree, app)
+        XCTAssertEqual(degree.value as? String, "Other")
+        XCTAssertEqual(app.textFields["candidate.career.education.field.degree.other"].value as? String, "Uncommon degree")
+        degree.tap(); app.searchFields.firstMatch.tap()
+        app.searchFields.firstMatch.typeText("Bachelor of Science")
+        app.buttons["Bachelor of Science (BSc)"].tap()
+        XCTAssertEqual(degree.value as? String, "Bachelor of Science (BSc)")
+        degree.tap(); app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText("Other")
+        app.buttons["Other"].tap()
+        let custom = app.textFields["candidate.career.education.field.degree.other"]
+        reveal(custom, app); custom.tap(); custom.typeText("Unlisted specialist qualification")
+        XCTAssertEqual(custom.value as? String, "Unlisted specialist qualification")
+        custom.typeText("\n")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         let level = app.buttons["candidate.career.education.field.educationLevel"]
         reveal(level, app); level.tap(); app.buttons["Other"].tap()
         XCTAssertEqual(level.value as? String, "Other")
@@ -159,11 +226,18 @@ final class LocalBatch2FormUITests: XCTestCase {
                 if element.identifier == "candidate.career.mutation.save" && element.isHittable { return }
                 let middle = element.frame.midY
                 if element.isHittable && middle > 100 && middle < app.frame.maxY - 180 { return }
-                if middle < 100 { app.swipeDown() } else { app.swipeUp() }
-            } else {
-                app.swipeUp()
             }
+            // Full-screen swipes overshoot between the newly labelled sections
+            // on SE. Scroll this form by a bounded fraction; never tap coordinates.
+            let scroll = app.scrollViews.firstMatch
+            let earlier = element.exists && element.frame.midY < 100
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.45 : 0.65))
+                .press(forDuration: 0.1, thenDragTo: scroll.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: earlier ? 0.65 : 0.45)))
         }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "Form reachability failure"; hierarchy.lifetime = .keepAlways; add(hierarchy)
+        capture(app, "Form reachability failure")
         XCTAssertTrue(element.isHittable)
     }
     private func capture(_ app: XCUIApplication, _ name: String) {

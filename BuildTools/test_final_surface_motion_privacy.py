@@ -29,7 +29,10 @@ class FinalSurfaceMotionPrivacyTests(unittest.TestCase):
         for forbidden in ("URLSession", "MapKit", "CLLocationManager", "Legacy location", "Legacy Location"):
             self.assertNotIn(forbidden, source)
         self.assertIn("guard selected != country else { return }", source)
-        self.assertIn("allowCustom: true", source)
+        self.assertNotIn("allowCustom: true", source)
+        self.assertIn("CandidateGeography.country(countryKey)", source)
+        self.assertIn("geography.cities(in: region)", source)
+        self.assertIn("Existing saved values are preserved.", source)
         editor = self.read("Kairo/Features/Profile/ProfileEditors.swift")
         self.assertNotIn('TextField("Legacy', editor)
 

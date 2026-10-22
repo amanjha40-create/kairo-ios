@@ -249,7 +249,8 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
             workArrangement: initialArrangement != nil && workArrangement == initialArrangement && (originalArrangement == nil || CareerWorkArrangementOption(rawValue: originalArrangement!) == nil) ? nil : workArrangement.rawValue,
             updatesCountry: workLocationCountry != (originalCountry ?? ""),
             updatesRegion: workArrangement != .remote && workLocationRegion != (originalText["workLocationRegion"] ?? ""),
-            updatesCity: workArrangement != .remote && workLocationCity != (originalText["workLocationCity"] ?? "")
+            updatesCity: workArrangement != .remote && workLocationCity != (originalText["workLocationCity"] ?? ""),
+            metadataChanges: ["employerTradeName": .edited(original: originalText["employerTradeName"], current: employerTradeName, encoded: normalized(employerTradeName).nonEmpty)]
         )
     }
 }
@@ -366,7 +367,11 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
             startDatePrecision: includesStartDate ? (startDate == originalStart && startPrecision == .init(rawValue: originalStartPrecision) ? originalStartPrecision : startPrecision.rawValue) : nil,
             endDate: resolvedEndDate(),
             endDatePrecision: resolvedEndDate() == nil ? nil : (endDate == originalEnd && endPrecision == .init(rawValue: originalEndPrecision) ? originalEndPrecision : endPrecision.rawValue),
-            isCurrentlyStudying: isCurrentlyStudying
+            isCurrentlyStudying: isCurrentlyStudying,
+            metadataChanges: [
+                "fieldOfStudy": .edited(original: originalText["fieldOfStudy"], current: fieldOfStudy, encoded: normalized(fieldOfStudy).nonEmpty),
+                "grade": .edited(original: originalText["grade"], current: grade, encoded: normalized(grade).nonEmpty)
+            ]
         )
     }
 
@@ -408,7 +413,7 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
         credentialID = record.credentialID ?? ""
         credentialURL = record.credentialURL?.absoluteString ?? ""
         existingDocumentFilename = record.originalFilename
-        originalText = ["title": title, "issuingOrganization": issuingOrganization, "credentialID": credentialID]
+        originalText = ["title": title, "issuingOrganization": issuingOrganization, "credentialID": credentialID, "credentialURL": credentialURL]
     }
 
     var displayName: String {
@@ -459,7 +464,11 @@ nonisolated struct CareerCertificationDraft: Equatable, Sendable {
             expiryDate: resolvedExpiryDate(),
             doesNotExpire: doesNotExpire,
             credentialID: originalText["credentialID"] == credentialID ? nil : normalized(credentialID).nonEmpty,
-            credentialURL: validatedURL(normalized(credentialURL))
+            credentialURL: validatedURL(normalized(credentialURL)),
+            metadataChanges: [
+                "credentialID": .edited(original: originalText["credentialID"], current: credentialID, encoded: normalized(credentialID).nonEmpty),
+                "credentialURL": .edited(original: originalText["credentialURL"], current: credentialURL, encoded: validatedURL(normalized(credentialURL)))
+            ]
         )
     }
 
@@ -505,7 +514,7 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
         projectURL = record.projectURL?.absoluteString ?? ""
         repositoryURL = record.repositoryURL?.absoluteString ?? ""
         organizationName = record.organizationName ?? ""
-        originalText = ["title": title, "role": role, "description": description, "organizationName": organizationName]
+        originalText = ["title": title, "role": role, "description": description, "organizationName": organizationName, "projectURL": projectURL, "repositoryURL": repositoryURL]
     }
 
     var displayName: String {
@@ -559,7 +568,14 @@ nonisolated struct CareerProjectDraft: Equatable, Sendable {
             isOngoing: isOngoing,
             projectURL: validatedURL(normalized(projectURL)),
             repositoryURL: validatedURL(normalized(repositoryURL)),
-            organizationName: originalText["organizationName"] == organizationName ? nil : normalized(organizationName).nonEmpty
+            organizationName: originalText["organizationName"] == organizationName ? nil : normalized(organizationName).nonEmpty,
+            metadataChanges: [
+                "role": .edited(original: originalText["role"], current: role, encoded: normalized(role).nonEmpty),
+                "description": .edited(original: originalText["description"], current: description, encoded: normalized(description).nonEmpty),
+                "projectURL": .edited(original: originalText["projectURL"], current: projectURL, encoded: validatedURL(normalized(projectURL))),
+                "repositoryURL": .edited(original: originalText["repositoryURL"], current: repositoryURL, encoded: validatedURL(normalized(repositoryURL))),
+                "organizationName": .edited(original: originalText["organizationName"], current: organizationName, encoded: normalized(organizationName).nonEmpty)
+            ]
         )
     }
 

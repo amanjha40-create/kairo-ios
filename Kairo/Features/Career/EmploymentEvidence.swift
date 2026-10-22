@@ -1,5 +1,23 @@
 import Foundation
 
+/// Founder-approved upload policy. Readiness remains authoritative server state.
+/// Unknown/legacy types are never guessed or silently reclassified.
+nonisolated enum EmploymentEvidenceTypePolicy {
+    static let primary: Set<String> = [
+        "relieving_letter", "employment_contract", "offer_letter", "payslip", "pay_stub",
+        "appointment_letter", "experience_letter", "contract", "hr_letter"
+    ]
+    static let supporting: Set<String> = [
+        "bank_statement", "form_w2", "form_1099", "employment_id_card", "other"
+    ]
+    static func allows(_ type: String, role: EmploymentEvidenceRole) -> Bool {
+        (role == .primary ? primary : supporting).contains(type)
+    }
+    static func options(_ types: [CareerDocumentType], role: EmploymentEvidenceRole) -> [CareerDocumentType] {
+        types.filter { allows($0.id, role: role) }
+    }
+}
+
 nonisolated enum EmploymentEvidenceRole: String, Codable, CaseIterable, Sendable {
     case primary, supporting
 

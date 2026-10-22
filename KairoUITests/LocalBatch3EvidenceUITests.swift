@@ -54,14 +54,36 @@ final class LocalBatch3EvidenceUITests: XCTestCase {
     func testTypeSelectionPersistsAfterSheetDismissal() {
         let app = launch("employment")
         let type = app.buttons["evidence.documentType"]
-        reveal(type, app); type.tap()
+        reveal(type, app)
+        XCTAssertEqual(type.value as? String, "Not selected")
+        XCTAssertFalse(app.buttons["candidate.career.documents.upload"].isEnabled)
+        type.tap()
         XCTAssertTrue(app.buttons["Offer letter"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Other"].exists)
+        XCTAssertFalse(app.buttons["Government ID"].exists)
         app.buttons["Offer letter"].tap()
         XCTAssertEqual(type.value as? String, "Offer letter")
         capture(app, "Prominent selected evidence type")
     }
+    func testRoleSwitchResetsTypeAndFiltersSupportingChoices() {
+        let app = launch("employment")
+        let type = app.buttons["evidence.documentType"]
+        reveal(type, app); type.tap(); app.buttons["Offer letter"].tap()
+        let supporting = app.buttons["career.documents.evidenceRole.supporting"]
+        reveal(supporting, app); supporting.tap()
+        XCTAssertEqual(type.value as? String, "Not selected")
+        reveal(type, app); type.tap()
+        XCTAssertFalse(app.buttons["Offer letter"].exists)
+        XCTAssertFalse(app.buttons["Government ID"].exists)
+        XCTAssertTrue(app.buttons["Bank statement"].exists)
+        app.buttons["Bank statement"].tap()
+        XCTAssertEqual(type.value as? String, "Bank statement")
+        capture(app, "Supporting evidence filtered, explicit selection")
+    }
     func testUploadReviewFailureRetryAndCanonicalRefresh() {
         let app = launch("employment")
+        let type = app.buttons["evidence.documentType"]
+        reveal(type, app); type.tap(); app.buttons["Offer letter"].tap()
         let choose = app.buttons["candidate.career.documents.upload"]
         // Identifier comes from the shared production upload control.
         let file = choose.exists ? choose : app.buttons["Choose file"]

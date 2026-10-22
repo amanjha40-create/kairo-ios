@@ -59,6 +59,8 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
     var locationCountry: String
     var bio: String
     var dateOfBirth: String
+    private var originalText: [String: String] = [:]
+    private var originalExperience: Int?
 
     init(user: AppUser) {
         fullName = user.fullName ?? ""
@@ -73,6 +75,14 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
         locationCountry = user.locationCountry ?? ""
         bio = user.bio ?? ""
         dateOfBirth = user.dateOfBirth.map(Self.dateFormatter.string(from:)) ?? ""
+        originalText = textValues
+        originalExperience = user.yearsOfExperience
+    }
+
+    private var textValues: [String: String] {
+        ["fullName": fullName, "phone": phone, "currentRole": currentRole, "industry": industry,
+         "location": location, "locationCity": locationCity, "locationRegion": locationRegion,
+         "locationCountry": locationCountry, "headline": headline, "bio": bio, "dateOfBirth": dateOfBirth]
     }
 
     var validationErrors: [String: String] {
@@ -85,7 +95,7 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             errors["years_of_experience"] = "Enter whole years from 0 to 80."
         }
         let country = profileNormalized(locationCountry)
-        if !country.isEmpty, country.count != 2 {
+        if locationCountry != originalText["locationCountry"], !country.isEmpty, country.count != 2 {
             errors["location_country"] = "Use the two-letter country code."
         }
         let date = profileNormalized(dateOfBirth)
@@ -111,7 +121,12 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             locationCountry: profileOptional(locationCountry)?.uppercased(),
             headline: profileOptional(headline),
             bio: profileOptional(bio),
-            dateOfBirth: profileOptional(dateOfBirth)
+            dateOfBirth: profileOptional(dateOfBirth),
+            fieldChanges: Dictionary(uniqueKeysWithValues: textValues.map { key, value in
+                    (key, OptionalFieldChange<String>.edited(original: originalText[key], current: value,
+                        encoded: key == "locationCountry" ? profileOptional(value)?.uppercased() : profileOptional(value)))
+                }),
+            experienceChange: .between(originalExperience, Int(profileNormalized(yearsOfExperience)))
         )
     }
 
@@ -178,6 +193,18 @@ nonisolated struct ProfileUpdateRequestDTO: Encodable, Equatable, Sendable {
     let headline: String?
     let bio: String?
     let dateOfBirth: String?
+    var fieldChanges: [String: OptionalFieldChange<String>] = [:]
+    var experienceChange: OptionalFieldChange<Int>? = nil
+
+    func encode(to encoder: Encoder) throws {
+        try encodeOptionalStringChanges(to: encoder, values: [
+            "fullName": fullName, "phone": phone, "currentRole": currentRole, "industry": industry,
+            "location": location, "locationCity": locationCity, "locationRegion": locationRegion,
+            "locationCountry": locationCountry, "headline": headline, "bio": bio, "dateOfBirth": dateOfBirth
+        ], changes: fieldChanges)
+        var container = encoder.container(keyedBy: PatchFieldKey.self)
+        try container.encodeChange(experienceChange ?? .supplied(yearsOfExperience), forKey: .init("yearsOfExperience"))
+    }
 }
 
 nonisolated struct ProfileLanguageMutationDTO: Encodable, Equatable, Sendable {
@@ -189,6 +216,13 @@ nonisolated struct ProfileLinkMutationDTO: Encodable, Equatable, Sendable {
     let linkType: ProfileLinkType
     let label: String?
     let url: String
+    var labelChange: OptionalFieldChange<String>? = nil
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: PatchFieldKey.self)
+        try container.encode(linkType, forKey: .init("linkType"))
+        try container.encode(url, forKey: .init("url"))
+        try container.encodeChange(labelChange ?? .supplied(label), forKey: .init("label"))
+    }
 }
 
 nonisolated struct ProfileAvatarIntentDTO: Decodable, Equatable, Sendable {

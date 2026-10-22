@@ -301,8 +301,8 @@ struct CareerEducationEditorSheet: View {
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "institution")
                     )
 
-                    CandidatePlacePicker(title: "Degree", value: draft.degree, options: draft.degree.isEmpty ? [] : [draft.degree], allowCustom: true, maxLength: 255, required: mode == .create) { draft.degree = $0 }
-                        .accessibilityIdentifier(KairoAccessibilityID.careerMutationField("education", "degree"))
+                    CandidateDegreeField(degree: $draft.degree, required: mode == .create,
+                        identifier: KairoAccessibilityID.careerMutationField("education", "degree"))
                     if let error = fieldErrors["degree"] { Text(error).foregroundStyle(KairoColors.danger) }
 
                     KairoTextField(

@@ -41,6 +41,21 @@ class LocalBatch1QAPrivacyTests(unittest.TestCase):
         session = (ROOT / 'Kairo/App/AppSessionStore.swift').read_text()
         self.assertIn('!LocalBatch1QA.isEnabled(configuration: configuration)', session)
 
+    def test_postbuild8_persistence_is_disposable_local_qa_only(self):
+        source = (ROOT / 'Kairo/App/LocalBatch2FormQA.swift').read_text()
+        self.assertIn('UUID(uuidString: run) != nil', source)
+        self.assertIn('#if KAIRO_LOCAL_BATCH1_QA\n/// Disposable local canonical store', source)
+        self.assertIn('appendingPathComponent("PostBuild8SyntheticPersistence"', source)
+        self.assertIn('if let change = patch[key] { canonical[key] = change }', source)
+        self.assertIn('APIJSONCoder.makeEncoder().encode(request)', source)
+        self.assertIn('try refetch()', source)
+        for forbidden in ['URLSession', 'Keychain', 'SecItem', 'UserDefaults.standard', 'https://']:
+            self.assertNotIn(forbidden, source)
+        tests = (ROOT / 'KairoUITests/LocalBatch2FormUITests.swift').read_text()
+        self.assertIn('app.terminate()', tests)
+        self.assertIn('Wire: null; refetch: cleared', tests)
+        self.assertIn('Refetched: cleared', tests)
+
 
 if __name__ == '__main__':
     unittest.main()

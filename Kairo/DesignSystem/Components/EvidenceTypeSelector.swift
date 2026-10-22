@@ -9,7 +9,7 @@ struct EvidenceTypeSelector: View {
 
     var body: some View {
         CandidatePlacePicker(title: "Document type", value: value,
-            options: options.map(\.id), required: true,
+            options: options.map(\.id), required: true, placeholder: "Choose document type…",
             display: { id in options.first { $0.id == id }?.label ?? id }) { select($0) }
             .accessibilityIdentifier("evidence.documentType")
     }

@@ -387,13 +387,10 @@ private struct BasicProfileStepView: View {
                         )
                         .id(ManualProfileBasicField.yearsOfExperience)
 
-                        CandidatePlacePicker(title: "Current city", value: draft.currentCity, options: draft.currentCity.isEmpty ? [] : [draft.currentCity], allowClear: true, allowCustom: true) { draft.currentCity = $0 }
-                            .accessibilityIdentifier(KairoAccessibilityID.manualProfileCurrentCity)
-                            .id(ManualProfileBasicField.currentCity)
+                        CandidateLocationFields(country: $draft.currentCountry,
+                            region: Binding(get: { draft.currentRegion ?? "" }, set: { draft.currentRegion = $0 }),
+                            city: $draft.currentCity, identifier: "candidate.manualProfile.location")
                         if let error = basicError(for: .currentCity) { Text(error).foregroundStyle(KairoColors.danger) }
-                        CandidatePlacePicker(title: "Current country", value: draft.currentCountry, options: Locale.Region.isoRegions.map(\.identifier), allowClear: true, display: CandidateLocationCatalogue.countryName) { draft.currentCountry = $0 }
-                            .accessibilityIdentifier(KairoAccessibilityID.manualProfileCurrentCountry)
-                            .id(ManualProfileBasicField.currentCountry)
                         if let error = basicError(for: .currentCountry) { Text(error).foregroundStyle(KairoColors.danger) }
                     }
                 }
@@ -742,8 +739,8 @@ private struct EducationStepView: View {
                                 textInputAutocapitalization: .words
                             )
 
-                            CandidatePlacePicker(title: "Degree", value: entry.degree, options: entry.degree.isEmpty ? [] : [entry.degree], allowCustom: true, maxLength: 255, required: true) { value in state.updateEducation(id: entry.id) { $0.degree = value } }
-                                .accessibilityIdentifier(KairoAccessibilityID.manualProfileEducationDegree(index))
+                            CandidateDegreeField(degree: educationBinding(for: entry.id, keyPath: \.degree),
+                                required: true, identifier: KairoAccessibilityID.manualProfileEducationDegree(index))
                             if let error = educationError(for: .degree, in: entry) {
                                 Text(error).foregroundStyle(KairoColors.danger).fixedSize(horizontal: false, vertical: true)
                             }

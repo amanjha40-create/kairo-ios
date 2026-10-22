@@ -58,6 +58,9 @@ struct CandidateDateField: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text(title + (required ? " *" : " — Optional"))
+                .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                .accessibilityHidden(true)
             Button {
                 draft = selection ?? Date()
                 year = String(CandidateDateInput.calendar.component(.year, from: draft))
@@ -65,7 +68,6 @@ struct CandidateDateField: View {
                 presented = true
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(title + (required ? " *" : " — Optional")).font(KairoTypography.footnote)
                     HStack {
                         Text(displayedValue)
                         Spacer(); Image(systemName: "calendar").accessibilityHidden(true)
