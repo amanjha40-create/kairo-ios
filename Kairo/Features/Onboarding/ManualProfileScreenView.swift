@@ -729,15 +729,11 @@ private struct EducationStepView: View {
                                 )
                             }
 
-                            KairoTextField(
-                                title: "Institution *",
-                                prompt: "Enter the institution",
-                                text: educationBinding(for: entry.id, keyPath: \.institution),
-                                errorMessage: educationError(for: .institution, in: entry),
-                                accessibilityIdentifier: KairoAccessibilityID.manualProfileEducationInstitution(index),
-                                accessibilityLabel: "Institution \(index + 1), required",
-                                textInputAutocapitalization: .words
-                            )
+                            InstitutionPicker(value: entry.institution,
+                                identifier: KairoAccessibilityID.manualProfileEducationInstitution(index)) { selection in
+                                state.updateEducation(id: entry.id) { $0.selectInstitution(selection) }
+                            }
+                            if let error = educationError(for: .institution, in: entry) { Text(error).foregroundStyle(KairoColors.danger) }
 
                             CandidateDegreeField(degree: educationBinding(for: entry.id, keyPath: \.degree),
                                 required: true, identifier: KairoAccessibilityID.manualProfileEducationDegree(index))

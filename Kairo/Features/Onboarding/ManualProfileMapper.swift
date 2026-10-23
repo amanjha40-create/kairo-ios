@@ -321,7 +321,9 @@ nonisolated enum ManualProfileMapper {
             startDatePrecision: "year",
             endDate: endYear.map(formattedYearDate),
             endDatePrecision: endYear == nil ? nil : "year",
-            isCurrentlyStudying: entry.isCurrentlyStudying == true
+            isCurrentlyStudying: entry.isCurrentlyStudying == true,
+            institutionCatalogueID: entry.institutionCatalogueID,
+            institutionCatalogueVersion: entry.institutionCatalogueVersion
         )
     }
 
@@ -360,6 +362,8 @@ nonisolated enum ManualProfileMapper {
         var entry = ManualEducationEntry.blank(id: id)
         entry.isPersisted = true
         entry.institution = ManualProfileNormalization.normalized(dto.institutionName)
+        entry.institutionCatalogueID = dto.institutionCatalogueID
+        entry.institutionCatalogueVersion = dto.institutionCatalogueVersion
         entry.degree = ManualProfileNormalization.normalized(dto.degree ?? "")
         entry.educationLevel = displayEducationLevel(dto.educationLevel)
         entry.fieldOfStudy = ManualProfileNormalization.normalized(dto.fieldOfStudy ?? "")

@@ -1789,11 +1789,11 @@ private struct ResumeReviewEditorSheet: View {
                             CandidateDegreeField(degree: Binding(get: { values[field.key, default: ""] },
                                 set: { values[field.key] = $0 }), identifier: "resume.review.edit.degree")
                         } else if field.key == "institution_name" {
-                            CandidatePlacePicker(title: "Institution", value: values[field.key, default: ""],
-                                options: [], allowCustom: true, maxLength: 255,
-                                context: "Keep the parsed institution or search and enter its full name. No institution directory is currently available.") {
-                                    values[field.key] = $0
-                                }.accessibilityIdentifier("resume.review.edit.institution")
+                            InstitutionPicker(value: values[field.key, default: ""], identifier: "resume.review.edit.institution") { selection in
+                                values[field.key] = selection.name
+                                values["institution_catalogue_id"] = selection.catalogueID ?? ""
+                                values["institution_catalogue_version"] = selection.catalogueVersion ?? ""
+                            }
                         } else {
                         KairoTextField(
                             title: field.label,

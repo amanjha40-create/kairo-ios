@@ -55,7 +55,12 @@ struct CareerHierarchyFixtureHostView: View {
             editEmploymentAction: { item in presentedSheet = .employment(mode: .edit, recordID: item.routeID, draft: .init()) },
             startEmploymentVerificationAction: { verificationPreset = .employment(id: $0.routeID) },
             addEducationAction: { presentedSheet = .education(mode: .create, recordID: nil, draft: .init()) },
-            editEducationAction: { item in presentedSheet = .education(mode: .edit, recordID: item.routeID, draft: .init()) },
+            editEducationAction: { item in
+                var draft = CareerEducationDraft()
+                draft.institutionName = item.institution
+                draft.degree = item.degree
+                presentedSheet = .education(mode: .edit, recordID: item.routeID, draft: draft)
+            },
             startEducationVerificationAction: { verificationPreset = .education(id: $0.routeID) },
             addCertificationAction: { presentedSheet = .certification(mode: .create, recordID: nil, draft: .init()) },
             editCertificationAction: { item in presentedSheet = .certification(mode: .edit, recordID: item.routeID, draft: .init()) },

@@ -3,6 +3,28 @@ import XCTest
 @testable import Kairo
 
 final class ResumeImportMapperTests: XCTestCase {
+    func testInstitutionFreeTextNeverAutoLinksAndExplicitSelectionSurvivesReviewEncoding() throws {
+        let item = makeItem(id: "education", claimType: "education", title: "Synthetic Institute")
+        let unchanged = ResumeImportMapper.editedPayload(for: item, using: ["institution_name": "Synthetic Institute", "degree": "Updated degree"])
+        XCTAssertNil(unchanged["institution_catalogue_id"])
+        XCTAssertNil(unchanged["institution_catalogue_version"])
+        let selected = ResumeImportMapper.editedPayload(for: item, using: ["institution_name": "Synthetic Institute", "institution_catalogue_id": "synthetic-id", "institution_catalogue_version": "test-v1"])
+        let encoded = try APIJSONCoder.makeEncoder().encode(selected)
+        let decoded = try APIJSONCoder.makeDecoder().decode([String: JSONValue].self, from: encoded)
+        XCTAssertEqual(decoded["institution_catalogue_id"], .string("synthetic-id"))
+        XCTAssertEqual(decoded["institution_catalogue_version"], .string("test-v1"))
+    }
+
+    func testInstitutionManualEditClearsBothLinksAndUnrelatedEditPreservesThem() {
+        let item = makeItem(id: "education", claimType: "education", title: "Synthetic Institute", additionalPayload: ["institution_catalogue_id": .string("synthetic-id"), "institution_catalogue_version": .string("test-v1")])
+        let unrelated = ResumeImportMapper.editedPayload(for: item, using: ["degree": "Updated degree"])
+        XCTAssertEqual(unrelated["institution_catalogue_id"], .string("synthetic-id"))
+        for values in [["institution_name": "Historical name"], ["institution_name": "Synthetic Institute", "institution_catalogue_id": "", "institution_catalogue_version": ""]] {
+            let manual = ResumeImportMapper.editedPayload(for: item, using: values)
+            XCTAssertEqual(manual["institution_catalogue_id"], .null)
+            XCTAssertEqual(manual["institution_catalogue_version"], .null)
+        }
+    }
     func test_certificationEditorUsesAPI42IssuedDateKey() {
         let item = makeItem(id: "certification_1", claimType: "certification", title: "Synthetic certificate")
         let keys = ResumeImportMapper.editableFields(for: item).map(\.key)

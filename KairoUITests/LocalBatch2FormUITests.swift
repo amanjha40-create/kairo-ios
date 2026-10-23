@@ -211,7 +211,7 @@ final class LocalBatch2FormUITests: XCTestCase {
                 "KAIRO_UI_TEST_MANUAL_PROFILE_PREFILL": "1", "KAIRO_UI_TEST_CREATE_ACCOUNT_FIRST_NAME": "Synthetic",
                 "KAIRO_UI_TEST_CREATE_ACCOUNT_LAST_NAME": "Candidate"])
             let identifier = phase == "employment" ? "onboarding.manualProfile.employment.type.0" : "onboarding.manualProfile.education.level.0"
-            let requiredField = app.textFields[phase == "employment" ? "onboarding.manualProfile.employment.company.0" : "onboarding.manualProfile.education.institution.0"]
+            let requiredField = phase == "employment" ? app.textFields["onboarding.manualProfile.employment.company.0"] : app.buttons["onboarding.manualProfile.education.institution.0"]
             reveal(requiredField, app)
             XCTAssertTrue(requiredField.label.contains("required"))
             let picker = app.buttons[identifier]

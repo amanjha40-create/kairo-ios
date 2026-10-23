@@ -448,6 +448,13 @@ struct MoreOverviewScreenView: View {
 
                 Divider()
 
+                NavigationLink { InstitutionDataSourcesView() } label: {
+                    Label("Institution data sources", systemImage: "building.columns")
+                        .frame(minHeight: 44)
+                }.accessibilityIdentifier("more.institutionDataSources")
+
+                Divider()
+
                 MoreStaticRow(
                     title: "App version",
                     subtitle: "Read-only build information from this app bundle.",

@@ -293,13 +293,9 @@ struct CareerEducationEditorSheet: View {
                 }
 
                 KairoSection {
-                    KairoTextField(
-                        title: "Institution" + (mode == .create ? " *" : " — If changed"),
-                        prompt: "Riverdale Institute of Technology",
-                        text: $draft.institutionName,
-                        errorMessage: fieldErrors["institution_name"],
-                        accessibilityIdentifier: KairoAccessibilityID.careerMutationField("education", "institution")
-                    )
+                    InstitutionPicker(value: draft.institutionName,
+                        identifier: KairoAccessibilityID.careerMutationField("education", "institution")) { draft.selectInstitution($0) }
+                    if let error = fieldErrors["institution_name"] { Text(error).foregroundStyle(KairoColors.danger) }
 
                     CandidateDegreeField(degree: $draft.degree, required: mode == .create,
                         identifier: KairoAccessibilityID.careerMutationField("education", "degree"))

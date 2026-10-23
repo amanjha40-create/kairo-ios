@@ -344,6 +344,16 @@ enum ResumeImportMapper {
             }
         }
 
+        if item.claimType == "education" {
+            let explicitChoice = values["institution_catalogue_id"] != nil || values["institution_catalogue_version"] != nil
+            let nameChanged = payload["institution_name"] != item.editedPayload["institution_name"]
+            if explicitChoice || nameChanged {
+                for key in ["institution_catalogue_id", "institution_catalogue_version"] {
+                    let value = explicitChoice ? values[key]?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+                    payload[key] = value.flatMap { $0.isEmpty ? nil : JSONValue.string($0) } ?? .null
+                }
+            }
+        }
         return payload
     }
 

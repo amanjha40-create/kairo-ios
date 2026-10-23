@@ -107,7 +107,16 @@ nonisolated struct ManualEmploymentEntry: Equatable, Identifiable, Codable, Send
 nonisolated struct ManualEducationEntry: Equatable, Identifiable, Codable, Sendable {
     let id: Int
     var isPersisted = false
-    var institution = ""
+    var institution = "" { didSet {
+        if institution != oldValue { institutionCatalogueID = nil; institutionCatalogueVersion = nil }
+    } }
+    var institutionCatalogueID: String? = nil
+    var institutionCatalogueVersion: String? = nil
+    mutating func selectInstitution(_ selection: InstitutionSelection) {
+        institution = selection.name
+        institutionCatalogueID = selection.catalogueID
+        institutionCatalogueVersion = selection.catalogueVersion
+    }
     var degree = ""
     var educationLevel = ""
     var fieldOfStudy = ""

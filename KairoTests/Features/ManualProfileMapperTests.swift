@@ -3,6 +3,21 @@ import XCTest
 @testable import Kairo
 
 final class ManualProfileMapperTests: XCTestCase {
+    func testInstitutionSelectionSurvivesOnboardingPayloadAndDraftRestore() throws {
+        var draft = makeDraft()
+        draft.updateEducation(id: 0) { $0.selectInstitution(.init(name: "Synthetic Institute", catalogueID: "synthetic-id", catalogueVersion: "test-v1")) }
+        let restored = try JSONDecoder().decode(ManualProfileFlowState.self, from: JSONEncoder().encode(draft))
+        let request = try ManualProfileMapper.makeSubmissionPayloads(draft: restored, currentUser: makeUser()).educations[0].request
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(request)) as? [String: Any])
+        XCTAssertEqual(json["institution_catalogue_id"] as? String, "synthetic-id")
+        XCTAssertEqual(json["institution_catalogue_version"] as? String, "test-v1")
+        draft.updateEducation(id: 0) { $0.institution = "Historical custom name" }
+        let manual = try ManualProfileMapper.makeSubmissionPayloads(draft: draft, currentUser: makeUser()).educations[0].request
+        let cleared = try XCTUnwrap(JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(manual)) as? [String: Any])
+        XCTAssertTrue(cleared["institution_catalogue_id"] is NSNull)
+        XCTAssertTrue(cleared["institution_catalogue_version"] is NSNull)
+        XCTAssertEqual(cleared["institution_name"] as? String, "Historical custom name")
+    }
     func testPickerNumericMonthRoundTripsHistoricalExactDate() throws {
         var draft = makeDraft()
         let selected = try XCTUnwrap(CandidateDateInput.date(year: "1999", month: 8, day: 29))

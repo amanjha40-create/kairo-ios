@@ -71,7 +71,8 @@ final class PostPolishBugBatchUITests: XCTestCase {
         XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
         let institution = app.buttons["resume.review.edit.institution"]
         app.revealContent(institution, missingTargetIsAbove: true); institution.tap()
-        XCTAssertTrue(app.buttons["Synthetic Institute"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["institution.current"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["institution.current"].label, "Synthetic Institute")
         app.buttons["candidate.picker.cancel"].tap()
         capture(app, "Resume-selectors")
         app.navigationBars.buttons["Save"].tap()

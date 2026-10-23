@@ -256,7 +256,20 @@ nonisolated struct CareerEmploymentDraft: Equatable, Sendable {
 }
 
 nonisolated struct CareerEducationDraft: Equatable, Sendable {
-    var institutionName = ""
+    var institutionName = "" { didSet {
+        if institutionName != oldValue { institutionCatalogueID = nil; institutionCatalogueVersion = nil }
+    } }
+    private(set) var institutionCatalogueID: String?
+    private(set) var institutionCatalogueVersion: String?
+    private var originalInstitutionID: String?
+    private var originalInstitutionVersion: String?
+    private var explicitlyChoseInstitution = false
+    mutating func selectInstitution(_ selection: InstitutionSelection) {
+        explicitlyChoseInstitution = true
+        institutionName = selection.name
+        institutionCatalogueID = selection.catalogueID
+        institutionCatalogueVersion = selection.catalogueVersion
+    }
     var degree = ""
     var fieldOfStudy = ""
     var educationLevel: CareerEducationLevelOption?
@@ -286,6 +299,10 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
 
     init(record: CareerEducationRecord) {
         institutionName = record.institution
+        institutionCatalogueID = record.institutionCatalogueID
+        institutionCatalogueVersion = record.institutionCatalogueVersion
+        originalInstitutionID = record.institutionCatalogueID
+        originalInstitutionVersion = record.institutionCatalogueVersion
         degree = record.degree
         fieldOfStudy = record.fieldOfStudy ?? ""
         educationLevel = record.educationLevel.map(CareerEducationLevelOption.init(rawValue:))
@@ -352,7 +369,9 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
             startDatePrecision: startPrecision.rawValue,
             endDate: resolvedEndDate(),
             endDatePrecision: resolvedEndDate() == nil ? nil : endPrecision.rawValue,
-            isCurrentlyStudying: isCurrentlyStudying
+            isCurrentlyStudying: isCurrentlyStudying,
+            institutionCatalogueID: institutionCatalogueID,
+            institutionCatalogueVersion: institutionCatalogueVersion
         )
     }
 
@@ -369,10 +388,19 @@ nonisolated struct CareerEducationDraft: Equatable, Sendable {
             endDatePrecision: resolvedEndDate() == nil ? nil : (endDate == originalEnd && endPrecision == .init(rawValue: originalEndPrecision) ? originalEndPrecision : endPrecision.rawValue),
             isCurrentlyStudying: isCurrentlyStudying,
             metadataChanges: [
+                "institutionCatalogueID": institutionLinkChange(originalInstitutionID, institutionCatalogueID),
+                "institutionCatalogueVersion": institutionLinkChange(originalInstitutionVersion, institutionCatalogueVersion),
                 "fieldOfStudy": .edited(original: originalText["fieldOfStudy"], current: fieldOfStudy, encoded: normalized(fieldOfStudy).nonEmpty),
                 "grade": .edited(original: originalText["grade"], current: grade, encoded: normalized(grade).nonEmpty)
             ]
         )
+    }
+
+    private func institutionLinkChange(_ original: String?, _ current: String?) -> OptionalFieldChange<String> {
+        if explicitlyChoseInstitution || originalText["institutionName"] != institutionName {
+            return current.map(OptionalFieldChange.set) ?? .clear
+        }
+        return .between(original, current)
     }
 
     private func resolvedEndDate() -> String? {

@@ -1674,7 +1674,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(app.buttons[manualProfileEducationAddButton].waitForExistence(timeout: 10))
         app.buttons[manualProfileEducationAddButton].tap()
 
-        let secondInstitutionField = app.textFields[manualProfileEducationInstitutionField(index: 1)]
+        let secondInstitutionField = app.buttons[manualProfileEducationInstitutionField(index: 1)]
         XCTAssertTrue(secondInstitutionField.waitForExistence(timeout: 10))
 
         let secondDeleteButton = app.buttons[manualProfileEducationDeleteButton(index: 1)]

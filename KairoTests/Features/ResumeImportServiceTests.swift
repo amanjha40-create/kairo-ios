@@ -17,6 +17,8 @@ final class ResumeImportServiceTests: XCTestCase {
         let initialData = try JSONSerialization.data(withJSONObject: review)
         var updatedClaim = claim
         updatedClaim["degree"] = "Reviewed degree"
+        updatedClaim["institution_catalogue_id"] = "synthetic-catalogue-id"
+        updatedClaim["institution_catalogue_version"] = "test-v1"
         item["edited_payload"] = updatedClaim
         item["version"] = 3
         review["items"] = [item]
@@ -46,6 +48,8 @@ final class ResumeImportServiceTests: XCTestCase {
                 let body = try requestJSONBody(from: request)
                 let sent = try XCTUnwrap(body["edited_payload"] as? [String: Any])
                 XCTAssertEqual(sent["degree"] as? String, "Reviewed degree")
+                XCTAssertEqual(sent["institution_catalogue_id"] as? String, "synthetic-catalogue-id")
+                XCTAssertEqual(sent["institution_catalogue_version"] as? String, "test-v1")
                 XCTAssertEqual(sent["is_current"] as? Bool, true)
                 XCTAssertTrue(sent["end_date"] is NSNull)
                 return (try Self.response(for: request, statusCode: 200), itemData)
@@ -62,7 +66,7 @@ final class ResumeImportServiceTests: XCTestCase {
             case ("GET", "/api/v1/users/me"):
                 return (try Self.response(for: request, statusCode: 200), Self.userPayload)
             case ("GET", "/api/v1/educations"):
-                let data = Data(#"[{"id":"synthetic-education","institution_name":"Synthetic Institute","degree":"Reviewed degree","start_date":"2024-01-01","end_date":null,"is_currently_studying":true,"verification_status":"draft"}]"#.utf8)
+                let data = Data(#"[{"id":"synthetic-education","institution_name":"Synthetic Institute","institution_catalogue_id":"synthetic-catalogue-id","institution_catalogue_version":"test-v1","degree":"Reviewed degree","start_date":"2024-01-01","end_date":null,"is_currently_studying":true,"verification_status":"draft"}]"#.utf8)
                 return (try Self.response(for: request, statusCode: 200), data)
             case ("GET", "/api/v1/employments"), ("GET", "/api/v1/certifications"),
                  ("GET", "/api/v1/projects"), ("GET", "/api/v1/skills"), ("GET", "/api/v1/portfolio"):
@@ -74,7 +78,8 @@ final class ResumeImportServiceTests: XCTestCase {
         }
         let intake = try await service.restoreWorkflow(resumeID: "resume_123")
         let first = try XCTUnwrap(intake.reviewSession?.items.first)
-        let edits = ResumeImportMapper.editedPayload(for: first, using: ["degree": "Reviewed degree"])
+        let edits = ResumeImportMapper.editedPayload(for: first, using: ["degree": "Reviewed degree",
+            "institution_catalogue_id": "synthetic-catalogue-id", "institution_catalogue_version": "test-v1"])
         let saved = try await service.updateReviewItem(reviewID: "review_123", itemID: first.id,
             payload: ResumeImportMapper.editedPayloadUpdateRequest(for: first, editedPayload: edits))
         let plan = try await service.validateReview(reviewID: saved.id, expectedVersion: saved.version)
@@ -85,6 +90,8 @@ final class ResumeImportServiceTests: XCTestCase {
         let canonical = try await career.loadOverview()
         XCTAssertEqual(canonical.educations.count, 1)
         XCTAssertEqual(canonical.educations[0].degree, "Reviewed degree")
+        XCTAssertEqual(canonical.educations[0].institutionCatalogueID, "synthetic-catalogue-id")
+        XCTAssertEqual(canonical.educations[0].institutionCatalogueVersion, "test-v1")
         XCTAssertTrue(canonical.educations[0].isCurrentlyStudying)
         XCTAssertNil(canonical.educations[0].endDate)
         let requests = await MockURLProtocolStorage.shared.requests()

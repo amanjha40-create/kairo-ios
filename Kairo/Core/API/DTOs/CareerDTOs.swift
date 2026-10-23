@@ -29,12 +29,14 @@ extension CareerEmploymentUpdateRequestDTO {
 
 extension CareerEducationUpdateRequestDTO {
     private nonisolated enum DatePatchKeys: String, CodingKey {
-        case institutionName, degree, fieldOfStudy, educationLevel, grade, startDate, startDatePrecision, endDate, endDatePrecision, isCurrentlyStudying
+        case institutionName, institutionCatalogueID, institutionCatalogueVersion, degree, fieldOfStudy, educationLevel, grade, startDate, startDatePrecision, endDate, endDatePrecision, isCurrentlyStudying
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: DatePatchKeys.self)
         try values.encodeIfPresent(institutionName, forKey: .institutionName)
+        try values.encodeChange(metadataChanges["institutionCatalogueID"] ?? .unchanged, forKey: .institutionCatalogueID)
+        try values.encodeChange(metadataChanges["institutionCatalogueVersion"] ?? .unchanged, forKey: .institutionCatalogueVersion)
         try values.encodeIfPresent(degree, forKey: .degree)
         try values.encodeChange(metadataChanges["fieldOfStudy"] ?? .supplied(fieldOfStudy), forKey: .fieldOfStudy)
         try values.encodeIfPresent(educationLevel, forKey: .educationLevel)
@@ -164,6 +166,8 @@ nonisolated struct CareerEmploymentDTO: Decodable, Equatable, Sendable {
 }
 
 nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
+    let institutionCatalogueID: String?
+    let institutionCatalogueVersion: String?
     let id: String
     let userID: String?
     let institutionName: String
@@ -182,6 +186,8 @@ nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         id = try container.decodeRequiredString(forKeys: ["id"], debugName: "education id")
         userID = try container.decodeFirstPresentString(forKeys: ["user_id"])
+        institutionCatalogueID = try container.decodeFirstPresentString(forKeys: ["institution_catalogue_id"])
+        institutionCatalogueVersion = try container.decodeFirstPresentString(forKeys: ["institution_catalogue_version"])
         institutionName = try container.decodeFirstPresentString(
             forKeys: ["institution_name", "school_name", "organization_name"]
         ) ?? "Institution not added yet"
@@ -337,6 +343,27 @@ nonisolated struct CareerEducationCreateRequestDTO: Encodable, Equatable, Sendab
     let endDate: String?
     let endDatePrecision: String?
     let isCurrentlyStudying: Bool
+    var institutionCatalogueID: String? = nil
+    var institutionCatalogueVersion: String? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case institutionName, degree, fieldOfStudy, educationLevel, grade, startDate, startDatePrecision, endDate, endDatePrecision, isCurrentlyStudying, institutionCatalogueID, institutionCatalogueVersion
+    }
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(institutionName, forKey: .institutionName)
+        try values.encode(degree, forKey: .degree)
+        try values.encodeIfPresent(fieldOfStudy, forKey: .fieldOfStudy)
+        try values.encode(educationLevel, forKey: .educationLevel)
+        try values.encodeIfPresent(grade, forKey: .grade)
+        try values.encode(startDate, forKey: .startDate)
+        try values.encodeIfPresent(startDatePrecision, forKey: .startDatePrecision)
+        try values.encodeIfPresent(endDate, forKey: .endDate)
+        try values.encodeIfPresent(endDatePrecision, forKey: .endDatePrecision)
+        try values.encode(isCurrentlyStudying, forKey: .isCurrentlyStudying)
+        try values.encode(institutionCatalogueID, forKey: .institutionCatalogueID)
+        try values.encode(institutionCatalogueVersion, forKey: .institutionCatalogueVersion)
+    }
 }
 
 nonisolated struct CareerEducationUpdateRequestDTO: Encodable, Equatable, Sendable {

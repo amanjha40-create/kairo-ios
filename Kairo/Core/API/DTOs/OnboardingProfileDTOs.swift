@@ -46,6 +46,16 @@ nonisolated struct ManualEducationCreateRequestDTO: Encodable, Equatable, Sendab
     let endDate: String?
     let endDatePrecision: String?
     let isCurrentlyStudying: Bool
+    var institutionCatalogueID: String? = nil
+    var institutionCatalogueVersion: String? = nil
+
+    func encode(to encoder: Encoder) throws {
+        try CareerEducationCreateRequestDTO(institutionName: institutionName, degree: degree,
+            fieldOfStudy: fieldOfStudy, educationLevel: educationLevel, grade: grade,
+            startDate: startDate, startDatePrecision: startDatePrecision, endDate: endDate,
+            endDatePrecision: endDatePrecision, isCurrentlyStudying: isCurrentlyStudying,
+            institutionCatalogueID: institutionCatalogueID, institutionCatalogueVersion: institutionCatalogueVersion).encode(to: encoder)
+    }
 }
 
 nonisolated struct ManualCreatedRecordDTO: Decodable, Equatable, Sendable {
