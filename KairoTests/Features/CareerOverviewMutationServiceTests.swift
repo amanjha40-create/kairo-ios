@@ -4,6 +4,44 @@ import XCTest
 
 @MainActor
 final class CareerOverviewMutationServiceTests: XCTestCase {
+    func testHistoricalPickerDateSaveRefetchAndReopenPreserveExactDate() async throws {
+        let service = try await makeService()
+        let selected = try XCTUnwrap(CandidateDateInput.date(year: "1999", month: 8, day: 29))
+        let month = try XCTUnwrap(ManualProfileNormalization.normalizedMonthNumber("8"))
+        let roundTrip = try XCTUnwrap(CandidateDateInput.date(year: "1999", month: month, day: 29))
+        var draft = CareerEmploymentDraft()
+        draft.startDate = roundTrip
+        draft.includesStartDate = true
+        let request = draft.updateRequest()
+        XCTAssertEqual(request.startDate, "1999-08-29")
+        // Fully mocked transport. The refetch response is a saved historical date,
+        // not an optimistic form value or a real account mutation.
+        await MockURLProtocolStorage.shared.setHandler { request in
+            var record = try XCTUnwrap(JSONSerialization.jsonObject(with: Self.createdEmploymentPayload) as? [String: Any])
+            record["id"] = "employment_1"
+            record["start_date"] = "1999-08-29"
+            if request.url?.path == "/api/v1/employments/employment_1" {
+                if request.httpMethod == "PATCH" {
+                    XCTAssertEqual(try requestJSONBody(from: request)["start_date"] as? String, "1999-08-29")
+                }
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: record))
+            }
+            if ["/api/v1/employments", "/api/v1/employments/"].contains(request.url?.path ?? "") {
+                return (try Self.response(for: request, statusCode: 200), try JSONSerialization.data(withJSONObject: ["items": [record]]))
+            }
+            return try await Self.overviewResponse(for: request)
+        }
+        let overview = try await service.updateEmployment(id: "employment_1", request: request)
+        XCTAssertEqual(overview.employments.first?.startDate, selected)
+        let refetched = try await service.loadEmployment(id: "employment_1")
+        let reopened = CareerEmploymentDraft(record: refetched)
+        XCTAssertEqual(reopened.startDate, selected)
+        XCTAssertEqual(reopened.updateRequest().startDate, "1999-08-29")
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/v1/employments/employment_1" })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/v1/employments/employment_1" })
+    }
+
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()

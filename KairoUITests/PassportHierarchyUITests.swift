@@ -5,6 +5,33 @@ import XCTest
 final class PassportHierarchyUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testSelectAllDeselectAllAndProfileDependencyWithoutCreatingShare() {
+        for large in [false, true] {
+            let app = launch(large: large); openCreate(app)
+            let all = app.buttons["passport.share.selectAll"]
+            reveal(all, app); all.tap()
+            XCTAssertFalse(app.switches["candidate.passport.share.permission.profile"].exists)
+            let employment = app.switches["candidate.passport.share.permission.employments"]
+            reveal(employment, app); XCTAssertEqual(employment.value as? String, "1")
+            let clear = app.buttons["passport.share.deselectAll"]
+            reveal(clear, app); clear.tap()
+            reveal(employment, app); XCTAssertEqual(employment.value as? String, "0")
+            let mode = app.switches["passport.share.mixedOptIn"]
+            reveal(mode, app); mode.tap()
+            let photo = app.switches["candidate.passport.share.permission.photo"]
+            reveal(photo, app); XCTAssertFalse(photo.isEnabled)
+            reveal(all, app); all.tap()
+            reveal(photo, app); XCTAssertTrue(photo.isEnabled); XCTAssertEqual(photo.value as? String, "1")
+            let profile = app.switches["candidate.passport.share.permission.profile"]
+            reveal(profile, app); profile.tap()
+            reveal(photo, app); XCTAssertEqual(photo.value as? String, "0"); XCTAssertFalse(photo.isEnabled)
+            reveal(clear, app); clear.tap()
+            XCTAssertGreaterThanOrEqual(all.frame.height, 44)
+            capture(app, "Select all controls \(large ? "dark XXXL" : "light")")
+            app.terminate() // No share created or updated.
+        }
+    }
+
 #if KAIRO_LOCAL_BATCH1_QA
     func testPostBuild8IdentityWrappingNormalAndXXXL() {
         for large in [false, true] {
@@ -188,7 +215,8 @@ final class PassportHierarchyUITests: XCTestCase {
 
     private func launch(state: String = "populated", large: Bool = false, longIdentity: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES",
+                               "-kairo.appearance.preference", large ? "dark" : "light"]
 #if KAIRO_LOCAL_BATCH1_QA
         app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
 #endif
@@ -199,13 +227,6 @@ final class PassportHierarchyUITests: XCTestCase {
         if longIdentity { app.launchEnvironment["KAIRO_POSTBUILD8_LONG_IDENTITY"] = "1" }
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Passport"].waitForExistence(timeout: 10))
-        if large {
-            app.tabBars.buttons["More"].tap()
-            let settings = app.buttons["candidate.more.settings"]
-            reveal(settings, app); settings.tap()
-            let dark = app.buttons["candidate.more.appearance.dark"]
-            reveal(dark, app); dark.tap()
-        }
         app.tabBars.buttons["Passport"].tap()
         return app
     }

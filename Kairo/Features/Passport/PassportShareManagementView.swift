@@ -628,8 +628,7 @@ private struct PassportShareMutationForm: View {
     }
 
     private var options: [PassportSharePermissionOption] {
-        if let original = draft.originalShare { return original.permissions.enabledOptions }
-        return capabilities?.options(for: draft.sharingMode) ?? []
+        draft.availableOptions(capabilities: capabilities)
     }
 
     private func permissionGroup(
@@ -640,6 +639,11 @@ private struct PassportShareMutationForm: View {
             Text(title)
                 .font(KairoTypography.headline)
                 .foregroundStyle(KairoColors.textPrimary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: KairoSpacing.medium) { selectionActions }
+                VStack(alignment: .leading, spacing: KairoSpacing.small) { selectionActions }
+            }
 
             ForEach(options) { option in
                 Toggle(isOn: permissionBinding(option)) {
@@ -655,18 +659,29 @@ private struct PassportShareMutationForm: View {
                 }
                 .accessibilityIdentifier(KairoAccessibilityID.passportSharePermission(option.rawValue))
                 .frame(minHeight: 44)
+                .disabled((option == .photo && !draft.permissions.includeProfile)
+                          || (option == .userDocuments && !draft.permissions.showDocuments))
             }
         }
+    }
+
+    @ViewBuilder private var selectionActions: some View {
+        Button("Select all") { draft.selectAll(capabilities: capabilities) }
+            .buttonStyle(KairoActionStyle(role: .secondary))
+            .disabled(options.isEmpty)
+            .accessibilityIdentifier("passport.share.selectAll")
+            .accessibilityHint("Selects only sections available in the current sharing mode. Does not create a link.")
+        Button("Deselect all") { draft.deselectAll() }
+            .buttonStyle(KairoActionStyle(role: .secondary))
+            .disabled(draft.permissions.enabledOptions.isEmpty)
+            .accessibilityIdentifier("passport.share.deselectAll")
     }
 
     private func permissionBinding(_ option: PassportSharePermissionOption) -> Binding<Bool> {
         Binding(
             get: { draft.permissions.isEnabled(option) },
             set: { enabled in
-                if enabled, let original = draft.originalShare, !original.permissions.isEnabled(option) { return }
-                draft.permissions.set(enabled, for: option)
-                if !enabled && option == .profile { draft.permissions.showPhoto = false }
-                if !enabled && option == .documents { draft.permissions.includeUserDocuments = false }
+                draft.setPermission(enabled, for: option, capabilities: capabilities)
             }
         )
     }

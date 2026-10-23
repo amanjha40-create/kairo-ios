@@ -454,6 +454,32 @@ nonisolated struct PassportShareDraft: Equatable, Sendable {
             }
         }
     }
+
+    func availableOptions(capabilities: PassportShareCapabilities?) -> [PassportSharePermissionOption] {
+        // Updating an existing link may never widen its original permission set.
+        if let originalShare { return originalShare.policyEditable ? originalShare.permissions.enabledOptions : [] }
+        return capabilities?.options(for: sharingMode) ?? []
+    }
+
+    mutating func selectAll(capabilities: PassportShareCapabilities?) {
+        let available = availableOptions(capabilities: capabilities)
+        permissions = .privacyPreserving
+        for option in available { permissions.set(true, for: option) }
+        if !permissions.includeProfile { permissions.showPhoto = false }
+        if !permissions.showDocuments { permissions.includeUserDocuments = false }
+    }
+
+    mutating func deselectAll() { permissions = .privacyPreserving }
+
+    mutating func setPermission(_ enabled: Bool, for option: PassportSharePermissionOption,
+                                capabilities: PassportShareCapabilities?) {
+        guard availableOptions(capabilities: capabilities).contains(option) else { return }
+        if enabled && option == .photo && !permissions.includeProfile { return }
+        if enabled && option == .userDocuments && !permissions.showDocuments { return }
+        permissions.set(enabled, for: option)
+        if !enabled && option == .profile { permissions.showPhoto = false }
+        if !enabled && option == .documents { permissions.includeUserDocuments = false }
+    }
 }
 
 nonisolated enum PassportShareServiceError: Error, Equatable, LocalizedError, Sendable {

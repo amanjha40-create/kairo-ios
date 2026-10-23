@@ -5,6 +5,25 @@ import XCTest
 final class LocalBatch2FormUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testHistoricalManualDateConfirmAndCancelDoNotBecomeIncomplete() {
+        let app = launch(extra: ["KAIRO_LOCAL_BATCH1_MODE": "", "KAIRO_UI_TEST_ROUTE": "onboarding",
+            "KAIRO_UI_TEST_ONBOARDING_STEP": "resumeImportOrQuickProfile", "KAIRO_UI_TEST_MANUAL_PROFILE_PHASE": "employment",
+            "KAIRO_UI_TEST_MANUAL_PROFILE_PREFILL": "1", "KAIRO_UI_TEST_CREATE_ACCOUNT_FIRST_NAME": "Synthetic",
+            "KAIRO_UI_TEST_CREATE_ACCOUNT_LAST_NAME": "Candidate"])
+        let date = app.buttons["manual.employment.0.startDate"]
+        reveal(date, app)
+        let historical = date.value as? String
+        XCTAssertNotEqual(historical, "Not set"); XCTAssertNotEqual(historical, "Incomplete saved date")
+        date.tap()
+        XCTAssertTrue(app.datePickers.firstMatch.waitForExistence(timeout: 5))
+        app.buttons["manual.employment.0.startDate.confirm"].tap()
+        XCTAssertEqual(date.value as? String, historical, "Picker commit must round-trip its numeric month")
+        date.tap(); app.buttons["manual.employment.0.startDate.cancel"].tap()
+        XCTAssertEqual(date.value as? String, historical)
+        capture(app, "Historical manual date round-trip without incomplete state")
+        app.terminate()
+    }
+
     func testEmployerTradeNameClearSurvivesRefetchAndProcessRelaunch() {
         verifyClearing(editor: "employment", field: "employerTradeName")
     }

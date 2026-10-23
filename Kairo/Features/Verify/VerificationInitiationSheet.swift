@@ -353,14 +353,14 @@ struct VerificationInitiationSheet: View {
                 Text("Your consent")
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
-                Text("KairoID will share only the selected Career claim fields and selected evidence with the verification workflow. The request first enters KairoID admin review; it is not marked verified by this action.")
+                Text("KairoID will share only the details and documents you selected with the verifier. This does not automatically verify your record.")
                     .font(KairoTypography.body)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Toggle("I consent to share the record fields shown above", isOn: draft.consentsToClaimFields)
+                Toggle("Share selected record details", isOn: draft.consentsToClaimFields)
                     .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationClaimConsent)
-                Toggle("I consent to share the selected evidence", isOn: draft.consentsToEvidence)
+                Toggle("Share selected documents", isOn: draft.consentsToEvidence)
                     .accessibilityIdentifier(KairoAccessibilityID.verificationInitiationEvidenceConsent)
             }
 

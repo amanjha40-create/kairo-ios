@@ -380,6 +380,9 @@ nonisolated enum ManualProfileNormalization {
     }
 
     nonisolated static func normalizedMonthNumber(_ value: String) -> Int? {
+        // The unified date picker writes numeric components; legacy drafts use
+        // month names. Accept both before punctuation-folding the legacy aliases.
+        if let month = Int(normalized(value)), (1...12).contains(month) { return month }
         let normalizedValue = simplified(value)
         let supportedMonths: [[String]] = [
             ["january", "jan"],

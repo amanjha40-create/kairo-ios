@@ -2107,8 +2107,12 @@ private struct MoreConfirmationSheetView: View {
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        if confirmation == .signOut {
+            compactSignOut
+        } else {
         NavigationStack {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
                 KairoSection {
@@ -2159,6 +2163,40 @@ private struct MoreConfirmationSheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier(confirmationAccessibilityIdentifier)
         }
+        }
+    }
+
+    private var compactSignOut: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.medium) {
+                    Text("You’ll be logged out on this device. You can log in again at any time.")
+                        .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("more.logout.message")
+                    KairoSecondaryButton(title: "Cancel", accessibilityIdentifier: "more.logout.cancel") {
+                        dismiss()
+                        onCancel()
+                    }
+                    Button(role: .destructive) {
+                        dismiss()
+                        onConfirm()
+                    } label: {
+                        Text("Log out").frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(KairoActionStyle(role: .destructivePrimary))
+                    .accessibilityIdentifier("more.logout.confirm")
+                }
+                .padding(KairoSpacing.large)
+            }
+            .background(KairoColors.background)
+            .navigationTitle("Log out")
+            .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier(KairoAccessibilityID.moreSignOutConfirmation)
+        }
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(340), .large])
+        .presentationDragIndicator(.visible)
     }
 
     private var confirmationAccessibilityIdentifier: String {

@@ -4,6 +4,27 @@ import XCTest
 final class VerifyFocusedNavigationUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testPlainConsentCopyKeepsBothExplicitRequirementsWithoutSubmitting() {
+        let app = launch()
+        app.openCareerVerification()
+        XCTAssertTrue(app.buttons["fixture.verify.begin"].waitForExistence(timeout: 10))
+        app.buttons["fixture.verify.begin"].tap()
+        let consent = app.switches["Share selected record details"]
+        reveal(consent, app)
+        XCTAssertEqual(consent.value as? String, "0")
+        let documents = app.switches["Share selected documents"]
+        reveal(documents, app); XCTAssertEqual(documents.value as? String, "0")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@",
+            "KairoID will share only the details and documents you selected with the verifier. This does not automatically verify your record.")).firstMatch.exists)
+        let submit = app.buttons["Send verification request"]
+        reveal(submit, app); XCTAssertFalse(submit.isEnabled)
+        reveal(consent, app); consent.tap()
+        reveal(submit, app); XCTAssertFalse(submit.isEnabled)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Plain consent retains explicit requirements"; proof.lifetime = .keepAlways; add(proof)
+        app.terminate() // No submit or provider call.
+    }
+
     func testNewRequestSurvivesSheetDismissalAndStaleWithdrawnHistory() {
         let app = launch()
         prepareAndOpenNewRequest(app)
@@ -46,7 +67,7 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
         let email = app.textFields["hr@organisation.com"]
         reveal(email, app); email.tap(); email.typeText("qa@example.com\n")
         XCTAssertEqual(email.value as? String, "qa@example.com")
-        for label in ["I consent to share the record fields shown above", "I consent to share the selected evidence"] {
+        for label in ["Share selected record details", "Share selected documents"] {
             let consent = app.switches[label]
             reveal(consent, app)
             if (consent.value as? String) == "0" { consent.tap() }
@@ -70,6 +91,9 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
     private func launch(missing: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+#if KAIRO_LOCAL_BATCH1_QA
+        app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
+#endif
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_VERIFY_STATE": "populated",
             "KAIRO_UI_TEST_HOME_STATE": "populated", "KAIRO_UI_TEST_VERIFY_NAVIGATION": "1",

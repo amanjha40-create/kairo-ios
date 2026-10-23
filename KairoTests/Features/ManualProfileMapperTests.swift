@@ -3,6 +3,33 @@ import XCTest
 @testable import Kairo
 
 final class ManualProfileMapperTests: XCTestCase {
+    func testPickerNumericMonthRoundTripsHistoricalExactDate() throws {
+        var draft = makeDraft()
+        let selected = try XCTUnwrap(CandidateDateInput.date(year: "1999", month: 8, day: 29))
+        let parts = CandidateDateInput.calendar.dateComponents([.day, .month, .year], from: selected)
+        draft.updateEmployment(id: 0) {
+            $0.startDay = String(parts.day!)
+            $0.startMonth = String(parts.month!)
+            $0.startYear = String(parts.year!)
+        }
+        let entry = draft.employmentEntries[0]
+        let month = try XCTUnwrap(ManualProfileNormalization.normalizedMonthNumber(entry.startMonth))
+        XCTAssertEqual(CandidateDateInput.date(year: entry.startYear, month: month, day: Int(entry.startDay)!), selected)
+        let payload = try ManualProfileMapper.makeSubmissionPayloads(draft: draft, currentUser: makeUser())
+        XCTAssertEqual(payload.employments[0].request.startDate, "1999-08-29")
+    }
+
+    func testMonthNamesAndAllPickerNumericMonthsNormalizeWithoutLosingPrecision() {
+        for month in 1...12 {
+            XCTAssertEqual(ManualProfileNormalization.normalizedMonthNumber(String(month)), month)
+            XCTAssertEqual(ManualProfileNormalization.normalizedMonthNumber(String(format: "%02d", month)), month)
+        }
+        XCTAssertEqual(ManualProfileNormalization.normalizedMonthNumber("August"), 8)
+        for invalid in ["0", "13", "2x", "1.2", "-1", ""] {
+            XCTAssertNil(ManualProfileNormalization.normalizedMonthNumber(invalid), invalid)
+        }
+    }
+
     func test_optionalLocationStudyAndEndDatesAreOmittedUsingAPI43Contract() throws {
         var draft = makeDraft()
         draft.basicProfile.currentCity = ""

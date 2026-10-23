@@ -4,6 +4,65 @@ import XCTest
 final class MoreSettingsHierarchyUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+#if !targetEnvironment(simulator)
+    func testPhysicalLogoutVoiceOverReadsMessageCancelThenDestructiveAction() throws {
+        guard #available(iOS 27.0, *) else { return XCTFail("Physical speech check requires iOS 27") }
+        let voiceOver = XCUIDevice.shared.voiceOverService
+        let initial = voiceOver.isEnabled
+        defer {
+            if initial { XCTAssertNoThrow(try voiceOver.enable()) }
+            else { XCTAssertNoThrow(try voiceOver.disable()) }
+        }
+        try voiceOver.disable()
+        let app = launch()
+        let entry = app.buttons["candidate.more.signOut"]
+        reveal(entry, app); entry.tap()
+        XCTAssertTrue(app.buttons["more.logout.cancel"].waitForExistence(timeout: 10))
+        try voiceOver.enable()
+        var utterances = [(try voiceOver.currentSpeech()).utterance]
+        for _ in 0..<20 {
+            utterances.append((try voiceOver.moveForward()).utterance)
+            if let cancel = utterances.firstIndex(where: { $0.contains("Cancel") }),
+               utterances.dropFirst(cancel + 1).contains(where: { $0.contains("Log out") }) { break }
+        }
+        let message = try XCTUnwrap(utterances.firstIndex { $0.contains("logged out on this device") })
+        let cancel = try XCTUnwrap(utterances.firstIndex { $0.contains("Cancel") })
+        let action = try XCTUnwrap(utterances.indices.first { $0 > cancel && utterances[$0].contains("Log out") })
+        XCTAssertLessThan(message, cancel)
+        XCTAssertLessThan(cancel, action)
+        try voiceOver.disable()
+        app.buttons["more.logout.cancel"].tap()
+        XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+        app.terminate() // Synthetic sheet only; never activate Log out.
+    }
+#endif
+
+    func testCompactLogoutLightDarkAndAccessibleCancelPreservesSession() {
+        for large in [false, true] {
+            let app = launch(large: large)
+            let entry = app.buttons["candidate.more.signOut"]
+            reveal(entry, app); entry.tap()
+            let cancel = app.buttons["more.logout.cancel"]
+            XCTAssertTrue(cancel.waitForExistence(timeout: 10))
+            let message = app.staticTexts["more.logout.message"]
+            let confirm = app.buttons["more.logout.confirm"]
+            if !large {
+                XCTAssertGreaterThan(app.navigationBars["Log out"].frame.minY, app.frame.height * 0.35)
+            }
+            reveal(confirm, app)
+            XCTAssertGreaterThanOrEqual(confirm.frame.height, 44)
+            XCTAssertTrue(cancel.isHittable)
+            XCTAssertLessThan(message.frame.minY, cancel.frame.minY)
+            XCTAssertLessThan(cancel.frame.minY, confirm.frame.minY)
+            XCTAssertEqual(app.keyboards.count, 0)
+            capture("Logout \(large ? "dark XXXL" : "compact light")")
+            cancel.tap()
+            XCTAssertTrue(app.buttons["candidate.more.viewProfile"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.tabBars.buttons["More"].isSelected)
+            app.terminate() // Never confirm a real logout.
+        }
+    }
+
     func testPermanentAddressVisibleOpensAndReturnsWithoutDuplicateEntry() {
         let app = launch(variant: "address_no_address")
         let entry = app.buttons["candidate.more.permanentAddress"]
@@ -183,6 +242,9 @@ final class MoreSettingsHierarchyUITests: XCTestCase {
     private func launch(large: Bool = false, variant: String = "") -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", large ? "dark" : "light"]
+#if KAIRO_LOCAL_BATCH1_QA
+        app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
+#endif
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false", "KAIRO_UI_TEST_MORE_STATE": "populated"]

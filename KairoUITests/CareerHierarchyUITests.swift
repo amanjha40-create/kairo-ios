@@ -4,6 +4,26 @@ import XCTest
 final class CareerHierarchyUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testVerificationCTAEmploymentEducationLightDarkAndXXXL() {
+        for large in [false, true] {
+            for title in ["Operations Analyst", "Certificate in Business Communication"] {
+                let app = launch(actions: true, large: large)
+                let row = app.buttons["career.record.open.\(title)"]
+                reveal(row, app); row.tap()
+                let verify = app.buttons["career.detail.verify"]
+                reveal(verify, app)
+                XCTAssertGreaterThanOrEqual(verify.frame.height, 48)
+                XCTAssertGreaterThan(verify.frame.width, app.frame.width * 0.65)
+                XCTAssertLessThanOrEqual(verify.frame.maxX, app.frame.width)
+                XCTAssertEqual(verify.label, "Start verification")
+                keepScreenshot("Filled verification CTA \(title) \(large ? "dark XXXL" : "light")", app)
+                verify.tap()
+                XCTAssertTrue(app.navigationBars["Start verification"].waitForExistence(timeout: 10))
+                app.terminate() // Isolated service; never submit verification.
+            }
+        }
+    }
+
     func testSectionOrderCountsAndNoInlineLifecycleControls() {
         let app = launch()
         let sections = [("employment", "Employment: 3 records"), ("education", "Education: 2 records"),

@@ -178,8 +178,9 @@ struct CareerRecordDetailView: View {
                         KairoSection(compact: true) {
                             KairoSectionHeading(title: "Verification")
                             if let verify = record.verify {
-                                Button("Start verification") { perform(verify) }
-                                    .buttonStyle(KairoActionStyle()).accessibilityIdentifier("career.detail.verify")
+                                KairoPrimaryButton(title: "Start verification", accessibilityIdentifier: "career.detail.verify") {
+                                    perform(verify)
+                                }
                             } else {
                                 Text("Verification actions depend on this record’s current status.")
                                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
