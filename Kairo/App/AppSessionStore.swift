@@ -66,6 +66,10 @@ final class AppSessionStore: ObservableObject {
            ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DOB"] == "present" {
             currentUser = try? await authService.currentUser().asDomainModel()
         }
+        if uiTestConfiguration.isEnabled,
+           ProcessInfo.processInfo.environment["KAIRO_UI_TEST_PROFILE_TASKS"] == "1" {
+            currentUser = ProfileSnapshot.fixture.user
+        }
         #endif
 
         guard !configuration.isDemoModeEnabled, !uiTestConfiguration.isEnabled else {

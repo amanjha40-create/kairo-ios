@@ -114,7 +114,8 @@ enum HomeOverviewMapper {
             title: recommendationTitle(for: code),
             supportingCopy: recommendationSupportingCopy(for: code, missingRequirements: overview.profileCompletion.missingRequirements),
             actionTitle: destination == .verify ? "Start verification" : "Continue profile",
-            destinationTab: destination
+            destinationTab: destination,
+            profileTarget: ProfileEditTarget.requirement(code)
         )
     }
 
@@ -126,7 +127,8 @@ enum HomeOverviewMapper {
                 title: taskTitle(for: requirement),
                 valueStatement: taskValueStatement(for: requirement),
                 status: .pending,
-                destinationTab: destinationTab(for: requirement)
+                destinationTab: destinationTab(for: requirement),
+                profileTarget: ProfileEditTarget.requirement(requirement)
             )
         }
 
@@ -143,7 +145,8 @@ enum HomeOverviewMapper {
                         title: taskTitle(for: code),
                         valueStatement: "This part of your Trust Passport is already complete.",
                         status: .complete,
-                        destinationTab: destinationTab(for: code)
+                        destinationTab: destinationTab(for: code),
+                        profileTarget: ProfileEditTarget.requirement(code)
                     )
                 }
 
@@ -381,6 +384,8 @@ enum HomeOverviewMapper {
             return "Add your skills"
         case "current_role":
             return "Add your current role"
+        case "industry":
+            return "Add your industry"
         case "location", "location_city", "location_country":
             return "Add your location"
         case "verify_email", "email_verified":
@@ -433,6 +438,7 @@ enum HomeOverviewMapper {
     }
 
     private static func destinationTab(for code: String) -> CandidateTab {
+        if ProfileEditTarget.requirement(code) != nil { return .more }
         switch code {
         case "verify_identity", "verify_email", "email_verified", "verify_phone", "phone_verified":
             return .verify

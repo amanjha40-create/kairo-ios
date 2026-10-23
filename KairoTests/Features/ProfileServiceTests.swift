@@ -4,6 +4,48 @@ import XCTest
 
 @MainActor
 final class ProfileServiceTests: XCTestCase {
+    func testRemovePhotoUsesExistingEndpointAndRefetchesInitialsState() async throws {
+        let service = try await makeService()
+        await installStandardHandler { request in
+            if request.httpMethod == "DELETE" {
+                XCTAssertEqual(request.url?.path, "/api/v1/users/me/avatar")
+                XCTAssertNil(request.httpBody)
+            }
+        }
+        let removed = try await service.removeAvatar()
+        XCTAssertNil(removed.user.avatarURL)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(requests.filter { $0.httpMethod == "DELETE" }.count, 1)
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/v1/users/me" })
+    }
+    func testHeadlineAndMultilineBioSaveRefetchAndFreshSessionUseCanonicalFields() async throws {
+        let state = ProfilePatchTestState(data: Self.profilePayload)
+        await installStatefulHandler(state)
+        let service = try await makeService()
+        let original = try await service.load()
+        var draft = ProfileEditDraft(user: original.user)
+        draft.headline = "Synthetic professional headline"
+        draft.bio = "First professional paragraph.\n\nSecond professional paragraph."
+        let saved = try await service.update(draft)
+        XCTAssertEqual(saved.user.headline, draft.headline)
+        XCTAssertEqual(saved.user.bio, draft.bio)
+        XCTAssertEqual(saved.user.dateOfBirth, original.user.dateOfBirth)
+        let fresh = try await makeService()
+        let restored = try await fresh.load()
+        XCTAssertEqual(restored.user.headline, saved.user.headline)
+        XCTAssertEqual(restored.user.bio, saved.user.bio)
+        XCTAssertEqual(PassportOverviewMapper.cachedHeader(from: restored.user).professionalHeadline, saved.user.headline)
+        let requests = await MockURLProtocolStorage.shared.requests()
+        let patch = try XCTUnwrap(requests.first { $0.httpMethod == "PATCH" })
+        let body = try requestJSONBody(from: patch)
+        XCTAssertEqual(Set(body.keys), ["headline", "bio"])
+        XCTAssertEqual(body["bio"] as? String, draft.bio)
+        draft = ProfileEditDraft(user: restored.user)
+        draft.bio = "  \n "
+        let cleared = try await service.update(draft)
+        XCTAssertNil(cleared.user.bio)
+        XCTAssertEqual(cleared.user.headline, saved.user.headline)
+    }
     func testDOBMissingCanBeSavedAndRestoredFromFreshAuthenticatedRead() async throws {
         let state = ProfilePatchTestState(data: Self.profilePayload)
         try await state.apply(body: Data(#"{"date_of_birth":null}"#.utf8), link: false)

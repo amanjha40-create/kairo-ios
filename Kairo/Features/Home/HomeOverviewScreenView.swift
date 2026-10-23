@@ -6,6 +6,8 @@ struct HomeOverviewScreenView: View {
     var refreshAction: (() async -> Void)?
 
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var sessionStore: AppSessionStore
+    @Environment(\.profileService) private var profileService
     @Environment(\.kairoMotionEntry) private var motionEntry
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var notificationStore: CandidateNotificationStore
@@ -16,6 +18,7 @@ struct HomeOverviewScreenView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 46.0
     @State private var showsDocuments = false
     @State private var scoreMemory = PremiumScoreMemory()
+    @State private var profileTarget: ProfileEditTarget?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -50,6 +53,11 @@ struct HomeOverviewScreenView: View {
         .onDisappear { guidedTourCoordinator.setHomeReady(false) }
         .onChange(of: motionEntry.identityRevision) { _, _ in scoreMemory = .init() }
         .sheet(isPresented: $showsDocuments) { DocumentsHubView() }
+        .sheet(item: $profileTarget) { target in
+            if let user = sessionStore.currentUser {
+                ProfileOverviewSheetView(initialUser: user, service: profileService, initialEditorTarget: target)
+            }
+        }
     }
 
     @ViewBuilder
@@ -312,26 +320,37 @@ struct HomeOverviewScreenView: View {
                 title: content.recommendation.title,
                 metadata: content.recommendation.supportingCopy,
                 systemImage: "arrow.right.circle",
-                accessibilityIdentifier: content.recommendation.destinationTab == .career
-                    ? KairoAccessibilityID.homeContinueProfile : KairoAccessibilityID.homeStartVerification,
-                action: { router.selectTab(content.recommendation.destinationTab) }
+                accessibilityIdentifier: content.recommendation.destinationTab == .verify
+                    ? KairoAccessibilityID.homeStartVerification : KairoAccessibilityID.homeContinueProfile,
+                action: { open(content.recommendation.profileTarget, fallback: content.recommendation.destinationTab) }
             )
             .accessibilityHint(content.recommendation.actionTitle)
 
-            // Keep distinct useful task metadata, without another button for the same destination.
+            // Profile tasks need distinct field destinations; other tasks retain compact metadata.
             ForEach(content.compactTrustTasks) { task in
-                adaptiveLayout {
-                    Text(task.title).font(KairoTypography.metadata)
-                    Text(task.status.title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                if let target = task.profileTarget, task.status == .pending {
+                    KairoCompactDestinationRow(title: task.title, metadata: task.valueStatement,
+                        systemImage: "pencil", accessibilityIdentifier: "candidate.home.profile.\(target.rawValue)",
+                        action: { profileTarget = target })
+                } else {
+                    adaptiveLayout {
+                        Text(task.title).font(KairoTypography.metadata)
+                        Text(task.status.title).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
-                .accessibilityElement(children: .combine)
             }
-            if content.recommendation.destinationTab != .career {
+            if content.recommendation.destinationTab != .career && content.recommendation.profileTarget == nil {
                 Button("Continue profile") { router.selectTab(content.profileCompletion.destinationTab) }
                     .buttonStyle(KairoActionStyle())
                     .accessibilityIdentifier(KairoAccessibilityID.homeContinueProfile)
             }
         }
+    }
+
+    private func open(_ target: ProfileEditTarget?, fallback: CandidateTab) {
+        if let target { profileTarget = target }
+        else { router.selectTab(fallback) }
     }
 
     private func recentActivitySection(_ items: [HomeActivityItem]) -> some View {

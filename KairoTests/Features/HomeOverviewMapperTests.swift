@@ -4,6 +4,28 @@ import XCTest
 
 @MainActor
 final class HomeOverviewMapperTests: XCTestCase {
+    func testProfileRequirementsRouteToExactEditorWithoutChangingCompletion() throws {
+        for code in ["headline", "current_role", "industry"] {
+            let overview = makeOverview(trustScoreOverall: nil, missingRequirements: [code],
+                nextRecommendedStep: code, totalVaultItems: 0, analyticsCount: 0, activityCategories: [])
+            let result = try content(HomeOverviewMapper.map(overview))
+            XCTAssertEqual(result.recommendation.profileTarget?.rawValue, code)
+            XCTAssertEqual(result.recommendation.destinationTab, .more)
+            XCTAssertEqual(result.trustTasks.first?.profileTarget?.rawValue, code)
+            XCTAssertEqual(result.profileCompletion.percentage, overview.profileCompletion.completionPercentage)
+        }
+        XCTAssertNil(ProfileEditTarget.requirement("employment"))
+        XCTAssertEqual(CandidateTab.allCases, [.home, .career, .passport, .more])
+    }
+
+    func testHomeTaskDisappearsOnlyWhenCanonicalRefetchRemovesRequirement() throws {
+        let before = makeOverview(trustScoreOverall: nil, missingRequirements: ["headline"],
+            nextRecommendedStep: "headline", totalVaultItems: 0, analyticsCount: 0, activityCategories: [])
+        let after = makeOverview(trustScoreOverall: nil, missingRequirements: ["employment"],
+            nextRecommendedStep: "employment", totalVaultItems: 0, analyticsCount: 0, activityCategories: [])
+        XCTAssertTrue(try content(HomeOverviewMapper.map(before)).trustTasks.contains { $0.profileTarget == .headline && $0.status == .pending })
+        XCTAssertFalse(try content(HomeOverviewMapper.map(after)).trustTasks.contains { $0.profileTarget == .headline && $0.status == .pending })
+    }
     func testCompactHomeUsesOnlyAuthoritativeCareerCounts() throws {
         let overview = baseline()
         let result = try content(HomeOverviewMapper.map(overview))

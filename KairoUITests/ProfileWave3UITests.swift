@@ -4,6 +4,66 @@ import XCTest
 final class ProfileWave3UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testHomeProfileTasksOpenExactFieldsAndSaveHeadlineBackToProfile() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", "light"]
+        app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
+            "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
+            "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_PROFILE_TASKS": "1"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.tabBars.buttons.allElementsBoundByIndex.map(\.label), ["Home", "Career", "Passport", "More"])
+        for key in ["headline", "current_role", "industry"] {
+            let task = key == "headline" ? app.buttons["candidate.home.continueProfile"] : app.buttons["candidate.home.profile.\(key)"]
+            app.revealContent(task)
+            XCTAssertTrue(task.waitForExistence(timeout: 5)); task.tap()
+            let field = app.textFields["candidate.profile.edit.\(key)"]
+            XCTAssertTrue(field.waitForExistence(timeout: 10))
+            XCTAssertTrue(field.isHittable, "Target field must be revealed, not merely exist offscreen")
+            if key == "headline" {
+                field.tap(); field.typeText(" Updated")
+                let saved = field.value as? String
+                app.buttons["candidate.profile.edit.save"].tap()
+                XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+                XCTAssertEqual(app.staticTexts["candidate.profile.headline"].label, saved)
+                app.buttons["candidate.profile.edit"].tap()
+                app.revealContent(field)
+                XCTAssertEqual(field.value as? String, saved)
+            }
+            app.buttons["candidate.profile.edit.cancel"].tap()
+            app.navigationBars["Profile"].buttons["Done"].tap()
+            XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.tabBars.buttons["Home"].isSelected)
+        }
+        keepScreenshot("Profile task routing returns Home", app)
+    }
+
+    func testProfileInformationIsDistinctFromActionAndBioIsMultiline() {
+        let app = launchProfile()
+        let choose = app.buttons["candidate.profile.avatar.choose"]
+        XCTAssertEqual(choose.label, "Add photo")
+        XCTAssertGreaterThanOrEqual(choose.frame.height, 44)
+        XCTAssertLessThan(choose.frame.width, app.frame.width * 0.8)
+        let info = app.descendants(matching: .any)["candidate.profile.identity.info"].firstMatch
+        app.revealContent(info)
+        XCTAssertTrue(info.exists)
+        XCTAssertFalse(app.buttons["disclosure.About identity"].exists)
+        let edit = app.buttons["candidate.profile.information.edit"]
+        app.revealContent(edit); XCTAssertTrue(edit.isHittable); edit.tap()
+        let bio = app.textViews["candidate.profile.edit.bio"]
+        app.revealContent(bio)
+        XCTAssertTrue(bio.exists)
+        bio.tap(); bio.typeText("Synthetic first paragraph.\nSynthetic second paragraph.\n")
+        let saved = bio.value as? String
+        app.buttons["candidate.profile.edit.save"].tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        app.buttons["candidate.profile.edit"].tap()
+        app.revealContent(bio)
+        XCTAssertEqual(bio.value as? String, saved)
+        app.buttons["candidate.profile.edit.cancel"].tap()
+        keepScreenshot("Profile information and edit hierarchy - Light", app)
+    }
+
     func testDOBDigitsAutoFormatAndFixtureSaveReopensFormatted() {
         let app = launchProfile()
         app.buttons["candidate.profile.edit"].tap()
@@ -24,8 +84,9 @@ final class ProfileWave3UITests: XCTestCase {
         let app = launchProfile()
 
         XCTAssertTrue(app.descendants(matching: .any)["candidate.profile.hero"].firstMatch.exists)
-        expand("Personal & professional information", in: app)
-        XCTAssertTrue(app.staticTexts["Professional information"].exists)
+        let information = app.buttons["candidate.profile.information.edit"]
+        app.revealContent(information)
+        XCTAssertTrue(information.exists)
         reveal(app.buttons["candidate.profile.skills.manage"], in: app)
         XCTAssertTrue(app.staticTexts["Skills"].exists)
         expand("Languages", in: app)

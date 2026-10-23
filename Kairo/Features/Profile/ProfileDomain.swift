@@ -1,5 +1,14 @@
 import Foundation
 
+nonisolated enum ProfileEditTarget: String, Identifiable, Sendable {
+    case headline
+    case currentRole = "current_role"
+    case industry
+    var id: String { rawValue }
+
+    static func requirement(_ code: String) -> Self? { Self(rawValue: code) }
+}
+
 nonisolated struct ProfileSnapshot: Equatable, Sendable {
     let user: AppUser
     let skills: [ProfileSkill]
@@ -129,7 +138,10 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             errors["date_of_birth"] = "Enter a valid date using DD-MM-YYYY."
         }
         if bio.count > 500 {
-            errors["bio"] = "About must be 500 characters or fewer."
+            errors["bio"] = "Professional Bio must be 500 characters or fewer."
+        }
+        if profileNormalized(headline).count > 255 {
+            errors["headline"] = "Professional headline must be 255 characters or fewer."
         }
         return errors
     }
@@ -146,12 +158,12 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             locationRegion: profileOptional(locationRegion),
             locationCountry: profileOptional(locationCountry)?.uppercased(),
             headline: profileOptional(headline),
-            bio: profileOptional(bio),
+            bio: profileBio(bio),
             dateOfBirth: parsedDateOfBirth.map(ProfileBirthDate.wire),
             fieldChanges: Dictionary(uniqueKeysWithValues: textValues.map { key, value in
                     (key, OptionalFieldChange<String>.edited(original: originalText[key], current: value,
                         encoded: key == "dateOfBirth" ? parsedDateOfBirth.map(ProfileBirthDate.wire) :
-                            (key == "locationCountry" ? profileOptional(value)?.uppercased() : profileOptional(value))))
+                            (key == "bio" ? profileBio(value) : key == "locationCountry" ? profileOptional(value)?.uppercased() : profileOptional(value))))
                 }),
             experienceChange: .between(originalExperience, Int(profileNormalized(yearsOfExperience)))
         )
@@ -195,6 +207,11 @@ nonisolated func profileNormalized(_ value: String) -> String {
 
 nonisolated func profileOptional(_ value: String) -> String? {
     let value = profileNormalized(value)
+    return value.isEmpty ? nil : value
+}
+
+nonisolated func profileBio(_ value: String) -> String? {
+    let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return value.isEmpty ? nil : value
 }
 

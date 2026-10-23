@@ -283,6 +283,7 @@ struct HomeRecommendation: Equatable, Sendable {
     let supportingCopy: String
     let actionTitle: String
     let destinationTab: CandidateTab
+    var profileTarget: ProfileEditTarget? = nil
 }
 
 struct HomeTrustTask: Equatable, Identifiable, Sendable {
@@ -309,6 +310,7 @@ struct HomeTrustTask: Equatable, Identifiable, Sendable {
     let valueStatement: String
     let status: Status
     let destinationTab: CandidateTab?
+    var profileTarget: ProfileEditTarget? = nil
 
     var id: String { title }
 }

@@ -7,6 +7,18 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class ProfileOverviewStoreTests: XCTestCase {
+    func testProfessionalBioIsOptionalMultilineAndUsesExistingLimits() throws {
+        var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        draft.bio = " \nFirst line\nSecond line\n "
+        XCTAssertEqual(draft.request.bio, "First line\nSecond line")
+        XCTAssertNil(draft.validationErrors["bio"])
+        draft.bio = ""
+        XCTAssertNil(draft.validationErrors["bio"])
+        draft.bio = String(repeating: "a", count: 501)
+        XCTAssertNotNil(draft.validationErrors["bio"])
+        draft.headline = String(repeating: "a", count: 256)
+        XCTAssertNotNil(draft.validationErrors["headline"])
+    }
     func testPhotoPreparationAcceptsJPEGPNGAndHEICWithoutResizingOrChangingQualityPolicy() throws {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1

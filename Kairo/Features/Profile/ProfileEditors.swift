@@ -4,6 +4,7 @@ import UIKit
 struct ProfileEditView: View {
     let user: AppUser
     let isSaving: Bool
+    let initialTarget: ProfileEditTarget?
     let onSave: (ProfileEditDraft) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -11,14 +12,17 @@ struct ProfileEditView: View {
     @State private var showDiscardConfirmation = false
     @State private var submitted = false
     @State private var serverError: String?
+    @FocusState private var focusedField: String?
 
     init(
         user: AppUser,
         isSaving: Bool,
+        initialTarget: ProfileEditTarget? = nil,
         onSave: @escaping (ProfileEditDraft) async throws -> Void
     ) {
         self.user = user
         self.isSaving = isSaving
+        self.initialTarget = initialTarget
         self.onSave = onSave
         _draft = State(initialValue: ProfileEditDraft(user: user))
     }
@@ -29,6 +33,7 @@ struct ProfileEditView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section {
                     Text("Identity matching is performed only by KairoID services. Changing your name or date of birth can require identity review.")
@@ -59,10 +64,11 @@ struct ProfileEditView: View {
                     field("Industry", text: $draft.industry, key: "industry")
                     field("Years of experience", text: $draft.yearsOfExperience, key: "years_of_experience", keyboard: .numberPad)
                     VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
-                        Text("About").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
+                        Text("Professional Bio (optional)").font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                         TextEditor(text: $draft.bio)
                             .frame(minHeight: 120)
-                            .accessibilityLabel("About")
+                            .accessibilityLabel("Professional Bio (optional)")
+                            .accessibilityIdentifier("candidate.profile.edit.bio")
                         Text("\(draft.bio.count)/500")
                             .font(KairoTypography.caption)
                             .foregroundStyle(draft.bio.count > 500 ? KairoColors.danger : KairoColors.textSecondary)
@@ -83,6 +89,11 @@ struct ProfileEditView: View {
                             .accessibilityIdentifier("candidate.profile.edit.error")
                     }
                 }
+            }
+            .task {
+                guard let initialTarget else { return }
+                proxy.scrollTo(initialTarget.rawValue, anchor: .center)
+                focusedField = initialTarget.rawValue
             }
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,6 +117,7 @@ struct ProfileEditView: View {
             } message: {
                 Text("Your unsaved profile changes will be lost.")
             }
+            }
         }
         .interactiveDismissDisabled(isDirty || isSaving)
         .accessibilityIdentifier("candidate.profile.edit.screen")
@@ -126,8 +138,10 @@ struct ProfileEditView: View {
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(keyboard == .emailAddress || keyboard == .URL ? .never : .words)
                 .accessibilityIdentifier("candidate.profile.edit.\(key)")
+                .focused($focusedField, equals: key)
             error(key)
         }
+        .id(key)
     }
 
     @ViewBuilder

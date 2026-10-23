@@ -27,13 +27,17 @@ struct ProfileOverviewSheetView: View {
     @StateObject private var store: ProfileOverviewStore
 
     @State private var editor: ProfileEditor?
+    private let initialEditorTarget: ProfileEditTarget?
+    @State private var editorTarget: ProfileEditTarget?
+    @State private var didOpenRequestedEditor = false
     @State private var photoSelection: PhotosPickerItem?
     @State private var pendingPhoto: UIImage?
     @State private var photoErrorMessage: String?
     @State private var showRemovePhotoConfirmation = false
 
-    init(initialUser: AppUser, service: any ProfileServiceProtocol) {
+    init(initialUser: AppUser, service: any ProfileServiceProtocol, initialEditorTarget: ProfileEditTarget? = nil) {
         _store = StateObject(wrappedValue: ProfileOverviewStore(service: service, initialUser: initialUser))
+        self.initialEditorTarget = initialEditorTarget
     }
 
     var body: some View {
@@ -48,9 +52,7 @@ struct ProfileOverviewSheetView: View {
                     }
                     hero
                     identity
-                    KairoSection(compact: true) {
-                        KairoDisclosure(title: "Personal & professional information") { professionalInformation }
-                    }
+                    professionalInformation
                     skills
                     KairoSection(compact: true) {
                         KairoDisclosure(title: "Languages", summary: "\(store.snapshot.user.languages.count) added") { languages }
@@ -75,7 +77,7 @@ struct ProfileOverviewSheetView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit") { editor = .profile }
+                    Button("Edit") { editorTarget = nil; editor = .profile }
                         .accessibilityIdentifier("candidate.profile.edit")
                 }
             }
@@ -84,6 +86,11 @@ struct ProfileOverviewSheetView: View {
                 async let profile: Void = store.load()
                 async let identity: Void = digiLockerStore.loadSummaryIfNeeded()
                 _ = await (profile, identity)
+                if let initialEditorTarget, !didOpenRequestedEditor, store.errorMessage == nil {
+                    didOpenRequestedEditor = true
+                    editorTarget = initialEditorTarget
+                    editor = .profile
+                }
             }
             .onChange(of: store.snapshot.user) { _, user in
                 if sessionStore.currentUser?.id == user.id {
@@ -173,21 +180,9 @@ struct ProfileOverviewSheetView: View {
                 .tint(KairoColors.brandPrimary)
                 .accessibilityLabel("Profile completion")
                 .accessibilityValue("\(store.snapshot.user.profileCompletionPercentage) percent")
-            HStack(spacing: KairoSpacing.small) {
-                PhotosPicker(selection: $photoSelection, matching: .images) {
-                    Label(photoTitle, systemImage: "photo")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-                .disabled(store.isMutating)
-                .accessibilityIdentifier("candidate.profile.avatar.choose")
-                if store.snapshot.user.avatarURL != nil {
-                    Button("Remove", role: .destructive) { showRemovePhotoConfirmation = true }
-                        .buttonStyle(.bordered)
-                        .frame(minHeight: 44)
-                        .disabled(store.isMutating)
-                        .accessibilityIdentifier("candidate.profile.avatar.remove")
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: KairoSpacing.small) { photoActions(photoTitle) }
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) { photoActions(photoTitle) }
             }
             if let photoErrorMessage {
                 Label(photoErrorMessage, systemImage: "exclamationmark.triangle")
@@ -201,6 +196,30 @@ struct ProfileOverviewSheetView: View {
         .accessibilityIdentifier("candidate.profile.hero")
     }
 
+    @ViewBuilder
+    private func photoActions(_ photoTitle: String) -> some View {
+        PhotosPicker(selection: $photoSelection, matching: .images) {
+            Label(photoTitle, systemImage: "photo")
+                .font(KairoTypography.footnote)
+                .padding(.horizontal, KairoSpacing.small)
+                .frame(minHeight: 44)
+                .background(KairoColors.surfaceMuted, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(KairoColors.accent)
+        .disabled(store.isMutating)
+        .accessibilityIdentifier("candidate.profile.avatar.choose")
+        if store.snapshot.user.avatarURL != nil {
+            Button("Remove", role: .destructive) { showRemovePhotoConfirmation = true }
+                .font(KairoTypography.caption)
+                .buttonStyle(.plain)
+                .foregroundStyle(KairoColors.danger)
+                .frame(minWidth: 44, minHeight: 44)
+                .disabled(store.isMutating)
+                .accessibilityIdentifier("candidate.profile.avatar.remove")
+        }
+    }
+
     private var heroSummary: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
             Text(displayName)
@@ -211,6 +230,7 @@ struct ProfileOverviewSheetView: View {
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("candidate.profile.headline")
             if !location.isEmpty {
                 Label(location, systemImage: "location")
                     .font(KairoTypography.metadata)
@@ -223,9 +243,9 @@ struct ProfileOverviewSheetView: View {
     private var identity: some View {
         KairoSection(compact: true) {
             if let attention = digiLockerStore.attentionDigiLockerSources.first {
-                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                identityHeadingLayout {
                     KairoSectionHeading(title: "Identity")
-                    Spacer(minLength: KairoSpacing.small)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: KairoSpacing.small) }
                     KairoStatusChip(title: "Needs review", tone: .attention)
                         .accessibilityValue("Needs review")
                 }
@@ -234,9 +254,9 @@ struct ProfileOverviewSheetView: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                HStack(alignment: .center, spacing: KairoSpacing.small) {
+                identityHeadingLayout {
                     KairoSectionHeading(title: "Identity")
-                    Spacer(minLength: KairoSpacing.small)
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: KairoSpacing.small) }
                     KairoStatusChip(
                         title: digiLockerStore.identityIsVerified ? "Verified" : "Not currently verified",
                         tone: digiLockerStore.identityIsVerified ? .verified : .draft
@@ -248,17 +268,52 @@ struct ProfileOverviewSheetView: View {
                     .font(KairoTypography.metadata)
                     .foregroundStyle(KairoColors.textSecondary)
             }
-            KairoDisclosure(title: "About identity") {
-                Text("Only the backend identity result is shown. Sensitive identity values stay private.")
-                    .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+            HStack(alignment: .top, spacing: KairoSpacing.small) {
+                Image(systemName: "info.circle")
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    Text("About identity").font(KairoTypography.caption.weight(.semibold))
+                    Text("Your sensitive identity details stay private. KairoID only shows your verification status.")
+                        .font(KairoTypography.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .foregroundStyle(KairoColors.textSecondary)
+            .padding(KairoSpacing.small)
+            .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("candidate.profile.identity.info")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("candidate.identity.provenance")
     }
 
+    private var identityHeadingLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: KairoSpacing.small))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: KairoSpacing.small))
+    }
+
     private var professionalInformation: some View {
-        ProfileSection(title: "Professional information") {
+        ProfileSection(title: "Profile") {
+            Button { editorTarget = nil; editor = .profile } label: {
+                HStack(spacing: KairoSpacing.small) {
+                    Image(systemName: "pencil.circle.fill").foregroundStyle(KairoColors.accent)
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        Text("Personal & professional information").font(KairoTypography.bodyStrong)
+                        Text("Edit your headline, bio and personal details").font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").foregroundStyle(KairoColors.accent)
+                }
+                .frame(minHeight: 44)
+                .padding(KairoSpacing.small)
+                .background(KairoColors.surfaceMuted, in: RoundedRectangle(cornerRadius: KairoCornerRadius.medium))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("candidate.profile.information.edit")
+            ProfileFactRow(title: "Professional headline", value: store.snapshot.user.headline ?? "Not added")
             ProfileFactRow(title: "Email", value: store.snapshot.user.email, status: verified(store.snapshot.user.emailVerifiedAt))
             ProfileFactRow(title: "Mobile", value: store.snapshot.user.phone ?? "Not added", status: verified(store.snapshot.user.phoneVerifiedAt))
             ProfileFactRow(title: "Date of birth", value: store.snapshot.user.dateOfBirth.map(ProfileBirthDate.display) ?? "Not added")
@@ -270,7 +325,7 @@ struct ProfileOverviewSheetView: View {
             )
             ProfileFactRow(title: "Location", value: location.isEmpty ? "Not added" : location)
             VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
-                Text("About")
+                Text("Professional Bio (optional)")
                     .font(KairoTypography.caption)
                     .foregroundStyle(KairoColors.textSecondary)
                 Text(store.snapshot.user.bio ?? "Not added yet")
@@ -278,9 +333,6 @@ struct ProfileOverviewSheetView: View {
                     .foregroundStyle(KairoColors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Edit professional information") { editor = .profile }
-                .buttonStyle(KairoActionStyle())
-                .frame(maxWidth: .infinity, minHeight: 44)
         }
     }
 
@@ -357,7 +409,7 @@ struct ProfileOverviewSheetView: View {
     private func editorView(_ editor: ProfileEditor) -> some View {
         switch editor {
         case .profile:
-            ProfileEditView(user: store.snapshot.user, isSaving: store.isMutating) { draft in
+            ProfileEditView(user: store.snapshot.user, isSaving: store.isMutating, initialTarget: editorTarget) { draft in
                 try await store.update(draft)
             }
         case .skills:
