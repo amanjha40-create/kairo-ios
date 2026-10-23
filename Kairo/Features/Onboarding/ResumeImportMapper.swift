@@ -292,7 +292,7 @@ enum ResumeImportMapper {
             return [
                 .init(key: "title", label: "Certification", keyboard: .default, fallbacks: ["name"]),
                 .init(key: "issuing_organization", label: "Issuer", keyboard: .default),
-                .init(key: "issued_date", label: "Issue date (YYYY-MM-DD)", keyboard: .default)
+                .init(key: "issued_date", label: "Issue date", keyboard: .default)
             ]
         case "project":
             return [

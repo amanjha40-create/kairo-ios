@@ -17,6 +17,16 @@ nonisolated enum GuidedTourStep: Int, CaseIterable, Identifiable, Sendable {
 
     var id: Int { rawValue }
 
+    var destination: CandidateTab {
+        switch self {
+        case .trustScore: .home
+        case .passport: .passport
+        case .career: .career
+        case .verify: .verify
+        case .more: .more
+        }
+    }
+
     var target: GuidedTourTarget {
         switch self {
         case .trustScore: .trustScore
@@ -46,7 +56,7 @@ nonisolated enum GuidedTourStep: Int, CaseIterable, Identifiable, Sendable {
         case .career:
             "Add your work, education, skills and supporting evidence here."
         case .verify:
-            "Open Verification activity in Career to review invitations and track verification of supported professional information."
+            "Review invitations and track verification of supported professional information here. You can return through Verification activity in Career."
         case .more:
             "Access your Vault, settings, Help Center and other KairoID tools from More."
         }

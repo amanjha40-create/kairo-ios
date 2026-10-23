@@ -146,7 +146,7 @@ enum CareerOverviewMapper {
             verificationStatus: .init(rawBackendValue: record.rawVerificationStatus),
             hasDocument: record.originalFilename?.isEmpty == false,
             detailMetadata: detailMetadata([
-                ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate)),
+                ("Expiry", record.doesNotExpire ? "Does not expire" : monthYear(record.expiryDate).map { "Expires on \($0)" }),
                 ("Credential status", certificationValidity(record)),
                 ("Credential ID", record.credentialID)
             ]),

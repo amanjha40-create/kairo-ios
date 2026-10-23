@@ -214,12 +214,12 @@ struct CreateAccountScreenView: View {
     private var passwordField: some View {
         KairoTextField(
             title: "Password",
-            prompt: "At least 12 characters",
+            prompt: NewPasswordPolicy.guidance,
             text: $draft.password,
             errorMessage: errorMessage(for: .password),
             accessibilityIdentifier: KairoAccessibilityID.createAccountPassword,
             accessibilityLabel: "Password",
-            accessibilityHint: "Enter a password with at least 12 characters.",
+            accessibilityHint: NewPasswordPolicy.guidance,
             textContentType: .newPassword,
             textInputAutocapitalization: .never,
             isSecure: true,

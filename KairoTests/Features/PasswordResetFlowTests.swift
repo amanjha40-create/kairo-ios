@@ -8,10 +8,11 @@ final class PasswordResetFlowTests: XCTestCase {
         XCTAssertNil(PasswordResetValidation.emailMessage("aman@example.com"))
     }
 
-    func test_passwordPolicyMatchesBackendLengthRange() {
+    func test_passwordPolicyPreservesLengthRangeAndRequiresComposition() {
         XCTAssertNotNil(PasswordResetValidation.newPasswordMessage("short"))
-        XCTAssertNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 12)))
-        XCTAssertNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 128)))
+        XCTAssertNotNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 12)))
+        XCTAssertNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 10) + "1!"))
+        XCTAssertNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 126) + "1!"))
         XCTAssertNotNil(PasswordResetValidation.newPasswordMessage(String(repeating: "a", count: 129)))
     }
 

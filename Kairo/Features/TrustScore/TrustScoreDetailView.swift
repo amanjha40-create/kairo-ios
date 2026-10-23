@@ -75,12 +75,13 @@ struct TrustScoreDetailView: View {
                 message: "KairoID is fetching the current backend-calculated score and explanation."
             )
         } else if let score {
+            if score.status == .consentRequired { consentAction(score) }
             scoreSummary(score)
             DigiLockerTrustScoreProvenance(state: score.identityState, sources: score.identitySources)
             explanation(score)
             breakdown(score)
             contributors(score)
-            consentAction(score)
+            if score.status != .consentRequired { consentAction(score) }
         } else {
             KairoErrorStateView(
                 title: "Trust Score unavailable",

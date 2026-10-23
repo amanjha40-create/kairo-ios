@@ -147,6 +147,11 @@ struct HomeOverviewScreenView: View {
 
     private func trustScoreCard(_ trustScore: HomeTrustScore, dataSourceLabel: String) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            if trustScore.requiresConsent {
+                KairoSecondaryButton(title: "Review Trust Score consent", accessibilityIdentifier: "home.trustScore.consent") {
+                    router.showTrustScoreDetails()
+                }
+            }
             adaptiveLayout {
                 HStack(alignment: .top, spacing: KairoSpacing.small) {
                     TrustPassportMark(size: 32, compact: true)

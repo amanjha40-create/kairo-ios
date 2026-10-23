@@ -9,6 +9,7 @@ struct UITestResumeImportConfiguration {
         case managementEmpty = "management_empty"
         case managementHistory = "management_history"
         case duplicateReview = "duplicate_review"
+        case editorControls = "editor_controls"
     }
 
     enum EnvironmentKey {
@@ -126,6 +127,8 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
 
     func restoreLatestWorkflow() async throws -> ResumeImportWorkflowSnapshot? {
         switch scenario {
+        case .editorControls:
+            return .init(resume: Self.authoritativeWorkflow.resume, reviewSession: editorReview, importBatch: nil)
         case .authoritativeRecovery:
             try await Task.sleep(for: .seconds(5))
             return Self.authoritativeWorkflow
@@ -212,6 +215,10 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         itemID: String,
         payload: ResumeReviewItemUpdateRequestDTO
     ) async throws -> ResumeReviewSession {
+        if scenario == .editorControls, let edited = payload.editedPayload {
+            editorPayloads[itemID] = edited
+            return editorReview
+        }
         if scenario == .duplicateReview, itemID == "item_duplicate_possible" {
             guard payload.expectedVersion == duplicatePossibleVersion else {
                 throw NetworkError.transport("Synthetic review conflict")
@@ -439,6 +446,25 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         ResumeImportBatch(id: "synthetic-batch", reviewSessionID: reviewID, status: "completed", totalCount: 1,
             importedCount: 1, linkedCount: 0, skippedCount: 0, failedCount: 0, blockedCount: 0, incompleteCount: 0,
             entityCounts: [:], results: [], createdAt: .distantPast, updatedAt: .distantPast)
+    }
+
+    private var editorPayloads: [String: [String: JSONValue]] = [:]
+    private var editorReview: ResumeReviewSession {
+        let defaults: [(String, [String: JSONValue])] = [
+            ("education", ["institution_name": .string("Synthetic Institute"), "degree": .string("Legacy degree"),
+                           "start_date": .string("2020-02-29"), "end_date": .string("2024-06-01")]),
+            ("employment", ["company_name": .string("Synthetic Employer"), "role_title": .string("Analyst"),
+                            "start_date": .string("2024-07-01")])
+        ]
+        return ResumeReviewSession(id: "editor-review", resumeID: "resume_recovered", parsedResultID: "editor-parsed",
+            status: .reviewing, schemaVersion: "resume_review_v1", version: 1,
+            items: defaults.map { type, fields in
+                ResumeReviewItem(id: type, claimType: type, sourceClaimID: type, originalPayload: fields,
+                    editedPayload: editorPayloads[type] ?? fields, selected: true, reviewStatus: "selected",
+                    duplicateStatus: .noMatch, duplicateCandidates: [], conflictWarnings: [], importAction: .createNew,
+                    targetRecordID: nil, importedRecordType: nil, importedRecordID: nil, sourceReference: "synthetic",
+                    confidence: 0.99, version: 1)
+            }, createdAt: .distantPast, updatedAt: .distantPast)
     }
 
     nonisolated private static let authoritativeWorkflow = ResumeImportWorkflowSnapshot(

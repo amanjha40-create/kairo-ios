@@ -99,7 +99,8 @@ enum HomeOverviewMapper {
             score: trustScore.overall,
             status: trustScoreStatusTitle(trustScore.status),
             progress: progress.map { Double($0) / 100 },
-            supportingCopy: trustScoreSupportingCopy(trustScore)
+            supportingCopy: trustScoreSupportingCopy(trustScore),
+            requiresConsent: trustScore.status == .consentRequired
         )
     }
 

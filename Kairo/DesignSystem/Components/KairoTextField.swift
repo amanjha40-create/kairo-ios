@@ -2,6 +2,9 @@ import SwiftUI
 import UIKit
 
 struct KairoTextField<Field: Hashable>: View {
+    @State private var passwordVisible = false
+    @Environment(\.scenePhase) private var scenePhase
+    private var canRevealPassword: Bool { isSecure && (textContentType == .password || textContentType == .newPassword) }
     let title: String
     let titleColor: Color
     let titleFont: Font
@@ -50,6 +53,7 @@ struct KairoTextField<Field: Hashable>: View {
                 .keyboardType(keyboardType)
                 .submitLabel(submitLabel)
                 .font(KairoTypography.body)
+                .padding(.trailing, canRevealPassword ? 44 : 0)
                 .padding(.horizontal, 14)
                 .padding(.vertical, KairoSpacing.xSmall)
                 .frame(minHeight: KairoControlMetrics.buttonHeight)
@@ -65,6 +69,23 @@ struct KairoTextField<Field: Hashable>: View {
                 .kairoFocused(focus, equals: focusedField)
                 .onSubmit {
                     onSubmit?()
+                }
+                .overlay(alignment: .trailing) {
+                    if canRevealPassword {
+                        Button {
+                            passwordVisible.toggle()
+                        } label: {
+                            Image(systemName: passwordVisible ? "eye.slash" : "eye")
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(KairoColors.teal)
+                        .accessibilityLabel(passwordVisible ? "Hide password" : "Show password")
+                        .accessibilityIdentifier((accessibilityIdentifier ?? title) + ".visibility")
+                    }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase != .active { passwordVisible = false }
                 }
 
             if let errorMessage {
@@ -90,7 +111,7 @@ struct KairoTextField<Field: Hashable>: View {
 
     @ViewBuilder
     private var fieldInput: some View {
-        if isSecure {
+        if isSecure && !passwordVisible {
             SecureField(prompt, text: $text)
         } else {
             TextField(prompt, text: $text)

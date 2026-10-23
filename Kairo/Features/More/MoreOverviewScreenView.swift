@@ -1391,7 +1391,7 @@ private struct MoreChangePasswordSheetView: View {
 
                             KairoTextField(
                                 title: "New Password",
-                                prompt: "Enter a new password",
+                                prompt: NewPasswordPolicy.guidance,
                                 text: $newPassword,
                                 errorMessage: fieldErrors[.newPassword],
                                 textContentType: .newPassword,
@@ -1495,9 +1495,7 @@ private struct MoreChangePasswordSheetView: View {
             errors[.currentPassword] = "Enter your current password."
         }
 
-        if newPassword.count < 12 {
-            errors[.newPassword] = "Use at least 12 characters."
-        }
+        errors[.newPassword] = CreateAccountValidation.passwordErrorMessage(newPassword)
 
         if confirmPassword != newPassword {
             errors[.confirmPassword] = "Passwords do not match."

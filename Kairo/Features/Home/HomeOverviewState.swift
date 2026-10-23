@@ -275,6 +275,7 @@ struct HomeTrustScore: Equatable, Sendable {
     let status: String
     let progress: Double?
     let supportingCopy: String
+    var requiresConsent = false
 }
 
 struct HomeRecommendation: Equatable, Sendable {

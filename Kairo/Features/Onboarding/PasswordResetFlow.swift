@@ -82,7 +82,7 @@ enum PasswordResetValidation {
             return "Password must be no more than 128 characters."
         }
 
-        return nil
+        return NewPasswordPolicy.compositionError(value)
     }
 
     static func confirmationMessage(password: String, confirmation: String) -> String? {
@@ -349,7 +349,7 @@ struct PasswordResetFlowView: View {
                             errorMessage: newPasswordErrorMessage,
                             accessibilityIdentifier: KairoAccessibilityID.passwordResetNewPassword,
                             accessibilityLabel: "New password",
-                            accessibilityHint: "Use 12 to 128 characters.",
+                            accessibilityHint: NewPasswordPolicy.guidance,
                             textContentType: .newPassword,
                             textInputAutocapitalization: .never,
                             isSecure: true,
@@ -380,7 +380,7 @@ struct PasswordResetFlowView: View {
                     }
                 }
 
-                Text("Use 12–128 characters. No uppercase, lowercase, number, or symbol combination is required.")
+                Text(NewPasswordPolicy.guidance)
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -3,6 +3,19 @@ import XCTest
 @testable import Kairo
 
 final class CareerOverviewMapperTests: XCTestCase {
+    func testCertificationExpiryUsesExplicitCopyWithoutInventingMissingDate() throws {
+        for never in [false, true] {
+            let record = CareerCertificationRecord(id: "expiry", title: "Certificate", issuer: "Synthetic issuer",
+                issueDate: makeUTCTimestamp(year: 2024, month: 1, day: 1),
+                expiryDate: makeUTCTimestamp(year: 2027, month: 2, day: 1), doesNotExpire: never,
+                credentialID: nil, credentialURL: nil, originalFilename: nil, contentType: nil, byteSize: nil,
+                verificationStatus: .notVerified, rawVerificationStatus: "draft")
+            let overview = CareerOverview(user: makeUser(), employments: [], educations: [], certifications: [record], projects: [], skills: [])
+            guard case .populated(let content) = CareerOverviewMapper.map(overview).phase else { return XCTFail("Missing content") }
+            let expiry = try XCTUnwrap(content.certifications.first?.detailMetadata.first { $0.title == "Expiry" }?.value)
+            XCTAssertEqual(expiry, never ? "Does not expire" : "Expires on Feb 2027")
+        }
+    }
     func test_mapCreatesPopulatedCareerStateFromLiveOverview() {
         let overview = CareerOverview(
             user: makeUser(),

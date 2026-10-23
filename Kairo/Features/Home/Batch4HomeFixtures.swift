@@ -26,7 +26,7 @@ enum Batch4HomeScenario: String, CaseIterable {
             dataSourceLabel: "Synthetic preview",
             trustScore: .init(score: self == .empty || self == .unavailable ? nil : 72,
                 status: self == .unavailable ? "Consent required" : ProductStatusLanguage.verificationIncomplete,
-                progress: nil, supportingCopy: "Synthetic score, not a verification status"),
+                progress: nil, supportingCopy: "Synthetic score, not a verification status", requiresConsent: self == .unavailable),
             recommendation: .init(title: finished ? "Review your Career" : "Add your education",
                 supportingCopy: finished ? "Your existing Career details" : "Complete your professional history",
                 actionTitle: "Continue profile", destinationTab: .career),

@@ -46,6 +46,11 @@ struct ProfileEditView: View {
                             let formatted = ProfileBirthDate.formatInput(value)
                             if formatted != value { draft.dateOfBirth = formatted }
                         }
+                    CandidateDateField(title: "Date of birth", selection: Binding(
+                        get: { ProfileBirthDate.parse(draft.dateOfBirth) },
+                        set: { draft.dateOfBirth = $0.map(ProfileBirthDate.display) ?? "" }),
+                        displayValue: draft.dateOfBirth.isEmpty ? "DD-MM-YYYY" : draft.dateOfBirth,
+                        identifier: "candidate.profile.edit.dobPicker")
                 }
 
                 Section("Professional information") {

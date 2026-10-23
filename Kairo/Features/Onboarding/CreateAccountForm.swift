@@ -144,7 +144,7 @@ nonisolated enum CreateAccountValidation {
             return "Use \(passwordMaximumLength) characters or fewer."
         }
 
-        return nil
+        return NewPasswordPolicy.compositionError(value)
     }
 
     private static func isValidEmail(_ email: String) -> Bool {

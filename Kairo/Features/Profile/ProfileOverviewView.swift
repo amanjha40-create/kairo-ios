@@ -427,7 +427,7 @@ private struct ProfileAvatarView: View {
                url.scheme?.lowercased() == "https" {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase {
-                        image.resizable().scaledToFill()
+                        image.resizable().scaledToFit()
                     } else {
                         initials
                     }
@@ -437,6 +437,7 @@ private struct ProfileAvatarView: View {
             }
         }
         .frame(width: 72, height: 72)
+        .background(KairoColors.surfaceMuted)
         .clipShape(Circle())
         .overlay(Circle().stroke(KairoColors.border, lineWidth: 1))
         .contentTransition(.opacity)
@@ -520,11 +521,12 @@ private struct ProfilePhotoPreviewView: View {
             VStack(spacing: KairoSpacing.large) {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
                     .frame(width: 220, height: 220)
+                    .background(KairoColors.surfaceMuted)
                     .clipShape(Circle())
                     .accessibilityLabel("Selected profile photo preview")
-                Text("The selected image is uploaded only after you confirm.")
+                Text("Preview of your profile frame. Your photo is fitted without zooming; the original image is uploaded only after you confirm.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
                 if let errorMessage {

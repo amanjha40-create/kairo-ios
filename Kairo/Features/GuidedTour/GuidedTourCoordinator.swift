@@ -75,8 +75,7 @@ final class GuidedTourCoordinator: ObservableObject {
 
         guard let accountID,
               isCandidate,
-              isHomeSelected,
-              isHomeReady,
+              (currentStep != nil || (isHomeSelected && isHomeReady)),
               preferences.status(for: accountID) == .pending else {
             currentStep = nil
             return

@@ -9,7 +9,7 @@ nonisolated enum GuidedTourCoachPlacement: Equatable, Sendable {
 
 nonisolated enum GuidedTourLayout {
     static func spotlight(target: CGRect, step: GuidedTourStep, viewport: CGRect, homeVisibleFrame: CGRect) -> CGRect {
-        let boundary = (step == .trustScore || step == .passport) ? homeVisibleFrame : viewport
+        let boundary = step == .trustScore ? homeVisibleFrame : viewport
         return target.insetBy(dx: -5, dy: -5).intersection(boundary.insetBy(dx: 4, dy: 4))
     }
 

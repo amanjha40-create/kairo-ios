@@ -51,9 +51,9 @@ nonisolated enum GuidedTourTargetResolver {
         tabFrames: [GuidedTourTarget: CGRect]
     ) -> CGRect? {
         switch target {
-        case .trustScore, .passport:
+        case .trustScore:
             homeFrames[target]
-        case .career, .verify, .more:
+        case .passport, .career, .verify, .more:
             tabFrames[target]
         }
     }
@@ -134,6 +134,7 @@ final class GuidedTourTabReaderView: UIView {
         let orderedFrames = effectiveUserInterfaceLayoutDirection == .rightToLeft
             ? Array(slots.reversed()) : slots
         let mappings: [(GuidedTourTarget, CandidateTab)] = [
+            (.passport, .passport),
             (.career, .career),
             (.verify, .career),
             (.more, .more)

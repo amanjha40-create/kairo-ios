@@ -8,6 +8,7 @@ struct CandidateTabShellView: View {
     @State private var tabFrames: [GuidedTourTarget: CGRect] = [:]
     @State private var homeVisibleWindowFrame: CGRect = .zero
     @State private var isTourOverlayVisible = false
+    @State private var visibleTourPage: CandidateTab?
     @State private var motionEntries: [CandidateTab: Int] = [:]
     @State private var motionIdentityRevision = 0
     private let uiTestHomeConfiguration: UITestHomeConfiguration
@@ -70,6 +71,9 @@ struct CandidateTabShellView: View {
                     overlayOrigin: proxy.frame(in: .global).origin
                 ).intersection(viewport)
                 if let step = guidedTourCoordinator.currentStep,
+                   visibleTourPage == step.destination,
+                   router.selectedTab == (step.destination == .verify ? .career : step.destination),
+                   router.showsCareerVerification == (step.destination == .verify),
                    step.target != guidedTourCoordinator.unavailableTargetForTesting,
                    let targetFrame = GuidedTourTargetResolver.frame(
                        for: step.target,
@@ -107,6 +111,14 @@ struct CandidateTabShellView: View {
             .ignoresSafeArea()
         }
         .onAppear(perform: updateGuidedTourContext)
+        .onChange(of: guidedTourCoordinator.currentStep) { _, step in
+            guard let step else { return }
+            // Hide the old explanation until the destination view has appeared.
+            visibleTourPage = nil
+            isTourOverlayVisible = false
+            router.selectTab(step.destination)
+            if step.destination == .home && isHomeVisible { visibleTourPage = .home }
+        }
         .onChange(of: router.selectedTab) { old, next in
             if next == .verify { router.selectTab(.verify); return }
             if old != next { motionEntries[next, default: 0] += 1 }
@@ -126,8 +138,11 @@ struct CandidateTabShellView: View {
         )
     }
 
+    private var isHomeVisible: Bool { router.selectedTab == .home }
+
     @ViewBuilder
     private func destinationView(for tab: CandidateTab) -> some View {
+        Group {
         switch tab {
         case .home:
             if UITestLaunchConfiguration.current().validated(for: appConfiguration).isEnabled,
@@ -143,8 +158,10 @@ struct CandidateTabShellView: View {
         case .career:
             NavigationStack {
                 careerDestination
+                    .onAppear { visibleTourPage = .career }
                     .navigationDestination(isPresented: $router.showsCareerVerification) {
                         verificationDestination
+                            .onAppear { visibleTourPage = .verify }
                             .navigationBarTitleDisplayMode(.inline)
                     }
             }
@@ -167,6 +184,7 @@ struct CandidateTabShellView: View {
                 MoreOverviewContainerView()
             }
         }
+        }.onAppear { visibleTourPage = tab }
     }
 
     @ViewBuilder private var careerDestination: some View {

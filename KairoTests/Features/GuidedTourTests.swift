@@ -12,7 +12,7 @@ final class GuidedTourTests: XCTestCase {
         XCTAssertEqual(home.minY, safe.minY)
         XCTAssertEqual(home.maxY, tabs.minY)
         let oversized = CGRect(x: 16, y: -80, width: 382, height: 1300)
-        for step in [GuidedTourStep.trustScore, .passport] {
+        for step in [GuidedTourStep.trustScore] {
             let spotlight = GuidedTourLayout.spotlight(target: oversized, step: step, viewport: viewport, homeVisibleFrame: home)
             XCTAssertTrue(home.contains(spotlight))
             XCTAssertFalse(spotlight.intersects(tabs))
@@ -121,12 +121,13 @@ final class GuidedTourTests: XCTestCase {
         )
     }
 
-    func testNextProgressesWithoutNavigatingAwayFromHome() {
+    func testNextRequestsDestinationBeforePresentation() {
         let (coordinator, preferences) = makeCoordinator()
         preferences.markPendingIfEligible(for: "account-a")
         makeHomeReady(coordinator, accountID: "account-a")
         coordinator.advance()
         XCTAssertEqual(coordinator.currentStep, .passport)
+        XCTAssertEqual(coordinator.currentStep?.destination, .passport)
         coordinator.advance()
         XCTAssertEqual(coordinator.currentStep, .career)
     }
@@ -195,12 +196,14 @@ final class GuidedTourTests: XCTestCase {
         XCTAssertEqual(coordinator.currentStep, .trustScore)
     }
 
-    func testLeavingHomeSuppressesOverlayWithoutManufacturingCompletion() {
+    func testActiveTourSurvivesLeavingHomeForItsNextPage() {
         let (coordinator, preferences) = makeCoordinator()
         preferences.markPendingIfEligible(for: "account-a")
         makeHomeReady(coordinator, accountID: "account-a")
+        coordinator.advance()
         coordinator.updateContext(accountID: "account-a", role: "candidate", isHomeSelected: false)
-        XCTAssertNil(coordinator.currentStep)
+        coordinator.setHomeReady(false)
+        XCTAssertEqual(coordinator.currentStep, .passport)
         XCTAssertEqual(preferences.status(for: "account-a"), .pending)
     }
 
@@ -226,7 +229,7 @@ final class GuidedTourTests: XCTestCase {
         XCTAssertEqual(GuidedTourTargetResolver.frame(
             for: .passport,
             homeFrames: [.passport: passport],
-            tabFrames: [.career: career]
+            tabFrames: [.passport: passport, .career: career]
         ), passport)
         XCTAssertEqual(GuidedTourTargetResolver.frame(
             for: .career,
@@ -247,10 +250,10 @@ final class GuidedTourTests: XCTestCase {
     func testAllFiveTargetsResolveInOneOverlayCoordinateSpace() {
         let origin = CGPoint(x: 0, y: 48)
         let home: [GuidedTourTarget: CGRect] = [
-            .trustScore: CGRect(x: 16, y: 124, width: 382, height: 256),
-            .passport: CGRect(x: 16, y: 396, width: 382, height: 60)
+            .trustScore: CGRect(x: 16, y: 124, width: 382, height: 256)
         ]
         let tabs: [GuidedTourTarget: CGRect] = [
+            .passport: CGRect(x: 240, y: 820, width: 70, height: 58),
             .career: CGRect(x: 94, y: 820, width: 70, height: 58),
             .verify: CGRect(x: 172, y: 820, width: 70, height: 58),
             .more: CGRect(x: 326, y: 820, width: 70, height: 58)

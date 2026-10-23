@@ -40,11 +40,11 @@ nonisolated struct CandidateNotification: Equatable, Identifiable, Sendable {
     var categorySystemImage: String {
         switch type {
         case .verificationCompleted:
-            "checkmark.shield.fill"
+            "shield.lefthalf.filled" // Completion is not necessarily approval.
         case .unknown:
             switch category.lowercased() {
             case "security": "lock.shield.fill"
-            case "verification": "checkmark.shield"
+            case "verification": "shield.lefthalf.filled"
             default: "bell.fill"
             }
         }
@@ -84,7 +84,7 @@ nonisolated enum CandidateNotificationMapper {
             else if event.contains("share") { destination = .sharing }
             else if event.contains("passport") { destination = .passport }
             else if event.contains("trust_score") { destination = .home }
-            else if type == .verificationCompleted { destination = .verify }
+            else if type == .verificationCompleted || dto.category.lowercased() == "verification" { destination = .verify }
             else { destination = .genericDetail }
         }
 

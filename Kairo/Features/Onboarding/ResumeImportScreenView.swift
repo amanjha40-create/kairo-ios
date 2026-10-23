@@ -1696,6 +1696,7 @@ private struct ResumeImportReviewItemCard: View {
                 Button("Edit") {
                     onEdit()
                 }
+                .accessibilityIdentifier("resume.review.edit.\(item.claimType).\(item.id)")
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.brandPrimary)
             }
@@ -1777,6 +1778,23 @@ private struct ResumeReviewEditorSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     ForEach(ResumeImportMapper.editableFields(for: item)) { field in
+                        if ["start_date", "end_date", "issued_date"].contains(field.key) {
+                            CandidateDateField(title: field.label, selection: Binding(
+                                get: { ResumeReviewDate.parse(values[field.key, default: ""]) },
+                                set: { values[field.key] = $0.map(ResumeReviewDate.wire) ?? "" }),
+                                hasIncompleteValue: !values[field.key, default: ""].isEmpty,
+                                displayValue: ResumeReviewDate.display(values[field.key, default: ""]),
+                                identifier: "resume.review.edit.\(field.key)")
+                        } else if field.key == "degree" {
+                            CandidateDegreeField(degree: Binding(get: { values[field.key, default: ""] },
+                                set: { values[field.key] = $0 }), identifier: "resume.review.edit.degree")
+                        } else if field.key == "institution_name" {
+                            CandidatePlacePicker(title: "Institution", value: values[field.key, default: ""],
+                                options: [], allowCustom: true, maxLength: 255,
+                                context: "Keep the parsed institution or search and enter its full name. No institution directory is currently available.") {
+                                    values[field.key] = $0
+                                }.accessibilityIdentifier("resume.review.edit.institution")
+                        } else {
                         KairoTextField(
                             title: field.label,
                             prompt: field.label,
@@ -1787,6 +1805,7 @@ private struct ResumeReviewEditorSheet: View {
                             keyboardType: field.keyboard,
                             textInputAutocapitalization: field.keyboard == .emailAddress ? .never : .words
                         )
+                        }
                     }
                 }
                 .padding(KairoSpacing.large)

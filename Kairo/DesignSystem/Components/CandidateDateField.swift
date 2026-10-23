@@ -43,6 +43,7 @@ struct CandidateDateField: View {
     var disabled = false
     var hasIncompleteValue = false
     var errorMessage: String? = nil
+    var displayValue: String? = nil
     let identifier: String
     @State private var presented = false
     @State private var draft = Date()
@@ -50,7 +51,7 @@ struct CandidateDateField: View {
     @State private var month = 1
 
     private var displayedValue: String {
-        selection == nil && hasIncompleteValue ? "Incomplete saved date" : CandidateDateInput.display(selection, precision: precision)
+        displayValue ?? (selection == nil && hasIncompleteValue ? "Incomplete saved date" : CandidateDateInput.display(selection, precision: precision))
     }
 
     private var proposed: Date? {
