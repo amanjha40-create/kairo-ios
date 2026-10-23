@@ -4,12 +4,7 @@ import XCTest
 final class InstitutionCatalogueUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
     override func tearDownWithError() throws {
-        if testRun?.hasSucceeded == false {
-            let app = XCUIApplication()
-            capture(app, "Institution failure screen")
-            let hierarchy = XCTAttachment(string: app.debugDescription)
-            hierarchy.name = "Institution failure hierarchy"; hierarchy.lifetime = .keepAlways; add(hierarchy)
-        }
+        captureFailureEvidenceIfRunning(XCUIApplication(), name: "Institution failure")
     }
 
     func testCareerAddSelectionAndLegacyEditCancelPreserveFourTabs() {

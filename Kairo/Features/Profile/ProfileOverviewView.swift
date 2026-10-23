@@ -198,12 +198,15 @@ struct ProfileOverviewSheetView: View {
 
     @ViewBuilder
     private func photoActions(_ photoTitle: String) -> some View {
+        let font = KairoTypography.footnote
+        let padding = KairoSpacing.small
+        let background = KairoColors.surfaceMuted
         PhotosPicker(selection: $photoSelection, matching: .images) {
             Label(photoTitle, systemImage: "photo")
-                .font(KairoTypography.footnote)
-                .padding(.horizontal, KairoSpacing.small)
+                .font(font)
+                .padding(.horizontal, padding)
                 .frame(minHeight: 44)
-                .background(KairoColors.surfaceMuted, in: Capsule())
+                .background(background, in: Capsule())
         }
         .buttonStyle(.plain)
         .foregroundStyle(KairoColors.accent)

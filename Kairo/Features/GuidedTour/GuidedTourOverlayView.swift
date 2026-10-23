@@ -66,7 +66,7 @@ struct GuidedTourOverlayView: View {
             )
 
             ZStack {
-                GuidedTourSpotlightScrim(spotlight: spotlight)
+                GuidedTourSpotlightScrim(spotlight: spotlight, cornerRadius: KairoCornerRadius.large)
                     .fill(Color.black.opacity(0.66), style: FillStyle(eoFill: true))
 
                 RoundedRectangle(cornerRadius: KairoCornerRadius.large, style: .continuous)
@@ -289,15 +289,16 @@ struct GuidedTourOverlayView: View {
     }
 }
 
-private struct GuidedTourSpotlightScrim: Shape {
+private nonisolated struct GuidedTourSpotlightScrim: Shape {
     let spotlight: CGRect
+    let cornerRadius: CGFloat
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addRect(rect)
         path.addRoundedRect(
             in: spotlight,
-            cornerSize: CGSize(width: KairoCornerRadius.large, height: KairoCornerRadius.large)
+            cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
         )
         return path
     }

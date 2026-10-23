@@ -137,7 +137,7 @@ nonisolated struct DigiLockerConsent: Equatable, Sendable {
 nonisolated enum DigiLockerReturnFixture: String, Sendable {
     case connected, failed, consent, refreshFailure, invalid
 
-    static func current(configuration: AppConfiguration) -> Self? {
+    @MainActor static func current(configuration: AppConfiguration) -> Self? {
         guard configuration.environment == .staging,
               UITestLaunchConfiguration.current().validated(for: configuration).isEnabled else { return nil }
         return Self(rawValue: ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_RETURN"] ?? "")
