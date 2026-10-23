@@ -131,7 +131,7 @@ struct MoreOverviewScreenView: View {
     private func accountDestinations(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(title: "Account", accessibilityIdentifier: "candidate.more.accountDestinations")
-            KairoSection {
+            KairoSection(accent: .neutral) {
                 if let profile = content.accountRows.first(where: { $0.id == "personalInformation" }) {
                     MoreNavigationRow(
                         item: profile,
@@ -157,7 +157,7 @@ struct MoreOverviewScreenView: View {
     private func activityAndDocuments(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(title: "Activity & documents", accessibilityIdentifier: "candidate.more.activityDocuments")
-            KairoSection {
+            KairoSection(accent: .neutral) {
                 DigiLockerMoreRow()
                 Divider()
                 MoreNavigationRow(
@@ -182,7 +182,7 @@ struct MoreOverviewScreenView: View {
     private func supportDestination(_ content: MoreOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(title: "Support", accessibilityIdentifier: KairoAccessibilityID.moreHelpSupportSection)
-            KairoSection {
+            KairoSection(accent: .neutral) {
                 if let helpCenter = content.supportRows.first(where: { $0.id == "helpCentre" }) {
                     MoreNavigationRow(
                         item: helpCenter,
@@ -243,11 +243,11 @@ struct MoreOverviewScreenView: View {
             )
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
                 MoreSectionTitle(title: "Support", accessibilityIdentifier: "settings.support")
-                KairoSection { hubRow(.support) }
+                KairoSection(accent: .neutral) { hubRow(.support) }
             }
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
                 MoreSectionTitle(title: "Legal", accessibilityIdentifier: "settings.legal")
-                KairoSection { hubRow(.legal) }
+                KairoSection(accent: .neutral) { hubRow(.legal) }
             }
             buttonSection(
                 title: "Danger Zone",
@@ -410,7 +410,7 @@ struct MoreOverviewScreenView: View {
                 accessibilityIdentifier: sectionAccessibilityIdentifier
             )
 
-            KairoSection {
+            KairoSection(accent: rows.contains(where: { $0.id == "deleteAccount" }) ? .danger : .neutral) {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 {
                         Divider()
@@ -472,7 +472,7 @@ struct MoreOverviewScreenView: View {
     private var signOutSection: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
             MoreSectionTitle(title: "Session", accessibilityIdentifier: "candidate.more.session")
-            KairoSection {
+            KairoSection(accent: .danger) {
                 MoreNavigationRow(item: MoreRowItem(
                     id: KairoAccessibilityID.moreSignOut,
                     title: "Log out",
@@ -1053,11 +1053,7 @@ private struct MoreNavigationRow: View {
     var body: some View {
         Button(role: destructive ? .destructive : nil, action: action) {
             HStack(alignment: .center, spacing: KairoSpacing.small) {
-                Image(systemName: item.systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(destructive ? KairoColors.danger : KairoColors.textSecondary)
-                    .frame(width: 24)
-                    .accessibilityHidden(true)
+                KairoIconTile(symbol: item.systemImage, accent: destructive ? .danger : .info)
 
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(item.title)

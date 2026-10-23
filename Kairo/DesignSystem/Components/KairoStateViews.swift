@@ -5,7 +5,7 @@ struct KairoLoadingStateView: View {
     let message: String
 
     var body: some View {
-        KairoSection {
+        KairoSection(accent: .neutral) {
             VStack(spacing: KairoSpacing.small) {
                 ZStack {
                     RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
@@ -39,9 +39,9 @@ struct KairoEmptyStateView: View {
     let systemImage: String
 
     var body: some View {
-        KairoSection {
+        KairoSection(accent: .info) {
             VStack(spacing: KairoSpacing.small) {
-                stateIcon(systemImage, color: KairoColors.brandPrimary)
+                stateIcon(systemImage, color: KairoColors.info)
                 stateCopy(title: title, message: message)
             }
             .frame(maxWidth: .infinity)
@@ -60,9 +60,9 @@ struct KairoErrorStateView: View {
     var retryAction: (() -> Void)?
 
     var body: some View {
-        KairoSection {
+        KairoSection(accent: .attention) {
             VStack(spacing: KairoSpacing.small) {
-                stateIcon("exclamationmark.triangle.fill", color: KairoColors.warning)
+                stateIcon("exclamationmark.triangle.fill", color: KairoColors.attention)
 
                 VStack(spacing: KairoSpacing.xSmall) {
                     Text(title)

@@ -75,7 +75,7 @@ struct CandidateDateField: View {
                 }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(KairoActionStyle(role: .secondary)).disabled(disabled)
+            .buttonStyle(KairoActionStyle(role: .field)).disabled(disabled)
             .accessibilityIdentifier(identifier)
             .accessibilityLabel("\(title), \(required ? "required" : "optional")")
             .accessibilityValue(displayedValue)

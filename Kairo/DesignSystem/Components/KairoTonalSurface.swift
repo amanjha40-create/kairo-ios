@@ -22,12 +22,10 @@ struct KairoTonalSurface: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(emphasis.fill, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
             .overlay {
-                if emphasis == .primary {
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.large)
-                        .strokeBorder(KairoColors.borderBrand, lineWidth: 1)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+                RoundedRectangle(cornerRadius: KairoCornerRadius.large)
+                    .strokeBorder(emphasis == .primary ? KairoColors.borderBrand : KairoColors.borderSubtle, lineWidth: 1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
     }
 }

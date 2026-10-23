@@ -1,22 +1,32 @@
 import SwiftUI
 
-/// Flat, divided groups keep the hierarchy in the content, rather than nested card borders.
+/// Flat by default for nested content; top-level groups opt into one tonal surface.
 struct KairoSection<Content: View>: View {
     var compact: Bool
+    var accent: KairoSemanticAccent?
     @ViewBuilder let content: Content
 
-    init(compact: Bool = false, @ViewBuilder content: () -> Content) {
+    init(compact: Bool = false, accent: KairoSemanticAccent? = nil, @ViewBuilder content: () -> Content) {
         self.compact = compact
+        self.accent = accent
         self.content = content()
     }
 
     var body: some View {
+        if let accent {
+            group.kairoSemanticSurface(accent)
+        } else {
+            group
+                .padding(.vertical, compact ? KairoSpacing.xSmall : KairoSpacing.medium)
+                .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.borderSubtle).frame(height: 1) }
+        }
+    }
+
+    private var group: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, compact ? KairoSpacing.xSmall : KairoSpacing.medium)
-        .overlay(alignment: .bottom) { Rectangle().fill(KairoColors.border).frame(height: 1) }
     }
 }
 
@@ -26,18 +36,14 @@ struct KairoCompactDestinationRow: View {
     let title: String
     var metadata: String? = nil
     let systemImage: String
+    var accent: KairoSemanticAccent = .info
     var accessibilityIdentifier: String? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: KairoSpacing.small) {
-                Image(systemName: systemImage)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(KairoColors.brandPrimary)
-                    .frame(width: 24, height: 24)
-                    .accessibilityHidden(true)
+                KairoIconTile(symbol: systemImage, accent: accent)
                 VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                     Text(title)
                         .font(KairoTypography.recordTitle)
@@ -92,6 +98,17 @@ struct KairoSectionHeading: View {
 
 enum KairoStatusTone: CaseIterable {
     case verified, pending, attention, rejected, withdrawn, draft, candidateProvided
+
+    var accent: KairoSemanticAccent {
+        switch self {
+        case .verified: .success
+        case .pending: .pending
+        case .attention: .attention
+        case .rejected: .danger
+        case .withdrawn, .draft: .neutral
+        case .candidateProvided: .info
+        }
+    }
 
     var canonicalTitle: String {
         switch self {
@@ -153,8 +170,8 @@ struct KairoStatusChip: View {
             .foregroundStyle(tone.color)
             .padding(.horizontal, KairoSpacing.xSmall)
             .padding(.vertical, KairoSpacing.xxSmall)
-            .background(tone.color.opacity(0.09), in: Capsule())
-            .overlay(Capsule().stroke(tone.color.opacity(0.25), lineWidth: 1))
+            .background(tone.accent.surface, in: Capsule())
+            .overlay(Capsule().stroke(tone.accent.border, lineWidth: 1))
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title)

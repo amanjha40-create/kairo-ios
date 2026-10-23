@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct KairoCard<Content: View>: View {
+    let accent: KairoSemanticAccent
     @ViewBuilder private let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(accent: KairoSemanticAccent = .neutral, @ViewBuilder content: () -> Content) {
+        self.accent = accent
         self.content = content()
     }
 
@@ -11,14 +13,7 @@ struct KairoCard<Content: View>: View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             content
         }
-        .padding(KairoSpacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(KairoColors.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: KairoCornerRadius.medium)
-                .stroke(KairoColors.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+        .kairoSemanticSurface(accent)
         .kairoShadow(KairoShadow.card)
     }
 }

@@ -181,12 +181,15 @@ struct HomeOverviewScreenView: View {
                     Spacer()
                     Image(systemName: "arrow.right").accessibilityHidden(true)
                 }
-                .frame(minHeight: 44)
+                .padding(.horizontal, KairoSpacing.medium)
+                .padding(.vertical, KairoSpacing.xSmall)
+                .frame(minHeight: KairoControlMetrics.buttonHeight)
                 .contentShape(Rectangle())
             }
-                .buttonStyle(.plain)
+                .buttonStyle(KairoButtonChrome(foregroundColor: KairoColors.onPrimary,
+                    backgroundColor: KairoColors.brandPrimary, pressedBackgroundColor: KairoColors.brandPrimaryPressed,
+                    borderColor: nil))
                 .font(KairoTypography.action)
-                .foregroundStyle(KairoColors.textPrimary)
                 .accessibilityIdentifier(KairoAccessibilityID.homeViewTrustPassport)
                 .id(GuidedTourTarget.passport)
                 .guidedTourTarget(.passport)
@@ -237,7 +240,12 @@ struct HomeOverviewScreenView: View {
             requestGroup(requests.filter(\.needsAttention), title: "Needs Your Attention")
                 .padding(.horizontal, KairoSpacing.medium)
                 .padding(.vertical, KairoSpacing.xxSmall)
-                .background(KairoColors.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
+                .background(KairoSemanticAccent.attention.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.large))
+                .overlay {
+                    RoundedRectangle(cornerRadius: KairoCornerRadius.large)
+                        .strokeBorder(KairoSemanticAccent.attention.border, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
         }
     }
 
@@ -252,6 +260,7 @@ struct HomeOverviewScreenView: View {
                             title: request.title,
                             metadata: "\(request.organization) · \(request.status)",
                             systemImage: request.needsAttention ? "exclamationmark.circle" : "clock",
+                            accent: request.needsAttention ? .attention : .pending,
                             accessibilityIdentifier: KairoAccessibilityID.homeVerificationRequestAction,
                             action: {
                                 if let identifier = request.authoritativeDestinationID {

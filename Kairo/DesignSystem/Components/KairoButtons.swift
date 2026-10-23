@@ -54,7 +54,9 @@ struct KairoPrimaryButton: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 48)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.xSmall)
+            .frame(minHeight: KairoControlMetrics.buttonHeight)
         }
         .accessibilityIdentifier(accessibilityIdentifier ?? title)
         .buttonStyle(
@@ -70,7 +72,7 @@ struct KairoPrimaryButton: View {
 }
 
 enum KairoActionRole {
-    case tertiary, secondary, destructiveSecondary, destructivePrimary, icon
+    case tertiary, secondary, destructiveSecondary, destructivePrimary, icon, field
 }
 
 struct KairoActionStyle: ButtonStyle {
@@ -83,12 +85,13 @@ struct KairoActionStyle: ButtonStyle {
             .font(KairoTypography.action)
             .foregroundStyle(foreground)
             .padding(.horizontal, role == .tertiary ? 0 : KairoSpacing.small)
-            .frame(minWidth: 44, minHeight: 44)
+            .padding(.vertical, KairoSpacing.xxSmall)
+            .frame(minWidth: KairoControlMetrics.minimumTarget, minHeight: KairoControlMetrics.minimumTarget)
             .background(background, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))
             .overlay {
-                if role == .destructiveSecondary || role == .secondary {
+                if role == .destructiveSecondary || role == .secondary || role == .field {
                     RoundedRectangle(cornerRadius: KairoCornerRadius.small)
-                        .stroke(role == .secondary ? KairoColors.border : KairoColors.danger.opacity(0.4), lineWidth: 1)
+                        .stroke(role == .field ? KairoColors.fieldBorder : (role == .secondary ? KairoColors.borderBrand : KairoSemanticAccent.danger.border), lineWidth: 1)
                 }
             }
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.45)
@@ -98,19 +101,20 @@ struct KairoActionStyle: ButtonStyle {
 
     private var foreground: Color {
         switch role {
-        case .tertiary, .icon: KairoColors.brandPrimary
-        case .secondary: KairoColors.textPrimary
+        case .tertiary, .icon, .secondary: KairoColors.teal
         case .destructiveSecondary: KairoColors.danger
-        case .destructivePrimary: .white
+        case .destructivePrimary: KairoColors.onDanger
+        case .field: KairoColors.textPrimary
         }
     }
 
     private var background: Color {
         switch role {
-        case .tertiary, .secondary: .clear
-        case .icon: KairoColors.surfaceMuted
-        case .destructiveSecondary: KairoColors.danger.opacity(0.05)
+        case .tertiary: .clear
+        case .secondary, .icon: KairoColors.surfaceBrand
+        case .destructiveSecondary: KairoSemanticAccent.danger.surface
         case .destructivePrimary: KairoColors.danger
+        case .field: KairoColors.fieldSurface
         }
     }
 }
@@ -134,15 +138,17 @@ struct KairoSecondaryButton: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 48)
+            .padding(.horizontal, KairoSpacing.medium)
+            .padding(.vertical, KairoSpacing.xSmall)
+            .frame(minHeight: KairoControlMetrics.buttonHeight)
         }
         .accessibilityIdentifier(accessibilityIdentifier ?? title)
         .buttonStyle(
             KairoButtonChrome(
-                foregroundColor: KairoColors.brandPrimary,
-                backgroundColor: KairoColors.surface,
+                foregroundColor: KairoColors.teal,
+                backgroundColor: KairoColors.surfaceBrand,
                 pressedBackgroundColor: KairoColors.surfaceMuted,
-                borderColor: KairoColors.border
+                borderColor: KairoColors.borderBrand
             )
         )
     }

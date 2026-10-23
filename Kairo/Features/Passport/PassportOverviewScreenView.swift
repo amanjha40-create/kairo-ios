@@ -246,7 +246,7 @@ struct PassportOverviewScreenView: View {
 
     private func populatedContent(_ content: PassportOverviewContent) -> some View {
         VStack(alignment: .leading, spacing: KairoSpacing.medium) {
-            KairoCard {
+            KairoCard(accent: .identity) {
                 passportHeader
                 Divider()
                 trustScoreCard(content.trustScore, dataSourceLabel: content.dataSourceLabel)
@@ -261,7 +261,7 @@ struct PassportOverviewScreenView: View {
             .accessibilityIdentifier("passport.integratedHero")
             ProductGuidanceView(topic: .passport)
             PermanentAddressEntry(passport: true)
-            KairoSection(compact: true) {
+            KairoSection(compact: true, accent: .neutral) {
                 Text("Trust Signals").font(KairoTypography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
                 Text("Evidence and status behind your Passport. Self-declared information is not verification.")
@@ -273,7 +273,7 @@ struct PassportOverviewScreenView: View {
                     disclosureSummary(content, verified: false)
                 }
             }
-            KairoSection(compact: true) {
+            KairoSection(compact: true, accent: .neutral) {
                 Text("Career details").font(KairoTypography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("candidate.passport.careerDetails")
@@ -351,7 +351,7 @@ struct PassportOverviewScreenView: View {
                 Spacer(minLength: KairoSpacing.small)
                 Text(dataSourceLabel)
                     .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.accent)
+                    .foregroundStyle(KairoColors.teal)
             }
             switch trustScoreContent {
             case .available(let score):
@@ -366,7 +366,7 @@ struct PassportOverviewScreenView: View {
                 }
                 Text(score.status)
                     .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.accent)
+                    .foregroundStyle(KairoColors.teal)
                 ProgressView(value: score.progress)
                     .tint(KairoColors.accent)
                 Text(score.supportingCopy)
@@ -384,7 +384,7 @@ struct PassportOverviewScreenView: View {
                     .foregroundStyle(KairoColors.textPrimary)
                 Text(unavailable.title)
                     .font(KairoTypography.headline)
-                    .foregroundStyle(KairoColors.accent)
+                    .foregroundStyle(KairoColors.teal)
                 Text(unavailable.message)
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
@@ -393,11 +393,10 @@ struct PassportOverviewScreenView: View {
             Button { router.showTrustScoreDetails() } label: {
                 Text("View score details")
                     .font(KairoTypography.action)
-                    .foregroundStyle(KairoColors.textPrimary)
                     .frame(minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(KairoActionStyle(role: .secondary))
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(KairoAccessibilityID.passportTrustScoreCard)

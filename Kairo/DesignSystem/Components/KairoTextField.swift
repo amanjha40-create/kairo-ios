@@ -21,7 +21,8 @@ struct KairoTextField<Field: Hashable>: View {
     let onSubmit: (() -> Void)?
 
     private var isFocused: Bool {
-        focus?.wrappedValue == focusedField
+        guard let focus, let focusedField else { return false }
+        return focus.wrappedValue == focusedField
     }
 
     private var resolvedAccessibilityHint: String {
@@ -41,8 +42,6 @@ struct KairoTextField<Field: Hashable>: View {
             Text(title)
                 .font(titleFont)
                 .foregroundStyle(titleColor)
-                .textCase(.uppercase)
-                .tracking(0.55)
 
             fieldInput
                 .textInputAutocapitalization(textInputAutocapitalization)
@@ -52,13 +51,14 @@ struct KairoTextField<Field: Hashable>: View {
                 .submitLabel(submitLabel)
                 .font(KairoTypography.body)
                 .padding(.horizontal, 14)
-                .frame(minHeight: 48)
-                .background(KairoColors.surface)
+                .padding(.vertical, KairoSpacing.xSmall)
+                .frame(minHeight: KairoControlMetrics.buttonHeight)
+                .background(KairoColors.fieldSurface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous)
-                        .stroke(borderColor, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: KairoControlMetrics.fieldRadius, style: .continuous)
+                        .stroke(borderColor, lineWidth: isFocused ? 2 : 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: KairoCornerRadius.medium, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: KairoControlMetrics.fieldRadius, style: .continuous))
                 .accessibilityIdentifier(accessibilityIdentifier ?? title)
                 .accessibilityLabel(accessibilityLabel ?? title)
                 .accessibilityHint(resolvedAccessibilityHint)
@@ -82,10 +82,10 @@ struct KairoTextField<Field: Hashable>: View {
         }
 
         if isFocused {
-            return KairoColors.brandPrimary
+            return KairoColors.teal
         }
 
-        return KairoColors.border
+        return KairoColors.fieldBorder
     }
 
     @ViewBuilder

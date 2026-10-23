@@ -240,12 +240,12 @@ struct PassportShareManagementSheet: View {
         } label: {
             Text("Create Passport share")
                 .font(KairoTypography.headline)
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, KairoSpacing.medium)
-                .background(KairoColors.brandPrimary, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(KairoButtonChrome(foregroundColor: KairoColors.onPrimary,
+            backgroundColor: KairoColors.brandPrimary, pressedBackgroundColor: KairoColors.brandPrimaryPressed,
+            borderColor: nil))
         .accessibilityIdentifier(KairoAccessibilityID.passportShareCreateEntry)
     }
 
@@ -555,7 +555,7 @@ private struct PassportShareMutationForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.large) {
-            KairoSection {
+            KairoSection(accent: .neutral) {
                 Text(draft.originalShare == nil ? PassportShareHierarchy.stages[0] : "Sharing policy")
                     .font(KairoTypography.headline)
                     .accessibilityAddTraits(.isHeader)
@@ -582,7 +582,7 @@ private struct PassportShareMutationForm: View {
                 }
             }
             permissionGroup(title: draft.originalShare == nil ? PassportShareHierarchy.stages[1] : "Narrow shared content", options: options)
-            KairoSection {
+            KairoSection(accent: .neutral) {
                 KairoSectionHeading(title: draft.originalShare == nil ? PassportShareHierarchy.stages[2] : "Purpose & expiry")
                 KairoTextField(
                     title: "Purpose (required)",

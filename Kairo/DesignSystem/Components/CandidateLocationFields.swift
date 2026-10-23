@@ -101,11 +101,12 @@ struct CandidatePlacePicker: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(value.isEmpty ? (placeholder ?? "Choose \(title.lowercased())") : display(value)).fixedSize(horizontal: false, vertical: true)
+                            .foregroundStyle(value.isEmpty ? KairoColors.textSecondary : KairoColors.textPrimary)
                         Spacer(minLength: 8); Image(systemName: "chevron.up.chevron.down").accessibilityHidden(true)
                     }
                 }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }
-            .buttonStyle(KairoActionStyle(role: .secondary))
+            .buttonStyle(KairoActionStyle(role: .field))
             .accessibilityLabel("\(title), \(required ? "required" : "optional")").accessibilityValue(value.isEmpty ? "Not selected" : display(value))
             .accessibilityHint("Opens searchable choices. Cancel preserves the current value.")
             if allowCustom { Text("Search or enter your \(title.lowercased()). Unlisted values are supported.").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary) }

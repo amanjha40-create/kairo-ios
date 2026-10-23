@@ -123,6 +123,8 @@ struct ProductGuidanceView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .font(KairoTypography.bodyStrong)
+        .tint(KairoColors.teal)
+        .foregroundStyle(KairoColors.teal)
         .accessibilityIdentifier("guidance.\(topic.rawValue)")
     }
 }

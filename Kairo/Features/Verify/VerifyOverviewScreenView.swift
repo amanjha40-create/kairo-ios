@@ -209,8 +209,9 @@ struct VerifyOverviewScreenView: View {
                 ForEach(VerifyListGroup.allCases) { group in
                     let rows = visible.filter { group.includes($0.status) }
                     if !rows.isEmpty {
-                        KairoSection(compact: true) {
+                        KairoSection(compact: true, accent: .neutral) {
                             HStack(alignment: .firstTextBaseline) {
+                                KairoIconTile(symbol: group.visualSymbol, accent: group.visualAccent)
                                 Text(group.title).font(KairoTypography.sectionTitle)
                                     .accessibilityAddTraits(.isHeader)
                                     .accessibilityIdentifier(group.accessibilityIdentifier)
@@ -468,6 +469,25 @@ struct VerifyOverviewScreenView: View {
         }
     }
 
+}
+
+private extension VerifyListGroup {
+    var visualAccent: KairoSemanticAccent {
+        switch self {
+        case .attention: .attention
+        case .inProgress: .pending
+        case .completed: .info // Completed includes unsuccessful outcomes; never imply verified.
+        case .unavailable: .neutral
+        }
+    }
+    var visualSymbol: String {
+        switch self {
+        case .attention: "exclamationmark.circle"
+        case .inProgress: "clock"
+        case .completed: "tray.full"
+        case .unavailable: "questionmark.circle"
+        }
+    }
 }
 
 typealias VerifyRequestActionHandler = @Sendable (

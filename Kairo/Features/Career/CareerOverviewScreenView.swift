@@ -111,7 +111,7 @@ struct CareerOverviewScreenView: View {
     }
 
     private func employmentSection(_ items: [CareerEmploymentItem]) -> some View {
-        KairoSection(compact: true) {
+        KairoSection(compact: true, accent: .neutral) {
             CareerSectionHeader(title: "Employment", count: items.count,
                 identifier: KairoAccessibilityID.careerEmploymentSection,
                 addTitle: "Add Employment", addIdentifier: KairoAccessibilityID.careerAddEmploymentButton, add: addEmploymentAction)
@@ -129,8 +129,8 @@ struct CareerOverviewScreenView: View {
     }
 
     private func educationSection(_ items: [CareerEducationItem]) -> some View {
-        KairoSection(compact: true) {
-            CareerSectionHeader(title: "Education", count: items.count,
+        KairoSection(compact: true, accent: .neutral) {
+            CareerSectionHeader(title: "Education", count: items.count, symbol: "graduationcap", accent: .identity,
                 identifier: KairoAccessibilityID.careerEducationSection,
                 addTitle: "Add Education", addIdentifier: KairoAccessibilityID.careerAddEducationButton, add: addEducationAction)
             if items.isEmpty { emptyRow("No education records added yet.") }
@@ -147,8 +147,8 @@ struct CareerOverviewScreenView: View {
     }
 
     private func certificationsSection(_ items: [CareerCertificationItem]) -> some View {
-        KairoSection(compact: true) {
-            CareerSectionHeader(title: "Certifications", count: items.count,
+        KairoSection(compact: true, accent: .neutral) {
+            CareerSectionHeader(title: "Certifications", count: items.count, symbol: "rosette", accent: .brand,
                 identifier: KairoAccessibilityID.careerCertificationsSection,
                 addTitle: "Add Certification", addIdentifier: KairoAccessibilityID.careerAddCertificationButton, add: addCertificationAction)
             if items.isEmpty { emptyRow("No certifications added yet.") }
@@ -166,8 +166,8 @@ struct CareerOverviewScreenView: View {
     }
 
     private func projectsSection(_ items: [CareerProjectItem]) -> some View {
-        KairoSection(compact: true) {
-            CareerSectionHeader(title: "Projects", count: items.count,
+        KairoSection(compact: true, accent: .neutral) {
+            CareerSectionHeader(title: "Projects", count: items.count, symbol: "folder", accent: .brand,
                 identifier: KairoAccessibilityID.careerProjectsSection,
                 addTitle: "Add Project", addIdentifier: KairoAccessibilityID.careerAddProjectButton, add: addProjectAction)
             if items.isEmpty { emptyRow("No projects added yet.") }
@@ -184,8 +184,8 @@ struct CareerOverviewScreenView: View {
     }
 
     private func portfolioSection(_ items: [CareerPortfolioItem]) -> some View {
-        KairoSection(compact: true) {
-            CareerSectionHeader(title: "Portfolio", count: items.count,
+        KairoSection(compact: true, accent: .neutral) {
+            CareerSectionHeader(title: "Portfolio", count: items.count, symbol: "rectangle.stack", accent: .identity,
                 identifier: KairoAccessibilityID.careerPortfolioSection,
                 addTitle: "Add Portfolio Item", addIdentifier: KairoAccessibilityID.careerAddPortfolioButton, add: addPortfolioAction)
             if items.isEmpty { emptyRow("No portfolio items yet.") }
@@ -205,8 +205,8 @@ struct CareerOverviewScreenView: View {
     }
 
     private func skillsSection(_ items: [CareerSkillItem]) -> some View {
-        KairoSection(compact: true) {
-            CareerSectionHeader(title: "Skills", count: items.count,
+        KairoSection(compact: true, accent: .neutral) {
+            CareerSectionHeader(title: "Skills", count: items.count, symbol: "square.grid.2x2", accent: .info,
                 identifier: KairoAccessibilityID.careerSkillsSection,
                 addTitle: "Add Skill", addIdentifier: KairoAccessibilityID.careerAddSkillButton, add: addSkillAction)
             if items.isEmpty { emptyRow("No skills added yet.") }
@@ -268,16 +268,16 @@ struct CareerCompactRecordRow: View {
                     if leadingText != nil || leadingSystemImage != nil {
                         ZStack {
                             RoundedRectangle(cornerRadius: KairoCornerRadius.small, style: .continuous)
-                                .fill(KairoColors.surfaceMuted)
+                                .fill(KairoSemanticAccent.info.surface)
                                 .frame(width: 40, height: 40)
                             if let leadingText {
                                 Text(leadingText)
                                     .font(KairoTypography.caption)
-                                    .foregroundStyle(KairoColors.brandPrimary)
+                                    .foregroundStyle(KairoColors.info)
                             } else if let leadingSystemImage {
                                 Image(systemName: leadingSystemImage)
                                     .font(KairoTypography.bodyStrong)
-                                    .foregroundStyle(KairoColors.brandPrimary)
+                                    .foregroundStyle(KairoColors.info)
                             }
                         }
                         .accessibilityHidden(true)
@@ -320,6 +320,8 @@ struct CareerCompactRecordRow: View {
 struct CareerSectionHeader: View {
     let title: String
     let count: Int
+    var symbol = "briefcase"
+    var accent: KairoSemanticAccent = .info
     let identifier: String
     let addTitle: String
     let addIdentifier: String
@@ -327,6 +329,7 @@ struct CareerSectionHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: KairoSpacing.small) {
+            KairoIconTile(symbol: symbol, accent: accent)
             Text(title).font(KairoTypography.sectionTitle)
                 .foregroundStyle(KairoColors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -345,7 +348,7 @@ struct CareerSectionHeader: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).foregroundStyle(KairoColors.brandPrimary)
+                .buttonStyle(KairoActionStyle(role: .icon))
                 .accessibilityLabel(addTitle).accessibilityIdentifier(addIdentifier)
             }
         }
