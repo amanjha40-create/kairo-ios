@@ -3,6 +3,25 @@ import XCTest
 @testable import Kairo
 
 final class CareerMutationStateTests: XCTestCase {
+    func testProjectRoleClearRefetchReopenDoesNotInjectPresentationCopy() throws {
+        func draft(role: Any) throws -> CareerProjectDraft {
+            let payload: [String: Any] = ["id": "project-qa", "title": "Synthetic project",
+                "role": role, "is_ongoing": false, "verification_status": "draft"]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            let dto = try APIJSONCoder.makeDecoder().decode(CareerProjectDTO.self, from: data)
+            return CareerProjectDraft(record: CareerProjectRecord(dto: dto))
+        }
+        var existing = try draft(role: "Engineer")
+        existing.role = ""
+        let patch = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(existing.updateRequest())) as! [String: Any]
+        XCTAssertTrue(patch["role"] is NSNull)
+        let reopened = try draft(role: try XCTUnwrap(patch["role"]))
+        XCTAssertEqual(reopened.role, "")
+        XCTAssertEqual(reopened.title, "Synthetic project")
+        let unchanged = try JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(reopened.updateRequest())) as! [String: Any]
+        XCTAssertNil(unchanged["role"], "Reopening a cleared field must not persist placeholder copy")
+        XCTAssertEqual(try draft(role: "Role not added yet").role, "Role not added yet", "Do not silently rewrite actual stored legacy text")
+    }
     func test_unknownEmploymentDatesSurviveUnrelatedEditAndEncodeExplicitNull() throws {
         let record = CareerEmploymentRecord(id: "synthetic", subjectFullName: nil, subjectEmail: nil,
             company: "Synthetic", employerLegalName: "Synthetic", employerTradeName: nil,

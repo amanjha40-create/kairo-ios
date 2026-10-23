@@ -198,6 +198,7 @@ final class APIDecodingTests: XCTestCase {
 
         XCTAssertEqual(user.id, "6f4f1f5a-a89d-4b4b-9d67-3f0e8a0d1492")
         XCTAssertEqual(user.fullName, "Aarav Mehta")
+        XCTAssertEqual(user.avatarURL, "https://cdn.example.com/avatar.png")
         XCTAssertEqual(user.phone, "+919876543210")
         XCTAssertEqual(user.role, "user")
         XCTAssertEqual(user.languages.first?.language, "English")

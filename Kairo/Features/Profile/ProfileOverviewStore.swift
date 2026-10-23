@@ -1,6 +1,31 @@
 import Foundation
 import Combine
 
+nonisolated enum ProfilePhotoFailure {
+    static func message(for error: Error) -> String {
+        if let error = error as? ProfileServiceError {
+            switch error {
+            case .emptyPhoto, .photoTooLarge, .photoUnreadable, .photoEncodingFailed: return error.localizedDescription
+            default: break
+            }
+        }
+        if error is URLError { return "The photo could not be saved because of a connection problem. Check your connection and try again." }
+        if let error = error as? NetworkError {
+            switch error {
+            case .transport: return "The photo could not be saved because of a connection problem. Check your connection and try again."
+            case .api(let response) where response.statusCode == 413: return "Choose a profile photo no larger than 5 MB."
+            case .api(let response) where response.statusCode >= 500: return "The photo service is temporarily unavailable. Please try again later."
+            case .api(let response) where response.statusCode == 415: return "This image format is not supported. Choose a JPEG, PNG or HEIC photo."
+            default: break
+            }
+        }
+        if let error = error as? SecureDocumentTransferError, error == .storageUploadFailed {
+            return "The photo storage service did not accept the upload. Please try again later."
+        }
+        return "The profile photo could not be saved. Please try again."
+    }
+}
+
 @MainActor
 final class ProfileOverviewStore: ObservableObject {
     @Published private(set) var snapshot: ProfileSnapshot

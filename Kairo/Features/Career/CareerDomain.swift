@@ -195,7 +195,8 @@ extension CareerProjectRecord {
         self.init(
             id: dto.id,
             title: dto.title,
-            role: dto.role ?? "Role not added yet",
+            // Keep absent data empty. This record also seeds the editable draft.
+            role: dto.role ?? "",
             description: dto.description,
             startDate: dto.startDate,
             endDate: dto.isOngoing ? nil : dto.endDate,

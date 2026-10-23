@@ -907,7 +907,8 @@ actor UITestAuthService: AuthServiceProtocol {
             locationCountry: "India",
             headline: "People Operations Lead",
             bio: "Building verified professional trust.",
-            dateOfBirth: nil,
+            dateOfBirth: ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DOB"] == "present"
+                ? Date(timeIntervalSince1970: 946684800) : nil,
             avatarURL: nil,
             role: "user",
             isActive: true,

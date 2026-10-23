@@ -76,6 +76,25 @@ final class DigiLockerWave1UITests: XCTestCase {
         checkFixtureVerification(fails: true)
     }
 
+    func testMissingDOBMessageBelongsToVerifyAndBlocksSubmission() {
+        let app = launch(fixture: "consent", missingDOB: true)
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+        let pan = app.switches["candidate.digilocker.select.PANCR"].switches.firstMatch
+        revealAbove(pan, in: app); pan.tap()
+        let consent = app.buttons["candidate.digilocker.consent"]
+        reveal(consent, in: app); consent.tap()
+        let verify = app.buttons["candidate.digilocker.verify"]
+        reveal(verify, in: app)
+        XCTAssertFalse(verify.isEnabled)
+        let error = app.staticTexts["candidate.digilocker.verificationError"]
+        reveal(error, in: app)
+        XCTAssertTrue(error.label.contains("Add your date of birth to your profile before verifying this document."))
+        XCTAssertGreaterThanOrEqual(error.frame.minY, verify.frame.maxY)
+        XCTAssertFalse(app.staticTexts["DigiLocker action failed"].exists)
+        XCTAssertFalse(app.staticTexts["Checking..."].exists)
+    }
+
     private func checkFixtureVerification(fails: Bool) {
         // Existing UI-test dependencies are in-memory; this never calls live Verify or OAuth.
         let app = launch(fixture: fails ? "consent" : nil)
@@ -264,7 +283,7 @@ final class DigiLockerWave1UITests: XCTestCase {
         attach(app, name: "Wave1-Passport-Provenance-Dark")
     }
 
-    private func launch(appearance: String = "light", largeType: Bool = false, fixture: String? = nil) -> XCUIApplication {
+    private func launch(appearance: String = "light", largeType: Bool = false, fixture: String? = nil, missingDOB: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", appearance]
         if largeType { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -276,6 +295,7 @@ final class DigiLockerWave1UITests: XCTestCase {
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"
         ]
         if let fixture { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_RETURN"] = fixture }
+        if !missingDOB { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_DOB"] = "present" }
         app.launch()
         return app
     }

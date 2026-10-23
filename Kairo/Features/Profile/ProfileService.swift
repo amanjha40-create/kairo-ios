@@ -44,6 +44,7 @@ actor ProfileService: ProfileServiceProtocol {
     }
 
     func update(_ draft: ProfileEditDraft) async throws -> ProfileSnapshot {
+        guard draft.validationErrors["date_of_birth"] == nil else { throw ProfileServiceError.invalidDateOfBirth }
         _ = try await session.sendAuthenticated(
             try jsonRequest(path: "/users/me", method: .patch, body: draft.request)
         )
@@ -336,7 +337,10 @@ private extension AppUser {
 nonisolated enum ProfileServiceError: Error, LocalizedError, Equatable, Sendable {
     case emptyPhoto
     case photoTooLarge
+    case photoUnreadable
+    case photoEncodingFailed
     case invalidSkill
+    case invalidDateOfBirth
     case invalidLanguage
     case unsafeURL
 
@@ -344,7 +348,10 @@ nonisolated enum ProfileServiceError: Error, LocalizedError, Equatable, Sendable
         switch self {
         case .emptyPhoto: "Choose a profile photo."
         case .photoTooLarge: "Choose a profile photo no larger than 5 MB."
+        case .photoUnreadable: "This image format could not be opened. Choose a JPEG, PNG or HEIC photo."
+        case .photoEncodingFailed: "This image could not be prepared for upload. Choose another photo."
         case .invalidSkill: "Choose a Skill from the catalogue."
+        case .invalidDateOfBirth: "Enter a valid date using DD-MM-YYYY."
         case .invalidLanguage: "Choose a Language from the catalogue."
         case .unsafeURL: "Enter a valid HTTP or HTTPS professional link."
         }

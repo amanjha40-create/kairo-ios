@@ -3,6 +3,8 @@ import UIKit
 
 struct KairoTextField<Field: Hashable>: View {
     let title: String
+    let titleColor: Color
+    let titleFont: Font
     let prompt: String
     @Binding var text: String
     let errorMessage: String?
@@ -37,8 +39,8 @@ struct KairoTextField<Field: Hashable>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Text(title)
-                .font(.system(.caption2, design: .default).weight(.semibold))
-                .foregroundStyle(KairoColors.textSecondary)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
                 .textCase(.uppercase)
                 .tracking(0.55)
 
@@ -101,6 +103,8 @@ extension KairoTextField where Field == Never {
         title: String,
         prompt: String,
         text: Binding<String>,
+        titleColor: Color = KairoColors.textSecondary,
+        titleFont: Font = .system(.caption2, design: .default).weight(.semibold),
         errorMessage: String? = nil,
         accessibilityIdentifier: String? = nil,
         accessibilityLabel: String? = nil,
@@ -113,6 +117,8 @@ extension KairoTextField where Field == Never {
         onSubmit: (() -> Void)? = nil
     ) {
         self.title = title
+        self.titleColor = titleColor
+        self.titleFont = titleFont
         self.prompt = prompt
         _text = text
         self.errorMessage = errorMessage
@@ -135,6 +141,8 @@ extension KairoTextField {
         title: String,
         prompt: String,
         text: Binding<String>,
+        titleColor: Color = KairoColors.textSecondary,
+        titleFont: Font = .system(.caption2, design: .default).weight(.semibold),
         errorMessage: String? = nil,
         accessibilityIdentifier: String? = nil,
         accessibilityLabel: String? = nil,
@@ -149,6 +157,8 @@ extension KairoTextField {
         onSubmit: (() -> Void)? = nil
     ) {
         self.title = title
+        self.titleColor = titleColor
+        self.titleFont = titleFont
         self.prompt = prompt
         _text = text
         self.errorMessage = errorMessage

@@ -40,7 +40,12 @@ struct ProfileEditView: View {
                     field("Full name", text: $draft.fullName, key: "full_name", contentType: .name)
                     LabeledContent("Email", value: user.email)
                     field("Mobile", text: $draft.phone, key: "phone", contentType: .telephoneNumber, keyboard: .phonePad)
-                    field("Date of birth", text: $draft.dateOfBirth, key: "date_of_birth", keyboard: .numbersAndPunctuation, prompt: "YYYY-MM-DD")
+                    field("Date of birth", text: $draft.dateOfBirth,
+                        key: "date_of_birth", keyboard: .numbersAndPunctuation, prompt: "DD-MM-YYYY")
+                        .onChange(of: draft.dateOfBirth) { _, value in
+                            let formatted = ProfileBirthDate.formatInput(value)
+                            if formatted != value { draft.dateOfBirth = formatted }
+                        }
                 }
 
                 Section("Professional information") {

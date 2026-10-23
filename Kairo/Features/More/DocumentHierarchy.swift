@@ -32,9 +32,11 @@ nonisolated enum DocumentHierarchy {
 struct DocumentGroupHeading: View {
     let title: String
     let count: Int
+    var titleColor: Color = KairoColors.textPrimary
+    var titleFont: Font = KairoTypography.headline
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(KairoTypography.headline).fixedSize(horizontal: false, vertical: true)
+            Text(title).font(titleFont).foregroundStyle(titleColor).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: KairoSpacing.small)
             Text("\(count)").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
         }

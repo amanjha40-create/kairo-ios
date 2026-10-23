@@ -43,7 +43,8 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
         case headline
         case bio
         case dateOfBirth
-        case avatarURL
+        // convertFromSnakeCase maps avatar_url to avatarUrl, not avatarURL.
+        case avatarURL = "avatarUrl"
         case role
         case isActive
         case phoneVerifiedAt

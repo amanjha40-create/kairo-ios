@@ -83,6 +83,33 @@ final class DocumentHierarchyUITests: XCTestCase {
         app.buttons["Birth Certificate"].tap()
         capture(app, "4C5 Vault add document")
     }
+    func testVaultHeadingStylingLightAndDarkAccessibility() {
+        for large in [false, true] {
+            let app = launch(large: large)
+            func focusedTap(_ id: String) {
+                let button = app.buttons[id]
+                app.revealContent(button)
+                XCTAssertTrue(button.isHittable)
+                button.tap()
+            }
+            focusedTap("documents.vault")
+            XCTAssertTrue(app.navigationBars["Vault"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Private by default"].exists)
+            capture(app, large ? "Vault teal headings dark XXXL" : "Vault teal headings light")
+            focusedTap("vault.add")
+            focusedTap("candidate.more.documentVault.type")
+            let search = app.searchFields["Search document type"]
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            search.tap(); search.typeText("PAN")
+            XCTAssertTrue(app.buttons["PAN"].waitForExistence(timeout: 5))
+            app.buttons["PAN"].tap()
+            let number = app.textFields["vault.documentNumber"]
+            app.revealContent(number)
+            XCTAssertEqual(number.value as? String, "Optional")
+            capture(app, large ? "Vault field headings dark XXXL" : "Vault field headings light")
+            app.terminate()
+        }
+    }
     func testAadhaarUploadHasNoNumberInputAndSwitchingTypesClearsDraft() {
         let app = launch(); openVault(app)
         tap("vault.add", app)
@@ -199,6 +226,9 @@ final class DocumentHierarchyUITests: XCTestCase {
     private func launch(_ scenario: String = "populated", large: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
+#if KAIRO_LOCAL_BATCH1_QA
+        app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
+#endif
         app.launchArguments += ["-kairo.appearance.preference", large ? "dark" : "light"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",

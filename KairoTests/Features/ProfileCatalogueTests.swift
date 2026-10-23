@@ -3,6 +3,55 @@ import XCTest
 
 @MainActor
 final class ProfileCatalogueTests: XCTestCase {
+    func testDOBEightDigitEntryFormatsWithoutChangingWireContract() throws {
+        XCTAssertEqual(ProfileBirthDate.formatInput("14091994"), "14-09-1994")
+        var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        draft.dateOfBirth = "14091994"
+        XCTAssertNil(draft.validationErrors["date_of_birth"])
+        XCTAssertEqual(draft.request.dateOfBirth, "1994-09-14")
+        XCTAssertEqual(ProfileBirthDate.parse("29022000").map(ProfileBirthDate.display), "29-02-2000")
+        XCTAssertNil(ProfileBirthDate.parse("29022023"))
+    }
+
+    func testDOBInputFormattingPreservesPartialDeletionAndRejectsMalformedValues() {
+        for text in ["", "1", "1409199", "14-09-199", "14-09-1994", "14/09/1994", "140919940", "abc"] {
+            XCTAssertEqual(ProfileBirthDate.formatInput(text), text)
+        }
+        XCTAssertNil(ProfileBirthDate.parse("31042000"))
+        XCTAssertNil(ProfileBirthDate.parse("140919940"))
+        XCTAssertNil(ProfileBirthDate.parse("14/09/1994"))
+    }
+    func testDOBMissingRemainsEmptyAndUnchangedKeyIsOmitted() throws {
+        let draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        XCTAssertEqual(draft.dateOfBirth, "")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(draft.request)) as? [String: Any])
+        XCTAssertNil(json["date_of_birth"])
+    }
+
+    func testDOBDisplayDateUsesDDMMYYYYAndWireUsesISO() throws {
+        var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        draft.dateOfBirth = "14-09-1994"
+        XCTAssertNil(draft.validationErrors["date_of_birth"])
+        XCTAssertEqual(ProfileBirthDate.display(try XCTUnwrap(draft.parsedDateOfBirth)), "14-09-1994")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(draft.request)) as? [String: Any])
+        XCTAssertEqual(json["date_of_birth"] as? String, "1994-09-14")
+        XCTAssertEqual(Set(json.keys), ["date_of_birth"])
+    }
+
+    func testDOBRejectsInvalidAndAmbiguousDateFormats() {
+        for invalid in ["31-04-2000", "00-01-2000", "01-13-2000", "2000-09-25", "25/09/2000", "1-1-2000", "01-01-0000"] {
+            var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+            draft.dateOfBirth = invalid
+            XCTAssertNotNil(draft.validationErrors["date_of_birth"], invalid)
+        }
+    }
+
+    func testDOBLeapYearRulesAreGregorian() {
+        XCTAssertNotNil(ProfileBirthDate.parse("29-02-2000"))
+        XCTAssertNotNil(ProfileBirthDate.parse("29-02-2024"))
+        XCTAssertNil(ProfileBirthDate.parse("29-02-1900"))
+        XCTAssertNil(ProfileBirthDate.parse("29-02-2023"))
+    }
     func test_skillCatalogueMatchesCertifiedAndroidCountsAndSource() {
         XCTAssertEqual(ProfileCatalogues.androidSourceSHA, "3a1ed54dae7f40b07ffbf0401c0ed8ed9c2bbc7e")
         XCTAssertEqual(ProfileCatalogues.skills.count, 278)
@@ -79,7 +128,7 @@ final class ProfileCatalogueTests: XCTestCase {
         ])
 
         draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
-        draft.dateOfBirth = "2000-09-25"
+        draft.dateOfBirth = "25-09-2000"
         draft.locationCountry = "in"
         XCTAssertTrue(draft.validationErrors.isEmpty)
         XCTAssertEqual(draft.request.dateOfBirth, "2000-09-25")

@@ -59,6 +59,15 @@ final class AppSessionStore: ObservableObject {
 
         hasBootstrapped = true
 
+        #if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
+        // Direct-to-Home UI fixtures normally skip bootstrap. Only this explicit
+        // synthetic DOB scenario needs a canonical fixture profile for Verify.
+        if uiTestConfiguration.isEnabled,
+           ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DOB"] == "present" {
+            currentUser = try? await authService.currentUser().asDomainModel()
+        }
+        #endif
+
         guard !configuration.isDemoModeEnabled, !uiTestConfiguration.isEnabled else {
             return
         }

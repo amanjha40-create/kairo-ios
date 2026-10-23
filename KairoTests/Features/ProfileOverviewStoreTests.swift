@@ -1,9 +1,41 @@
 import Foundation
 import XCTest
+import UIKit
+import ImageIO
+import UniformTypeIdentifiers
 @testable import Kairo
 
 @MainActor
 final class ProfileOverviewStoreTests: XCTestCase {
+    func testPhotoPreparationAcceptsJPEGPNGAndHEICWithoutResizingOrChangingQualityPolicy() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 128, height: 96), format: format).image { context in
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 128, height: 96))
+        }
+        for type in [UTType.jpeg, .png, .heic] {
+            let encoded = NSMutableData()
+            let destination = try XCTUnwrap(CGImageDestinationCreateWithData(encoded, type.identifier as CFString, 1, nil))
+            CGImageDestinationAddImage(destination, try XCTUnwrap(image.cgImage), nil)
+            XCTAssertTrue(CGImageDestinationFinalize(destination))
+            let decoded = try ProfilePhotoPreparation.decode(encoded as Data)
+            let upload = try ProfilePhotoPreparation.jpegData(decoded)
+            XCTAssertEqual(upload, decoded.jpegData(compressionQuality: 0.82))
+            let prepared = try XCTUnwrap(UIImage(data: upload))
+            XCTAssertEqual(prepared.size, CGSize(width: 128, height: 96))
+        }
+        XCTAssertThrowsError(try ProfilePhotoPreparation.decode(Data("not an image".utf8))) {
+            XCTAssertEqual($0 as? ProfileServiceError, .photoUnreadable)
+        }
+    }
+    func testPhotoFailuresPreserveSafeSizeConnectionAndServerCategories() {
+        XCTAssertTrue(ProfilePhotoFailure.message(for: ProfileServiceError.photoTooLarge).contains("5 MB"))
+        XCTAssertTrue(ProfilePhotoFailure.message(for: URLError(.notConnectedToInternet)).contains("connection"))
+        XCTAssertTrue(ProfilePhotoFailure.message(for: NetworkError.transport("PRIVATE_DETAILS")).contains("connection"))
+        XCTAssertFalse(ProfilePhotoFailure.message(for: NetworkError.transport("PRIVATE_DETAILS")).contains("PRIVATE_DETAILS"))
+        XCTAssertTrue(ProfilePhotoFailure.message(for: SecureDocumentTransferError.storageUploadFailed).contains("storage service"))
+    }
     func test_fixtureProfileUpdateReflectsEveryMutableField() async throws {
         let service = ProfileFixtureService()
         var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
@@ -18,7 +50,7 @@ final class ProfileOverviewStoreTests: XCTestCase {
         draft.locationRegion = "Maharashtra"
         draft.locationCountry = "in"
         draft.bio = "Updated profile fixture."
-        draft.dateOfBirth = "2000-09-25"
+        draft.dateOfBirth = "25-09-2000"
 
         let user = try await service.update(draft).user
 

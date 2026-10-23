@@ -2,6 +2,21 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+enum ProfilePhotoPreparation {
+    static func decode(_ data: Data) throws -> UIImage {
+        guard let image = UIImage(data: data) else { throw ProfileServiceError.photoUnreadable }
+        return image
+    }
+
+    static func jpegData(_ image: UIImage) throws -> Data {
+        // Preserve the existing product compression policy; do not shrink dimensions.
+        guard let data = image.jpegData(compressionQuality: 0.82) else {
+            throw ProfileServiceError.photoEncodingFailed
+        }
+        return data
+    }
+}
+
 struct ProfileOverviewSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -94,6 +109,7 @@ struct ProfileOverviewSheetView: View {
                     ProfilePhotoPreviewView(
                         image: pendingPhoto,
                         isSaving: store.isMutating,
+                        errorMessage: photoErrorMessage,
                         onCancel: { self.pendingPhoto = nil },
                         onSave: { Task { await savePhoto(pendingPhoto) } }
                     )
@@ -245,6 +261,7 @@ struct ProfileOverviewSheetView: View {
         ProfileSection(title: "Professional information") {
             ProfileFactRow(title: "Email", value: store.snapshot.user.email, status: verified(store.snapshot.user.emailVerifiedAt))
             ProfileFactRow(title: "Mobile", value: store.snapshot.user.phone ?? "Not added", status: verified(store.snapshot.user.phoneVerifiedAt))
+            ProfileFactRow(title: "Date of birth", value: store.snapshot.user.dateOfBirth.map(ProfileBirthDate.display) ?? "Not added")
             ProfileFactRow(title: "Current role", value: store.snapshot.user.currentRole ?? "Not added")
             ProfileFactRow(title: "Industry", value: store.snapshot.user.industry ?? "Not added")
             ProfileFactRow(
@@ -365,23 +382,31 @@ struct ProfileOverviewSheetView: View {
 
     private func prepare(_ item: PhotosPickerItem) async {
         photoSelection = nil
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data) else {
-            photoErrorMessage = "That image could not be opened. Choose another profile photo."
-            return
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                photoErrorMessage = "The selected photo could not be read. Choose an available photo from your library."
+                return
+            }
+            let image = try ProfilePhotoPreparation.decode(data)
+            photoErrorMessage = nil
+            pendingPhoto = image
+        } catch {
+            if let failure = error as? ProfileServiceError {
+                photoErrorMessage = failure.localizedDescription
+            } else {
+                photoErrorMessage = "The selected photo could not be read. Check access to the photo and try again."
+            }
         }
-        photoErrorMessage = nil
-        pendingPhoto = image
     }
 
     private func savePhoto(_ image: UIImage) async {
-        guard let data = image.jpegData(compressionQuality: 0.82) else { return }
         do {
+            let data = try ProfilePhotoPreparation.jpegData(image)
             try await store.uploadAvatar(data)
             photoErrorMessage = nil
             pendingPhoto = nil
         } catch {
-            photoErrorMessage = "The profile photo could not be uploaded. Please try again."
+            photoErrorMessage = ProfilePhotoFailure.message(for: error)
         }
     }
 }
@@ -486,6 +511,7 @@ private struct ProfileEmptyRow: View {
 private struct ProfilePhotoPreviewView: View {
     let image: UIImage
     let isSaving: Bool
+    let errorMessage: String?
     let onCancel: () -> Void
     let onSave: () -> Void
 
@@ -501,6 +527,13 @@ private struct ProfilePhotoPreviewView: View {
                 Text("The selected image is uploaded only after you confirm.")
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("candidate.profile.avatar.preview.error")
+                }
                 KairoPrimaryButton(title: "Use this photo", isLoading: isSaving, action: onSave)
                     .disabled(isSaving)
                 KairoSecondaryButton(title: "Cancel", action: onCancel)

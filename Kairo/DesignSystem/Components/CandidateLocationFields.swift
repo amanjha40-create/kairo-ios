@@ -80,6 +80,8 @@ struct CandidatePlacePicker: View {
     var context: String? = nil
     var required = false
     var placeholder: String? = nil
+    var titleColor: Color = KairoColors.textSecondary
+    var titleFont: Font = KairoTypography.caption
     var display: (String) -> String = { $0 }
     let select: (String) -> Void
     @State private var presented = false
@@ -93,7 +95,7 @@ struct CandidatePlacePicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title + (required ? " *" : " — Optional"))
-                .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                .font(titleFont).foregroundStyle(titleColor)
                 .accessibilityHidden(true)
             Button { query = ""; presented = true } label: {
                 VStack(alignment: .leading, spacing: 4) {

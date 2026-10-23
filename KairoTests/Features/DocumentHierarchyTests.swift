@@ -1,8 +1,32 @@
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Kairo
 
 @MainActor
 final class DocumentHierarchyTests: XCTestCase {
+    func testVaultHeadingsUseExistingTealWithLargeBoldTextContrastInBothAppearances() {
+        XCTAssertEqual(VaultHeadingStyle.color, KairoColors.teal)
+        XCTAssertEqual(VaultHeadingStyle.font, KairoTypography.headline.bold())
+        // Shared headings and field controls retain their original defaults outside Vault.
+        XCTAssertEqual(DocumentGroupHeading(title: "Other section", count: 1).titleColor, KairoColors.textPrimary)
+        XCTAssertEqual(KairoTextField(title: "Other field", prompt: "Optional", text: .constant("")).titleColor, KairoColors.textSecondary)
+        XCTAssertEqual(EvidenceTypeSelector(value: "", options: [], select: { _ in }).titleColor, KairoColors.textSecondary)
+        XCTAssertEqual(CandidatePlacePicker(title: "Other picker", value: "", options: [], select: { _ in }).titleFont, KairoTypography.caption)
+        func luminance(_ color: Color, _ style: UIUserInterfaceStyle) -> Double {
+            let resolved = UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            XCTAssertTrue(resolved.getRed(&r, green: &g, blue: &b, alpha: &a))
+            func linear(_ v: CGFloat) -> Double { v <= 0.04045 ? Double(v / 12.92) : pow(Double((v + 0.055) / 1.055), 2.4) }
+            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        }
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            for background in [KairoColors.background, KairoColors.surface, KairoColors.surfaceMuted] {
+                let a = luminance(VaultHeadingStyle.color, style), b = luminance(background, style)
+                XCTAssertGreaterThanOrEqual((max(a, b) + 0.05) / (min(a, b) + 0.05), 3.0)
+            }
+        }
+    }
     func testGroupsCountEverySuppliedRowExactlyOnceAndPreserveCanonicalOrder() async throws {
         let rows = try await DocumentHierarchyFixtures(scenario: "populated").load()
         let groups = DocumentHierarchy.groups(rows, category: .all)

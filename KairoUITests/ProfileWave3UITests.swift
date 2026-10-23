@@ -4,6 +4,22 @@ import XCTest
 final class ProfileWave3UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testDOBDigitsAutoFormatAndFixtureSaveReopensFormatted() {
+        let app = launchProfile()
+        app.buttons["candidate.profile.edit"].tap()
+        let field = app.textFields["candidate.profile.edit.date_of_birth"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        app.revealContent(field)
+        field.tap(); field.typeText("14091994")
+        XCTAssertEqual(field.value as? String, "14-09-1994")
+        app.buttons["candidate.profile.edit.save"].tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
+        app.buttons["candidate.profile.edit"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        XCTAssertEqual(field.value as? String, "14-09-1994")
+        app.buttons["candidate.profile.edit.cancel"].tap()
+    }
+
     func testMoreProfileShowsCertifiedHierarchyAndSafeIdentityContext() {
         let app = launchProfile()
 

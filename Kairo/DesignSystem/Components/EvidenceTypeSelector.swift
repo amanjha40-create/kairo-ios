@@ -5,11 +5,14 @@ import SwiftUI
 struct EvidenceTypeSelector: View {
     let value: String
     let options: [CareerDocumentType]
+    var titleColor: Color = KairoColors.textSecondary
+    var titleFont: Font = KairoTypography.caption
     let select: (String) -> Void
 
     var body: some View {
         CandidatePlacePicker(title: "Document type", value: value,
             options: options.map(\.id), required: true, placeholder: "Choose document type…",
+            titleColor: titleColor, titleFont: titleFont,
             display: { id in options.first { $0.id == id }?.label ?? id }) { select($0) }
             .accessibilityIdentifier("evidence.documentType")
     }

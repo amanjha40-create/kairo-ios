@@ -4,6 +4,53 @@ import XCTest
 
 @MainActor
 final class ProfileServiceTests: XCTestCase {
+    func testDOBMissingCanBeSavedAndRestoredFromFreshAuthenticatedRead() async throws {
+        let state = ProfilePatchTestState(data: Self.profilePayload)
+        try await state.apply(body: Data(#"{"date_of_birth":null}"#.utf8), link: false)
+        await installStatefulHandler(state)
+        let service = try await makeService()
+        var draft = ProfileEditDraft(user: try await service.load().user)
+        XCTAssertEqual(draft.dateOfBirth, "")
+        draft.dateOfBirth = "14-09-1994"
+        let saved = try await service.update(draft)
+        XCTAssertEqual(saved.user.dateOfBirth.map(ProfileBirthDate.wire), "1994-09-14")
+        let fresh = try await makeService()
+        let restored = try await fresh.load()
+        XCTAssertEqual(ProfileEditDraft(user: restored.user).dateOfBirth, "14-09-1994")
+    }
+    func testDOBSaveRefetchAndFreshSessionPreserveCanonicalDate() async throws {
+        let state = ProfilePatchTestState(data: Self.profilePayload)
+        await installStatefulHandler(state)
+        let service = try await makeService()
+        let original = try await service.load()
+        var draft = ProfileEditDraft(user: original.user)
+        XCTAssertEqual(draft.dateOfBirth, "25-09-2000", "Existing ISO DOB is decoded and presented, not dropped")
+        draft.dateOfBirth = "29-02-2000"
+        let saved = try await service.update(draft)
+        XCTAssertEqual(saved.user.dateOfBirth.map(ProfileBirthDate.wire), "2000-02-29")
+        XCTAssertEqual(saved.user.fullName, original.user.fullName)
+        let freshService = try await makeService()
+        let restored = try await freshService.load()
+        XCTAssertEqual(ProfileEditDraft(user: restored.user).dateOfBirth, "29-02-2000")
+        let unchanged = try XCTUnwrap(JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(ProfileEditDraft(user: restored.user).request)) as? [String: Any])
+        XCTAssertNil(unchanged["date_of_birth"])
+        let requests = await MockURLProtocolStorage.shared.requests()
+        let patch = try XCTUnwrap(requests.first { $0.httpMethod == "PATCH" })
+        XCTAssertEqual(try requestJSONBody(from: patch)["date_of_birth"] as? String, "2000-02-29")
+        draft = ProfileEditDraft(user: restored.user)
+        draft.dateOfBirth = ""
+        let cleared = try await service.update(draft)
+        XCTAssertNil(cleared.user.dateOfBirth, "Existing explicit-null clearing contract remains intact")
+    }
+
+    func testDOBInvalidDateNeverSendsMutation() async throws {
+        let service = try await makeService()
+        var draft = ProfileEditDraft(user: ProfileSnapshot.fixture.user)
+        draft.dateOfBirth = "31-04-2000"
+        await XCTAssertThrowsErrorAsync { _ = try await service.update(draft) }
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertTrue(requests.isEmpty)
+    }
     override func tearDown() async throws {
         await MockURLProtocolStorage.shared.reset()
         try await super.tearDown()
@@ -141,7 +188,8 @@ final class ProfileServiceTests: XCTestCase {
 
     func test_avatarUsesUnauthenticatedHTTPSUploadThenCompletes() async throws {
         let service = try await makeService()
-        await installStandardHandler { request in
+        let photoURL = "https://storage.example/saved-profile-photo"
+        await installStandardHandler(avatarURL: photoURL) { request in
             switch (request.httpMethod, request.url?.host, request.url?.path) {
             case ("POST", "staging-api.kairoid.com", "/api/v1/users/me/avatar-upload-url"):
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-profile")
@@ -156,7 +204,10 @@ final class ProfileServiceTests: XCTestCase {
             }
         }
 
-        _ = try await service.uploadAvatar(jpegData: Data(repeating: 0x01, count: 1024))
+        let snapshot = try await service.uploadAvatar(jpegData: Data(repeating: 0x01, count: 1024))
+        XCTAssertEqual(snapshot.user.avatarURL, photoURL, "The post-upload refetch must retain the returned photo URL")
+        let reopened = try await service.load()
+        XCTAssertEqual(reopened.user.avatarURL, photoURL, "Reload must not require another upload or login")
         let requests = await MockURLProtocolStorage.shared.requests()
         XCTAssertEqual(requests.filter { $0.httpMethod == "PUT" }.count, 1)
         XCTAssertTrue(requests.contains { $0.url?.path == "/api/v1/users/me/avatar/complete" })
@@ -207,6 +258,7 @@ final class ProfileServiceTests: XCTestCase {
     }
 
     private func installStandardHandler(
+        avatarURL: String? = nil,
         assertion: (@Sendable (URLRequest) throws -> Void)? = nil
     ) async {
         await MockURLProtocolStorage.shared.setHandler { request in
@@ -214,7 +266,9 @@ final class ProfileServiceTests: XCTestCase {
             let response = try Self.response(for: request, statusCode: request.httpMethod == "DELETE" ? 204 : 200)
             switch (request.httpMethod, request.url?.host, request.url?.path) {
             case ("GET", _, "/api/v1/users/me"):
-                return (response, Self.profilePayload)
+                var profile = try JSONSerialization.jsonObject(with: Self.profilePayload) as! [String: Any]
+                profile["avatar_url"] = avatarURL as Any? ?? NSNull()
+                return (response, try JSONSerialization.data(withJSONObject: profile))
             case ("GET", _, "/api/v1/skills"):
                 return (response, Self.skillsPayload)
             case ("POST", _, "/api/v1/users/me/avatar-upload-url"):

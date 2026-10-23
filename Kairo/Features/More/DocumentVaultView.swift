@@ -1,6 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum VaultHeadingStyle {
+    static let color = KairoColors.teal
+    // Bold headline meets the large-text contrast threshold on the Vault canvas.
+    static let font = KairoTypography.headline.bold()
+}
+
 struct DocumentVaultView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var preview: SecureDocumentPreview?
@@ -130,8 +136,8 @@ struct DocumentVaultView: View {
     private var privacyCard: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
             Label("Private by default", systemImage: "lock.shield")
-                .font(KairoTypography.headline)
-                .foregroundStyle(KairoColors.textPrimary)
+                .font(VaultHeadingStyle.font)
+                .foregroundStyle(VaultHeadingStyle.color)
             Text("Private identity and personal documents. Uploading does not mean verified. Sharing requires your explicit selection.")
                 .font(KairoTypography.footnote)
                 .foregroundStyle(KairoColors.textSecondary)
@@ -141,9 +147,11 @@ struct DocumentVaultView: View {
 
     private var uploadCard: some View {
         KairoSection {
-            Text("1. Select a private document type").font(KairoTypography.headline)
+            Text("1. Select a private document type").font(VaultHeadingStyle.font)
+                .foregroundStyle(VaultHeadingStyle.color)
             EvidenceTypeSelector(value: selectedType.rawValue,
-                options: VaultDocumentType.newUploadTypes.map { .init(id: $0.rawValue, label: $0.title) }) {
+                options: VaultDocumentType.newUploadTypes.map { .init(id: $0.rawValue, label: $0.title) },
+                titleColor: VaultHeadingStyle.color, titleFont: VaultHeadingStyle.font) {
                 selectedType = VaultDocumentType(rawValue: $0)
                 clearSelection()
             }
@@ -155,6 +163,8 @@ struct DocumentVaultView: View {
                     title: "Document number",
                     prompt: "Optional",
                     text: $documentNumber,
+                    titleColor: VaultHeadingStyle.color,
+                    titleFont: VaultHeadingStyle.font,
                     accessibilityIdentifier: "vault.documentNumber"
                 )
             } else {
@@ -163,11 +173,15 @@ struct DocumentVaultView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Toggle("Include an expiry date", isOn: $includesExpiry)
+            Toggle(isOn: $includesExpiry) {
+                Text("Include an expiry date").font(VaultHeadingStyle.font).foregroundStyle(VaultHeadingStyle.color)
+            }
                 .tint(KairoColors.brandPrimary)
                 .frame(minHeight: 44)
             if includesExpiry {
-                DatePicker("Expiry date", selection: $expiryDate, displayedComponents: .date)
+                DatePicker(selection: $expiryDate, displayedComponents: .date) {
+                    Text("Expiry date").font(VaultHeadingStyle.font).foregroundStyle(VaultHeadingStyle.color)
+                }
             }
 
             KairoPrimaryButton(
@@ -191,7 +205,7 @@ struct DocumentVaultView: View {
     @ViewBuilder private func documentSection(title: String, documents: [VaultDocument]) -> some View {
         if !documents.isEmpty {
             VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                DocumentGroupHeading(title: title, count: documents.count)
+                DocumentGroupHeading(title: title, count: documents.count, titleColor: VaultHeadingStyle.color, titleFont: VaultHeadingStyle.font)
                 ForEach(documents) { document in documentCard(document) }
             }
         }
@@ -408,15 +422,22 @@ private struct VaultMetadataEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Document details") {
+                Section {
                     if document.documentType.allowsDocumentNumber {
-                        TextField("Document number", text: $number)
-                            .accessibilityIdentifier("vault.metadata.documentNumber")
+                        KairoTextField(title: "Document number", prompt: "Optional", text: $number,
+                            titleColor: VaultHeadingStyle.color, titleFont: VaultHeadingStyle.font,
+                            accessibilityIdentifier: "vault.metadata.documentNumber")
                     }
-                    Toggle("Include expiry date", isOn: $includesExpiry)
+                    Toggle(isOn: $includesExpiry) {
+                        Text("Include expiry date").font(VaultHeadingStyle.font).foregroundStyle(VaultHeadingStyle.color)
+                    }
                     if includesExpiry {
-                        DatePicker("Expiry date", selection: $expiryDate, displayedComponents: .date)
+                        DatePicker(selection: $expiryDate, displayedComponents: .date) {
+                            Text("Expiry date").font(VaultHeadingStyle.font).foregroundStyle(VaultHeadingStyle.color)
+                        }
                     }
+                } header: {
+                    Text("Document details").font(VaultHeadingStyle.font).foregroundStyle(VaultHeadingStyle.color)
                 }
                 if let errorMessage {
                     Section {

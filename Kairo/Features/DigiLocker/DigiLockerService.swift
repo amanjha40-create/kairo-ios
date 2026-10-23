@@ -159,7 +159,8 @@ actor DigiLockerService: DigiLockerServiceProtocol {
                 method: .post,
                 headers: ["Accept": "application/json", "Content-Type": "application/json"],
                 body: try APIJSONCoder.makeEncoder().encode(body),
-                allowsSessionRefreshOnUnauthorized: false
+                allowsSessionRefreshOnUnauthorized: false,
+                requiresDigiLockerTransport: true
             )
         )
     }

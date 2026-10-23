@@ -112,10 +112,7 @@ private struct PostBuild8PersistenceQA: View {
                     try save(draft.updateRequest())
                 }
         case "project":
-            CareerProjectEditorSheet(mode: .edit, draft: .init(record: .init(
-                id: "synthetic", title: "Synthetic project", role: value ?? "", description: nil,
-                startDate: nil, endDate: nil, isOngoing: false, projectURL: nil, repositoryURL: nil,
-                organizationName: nil, verificationStatus: .notVerified, rawVerificationStatus: "draft"))) {
+            CareerProjectEditorSheet(mode: .edit, draft: projectDraft()) {
                     try save($0.updateRequest())
                 }
         default:
@@ -127,6 +124,18 @@ private struct PostBuild8PersistenceQA: View {
                 verificationMethod: "document", verificationStatus: .notVerified, rawVerificationStatus: "draft"))) {
                     try save($0.updateRequest())
                 }
+        }
+    }
+    private func projectDraft() -> CareerProjectDraft {
+        // Exercise the real response -> domain -> draft boundary, not a fixture shortcut.
+        let object: [String: Any] = ["id": "synthetic", "title": "Synthetic project",
+            "role": value as Any? ?? NSNull(), "is_ongoing": false, "verification_status": "draft"]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: object)
+            let dto = try APIJSONCoder.makeDecoder().decode(CareerProjectDTO.self, from: data)
+            return CareerProjectDraft(record: CareerProjectRecord(dto: dto))
+        } catch {
+            preconditionFailure("Invalid synthetic Project response")
         }
     }
     private func save<T: Encodable>(_ request: T) throws {

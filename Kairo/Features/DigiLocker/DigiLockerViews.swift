@@ -507,14 +507,14 @@ struct DigiLockerHubView: View {
                     guard consent.canVerify else { return }
                     let selected = consent.selected
                     Task {
-                        if await store.verify(selected) {
+                        if await store.verify(selected, profile: sessionStore.currentUser) {
                             consent = DigiLockerConsent()
                             refreshStore.candidateDataChanged()
                         } else { consent.accepted = false }
                     }
                 }
-                .disabled(!consent.canVerify || store.actionInProgress)
-            if let error = store.verificationErrorMessage {
+                .disabled(!consent.canVerify || store.actionInProgress || missingDOBMessage != nil)
+            if let error = missingDOBMessage ?? store.verificationErrorMessage {
                 Text(error)
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.danger)
@@ -530,6 +530,10 @@ struct DigiLockerHubView: View {
         DigiLockerDocumentType.allCases.filter { type in
             store.issuedDocuments.contains { $0.documentType == type.rawValue && $0.supported }
         }
+    }
+
+    private var missingDOBMessage: String? {
+        DigiLockerDOBPrecondition.message(types: consent.selected, dateOfBirth: sessionStore.currentUser?.dateOfBirth)
     }
 
     private func failureCopy(_ message: String) -> some View {

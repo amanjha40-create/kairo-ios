@@ -1,6 +1,46 @@
 import Combine
 import Foundation
 
+nonisolated enum DigiLockerDOBPrecondition {
+    static func message(types: Set<DigiLockerDocumentType>, dateOfBirth: Date?) -> String? {
+        guard dateOfBirth == nil, !types.isDisjoint(with: [.pan, .drivingLicence]) else { return nil }
+        return "Add your date of birth to your profile before verifying this document."
+    }
+}
+
+/// Only finite categories/statuses are rendered; provider bodies and identifiers are never shown.
+nonisolated enum DigiLockerVerificationFailure {
+    static func message(for error: Error) -> String {
+        let saved = " Review saved results before trying again."
+        var status: Int?
+        if let failure = error as? DigiLockerBackendError {
+            switch failure.code {
+            case .invalidToken, .reconnectRequired, .connectionAccessUnavailable:
+                return "DigiLocker access needs to be restored before verification." + saved
+            case .insufficientScope, .accountUnavailable:
+                return "DigiLocker has not granted access to the selected document." + saved
+            case .integrityFailed:
+                return "The selected document could not pass integrity checks." + saved
+            case .notConfigured:
+                return "DigiLocker verification is currently unavailable." + saved
+            case .aadhaarNotLinked, nil: break
+            }
+            status = failure.statusCode
+        } else if let failure = error as? NetworkError, case .api(let response) = failure {
+            status = response.statusCode
+        }
+        switch status ?? 0 {
+        case 422: return "The selected document request was rejected." + saved
+        case 401, 403: return "Access to the selected document could not be confirmed." + saved
+        case 429: return "Verification is temporarily rate limited. Please wait before trying again." + saved
+        case 500...599: return "The verification service is temporarily unavailable." + saved
+        default: break
+        }
+        if error is URLError { return "Verification could not finish because of a connection problem." + saved }
+        return "Verification could not be completed." + saved
+    }
+}
+
 @MainActor
 final class DigiLockerStore: ObservableObject {
     @Published private(set) var status: DigiLockerStatusDTO?
@@ -140,9 +180,17 @@ final class DigiLockerStore: ObservableObject {
             return true
         } catch {
             guard revision == identityRevision, !Task.isCancelled else { return false }
-            verificationErrorMessage = "Verification could not be completed. Review saved results before trying again."
+            verificationErrorMessage = DigiLockerVerificationFailure.message(for: error)
             return false
         }
+    }
+
+    func verify(_ types: Set<DigiLockerDocumentType>, profile: AppUser?) async -> Bool {
+        if let message = DigiLockerDOBPrecondition.message(types: types, dateOfBirth: profile?.dateOfBirth) {
+            verificationErrorMessage = message
+            return false
+        }
+        return await verify(types)
     }
 
     func clearActionError() { actionErrorMessage = nil; verificationErrorMessage = nil }

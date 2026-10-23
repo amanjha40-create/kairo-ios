@@ -46,6 +46,32 @@ nonisolated enum ProfileLinkType: String, CaseIterable, Codable, Sendable {
     }
 }
 
+nonisolated enum ProfileBirthDate {
+    private static func formatter(_ format: String) -> DateFormatter {
+        let value = DateFormatter()
+        value.calendar = Calendar(identifier: .gregorian)
+        value.locale = Locale(identifier: "en_US_POSIX")
+        value.timeZone = TimeZone(secondsFromGMT: 0)
+        value.dateFormat = format
+        value.isLenient = false
+        return value
+    }
+    static func display(_ date: Date) -> String { formatter("dd-MM-yyyy").string(from: date) }
+    static func wire(_ date: Date) -> String { formatter("yyyy-MM-dd").string(from: date) }
+    static func formatInput(_ text: String) -> String {
+        // Format a complete digits-only entry without rewriting partial edits,
+        // stripping invalid characters, or guessing another date ordering.
+        guard text.range(of: #"^[0-9]{8}$"#, options: .regularExpression) != nil else { return text }
+        return "\(text.prefix(2))-\(text.dropFirst(2).prefix(2))-\(text.suffix(4))"
+    }
+    static func parse(_ text: String) -> Date? {
+        let text = formatInput(profileNormalized(text))
+        guard text.range(of: #"^[0-9]{2}-[0-9]{2}-[0-9]{4}$"#, options: .regularExpression) != nil,
+              let date = formatter("dd-MM-yyyy").date(from: text), display(date) == text else { return nil }
+        return date
+    }
+}
+
 nonisolated struct ProfileEditDraft: Equatable, Sendable {
     var fullName: String
     var phone: String
@@ -74,7 +100,7 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
         locationRegion = user.locationRegion ?? ""
         locationCountry = user.locationCountry ?? ""
         bio = user.bio ?? ""
-        dateOfBirth = user.dateOfBirth.map(Self.dateFormatter.string(from:)) ?? ""
+        dateOfBirth = user.dateOfBirth.map(ProfileBirthDate.display) ?? ""
         originalText = textValues
         originalExperience = user.yearsOfExperience
     }
@@ -99,8 +125,8 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             errors["location_country"] = "Use the two-letter country code."
         }
         let date = profileNormalized(dateOfBirth)
-        if !date.isEmpty, Self.dateFormatter.date(from: date) == nil {
-            errors["date_of_birth"] = "Use YYYY-MM-DD."
+        if !date.isEmpty, ProfileBirthDate.parse(date) == nil {
+            errors["date_of_birth"] = "Enter a valid date using DD-MM-YYYY."
         }
         if bio.count > 500 {
             errors["bio"] = "About must be 500 characters or fewer."
@@ -121,10 +147,11 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
             locationCountry: profileOptional(locationCountry)?.uppercased(),
             headline: profileOptional(headline),
             bio: profileOptional(bio),
-            dateOfBirth: profileOptional(dateOfBirth),
+            dateOfBirth: parsedDateOfBirth.map(ProfileBirthDate.wire),
             fieldChanges: Dictionary(uniqueKeysWithValues: textValues.map { key, value in
                     (key, OptionalFieldChange<String>.edited(original: originalText[key], current: value,
-                        encoded: key == "locationCountry" ? profileOptional(value)?.uppercased() : profileOptional(value)))
+                        encoded: key == "dateOfBirth" ? parsedDateOfBirth.map(ProfileBirthDate.wire) :
+                            (key == "locationCountry" ? profileOptional(value)?.uppercased() : profileOptional(value))))
                 }),
             experienceChange: .between(originalExperience, Int(profileNormalized(yearsOfExperience)))
         )
@@ -132,18 +159,9 @@ nonisolated struct ProfileEditDraft: Equatable, Sendable {
 
     var parsedDateOfBirth: Date? {
         let value = profileNormalized(dateOfBirth)
-        return value.isEmpty ? nil : Self.dateFormatter.date(from: value)
+        return value.isEmpty ? nil : ProfileBirthDate.parse(value)
     }
 
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 }
 
 nonisolated enum ProfileURLValidator {

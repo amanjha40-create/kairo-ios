@@ -4,6 +4,50 @@ import XCTest
 
 @MainActor
 final class DigiLockerTests: XCTestCase {
+    func testMissingDOBBlocksPANAndDLWithoutProviderOrRefreshError() async throws {
+        let service = DigiLockerServiceStub(status: .init(connected: true, status: .active),
+            trust: try decode(DigiLockerIdentityTrustDTO.self, #"{"state":"unverified","sources":[]}"#),
+            history: .init(items: [], identityVerified: false))
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+        let before = store.history
+        for type in [DigiLockerDocumentType.pan, .drivingLicence] {
+            let result = await store.verify([type], profile: ProfileSnapshot.fixture.user)
+            XCTAssertFalse(result)
+            XCTAssertEqual(store.verificationErrorMessage, "Add your date of birth to your profile before verifying this document.")
+            XCTAssertNil(store.actionErrorMessage)
+            XCTAssertEqual(store.history, before)
+            XCTAssertFalse(store.isVerifying)
+        }
+        XCTAssertNil(DigiLockerDOBPrecondition.message(types: [.pan, .drivingLicence], dateOfBirth: Date(timeIntervalSince1970: 946684800)))
+        XCTAssertNil(DigiLockerDOBPrecondition.message(types: [], dateOfBirth: nil))
+        let calls = await service.verificationCalls()
+        XCTAssertEqual(calls, 0, "Missing DOB must block before any verification/provider request")
+    }
+    func testVerificationFailureKeepsSafeBackendCategoriesWithoutProviderProse() async throws {
+        let service = try await makeService()
+        for (status, code, expected) in [
+            (422, "validation_error", "request was rejected"),
+            (503, "digilocker_not_configured", "currently unavailable"),
+            (403, "digilocker_insufficient_scope", "not granted access"),
+            (503, "digilocker_integrity_failed", "integrity checks")
+        ] {
+            await MockURLProtocolStorage.shared.setHandler { request in
+                XCTAssertEqual(request.url?.path, "/api/v1/integrations/digilocker/identity/verify")
+                return (try Self.response(for: request, statusCode: status),
+                        Data("{\"error\":{\"code\":\"\(code)\",\"message\":\"PRIVATE_PROVIDER_DETAILS\"}}".utf8))
+            }
+            do {
+                _ = try await service.verify(documentTypes: [.pan, .drivingLicence])
+                XCTFail("Expected a verification failure")
+            } catch {
+                XCTAssertNotNil(error as? DigiLockerBackendError)
+                let message = DigiLockerVerificationFailure.message(for: error)
+                XCTAssertTrue(message.contains(expected), message)
+                XCTAssertFalse(message.contains("PRIVATE"))
+            }
+        }
+    }
     func testVerificationSuccessNeedsReviewAndSafeFailureAlwaysFinishWithoutOAuth() async throws {
         for verified in [true, false] {
             let service = DigiLockerServiceStub(
@@ -284,6 +328,8 @@ final class DigiLockerTests: XCTestCase {
 }
 
 private actor DigiLockerServiceStub: DigiLockerServiceProtocol {
+    private var verifyCalls = 0
+    func verificationCalls() -> Int { verifyCalls }
     private var verificationFails = false
     func failVerification() { verificationFails = true }
     private var currentStatus: DigiLockerStatusDTO
@@ -303,6 +349,7 @@ private actor DigiLockerServiceStub: DigiLockerServiceProtocol {
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO { historyValue }
     func identityTrust() async throws -> DigiLockerIdentityTrustDTO { trustValue }
     func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO {
+        verifyCalls += 1
         if verificationFails { throw URLError(.timedOut) }
         return historyValue
     }
