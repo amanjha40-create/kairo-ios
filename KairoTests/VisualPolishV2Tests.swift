@@ -35,15 +35,33 @@ final class VisualPolishV2Tests: XCTestCase {
     }
 
     func testLongButtonsAndCardsExpandAtXXXL() {
-        let view = KairoCard(accent: .identity) {
+        for style in [ColorScheme.light, .dark] {
+            let standard = measure(layoutFixture, size: .large, style: style)
+            let accessible = measure(layoutFixture, size: .accessibility5, style: style)
+            assertFitsProposedWidth(accessible)
+            XCTAssertGreaterThan(accessible.size.height, standard.size.height)
+        }
+    }
+
+    func testLongButtonsAndCardsFitAtNormalTextSize() {
+        for style in [ColorScheme.light, .dark] {
+            let standard = measure(layoutFixture, size: .large, style: style)
+            assertFitsProposedWidth(standard)
+            XCTAssertGreaterThan(standard.size.height, 0)
+            let short = measure(KairoPrimaryButton(title: "Continue") {}, size: .large, style: style, width: 160)
+            let long = measure(KairoPrimaryButton(title: "Continue with the selected information") {}, size: .large, style: style, width: 160)
+            XCTAssertLessThanOrEqual(long.size.width, 160 + 1 / max(1, long.scale))
+            // The long label must wrap, not fit by truncating to one line.
+            XCTAssertGreaterThan(long.size.height, short.size.height)
+        }
+    }
+
+    private var layoutFixture: some View {
+        KairoCard(accent: .identity) {
             KairoSectionHeading(title: "A long authoritative section title", count: 12)
             KairoPrimaryButton(title: "Continue with the selected information") {}
             KairoStatusChip(title: "Pending KairoID Review", tone: .pending)
         }
-        let standard = measure(view, size: .large)
-        let accessible = measure(view, size: .accessibility5)
-        XCTAssertLessThanOrEqual(accessible.width, 320)
-        XCTAssertGreaterThan(accessible.height, standard.height)
     }
 
     func testTouchTargetsAndRoleLabelsRemain() {
@@ -63,9 +81,23 @@ final class VisualPolishV2Tests: XCTestCase {
         XCTAssertNil(plan.duration)
     }
 
-    private func measure<V: View>(_ view: V, size: DynamicTypeSize) -> CGSize {
-        UIHostingController(rootView: view.environment(\.dynamicTypeSize, size))
-            .sizeThatFits(in: CGSize(width: 320, height: 10_000))
+    private func assertFitsProposedWidth(_ measurement: (size: CGSize, scale: CGFloat),
+                                        file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertGreaterThanOrEqual(measurement.scale, 1, file: file, line: line)
+        // iOS 26.5 at 3x reports 320 + 1/3 pt for this 320-pt card; at 2x it
+        // reports 320. Rendered 320-pt Light/Dark XXXL frames show full wrapping,
+        // no clipping/overlap and zero safe-area inset. Allow only one physical
+        // pixel of fitting-size rounding, not a device-independent epsilon.
+        // Overflow beyond that pixel still fails; vertical expansion is separate.
+        let pixel = 1 / max(1, measurement.scale)
+        XCTAssertLessThanOrEqual(measurement.size.width, 320 + pixel, file: file, line: line)
+    }
+
+    private func measure<V: View>(_ view: V, size: DynamicTypeSize,
+                                 style: ColorScheme, width: CGFloat = 320) -> (size: CGSize, scale: CGFloat) {
+        let host = UIHostingController(rootView: view.environment(\.dynamicTypeSize, size)
+            .environment(\.colorScheme, style))
+        return (host.sizeThatFits(in: CGSize(width: width, height: 10_000)), host.traitCollection.displayScale)
     }
     private func rgb(_ color: Color, _ style: UIUserInterfaceStyle) -> [Double] {
         let color = UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: style))

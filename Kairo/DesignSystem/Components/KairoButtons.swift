@@ -52,6 +52,7 @@ struct KairoPrimaryButton: View {
                 Text(title)
                     .font(.system(.subheadline, design: .default).weight(.semibold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, KairoSpacing.medium)

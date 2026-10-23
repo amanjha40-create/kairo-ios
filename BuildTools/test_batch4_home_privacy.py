@@ -45,9 +45,26 @@ class Batch4HomePrivacyTests(unittest.TestCase):
     def test_decorative_icons_fit_columns_without_capping_readable_text(self):
         source = (ROOT / 'Kairo/DesignSystem/Components/KairoProductComponents.swift').read_text()
         row = source.split('struct KairoCompactDestinationRow', 1)[1].split('struct KairoSectionHeading', 1)[0]
-        self.assertIn('.scaledToFit()', row)
-        self.assertIn('.frame(width: 24, height: 24)', row)
+        # Visual Polish V2 centralizes decorative icon sizing in the shared tile.
+        # Guard that abstraction and its approved tokens, not obsolete inline markup.
+        self.assertIn('KairoIconTile(symbol: systemImage, accent: accent)', row)
+        surface = (ROOT / 'Kairo/DesignSystem/Components/KairoSemanticSurface.swift').read_text()
+        tile = surface.split('struct KairoIconTile: View', 1)[1]
+        self.assertIn('Image(systemName: symbol)', tile)
+        self.assertIn('.font(.system(size: KairoControlMetrics.icon, weight: .semibold))', tile)
+        self.assertIn('.frame(width: KairoControlMetrics.iconTile, height: KairoControlMetrics.iconTile)', tile)
+        self.assertIn('.foregroundStyle(accent.foreground)', tile)
+        self.assertIn('.background(accent.surface, in: RoundedRectangle(cornerRadius: KairoCornerRadius.small))', tile)
+        self.assertIn('.accessibilityHidden(true)', tile)
+        for forbidden in ['.dynamicTypeSize(', '.clipped(', '.minimumScaleFactor(',
+                          'Color(', 'Color.', 'URLSession', 'Task {']:
+            self.assertNotIn(forbidden, tile)
+        metrics = (ROOT / 'Kairo/DesignSystem/Tokens/KairoControlMetrics.swift').read_text()
+        self.assertIn('static let icon: CGFloat = 18', metrics)
+        self.assertIn('static let iconTile: CGFloat = 36', metrics)
         self.assertNotIn('.dynamicTypeSize(', row)
+        self.assertNotIn('.lineLimit(', row)
+        self.assertIn('.fixedSize(horizontal: false, vertical: true)', row)
         self.assertIn('.font(KairoTypography.recordTitle)', row)
         self.assertIn('.font(KairoTypography.metadata)', row)
 
