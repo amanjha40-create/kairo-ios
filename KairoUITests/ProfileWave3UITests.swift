@@ -5,12 +5,7 @@ final class ProfileWave3UITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     func testHomeProfileTasksOpenExactFieldsAndSaveHeadlineBackToProfile() {
-        let app = XCUIApplication()
-        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", "light"]
-        app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
-            "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
-            "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_PROFILE_TASKS": "1"]
-        app.launch()
+        let app = launchProfileTasks()
         XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.tabBars.buttons.allElementsBoundByIndex.map(\.label), ["Home", "Career", "Passport", "More"])
         for key in ["headline", "current_role", "industry"] {
@@ -21,8 +16,13 @@ final class ProfileWave3UITests: XCTestCase {
             XCTAssertTrue(field.waitForExistence(timeout: 10))
             XCTAssertTrue(field.isHittable, "Target field must be revealed, not merely exist offscreen")
             if key == "headline" {
-                field.tap(); field.typeText(" Updated")
+                let before = field.value as? String
+                // Tapping a focused field can move the caret mid-text. Insert
+                // without whitespace so canonical whitespace normalization is
+                // independent of that caret position; keep exact save assertions.
+                field.tap(); field.typeText("Updated")
                 let saved = field.value as? String
+                XCTAssertNotEqual(saved, before)
                 app.buttons["candidate.profile.edit.save"].tap()
                 XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 10))
                 XCTAssertEqual(app.staticTexts["candidate.profile.headline"].label, saved)
@@ -36,6 +36,60 @@ final class ProfileWave3UITests: XCTestCase {
             XCTAssertTrue(app.tabBars.buttons["Home"].isSelected)
         }
         keepScreenshot("Profile task routing returns Home", app)
+    }
+
+    func testRequestedHeadlineIsVisibleAndFocusedAcrossAppearanceAndTextSizes() {
+        // Light/default is covered by the save/refetch test above. Do not scroll
+        // the editor: revealing the requested field is the product's contract.
+        for (appearance, large) in [("dark", false), ("light", true), ("dark", true)] {
+            let app = launchProfileTasks(appearance: appearance, accessibilityType: large)
+            let task = app.buttons["candidate.home.continueProfile"]
+            app.revealContent(task); task.tap()
+            let field = app.textFields["candidate.profile.edit.headline"]
+            XCTAssertTrue(field.waitForExistence(timeout: 10))
+            XCTAssertTrue(field.isHittable)
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(field.frame.minY, app.navigationBars["Edit Profile"].frame.maxY)
+            XCTAssertLessThanOrEqual(field.frame.maxY, app.keyboards.firstMatch.frame.minY)
+            keepScreenshot("Requested Headline \(appearance) \(large ? "XXXL" : "default")", app)
+            app.buttons["candidate.profile.edit.cancel"].tap()
+            app.navigationBars["Profile"].buttons["Done"].tap()
+            XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.tabBars.buttons["Home"].isSelected)
+            app.terminate()
+        }
+    }
+
+    func testOrdinaryProfileEditKeepsTopOfFormWithoutTargetFocus() {
+        for (appearance, large) in [("light", false), ("dark", true)] {
+            let app = launchProfile(appearance: appearance, accessibilityType: large)
+            app.buttons["candidate.profile.edit"].tap()
+            XCTAssertTrue(app.navigationBars["Edit Profile"].waitForExistence(timeout: 10))
+            if !large {
+                let name = app.textFields["candidate.profile.edit.full_name"]
+                XCTAssertTrue(name.isHittable, "Normal entry must keep Personal information visible")
+            }
+            let identityNotice = app.staticTexts["Identity matching is performed only by KairoID services. Changing your name or date of birth can require identity review."]
+            XCTAssertTrue(identityNotice.isHittable, "The initial Identity section must remain visible")
+            XCTAssertFalse(app.keyboards.firstMatch.exists, "Normal entry must not focus a targeted field")
+            keepScreenshot("Normal Profile entry \(appearance) \(large ? "XXXL" : "default")", app)
+            app.buttons["candidate.profile.edit.cancel"].tap()
+            XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+            app.terminate()
+        }
+    }
+
+    private func launchProfileTasks(appearance: String = "light", accessibilityType: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", appearance]
+        if accessibilityType {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
+            "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_HOME_STATE": "populated",
+            "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_PROFILE_TASKS": "1"]
+        app.launch()
+        return app
     }
 
     func testProfileInformationIsDistinctFromActionAndBioIsMultiline() {

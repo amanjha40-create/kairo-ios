@@ -28,7 +28,6 @@ struct ProfileOverviewSheetView: View {
 
     @State private var editor: ProfileEditor?
     private let initialEditorTarget: ProfileEditTarget?
-    @State private var editorTarget: ProfileEditTarget?
     @State private var didOpenRequestedEditor = false
     @State private var photoSelection: PhotosPickerItem?
     @State private var pendingPhoto: UIImage?
@@ -77,7 +76,7 @@ struct ProfileOverviewSheetView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit") { editorTarget = nil; editor = .profile }
+                    Button("Edit") { editor = .profile(target: nil) }
                         .accessibilityIdentifier("candidate.profile.edit")
                 }
             }
@@ -88,8 +87,7 @@ struct ProfileOverviewSheetView: View {
                 _ = await (profile, identity)
                 if let initialEditorTarget, !didOpenRequestedEditor, store.errorMessage == nil {
                     didOpenRequestedEditor = true
-                    editorTarget = initialEditorTarget
-                    editor = .profile
+                    editor = .profile(target: initialEditorTarget)
                 }
             }
             .onChange(of: store.snapshot.user) { _, user in
@@ -301,7 +299,7 @@ struct ProfileOverviewSheetView: View {
 
     private var professionalInformation: some View {
         ProfileSection(title: "Profile") {
-            Button { editorTarget = nil; editor = .profile } label: {
+            Button { editor = .profile(target: nil) } label: {
                 HStack(spacing: KairoSpacing.small) {
                     Image(systemName: "pencil.circle.fill").foregroundStyle(KairoColors.accent)
                     VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
@@ -414,8 +412,8 @@ struct ProfileOverviewSheetView: View {
     @ViewBuilder
     private func editorView(_ editor: ProfileEditor) -> some View {
         switch editor {
-        case .profile:
-            ProfileEditView(user: store.snapshot.user, isSaving: store.isMutating, initialTarget: editorTarget) { draft in
+        case .profile(let target):
+            ProfileEditView(user: store.snapshot.user, isSaving: store.isMutating, initialTarget: target) { draft in
                 try await store.update(draft)
             }
         case .skills:
@@ -469,9 +467,20 @@ struct ProfileOverviewSheetView: View {
     }
 }
 
-private enum ProfileEditor: String, Identifiable {
-    case profile, skills, languages, links
-    var id: String { rawValue }
+private enum ProfileEditor: Identifiable {
+    // Carry navigation intent in the presented item. Separate state can be stale
+    // in the sheet content closure on its first presentation.
+    case profile(target: ProfileEditTarget?)
+    case skills, languages, links
+
+    var id: String {
+        switch self {
+        case .profile(let target): "profile.\(target?.rawValue ?? "default")"
+        case .skills: "skills"
+        case .languages: "languages"
+        case .links: "links"
+        }
+    }
 }
 
 private struct ProfileAvatarView: View {

@@ -98,6 +98,8 @@ final class DigiLockerWave1UITests: XCTestCase {
         XCTAssertTrue(addDOB.isHittable)
         addDOB.tap()
         XCTAssertTrue(app.buttons["candidate.profile.edit.dobPicker"].waitForExistence(timeout: 10))
+        let dateOfBirth = app.textFields["candidate.profile.edit.date_of_birth"]
+        XCTAssertTrue(dateOfBirth.isHittable, "The requested DOB field must be visible without manually scrolling the editor")
     }
 
     private func checkFixtureVerification(fails: Bool) {
