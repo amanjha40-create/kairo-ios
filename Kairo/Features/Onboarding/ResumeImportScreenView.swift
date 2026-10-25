@@ -108,6 +108,9 @@ struct ResumeImportScreenView: View {
             )
             .presentationDetents([.medium])
         }
+        // Keep scrolling Resume copy out of the translucent navigation controls.
+        .toolbarBackground(KairoColors.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
             isVisible = true
             guard !isPreviewMode, context == .onboarding else {

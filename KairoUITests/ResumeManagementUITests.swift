@@ -4,6 +4,31 @@ import XCTest
 final class ResumeManagementUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    func testResumeImportNavigationLayoutMatrix() {
+        for dark in [false, true] {
+            for large in [false, true] {
+                let app = launch(history: false, large: large, dark: dark)
+                openResume(app)
+                app.buttons["resume.management.upload"].tap()
+                let title = app.staticTexts["Import your resume"]
+                XCTAssertTrue(title.waitForExistence(timeout: 10))
+                let bar = app.navigationBars["Import resume"]
+                XCTAssertTrue(bar.exists)
+                XCTAssertGreaterThanOrEqual(title.frame.minY, bar.frame.maxY)
+                capture("Resume import \(dark ? "dark" : "light") \(large ? "XXXL" : "default") initial")
+                app.scrollViews.firstMatch.swipeUp()
+                capture("Resume import \(dark ? "dark" : "light") \(large ? "XXXL" : "default") scrolled")
+                let choose = app.buttons["onboarding.resumeImport.choose"]
+                reveal(choose, app)
+                XCTAssertTrue(choose.isHittable)
+                XCTAssertGreaterThanOrEqual(choose.frame.height, 44)
+                app.navigationBars.buttons.firstMatch.tap()
+                XCTAssertTrue(app.buttons["resume.management.upload"].waitForExistence(timeout: 5))
+                app.terminate()
+            }
+        }
+    }
+
     // Opt-in runner flag is used only for the separately approved physical read-only check.
     // Default Test action remains deterministic and never consumes the device's real session.
     func testOwnerResumeReadOnlyNavigationAndSessionRestart() {
@@ -257,9 +282,9 @@ final class ResumeManagementUITests: XCTestCase {
         alert.buttons["Delete resume"].tap()
     }
 
-    private func launch(history: Bool = true, large: Bool = false, deleteMode: String = "success", single: Bool = false) -> XCUIApplication {
+    private func launch(history: Bool = true, large: Bool = false, dark: Bool? = nil, deleteMode: String = "success", single: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", large ? "dark" : "light"]
+        app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", (dark ?? large) ? "dark" : "light"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_DEMO_MODE": "false", "KAIRO_UI_TEST_MORE_STATE": "populated",
