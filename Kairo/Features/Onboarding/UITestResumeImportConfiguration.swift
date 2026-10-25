@@ -103,16 +103,21 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     private var retried = false
     private var duplicatePossibleAction: ResumeImportAction = .skip
     private var duplicatePossibleVersion = 1
+    private var editorSelections: [String: Bool] = [:]
+    private var editorVersions: [String: Int] = [:]
     private var deletedIDs: Set<String> = []
     private(set) var deleteCalls: [String] = []
     private let deleteMode: String
+    private let editMode: String
     private let singleResume: Bool
 
     init(scenario: UITestResumeImportConfiguration.ServiceScenario,
          deleteMode: String = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_MODE"] ?? "success",
+         editMode: String = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_EDIT_MODE"] ?? "success",
          singleResume: Bool = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_SINGLE"] == "1") {
         self.scenario = scenario
         self.deleteMode = deleteMode
+        self.editMode = editMode
         self.singleResume = singleResume
     }
 
@@ -200,6 +205,9 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     }
 
     func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
+        if scenario == .editorControls {
+            return editorReview
+        }
         if scenario == .duplicateReview {
             return duplicateReviewSession(status: imported ? .imported : .reviewing)
         }
@@ -215,8 +223,18 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         itemID: String,
         payload: ResumeReviewItemUpdateRequestDTO
     ) async throws -> ResumeReviewSession {
-        if scenario == .editorControls, let edited = payload.editedPayload {
-            editorPayloads[itemID] = edited
+        if scenario == .editorControls {
+            if editMode == "failure", payload.editedPayload != nil {
+                try await Task.sleep(for: .milliseconds(250))
+                throw NetworkError.transport("Synthetic save failure")
+            }
+            if let edited = payload.editedPayload {
+                editorPayloads[itemID] = edited
+            }
+            if let selected = payload.selected {
+                editorSelections[itemID] = selected
+            }
+            editorVersions[itemID, default: 1] += 1
             return editorReview
         }
         if scenario == .duplicateReview, itemID == "item_duplicate_possible" {
@@ -450,20 +468,31 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
 
     private var editorPayloads: [String: [String: JSONValue]] = [:]
     private var editorReview: ResumeReviewSession {
-        let defaults: [(String, [String: JSONValue])] = [
-            ("education", ["institution_name": .string("Synthetic Institute"), "degree": .string("Legacy degree"),
-                           "start_date": .string("2020-02-29"), "end_date": .string("2024-06-01")]),
-            ("employment", ["company_name": .string("Synthetic Employer"), "role_title": .string("Analyst"),
-                            "start_date": .string("2024-07-01")])
+        let defaults: [(String, String, [String: JSONValue], [String], ResumeImportAction)] = [
+            ("profile", "profile", ["claim_type": .string("profile"), "full_name": .string("Synthetic Candidate"),
+                                     "professional_headline": .string("Product Analyst")], [], .skip),
+            ("education", "education", ["claim_type": .string("education"),
+                                         "institution_name": .string("Synthetic Institute"), "degree": .string("Legacy degree"),
+                                         "start_date": .string("2020-02-29"), "end_date": .string("2024-06-01")], [], .createNew),
+            ("employment", "employment", ["claim_type": .string("employment"),
+                                            "company_name": .string("Synthetic Employer"), "role_title": .string("Analyst"),
+                                            "start_date": .string("2024-07-01")], [], .createNew),
+            ("project-1", "project", ["claim_type": .string("project"), "title": .string("Synthetic Project One")], [], .createNew),
+            ("project-2", "project", ["claim_type": .string("project"), "title": .string("Synthetic Project Two")], [], .createNew),
+            ("project-3", "project", ["claim_type": .string("project"), "title": .string("Synthetic Project Three")], [], .createNew),
+            ("project-conflict", "project", ["claim_type": .string("project"), "title": .string("Conflicting Project")],
+             ["structural_conflict"], .createNew)
         ]
         return ResumeReviewSession(id: "editor-review", resumeID: "resume_recovered", parsedResultID: "editor-parsed",
             status: .reviewing, schemaVersion: "resume_review_v1", version: 1,
-            items: defaults.map { type, fields in
-                ResumeReviewItem(id: type, claimType: type, sourceClaimID: type, originalPayload: fields,
-                    editedPayload: editorPayloads[type] ?? fields, selected: true, reviewStatus: "selected",
-                    duplicateStatus: .noMatch, duplicateCandidates: [], conflictWarnings: [], importAction: .createNew,
+            items: defaults.map { id, type, fields, warnings, action in
+                ResumeReviewItem(id: id, claimType: type, sourceClaimID: id, originalPayload: fields,
+                    editedPayload: editorPayloads[id] ?? fields,
+                    selected: editorSelections[id] ?? (type != "profile" && id != "project-2" && id != "project-3" && id != "project-conflict"),
+                    reviewStatus: "selected", duplicateStatus: warnings.isEmpty ? .noMatch : .conflict,
+                    duplicateCandidates: [], conflictWarnings: warnings, importAction: action,
                     targetRecordID: nil, importedRecordType: nil, importedRecordID: nil, sourceReference: "synthetic",
-                    confidence: 0.99, version: 1)
+                    confidence: 0.99, version: editorVersions[id] ?? 1)
             }, createdAt: .distantPast, updatedAt: .distantPast)
     }
 

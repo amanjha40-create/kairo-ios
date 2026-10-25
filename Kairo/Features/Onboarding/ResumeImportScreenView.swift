@@ -20,6 +20,9 @@ struct ResumeImportScreenView: View {
     @State private var distinctRoleConfirmationItem: ResumeReviewItem?
     @State private var editorValues: [String: String] = [:]
     @State private var mutationInFlight = false
+    @State private var reviewMutationInFlight = false
+    @State private var editorSaveInFlight = false
+    @State private var bulkSelectionSectionID: String?
     @State private var employmentDecisionSubmissionGate = ResumeEmploymentDecisionSubmissionGate()
     @State private var employmentDecisionErrorID: String?
     @State private var isVisible = false
@@ -86,7 +89,11 @@ struct ResumeImportScreenView: View {
                 item: item,
                 values: $editorValues,
                 errorMessage: state.errorMessage,
-                onCancel: { activeEditorItem = nil },
+                isSaving: editorSaveInFlight,
+                onCancel: {
+                    guard !editorSaveInFlight else { return }
+                    activeEditorItem = nil
+                },
                 onSave: { Task { await saveEdits(for: item) } }
             )
             .presentationDetents([.medium, .large])
@@ -375,6 +382,9 @@ struct ResumeImportScreenView: View {
                     onToggleSelection: { item in
                         Task { await toggleSelection(for: item) }
                     },
+                    onToggleSection: {
+                        Task { await toggleSelection(in: section) }
+                    },
                     onEdit: { item in
                         openEditor(for: item)
                     },
@@ -390,6 +400,8 @@ struct ResumeImportScreenView: View {
                     onRequestAddAsNew: { item in
                         distinctRoleConfirmationItem = item
                     },
+                    selectionMutationInFlight: reviewMutationInFlight,
+                    bulkSelectionInFlight: bulkSelectionSectionID == section.id,
                     employmentDecisionInFlightID: employmentDecisionSubmissionGate.inFlightItemID,
                     employmentDecisionErrorID: employmentDecisionErrorID
                 )
@@ -535,6 +547,9 @@ struct ResumeImportScreenView: View {
                 .foregroundStyle(KairoColors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value)")
+        .accessibilityIdentifier("resume.import.stat.\(title.lowercased())")
     }
 
     @ViewBuilder
@@ -1201,34 +1216,100 @@ struct ResumeImportScreenView: View {
     }
 
     private func toggleSelection(for item: ResumeReviewItem) async {
-        guard let review = state.liveReviewSession else {
+        guard !reviewMutationInFlight,
+              ResumeImportMapper.isSelectionEditable(for: item),
+              let review = state.liveReviewSession else {
             return
         }
 
         let desiredSelected = !item.selected
+        reviewMutationInFlight = true
+        state.errorMessage = nil
+        defer { reviewMutationInFlight = false }
+
+        do {
+            try await persistSelection(
+                reviewID: review.id,
+                itemID: item.id,
+                selected: desiredSelected
+            )
+        } catch {
+            state.setError(message(for: error), stage: .review, phase: .readyForReview)
+        }
+    }
+
+    private func toggleSelection(in section: ResumeReviewSection) async {
+        guard !reviewMutationInFlight,
+              let review = state.liveReviewSession,
+              let desiredSelected = ResumeImportMapper.bulkSelectionTarget(in: section) else {
+            return
+        }
+
+        let itemIDs = ResumeImportMapper.bulkSelectionChanges(
+            in: section,
+            selected: desiredSelected
+        ).map(\.id)
+        guard !itemIDs.isEmpty else { return }
+
+        reviewMutationInFlight = true
+        bulkSelectionSectionID = section.id
+        state.errorMessage = nil
+        defer {
+            bulkSelectionSectionID = nil
+            reviewMutationInFlight = false
+        }
+
+        do {
+            for itemID in itemIDs {
+                try await persistSelection(
+                    reviewID: review.id,
+                    itemID: itemID,
+                    selected: desiredSelected
+                )
+            }
+            let authoritative = try await resumeImportService.refreshReviewSession(reviewID: review.id)
+            state.applyReviewSession(authoritative)
+        } catch {
+            state.setError(message(for: error), stage: .review, phase: .readyForReview)
+        }
+    }
+
+    private func persistSelection(
+        reviewID: String,
+        itemID: String,
+        selected: Bool
+    ) async throws {
+        guard let item = state.liveReviewSession?.items.first(where: { $0.id == itemID }) else {
+            return
+        }
 
         do {
             let updated = try await resumeImportService.updateReviewItem(
-                reviewID: review.id,
-                itemID: item.id,
-                payload: ResumeImportMapper.selectionUpdateRequest(
-                    for: item,
-                    selected: desiredSelected
-                )
+                reviewID: reviewID,
+                itemID: itemID,
+                payload: ResumeImportMapper.selectionUpdateRequest(for: item, selected: selected)
             )
             state.applyReviewSession(updated)
         } catch let error as NetworkError {
-            if case .api(let apiError) = error, apiError.code == .conflict {
-                await recoverConflictedReviewItemUpdate(
-                    reviewID: review.id,
-                    itemID: item.id,
-                    desiredSelected: desiredSelected
-                )
-            } else {
-                state.setError(message(for: error), stage: .review)
+            guard case .api(let apiError) = error, apiError.code == .conflict else {
+                throw error
             }
-        } catch {
-            state.setError(message(for: error), stage: .review)
+
+            let latest = try await resumeImportService.refreshReviewSession(reviewID: reviewID)
+            state.applyReviewSession(latest)
+            guard let latestItem = latest.items.first(where: { $0.id == itemID }),
+                  let request = ResumeImportMapper.reconciledUpdateRequest(
+                    for: latestItem,
+                    desiredSelected: selected
+                  ) else {
+                return
+            }
+            let updated = try await resumeImportService.updateReviewItem(
+                reviewID: reviewID,
+                itemID: itemID,
+                payload: request
+            )
+            state.applyReviewSession(updated)
         }
     }
 
@@ -1273,6 +1354,7 @@ struct ResumeImportScreenView: View {
     }
 
     private func openEditor(for item: ResumeReviewItem) {
+        guard !reviewMutationInFlight else { return }
         state.errorMessage = nil
         editorValues = Dictionary(
             uniqueKeysWithValues: ResumeImportMapper.editableFields(for: item).map { field in
@@ -1291,36 +1373,48 @@ struct ResumeImportScreenView: View {
     }
 
     private func saveEdits(for item: ResumeReviewItem) async {
-        guard let review = state.liveReviewSession else {
+        guard !editorSaveInFlight,
+              !reviewMutationInFlight,
+              let review = state.liveReviewSession,
+              let liveItem = review.items.first(where: { $0.id == item.id }) else {
             return
         }
 
-        var editedPayload = ResumeImportMapper.editedPayload(for: item, using: editorValues)
-        editedPayload["claim_type"] = .string(item.claimType)
+        var editedPayload = ResumeImportMapper.editedPayload(for: liveItem, using: editorValues)
+        editedPayload["claim_type"] = .string(liveItem.claimType)
+        editorSaveInFlight = true
+        reviewMutationInFlight = true
+        state.errorMessage = nil
+        defer {
+            editorSaveInFlight = false
+            reviewMutationInFlight = false
+        }
 
         do {
             let updated = try await resumeImportService.updateReviewItem(
                 reviewID: review.id,
-                itemID: item.id,
+                itemID: liveItem.id,
                 payload: ResumeImportMapper.editedPayloadUpdateRequest(
-                    for: item,
+                    for: liveItem,
                     editedPayload: editedPayload
                 )
             )
             state.applyReviewSession(updated)
+            let authoritative = try await resumeImportService.refreshReviewSession(reviewID: review.id)
+            state.applyReviewSession(authoritative)
             activeEditorItem = nil
         } catch let error as NetworkError {
             if case .api(let apiError) = error, apiError.code == .conflict {
                 await recoverConflictedReviewItemUpdate(
                     reviewID: review.id,
-                    itemID: item.id,
+                    itemID: liveItem.id,
                     desiredEditedPayload: editedPayload
                 )
             } else {
-                state.setError(message(for: error), stage: .review)
+                state.setError(message(for: error), stage: .review, phase: .readyForReview)
             }
         } catch {
-            state.setError(message(for: error), stage: .review)
+            state.setError(message(for: error), stage: .review, phase: .readyForReview)
         }
     }
 
@@ -1337,7 +1431,8 @@ struct ResumeImportScreenView: View {
             guard let latestItem = latest.items.first(where: { $0.id == itemID }) else {
                 state.setError(
                     "Your resume review changed on the server. KairoID refreshed the latest version so you can continue safely.",
-                    stage: .review
+                    stage: .review,
+                    phase: .readyForReview
                 )
                 activeEditorItem = nil
                 return
@@ -1358,13 +1453,15 @@ struct ResumeImportScreenView: View {
                 payload: reconciledRequest
             )
             state.applyReviewSession(updated)
+            let authoritative = try await resumeImportService.refreshReviewSession(reviewID: reviewID)
+            state.applyReviewSession(authoritative)
             activeEditorItem = nil
         } catch {
             state.setError(
                 "Your resume review changed on the server. KairoID refreshed the latest version so you can continue safely.",
-                stage: .review
+                stage: .review,
+                phase: .readyForReview
             )
-            activeEditorItem = nil
         }
     }
 
@@ -1451,24 +1548,31 @@ private struct ResumeImportPreviewSectionCard: View {
 private struct ResumeImportLiveReviewSectionCard: View {
     let section: ResumeReviewSection
     let onToggleSelection: (ResumeReviewItem) -> Void
+    let onToggleSection: () -> Void
     let onEdit: (ResumeReviewItem) -> Void
     let onKeepExisting: (ResumeReviewItem) -> Void
     let onRequestAddAsNew: (ResumeReviewItem) -> Void
+    let selectionMutationInFlight: Bool
+    let bulkSelectionInFlight: Bool
     let employmentDecisionInFlightID: String?
     let employmentDecisionErrorID: String?
 
+    private var bulkSelectionTarget: Bool? {
+        ResumeImportMapper.bulkSelectionTarget(in: section)
+    }
+
     var body: some View {
         KairoCard {
-            HStack {
-                Text(section.title)
-                    .font(KairoTypography.bodyStrong)
-                    .foregroundStyle(KairoColors.textPrimary)
-
-                Spacer()
-
-                Text("\(section.items.count)")
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: KairoSpacing.small) {
+                    sectionHeading
+                    Spacer(minLength: KairoSpacing.small)
+                    bulkSelectionButton
+                }
+                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+                    sectionHeading
+                    bulkSelectionButton
+                }
             }
 
             VStack(alignment: .leading, spacing: KairoSpacing.medium) {
@@ -1486,12 +1590,49 @@ private struct ResumeImportLiveReviewSectionCard: View {
                     case .noConflict:
                         ResumeImportReviewItemCard(
                             item: item,
+                            selectionEditable: ResumeImportMapper.isSelectionEditable(for: item),
+                            selectionMutationInFlight: selectionMutationInFlight,
                             onToggleSelection: { onToggleSelection(item) },
                             onEdit: { onEdit(item) }
                         )
                     }
                 }
             }
+        }
+    }
+
+    private var sectionHeading: some View {
+        HStack(spacing: KairoSpacing.xSmall) {
+            Text(section.title)
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.textPrimary)
+
+            Text("\(section.items.count)")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .accessibilityLabel("\(section.items.count) claims")
+        }
+    }
+
+    @ViewBuilder
+    private var bulkSelectionButton: some View {
+        if let target = bulkSelectionTarget {
+            Button(action: onToggleSection) {
+                HStack(spacing: KairoSpacing.xxSmall) {
+                    if bulkSelectionInFlight {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(target ? "Select all" : "Deselect all")
+                        .lineLimit(1)
+                }
+                .frame(minWidth: KairoControlMetrics.minimumTarget, minHeight: KairoControlMetrics.minimumTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(KairoActionStyle(role: .tertiary))
+            .disabled(selectionMutationInFlight)
+            .accessibilityIdentifier("\(KairoAccessibilityID.resumeImportSectionBulkSelection).\(section.id)")
+            .accessibilityLabel("\(target ? "Select" : "Deselect") all eligible \(section.title) claims")
         }
     }
 }
@@ -1636,6 +1777,8 @@ private struct ResumeEmploymentDuplicateReviewCard: View {
 
 private struct ResumeImportReviewItemCard: View {
     let item: ResumeReviewItem
+    let selectionEditable: Bool
+    let selectionMutationInFlight: Bool
     let onToggleSelection: () -> Void
     let onEdit: () -> Void
 
@@ -1650,12 +1793,23 @@ private struct ResumeImportReviewItemCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             HStack(alignment: .top, spacing: KairoSpacing.medium) {
-                Button(action: onToggleSelection) {
-                    Image(systemName: item.selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(item.selected ? KairoColors.brandPrimary : KairoColors.border)
+                if selectionEditable {
+                    Button(action: onToggleSelection) {
+                        Image(systemName: item.selected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(item.selected ? KairoColors.brandPrimary : KairoColors.border)
+                            .frame(minWidth: KairoControlMetrics.minimumTarget, minHeight: KairoControlMetrics.minimumTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selectionMutationInFlight)
+                    .accessibilityLabel(item.selected ? "Exclude claim" : "Select claim")
+                } else {
+                    Image(systemName: item.claimType == "profile" ? "lightbulb" : "exclamationmark.triangle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .frame(minWidth: KairoControlMetrics.minimumTarget, minHeight: KairoControlMetrics.minimumTarget)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
                     HStack(spacing: KairoSpacing.xSmall) {
@@ -1687,9 +1841,16 @@ private struct ResumeImportReviewItemCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text(item.importAction.title)
-                        .font(KairoTypography.caption)
-                        .foregroundStyle(KairoColors.textSecondary)
+                    if item.claimType == "profile" {
+                        Text("Suggestion only. Edit here without importing it.")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(item.importAction.title)
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -1762,6 +1923,7 @@ private struct ResumeReviewEditorSheet: View {
     let item: ResumeReviewItem
     @Binding var values: [String: String]
     let errorMessage: String?
+    let isSaving: Bool
     let onCancel: () -> Void
     let onSave: () -> Void
 
@@ -1772,7 +1934,7 @@ private struct ResumeReviewEditorSheet: View {
                     if let errorMessage {
                         Text(errorMessage)
                             .foregroundStyle(KairoColors.textPrimary)
-                            .accessibilityIdentifier("resume.review.edit.error")
+                            .accessibilityIdentifier(KairoAccessibilityID.resumeImportEditorError)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Text("Edit only the fields KairoID currently supports for resume review. Everything else stays exactly as parsed.")
@@ -1808,6 +1970,7 @@ private struct ResumeReviewEditorSheet: View {
                             keyboardType: field.keyboard,
                             textInputAutocapitalization: field.keyboard == .emailAddress ? .never : .words
                         )
+                        .accessibilityIdentifier("resume.review.edit.\(field.key)")
                         }
                     }
                 }
@@ -1819,11 +1982,24 @@ private struct ResumeReviewEditorSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .disabled(isSaving)
+                        .accessibilityIdentifier(KairoAccessibilityID.resumeImportEditorCancel)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         onSave()
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityHidden(true)
+                        } else {
+                            Text("Save")
+                        }
                     }
+                    .disabled(isSaving)
+                    .accessibilityIdentifier(KairoAccessibilityID.resumeImportEditorSave)
+                    .accessibilityValue(isSaving ? "Saving" : "Ready")
                 }
             }
         }

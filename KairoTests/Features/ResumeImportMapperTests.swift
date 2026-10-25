@@ -433,6 +433,110 @@ final class ResumeImportMapperTests: XCTestCase {
         XCTAssertNil(request.editedPayload)
     }
 
+    func test_profileHeadlineEditPreservesSuggestionOnlySelectionContract() throws {
+        let item = ResumeReviewItem(
+            id: "profile_1",
+            claimType: "profile",
+            sourceClaimID: "claim_profile",
+            originalPayload: [
+                "claim_type": .string("profile"),
+                "full_name": .string("Synthetic Candidate"),
+                "professional_headline": .string("Analyst")
+            ],
+            editedPayload: [
+                "claim_type": .string("profile"),
+                "full_name": .string("Synthetic Candidate"),
+                "professional_headline": .string("Analyst")
+            ],
+            selected: false,
+            reviewStatus: "deselected",
+            duplicateStatus: .noMatch,
+            duplicateCandidates: [],
+            conflictWarnings: [],
+            importAction: .skip,
+            targetRecordID: nil,
+            importedRecordType: nil,
+            importedRecordID: nil,
+            sourceReference: nil,
+            confidence: 0.9,
+            version: 4
+        )
+        let edited = ResumeImportMapper.editedPayload(
+            for: item,
+            using: ["professional_headline": "Product Operations Lead"]
+        )
+        let request = ResumeImportMapper.editedPayloadUpdateRequest(
+            for: item,
+            editedPayload: edited
+        )
+
+        XCTAssertEqual(request.expectedVersion, 4)
+        XCTAssertNil(request.selected)
+        XCTAssertNil(request.importAction)
+        XCTAssertEqual(request.editedPayload?["professional_headline"], .string("Product Operations Lead"))
+        XCTAssertFalse(ResumeImportMapper.isSelectionEditable(for: item))
+
+        let body = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: APIJSONCoder.makeEncoder().encode(request)) as? [String: Any]
+        )
+        XCTAssertNil(body["selected"])
+        XCTAssertNil(body["import_action"])
+    }
+
+    func test_bulkSelectionIncludesOnlyEligibleImportableClaims() {
+        let eligibleSelected = makeItem(id: "project_1", claimType: "project", title: "One")
+        let eligibleUnselected = item(eligibleSelected, id: "project_2", selected: false)
+        let conflict = item(
+            eligibleSelected,
+            id: "project_conflict",
+            selected: false,
+            duplicateStatus: .conflict,
+            warnings: ["structural_conflict"]
+        )
+        let suggestion = item(
+            eligibleSelected,
+            id: "profile",
+            claimType: "profile",
+            selected: false,
+            importAction: .skip
+        )
+        let section = ResumeReviewSection(
+            id: "project",
+            title: "Projects",
+            items: [eligibleSelected, eligibleUnselected, conflict, suggestion]
+        )
+
+        XCTAssertEqual(ResumeImportMapper.bulkSelectableItems(in: section).map(\.id), ["project_1", "project_2"])
+        XCTAssertEqual(ResumeImportMapper.bulkSelectionTarget(in: section), true)
+        XCTAssertEqual(
+            ResumeImportMapper.bulkSelectionChanges(in: section, selected: true).map(\.id),
+            ["project_2"]
+        )
+
+        let allSelected = ResumeReviewSection(
+            id: section.id,
+            title: section.title,
+            items: [eligibleSelected, item(eligibleUnselected, id: "project_2", selected: true), conflict, suggestion]
+        )
+        XCTAssertEqual(ResumeImportMapper.bulkSelectionTarget(in: allSelected), false)
+        XCTAssertEqual(
+            ResumeImportMapper.bulkSelectionChanges(in: allSelected, selected: false).map(\.id),
+            ["project_1", "project_2"]
+        )
+    }
+
+    func test_bulkSelectionSupportsOnlyApprovedClaimTypes() {
+        let approvedTypes = ["employment", "education", "certification", "project", "skill"]
+
+        for claimType in approvedTypes {
+            let item = makeItem(id: claimType, claimType: claimType, title: "Synthetic")
+            XCTAssertTrue(ResumeImportMapper.isSelectionEditable(for: item), claimType)
+        }
+
+        let profile = makeItem(id: "profile", claimType: "profile", title: "Synthetic Candidate")
+        XCTAssertFalse(ResumeImportMapper.isSelectionEditable(for: profile))
+    }
+
     func test_reconciledUpdateRequestUsesLatestItemVersion() {
         let latestItem = ResumeReviewItem(
             id: "employment_1",
@@ -514,6 +618,36 @@ final class ResumeImportMapperTests: XCTestCase {
             sourceReference: nil,
             confidence: 0.9,
             version: 1
+        )
+    }
+
+    private func item(
+        _ source: ResumeReviewItem,
+        id: String,
+        claimType: String? = nil,
+        selected: Bool,
+        duplicateStatus: ResumeDuplicateStatus? = nil,
+        warnings: [String]? = nil,
+        importAction: ResumeImportAction? = nil
+    ) -> ResumeReviewItem {
+        ResumeReviewItem(
+            id: id,
+            claimType: claimType ?? source.claimType,
+            sourceClaimID: "claim_\(id)",
+            originalPayload: source.originalPayload,
+            editedPayload: source.editedPayload,
+            selected: selected,
+            reviewStatus: selected ? "selected" : "deselected",
+            duplicateStatus: duplicateStatus ?? source.duplicateStatus,
+            duplicateCandidates: source.duplicateCandidates,
+            conflictWarnings: warnings ?? source.conflictWarnings,
+            importAction: importAction ?? source.importAction,
+            targetRecordID: source.targetRecordID,
+            importedRecordType: source.importedRecordType,
+            importedRecordID: source.importedRecordID,
+            sourceReference: source.sourceReference,
+            confidence: source.confidence,
+            version: source.version
         )
     }
 }

@@ -8,6 +8,14 @@ enum ResumeImportMapper {
         "gig_platform"
     ]
 
+    private nonisolated static let bulkSelectableClaimTypes: Set<String> = [
+        "employment",
+        "education",
+        "certification",
+        "project",
+        "skill"
+    ]
+
     nonisolated static func map(_ dto: ResumeRecordDTO) -> ResumeRecord {
         ResumeRecord(
             id: dto.id,
@@ -393,6 +401,42 @@ enum ResumeImportMapper {
             targetRecordID: nil,
             editedPayload: editedPayload
         )
+    }
+
+    nonisolated static func isSelectionEditable(for item: ResumeReviewItem) -> Bool {
+        guard bulkSelectableClaimTypes.contains(item.claimType),
+              item.importAction != .skip,
+              item.importAction != .none,
+              item.importAction != .unknown,
+              item.conflictWarnings.isEmpty else {
+            return false
+        }
+
+        if item.claimType == "employment" {
+            return employmentDuplicateReviewState(for: item) == .noConflict
+        }
+
+        return item.duplicateStatus != .conflict
+    }
+
+    nonisolated static func bulkSelectableItems(in section: ResumeReviewSection) -> [ResumeReviewItem] {
+        section.items.filter(isSelectionEditable)
+    }
+
+    nonisolated static func bulkSelectionTarget(in section: ResumeReviewSection) -> Bool? {
+        let eligible = bulkSelectableItems(in: section)
+        guard eligible.count > 1 else {
+            return nil
+        }
+
+        return !eligible.allSatisfy(\.selected)
+    }
+
+    nonisolated static func bulkSelectionChanges(
+        in section: ResumeReviewSection,
+        selected: Bool
+    ) -> [ResumeReviewItem] {
+        bulkSelectableItems(in: section).filter { $0.selected != selected }
     }
 
     nonisolated static func employmentDuplicateReviewState(
