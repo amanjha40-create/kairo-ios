@@ -126,6 +126,46 @@ nonisolated struct DigiLockerVerificationDTO: Decodable, Equatable, Sendable, Id
 nonisolated struct DigiLockerVerificationHistoryDTO: Decodable, Equatable, Sendable {
     let items: [DigiLockerVerificationDTO]
     let identityVerified: Bool
+    let documentOutcomes: [DigiLockerDocumentOutcomeDTO]
+
+    init(
+        items: [DigiLockerVerificationDTO],
+        identityVerified: Bool,
+        documentOutcomes: [DigiLockerDocumentOutcomeDTO] = []
+    ) {
+        self.items = items
+        self.identityVerified = identityVerified
+        self.documentOutcomes = documentOutcomes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        items = try container.decode([DigiLockerVerificationDTO].self, forKey: .items)
+        identityVerified = try container.decode(Bool.self, forKey: .identityVerified)
+        documentOutcomes = try container.decodeIfPresent(
+            [DigiLockerDocumentOutcomeDTO].self,
+            forKey: .documentOutcomes
+        ) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case items, identityVerified, documentOutcomes
+    }
+}
+
+nonisolated enum DigiLockerDocumentOutcomeStatus: String, Decodable, Equatable, Sendable {
+    case alreadyVerified = "already_verified"
+    case verified
+    case needsReview = "needs_review"
+    case failed
+}
+
+nonisolated struct DigiLockerDocumentOutcomeDTO: Decodable, Equatable, Sendable {
+    let documentType: String
+    let status: DigiLockerDocumentOutcomeStatus
+    let verificationID: String?
+    let errorCode: String?
+    let retryable: Bool
 }
 
 /// Intentionally decodes only the two fields needed for display and eligibility.

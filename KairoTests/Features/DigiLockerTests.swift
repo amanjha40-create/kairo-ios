@@ -14,7 +14,7 @@ final class DigiLockerTests: XCTestCase {
         for type in [DigiLockerDocumentType.pan, .drivingLicence] {
             let result = await store.verify([type], profile: ProfileSnapshot.fixture.user)
             XCTAssertFalse(result)
-            XCTAssertEqual(store.verificationErrorMessage, "Add your date of birth to your profile before verifying this document.")
+            XCTAssertEqual(store.verificationErrorMessage, "Add your date of birth to continue verification.")
             XCTAssertNil(store.actionErrorMessage)
             XCTAssertEqual(store.history, before)
             XCTAssertFalse(store.isVerifying)
@@ -24,13 +24,36 @@ final class DigiLockerTests: XCTestCase {
         let calls = await service.verificationCalls()
         XCTAssertEqual(calls, 0, "Missing DOB must block before any verification/provider request")
     }
+    func testPartialPANFailureRetainsSuccessfulDLAndUsesSanitizedCopy() async throws {
+        let response = try decode(
+            DigiLockerVerificationHistoryDTO.self,
+            #"{"items":[{"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z"}],"identity_verified":true,"document_outcomes":[{"document_type":"DRVLC","status":"verified","verification_id":"safe-id","error_code":null,"retryable":false},{"document_type":"PANCR","status":"failed","verification_id":null,"error_code":"digilocker_document_request_rejected","retryable":true}]}"#
+        )
+        let service = DigiLockerServiceStub(
+            status: .init(connected: true, status: .active),
+            trust: try decode(DigiLockerIdentityTrustDTO.self, String(decoding: Self.trustPayload, as: UTF8.self)),
+            history: response
+        )
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+
+        let retainedSuccess = await store.verify([.pan, .drivingLicence])
+        XCTAssertTrue(retainedSuccess)
+        XCTAssertEqual(store.history?.items.map(\.documentType), ["DRVLC"])
+        XCTAssertEqual(
+            store.verificationErrorMessage,
+            "PAN verification couldn’t be completed right now. Please try again later."
+        )
+        XCTAssertFalse(store.verificationErrorMessage?.contains("uri_missing") == true)
+    }
     func testVerificationFailureKeepsSafeBackendCategoriesWithoutProviderProse() async throws {
         let service = try await makeService()
         for (status, code, expected) in [
             (422, "validation_error", "request was rejected"),
             (503, "digilocker_not_configured", "currently unavailable"),
             (403, "digilocker_insufficient_scope", "not granted access"),
-            (503, "digilocker_integrity_failed", "integrity checks")
+            (503, "digilocker_integrity_failed", "integrity checks"),
+            (400, "digilocker_document_request_rejected", "PAN verification couldn’t be completed")
         ] {
             await MockURLProtocolStorage.shared.setHandler { request in
                 XCTAssertEqual(request.url?.path, "/api/v1/integrations/digilocker/identity/verify")

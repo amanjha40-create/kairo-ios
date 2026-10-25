@@ -4,7 +4,7 @@ import Foundation
 nonisolated enum DigiLockerDOBPrecondition {
     static func message(types: Set<DigiLockerDocumentType>, dateOfBirth: Date?) -> String? {
         guard dateOfBirth == nil, !types.isDisjoint(with: [.pan, .drivingLicence]) else { return nil }
-        return "Add your date of birth to your profile before verifying this document."
+        return "Add your date of birth to continue verification."
     }
 }
 
@@ -15,6 +15,10 @@ nonisolated enum DigiLockerVerificationFailure {
         var status: Int?
         if let failure = error as? DigiLockerBackendError {
             switch failure.code {
+            case .profileFieldMissing:
+                return "Add your date of birth to continue verification."
+            case .documentRequestRejected:
+                return "PAN verification couldn’t be completed right now. Please try again later."
             case .invalidToken, .reconnectRequired, .connectionAccessUnavailable:
                 return "DigiLocker access needs to be restored before verification." + saved
             case .insufficientScope, .accountUnavailable:
@@ -176,8 +180,11 @@ final class DigiLockerStore: ObservableObject {
             let response = try await service.verify(documentTypes: DigiLockerDocumentType.allCases.filter(types.contains))
             guard revision == identityRevision, !Task.isCancelled else { return false }
             history = response
+            verificationErrorMessage = Self.partialFailureMessage(response.documentOutcomes)
             await refreshSummary()
-            return true
+            return response.documentOutcomes.isEmpty || response.documentOutcomes.contains {
+                $0.status != .failed
+            }
         } catch {
             guard revision == identityRevision, !Task.isCancelled else { return false }
             verificationErrorMessage = DigiLockerVerificationFailure.message(for: error)
@@ -194,6 +201,18 @@ final class DigiLockerStore: ObservableObject {
     }
 
     func clearActionError() { actionErrorMessage = nil; verificationErrorMessage = nil }
+
+    private static func partialFailureMessage(_ outcomes: [DigiLockerDocumentOutcomeDTO]) -> String? {
+        let failed = outcomes.filter { $0.status == .failed }
+        guard !failed.isEmpty else { return nil }
+        if failed.contains(where: {
+            $0.documentType == DigiLockerDocumentType.pan.rawValue
+                && $0.errorCode == "digilocker_document_request_rejected"
+        }) {
+            return "PAN verification couldn’t be completed right now. Please try again later."
+        }
+        return "One selected document couldn’t be verified right now. Review saved results before trying again."
+    }
 
     func checkAadhaarAvailability() async {
         guard status?.connected == true, !summaryError, !aadhaarNeedsReconciliation, !isLoadingSummary, !actionInProgress else { return }

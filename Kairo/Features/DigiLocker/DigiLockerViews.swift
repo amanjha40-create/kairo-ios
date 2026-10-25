@@ -200,6 +200,7 @@ struct DigiLockerHubView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appConfiguration) private var configuration
+    @Environment(\.profileService) private var profileService
     @EnvironmentObject private var sessionStore: AppSessionStore
 
     @State private var consent = DigiLockerConsent()
@@ -208,6 +209,7 @@ struct DigiLockerHubView: View {
     @State private var awaitingBrowserReturn = false
     @State private var connectionMotion = 0
     @State private var recoveryTask: Task<Void, Never>?
+    @State private var showsDOBEditor = false
 
     var body: some View {
         NavigationStack {
@@ -280,6 +282,15 @@ struct DigiLockerHubView: View {
             }
             .onChange(of: store.status?.connected) { previous, current in
                 if previous == false && current == true && !store.summaryError { connectionMotion += 1 }
+            }
+            .sheet(isPresented: $showsDOBEditor) {
+                if let user = sessionStore.currentUser {
+                    ProfileOverviewSheetView(
+                        initialUser: user,
+                        service: profileService,
+                        initialEditorTarget: .dateOfBirth
+                    )
+                }
             }
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
@@ -521,6 +532,14 @@ struct DigiLockerHubView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("DigiLocker verification failed. \(error)")
                     .accessibilityIdentifier("candidate.digilocker.verificationError")
+            }
+            if missingDOBMessage != nil {
+                KairoPrimaryButton(
+                    title: "Add date of birth",
+                    accessibilityIdentifier: "candidate.digilocker.addDOB"
+                ) {
+                    showsDOBEditor = true
+                }
             }
         }
         .padding(.top, KairoSpacing.small)

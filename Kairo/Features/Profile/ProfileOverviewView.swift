@@ -97,6 +97,9 @@ struct ProfileOverviewSheetView: View {
                     sessionStore.replaceCurrentUser(user)
                 }
                 refreshStore.candidateDataChanged()
+                if initialEditorTarget == .dateOfBirth, user.dateOfBirth != nil {
+                    dismiss()
+                }
             }
             .onChange(of: refreshStore.revision) { _, _ in
                 Task { await store.load(showLoading: false) }

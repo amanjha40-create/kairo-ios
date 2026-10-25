@@ -4,6 +4,7 @@ nonisolated enum ProfileEditTarget: String, Identifiable, Sendable {
     case headline
     case currentRole = "current_role"
     case industry
+    case dateOfBirth = "date_of_birth"
     var id: String { rawValue }
 
     static func requirement(_ code: String) -> Self? { Self(rawValue: code) }
