@@ -111,6 +111,30 @@ nonisolated struct DigiLockerVerificationDTO: Decodable, Equatable, Sendable, Id
     let matchReason: DigiLockerMismatchReason?
     let integrityResult: String
     let verifiedAt: Date?
+    let maskedIdentifier: String?
+
+    init(
+        documentType: String,
+        source: DigiLockerSource,
+        current: Bool,
+        matchResult: DigiLockerMatchResult,
+        matchReason: DigiLockerMismatchReason?,
+        integrityResult: String,
+        verifiedAt: Date?,
+        maskedIdentifier: String? = nil
+    ) {
+        self.documentType = documentType
+        self.source = source
+        self.current = current
+        self.matchResult = matchResult
+        self.matchReason = matchReason
+        self.integrityResult = integrityResult
+        self.verifiedAt = verifiedAt
+        self.maskedIdentifier = DigiLockerPresentation.safeMaskedIdentifier(
+            maskedIdentifier,
+            documentType: documentType
+        )
+    }
 
     var id: String { "\(source.rawValue).\(documentType)" }
 
@@ -121,6 +145,11 @@ nonisolated struct DigiLockerVerificationDTO: Decodable, Equatable, Sendable, Id
         return verifiedAt.timeIntervalSince1970.isFinite
             && verifiedAt.timeIntervalSince1970 > 0 && verifiedAt <= Date()
     }
+
+    var displayMaskedIdentifier: String? {
+        isVerified ? maskedIdentifier : nil
+    }
+
 }
 
 nonisolated struct DigiLockerVerificationHistoryDTO: Decodable, Equatable, Sendable {
@@ -217,9 +246,27 @@ nonisolated enum DigiLockerDocumentType: String, CaseIterable, Hashable, Sendabl
 }
 
 nonisolated enum DigiLockerPresentation {
+    static func safeMaskedIdentifier(_ value: String?, documentType: String) -> String? {
+        guard let value else { return nil }
+        let pattern = switch documentType {
+        case "PANCR": "^•{6}[A-Z0-9]{4}$"
+        case "DRVLC": "^•{8}[A-Z0-9]{4}$"
+        default: "(?!)"
+        }
+        guard value.range(of: pattern, options: .regularExpression) != nil else { return nil }
+        return value
+    }
+
+    static func maskedIdentifierAccessibilityLabel(
+        _ value: String,
+        documentType: String
+    ) -> String {
+        "\(documentTitle(documentType)) ending in \(value.suffix(4))"
+    }
+
     static func documentTitle(_ type: String) -> String {
         switch type {
-        case DigiLockerDocumentType.pan.rawValue: "PAN"
+        case DigiLockerDocumentType.pan.rawValue: "PAN Card"
         case DigiLockerDocumentType.drivingLicence.rawValue: "Driving Licence"
         case "EAADHAAR": "e-Aadhaar"
         case "identity": "Identity"
@@ -277,6 +324,7 @@ extension DigiLockerTrustSourceDTO {
 extension DigiLockerVerificationDTO {
     private nonisolated enum CodingKeys: String, CodingKey {
         case documentType, source, current, matchResult, matchReason, integrityResult, verifiedAt
+        case maskedIdentifier
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -290,6 +338,10 @@ extension DigiLockerVerificationDTO {
         integrityResult = ["verified", "failed", "unverified"].contains(integrity) ? integrity : "unknown"
         do { verifiedAt = try container.decodeIfPresent(Date.self, forKey: .verifiedAt) }
         catch { throw DigiLockerServiceError.invalidResponse }
+        maskedIdentifier = DigiLockerPresentation.safeMaskedIdentifier(
+            try container.decodeIfPresent(String.self, forKey: .maskedIdentifier),
+            documentType: documentType
+        )
     }
 }
 

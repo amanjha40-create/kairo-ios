@@ -441,6 +441,17 @@ struct DigiLockerHubView: View {
                     tone: item.isVerified ? .verified : .attention
                 )
             }
+            if let maskedIdentifier = item.displayMaskedIdentifier {
+                Text(maskedIdentifier)
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .accessibilityLabel(
+                        DigiLockerPresentation.maskedIdentifierAccessibilityLabel(
+                            maskedIdentifier,
+                            documentType: item.documentType
+                        )
+                    )
+            }
             if item.current, let verifiedAt = item.verifiedAt {
                 Text("Verified \(verifiedAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)

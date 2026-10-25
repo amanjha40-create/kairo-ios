@@ -246,6 +246,33 @@ final class DigiLockerTests: XCTestCase {
         XCTAssertFalse(DigiLockerPresentation.resultTitle(.verifiedMatch, current: true).contains("FIRST_LAST"))
     }
 
+    func test_maskedIdentifiersDecodeFailClosedAndOnlyDisplayForCurrentVerifiedResults() throws {
+        let history = try decode(
+            DigiLockerVerificationHistoryDTO.self,
+            """
+            {"items":[
+              {"document_type":"PANCR","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z","masked_identifier":"••••••234F"},
+              {"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z","masked_identifier":"••••••••1234"},
+              {"document_type":"PANCR","source":"digilocker","current":false,"match_result":"PARTIAL_MATCH","match_reason":"REQUIRED_FIELD_MISSING","integrity_result":"verified","verified_at":null,"masked_identifier":"••••••999Z"},
+              {"document_type":"PANCR","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z","masked_identifier":"ABCDE1234F"},
+              {"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z"}
+            ],"identity_verified":true}
+            """
+        )
+        XCTAssertEqual(history.items[0].displayMaskedIdentifier, "••••••234F")
+        XCTAssertEqual(history.items[1].displayMaskedIdentifier, "••••••••1234")
+        XCTAssertNil(history.items[2].displayMaskedIdentifier)
+        XCTAssertNil(history.items[3].maskedIdentifier, "A raw identifier must fail closed")
+        XCTAssertNil(history.items[4].displayMaskedIdentifier)
+        XCTAssertEqual(
+            DigiLockerPresentation.maskedIdentifierAccessibilityLabel(
+                try XCTUnwrap(history.items[0].displayMaskedIdentifier),
+                documentType: "PANCR"
+            ),
+            "PAN Card ending in 234F"
+        )
+    }
+
     func test_rejectedBrowserHandoffUsesSafeRetryableCopy() throws {
         let store = DigiLockerStore(service: DigiLockerServiceStub(
             status: DigiLockerStatusDTO(connected: false, status: .disconnected),
