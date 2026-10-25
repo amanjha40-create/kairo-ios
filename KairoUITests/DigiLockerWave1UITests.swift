@@ -89,10 +89,15 @@ final class DigiLockerWave1UITests: XCTestCase {
         XCTAssertFalse(verify.isEnabled)
         let error = app.staticTexts["candidate.digilocker.verificationError"]
         reveal(error, in: app)
-        XCTAssertTrue(error.label.contains("Add your date of birth to your profile before verifying this document."))
+        XCTAssertTrue(error.label.contains("Add your date of birth to continue verification."))
         XCTAssertGreaterThanOrEqual(error.frame.minY, verify.frame.maxY)
         XCTAssertFalse(app.staticTexts["DigiLocker action failed"].exists)
         XCTAssertFalse(app.staticTexts["Checking..."].exists)
+        let addDOB = app.buttons["candidate.digilocker.addDOB"]
+        reveal(addDOB, in: app)
+        XCTAssertTrue(addDOB.isHittable)
+        addDOB.tap()
+        XCTAssertTrue(app.buttons["candidate.profile.edit.dobPicker"].waitForExistence(timeout: 10))
     }
 
     private func checkFixtureVerification(fails: Bool) {
@@ -295,7 +300,7 @@ final class DigiLockerWave1UITests: XCTestCase {
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"
         ]
         if let fixture { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_RETURN"] = fixture }
-        if !missingDOB { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_DOB"] = "present" }
+        app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_DOB"] = missingDOB ? "missing" : "present"
         app.launch()
         return app
     }

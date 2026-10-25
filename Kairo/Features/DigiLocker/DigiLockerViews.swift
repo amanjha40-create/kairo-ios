@@ -283,17 +283,24 @@ struct DigiLockerHubView: View {
             .onChange(of: store.status?.connected) { previous, current in
                 if previous == false && current == true && !store.summaryError { connectionMotion += 1 }
             }
-            .sheet(isPresented: $showsDOBEditor) {
+            .navigationDestination(isPresented: $showsDOBEditor) {
                 if let user = sessionStore.currentUser {
-                    ProfileOverviewSheetView(
-                        initialUser: user,
-                        service: profileService,
-                        initialEditorTarget: .dateOfBirth
+                    ProfileEditView(
+                        user: user,
+                        isSaving: false,
+                        initialTarget: .dateOfBirth,
+                        onSave: saveProfile
                     )
                 }
             }
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
+    }
+
+    private func saveProfile(_ draft: ProfileEditDraft) async throws {
+        let snapshot = try await profileService.update(draft)
+        sessionStore.replaceCurrentUser(snapshot.user)
+        refreshStore.candidateDataChanged()
     }
 
     private func recoverInterruptedVerification() async {

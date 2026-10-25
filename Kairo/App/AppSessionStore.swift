@@ -60,10 +60,10 @@ final class AppSessionStore: ObservableObject {
         hasBootstrapped = true
 
         #if !KAIRO_PRODUCTION || KAIRO_LOCAL_BATCH1_QA
-        // Direct-to-Home UI fixtures normally skip bootstrap. Only this explicit
-        // synthetic DOB scenario needs a canonical fixture profile for Verify.
+        // Direct-to-Home UI fixtures normally skip bootstrap. Explicit DigiLocker
+        // DOB scenarios need a signed-in fixture user, with DOB either present or nil.
         if uiTestConfiguration.isEnabled,
-           ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DOB"] == "present" {
+           ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DOB"] != nil {
             currentUser = try? await authService.currentUser().asDomainModel()
         }
         if uiTestConfiguration.isEnabled,
