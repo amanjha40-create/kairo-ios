@@ -66,7 +66,8 @@ nonisolated enum DigiLockerAadhaarState: Error, Equatable, Sendable, LocalizedEr
         case .insufficientScope, .accountUnavailable: return .accessUnavailable
         case .invalidToken, .reconnectRequired, .connectionAccessUnavailable: return .reconnectRequired
         case .integrityFailed: return .integrityFailure
-        case .notConfigured, .profileFieldMissing, .documentRequestRejected, nil: break
+        case .notConfigured, .profileFieldMissing, .documentRequestRejected,
+             .panReferenceUnavailable, nil: break
         }
         switch statusCode {
         case 401: return .reconnectRequired
@@ -88,6 +89,7 @@ nonisolated enum DigiLockerBackendErrorCode: String, Decodable, Equatable, Senda
     case notConfigured = "digilocker_not_configured"
     case profileFieldMissing = "profile_field_missing"
     case documentRequestRejected = "digilocker_document_request_rejected"
+    case panReferenceUnavailable = "digilocker_pan_reference_unavailable"
 }
 
 nonisolated struct DigiLockerBackendError: Error, Equatable, Sendable, LocalizedError {

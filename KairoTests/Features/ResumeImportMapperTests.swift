@@ -537,6 +537,60 @@ final class ResumeImportMapperTests: XCTestCase {
         XCTAssertFalse(ResumeImportMapper.isSelectionEditable(for: profile))
     }
 
+    func testBulkPresentationSelectsEveryEligibleClaimAndCountSynchronouslyWithoutChangingWireState() throws {
+        for type in ["employment", "education", "certification", "project", "skill"] {
+            let one = makeItem(id: "one", claimType: type, title: "One")
+            let two = item(one, id: "two", selected: false)
+            let three = item(one, id: "three", selected: false)
+            let conflict = item(one, id: "conflict", selected: false, duplicateStatus: .conflict, warnings: ["conflict"])
+            let profile = item(one, id: "profile", claimType: "profile", selected: false, importAction: .skip)
+            let review = bulkReview(items: [one, two, three, conflict, profile])
+            let section = ResumeReviewSection(id: type, title: type, items: review.items)
+            let presentation = try XCTUnwrap(ResumeBulkSelectionPresentation(reviewID: review.id, section: section))
+            let shown = presentation.applying(to: review)
+            XCTAssertEqual(shown.items.filter(\.selected).map(\.id), ["one", "two", "three"])
+            XCTAssertEqual(ResumeImportMapper.bulkSelectionTarget(in: .init(id: type, title: type, items: shown.items)), false)
+            XCTAssertEqual(review.items.filter(\.selected).count, 1, "Canonical state remains untouched")
+            XCTAssertEqual(shown.version, review.version)
+            XCTAssertEqual(shown.items.map(\.version), review.items.map(\.version))
+            XCTAssertEqual(shown.items.map(\.editedPayload), review.items.map(\.editedPayload))
+            XCTAssertEqual(shown.items.map(\.importAction), review.items.map(\.importAction))
+        }
+    }
+
+    func testBulkDeselectPresentationAndIntermediateResponsesKeepWholeIntent() throws {
+        let one = makeItem(id: "one", claimType: "project", title: "One")
+        let two = item(one, id: "two", selected: true)
+        let review = bulkReview(items: [one, two])
+        let pending = try XCTUnwrap(ResumeBulkSelectionPresentation(reviewID: review.id,
+            section: .init(id: "project", title: "Projects", items: review.items)))
+        XCTAssertFalse(pending.selected)
+        let intermediate = bulkReview(items: [item(one, id: "one", selected: false), two])
+        XCTAssertEqual(pending.applying(to: intermediate).items.filter(\.selected).count, 0)
+        XCTAssertEqual(intermediate.items.filter(\.selected).count, 1)
+        XCTAssertEqual(ResumeImportMapper.bulkSelectionTarget(in: .init(id: "project", title: "Projects",
+            items: pending.applying(to: intermediate).items)), true)
+    }
+
+    func testBulkPresentationNeverLeaksAcrossReviewsOrOverridesNewConflicts() throws {
+        let one = makeItem(id: "one", claimType: "project", title: "One")
+        let two = item(one, id: "two", selected: false)
+        let review = bulkReview(items: [one, two])
+        let pending = try XCTUnwrap(ResumeBulkSelectionPresentation(reviewID: review.id,
+            section: .init(id: "project", title: "Projects", items: review.items)))
+        let other = bulkReview(id: "other-review", items: review.items)
+        XCTAssertEqual(pending.applying(to: other), other)
+        let conflicted = bulkReview(items: [one, item(two, id: "two", selected: false,
+            duplicateStatus: .conflict, warnings: ["new conflict"])])
+        XCTAssertEqual(pending.applying(to: conflicted), conflicted)
+    }
+
+    private func bulkReview(id: String = "review", items: [ResumeReviewItem]) -> ResumeReviewSession {
+        .init(id: id, resumeID: "resume", parsedResultID: "parsed", status: .reviewing,
+              schemaVersion: "resume_review_v1", version: 9, items: items,
+              createdAt: .distantPast, updatedAt: .distantPast)
+    }
+
     func test_reconciledUpdateRequestUsesLatestItemVersion() {
         let latestItem = ResumeReviewItem(
             id: "employment_1",

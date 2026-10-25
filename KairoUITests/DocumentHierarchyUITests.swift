@@ -7,6 +7,62 @@ final class DocumentHierarchyUITests: XCTestCase {
     private let first = "pack.select.vault:00000000-0000-4000-8000-000000000001"
     private let second = "pack.select.employment:00000000-0000-4000-8000-000000000002"
 
+    func testVaultNavigationCardEmptyLightAndDarkXXXL() throws {
+        for large in [false, true] {
+            let app = launch("empty", large: large)
+            let share = app.buttons["documents.shareDocuments"]
+            let empty = app.staticTexts["documents.empty"]
+            let history = app.buttons["documents.sharedPacks"]
+            let vault = app.buttons["documents.vault"]
+            XCTAssertTrue(empty.exists)
+            XCTAssertEqual(empty.label, "No documents yet.")
+            XCTAssertLessThan(share.frame.minY, empty.frame.minY)
+            XCTAssertLessThan(empty.frame.minY, history.frame.minY)
+            app.revealContent(vault, fullyVisible: true)
+            XCTAssertLessThan(history.frame.minY, vault.frame.minY)
+            XCTAssertGreaterThanOrEqual(vault.frame.height, 44)
+            XCTAssertGreaterThan(vault.frame.width, app.frame.width * 0.75)
+            XCTAssertEqual(vault.label, "Vault, Private identity & personal documents")
+            XCTAssertEqual(vault.elementType, .button, "VoiceOver exposes one named navigation button, not loose text")
+            XCTAssertEqual(app.buttons.matching(identifier: "documents.vault").count, 1)
+            XCTAssertGreaterThanOrEqual(vault.frame.minX, 0)
+            XCTAssertLessThanOrEqual(vault.frame.maxX, app.frame.width)
+            try app.performAccessibilityAudit(for: [.textClipped, .trait, .sufficientElementDescription])
+            // The audit scrolls through the sheet and can finish at its top.
+            // Restore the whole target before taking evidence or tapping its edge.
+            app.revealContent(vault, fullyVisible: true)
+            capture(app, large ? "Vault-navigation-empty-dark-XXXL" : "Vault-navigation-empty-light")
+            // Hit blank trailing padding, outside text/icon: the entire surface navigates.
+            vault.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.8)).tap()
+            XCTAssertTrue(app.navigationBars["Vault"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Private by default"].exists)
+            app.terminate()
+        }
+    }
+
+    func testVaultNavigationCardPopulatedDarkDefaultAndLightXXXL() throws {
+        for large in [false, true] {
+            let app = launch(large: large, appearance: large ? "light" : "dark")
+            let vault = app.buttons["documents.vault"]
+            app.revealContent(vault, fullyVisible: true)
+            XCTAssertFalse(app.staticTexts["documents.empty"].exists)
+            XCTAssertTrue(vault.isHittable)
+            XCTAssertGreaterThanOrEqual(vault.frame.height, 44)
+            XCTAssertEqual(vault.label, "Vault, Private identity & personal documents")
+            try app.performAccessibilityAudit(for: [.textClipped, .trait, .sufficientElementDescription]) { issue in
+                // The pre-existing synthetic historical row contains a filename rather
+                // than prose. This task audits the new Vault navigation, not that fixture.
+                issue.auditType == .sufficientElementDescription
+                    && issue.element?.identifier == "documents.row.demo-history"
+            }
+            app.revealContent(vault, fullyVisible: true)
+            capture(app, large ? "Vault-navigation-populated-light-XXXL" : "Vault-navigation-populated-dark")
+            vault.tap()
+            XCTAssertTrue(app.navigationBars["Vault"].waitForExistence(timeout: 10))
+            app.terminate()
+        }
+    }
+
     func testHubPrimaryShareGroupsContextAndSecondaryNavigation() {
         let app = launch()
         let share = app.buttons["documents.shareDocuments"]
@@ -223,19 +279,21 @@ final class DocumentHierarchyUITests: XCTestCase {
         // No live create or recipient access.
     }
 
-    private func launch(_ scenario: String = "populated", large: Bool = false) -> XCUIApplication {
+    private func launch(_ scenario: String = "populated", large: Bool = false, appearance: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES"]
 #if KAIRO_LOCAL_BATCH1_QA
         app.launchArguments += ["-KAIRO_LOCAL_BATCH1_QA"]
 #endif
-        app.launchArguments += ["-kairo.appearance.preference", large ? "dark" : "light"]
+        app.launchArguments += ["-kairo.appearance.preference", appearance ?? (large ? "dark" : "light")]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment = ["KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1", "KAIRO_UI_TEST_ROUTE": "demoHome",
             "KAIRO_DEMO_MODE": "false", "KAIRO_APP_ENVIRONMENT": "staging", "KAIRO_UI_TEST_MORE_STATE": "populated",
             "KAIRO_UI_TEST_DOCUMENT_HIERARCHY": scenario]
         app.launch(); app.tabBars.buttons["More"].tap()
-        tap("documentVault", app)
+        let documents = app.buttons["documentVault"]
+        app.revealContent(documents)
+        documents.tap()
         XCTAssertTrue(app.navigationBars["Documents"].waitForExistence(timeout: 10))
         return app
     }

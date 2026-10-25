@@ -19,6 +19,8 @@ nonisolated enum DigiLockerVerificationFailure {
                 return "Add your date of birth to continue verification."
             case .documentRequestRejected:
                 return "PAN verification couldn’t be completed right now. Please try again later."
+            case .panReferenceUnavailable:
+                return "DigiLocker couldn’t resolve this PAN. Refresh or re-add your PAN in DigiLocker, then return to KairoID and verify again."
             case .invalidToken, .reconnectRequired, .connectionAccessUnavailable:
                 return "DigiLocker access needs to be restored before verification." + saved
             case .insufficientScope, .accountUnavailable:
@@ -207,7 +209,13 @@ final class DigiLockerStore: ObservableObject {
         guard !failed.isEmpty else { return nil }
         if failed.contains(where: {
             $0.documentType == DigiLockerDocumentType.pan.rawValue
-                && $0.errorCode == "digilocker_document_request_rejected"
+                && $0.errorCode == DigiLockerBackendErrorCode.panReferenceUnavailable.rawValue
+        }) {
+            return "DigiLocker couldn’t resolve this PAN. Refresh or re-add your PAN in DigiLocker, then return to KairoID and verify again."
+        }
+        if failed.contains(where: {
+            $0.documentType == DigiLockerDocumentType.pan.rawValue
+                && $0.errorCode == DigiLockerBackendErrorCode.documentRequestRejected.rawValue
         }) {
             return "PAN verification couldn’t be completed right now. Please try again later."
         }

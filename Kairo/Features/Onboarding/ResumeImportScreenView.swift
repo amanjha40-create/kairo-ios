@@ -22,7 +22,7 @@ struct ResumeImportScreenView: View {
     @State private var mutationInFlight = false
     @State private var reviewMutationInFlight = false
     @State private var editorSaveInFlight = false
-    @State private var bulkSelectionSectionID: String?
+    @State private var bulkSelectionPresentation: ResumeBulkSelectionPresentation?
     @State private var employmentDecisionSubmissionGate = ResumeEmploymentDecisionSubmissionGate()
     @State private var employmentDecisionErrorID: String?
     @State private var isVisible = false
@@ -76,7 +76,7 @@ struct ResumeImportScreenView: View {
             }
         } actions: {
             actionContent
-                .disabled(mutationInFlight)
+                .disabled(mutationInFlight || reviewMutationInFlight)
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -303,7 +303,7 @@ struct ResumeImportScreenView: View {
             demoReviewContent
         } else if let liveReviewSession = state.liveReviewSession,
                   !liveReviewSession.items.isEmpty {
-            liveReviewContent(liveReviewSession)
+            liveReviewContent(bulkSelectionPresentation?.applying(to: liveReviewSession) ?? liveReviewSession)
         } else {
             KairoErrorStateView(
                 title: "We couldn't load your review",
@@ -374,9 +374,14 @@ struct ResumeImportScreenView: View {
                 }
             }
 
+            if activeEditorItem == nil, state.failureStage == .review, let error = state.errorMessage {
+                KairoErrorStateView(title: "Review update", message: error)
+                    .accessibilityIdentifier("resume.review.updateError")
+            }
+
             reviewedOutcomesCard(reviewSession)
 
-            ForEach(state.reviewSections) { section in
+            ForEach(ResumeImportMapper.groupedItems(from: reviewSession)) { section in
                 ResumeImportLiveReviewSectionCard(
                     section: section,
                     onToggleSelection: { item in
@@ -401,7 +406,7 @@ struct ResumeImportScreenView: View {
                         distinctRoleConfirmationItem = item
                     },
                     selectionMutationInFlight: reviewMutationInFlight,
-                    bulkSelectionInFlight: bulkSelectionSectionID == section.id,
+                    bulkSelectionInFlight: bulkSelectionPresentation?.sectionID == section.id,
                     employmentDecisionInFlightID: employmentDecisionSubmissionGate.inFlightItemID,
                     employmentDecisionErrorID: employmentDecisionErrorID
                 )
@@ -1024,7 +1029,7 @@ struct ResumeImportScreenView: View {
     }
 
     private func handleLiveLooksGood() async {
-        guard !mutationInFlight else { return }
+        guard !mutationInFlight, !reviewMutationInFlight else { return }
         mutationInFlight = true
         defer { mutationInFlight = false }
         guard let review = state.liveReviewSession else {
@@ -1239,38 +1244,44 @@ struct ResumeImportScreenView: View {
     }
 
     private func toggleSelection(in section: ResumeReviewSection) async {
-        guard !reviewMutationInFlight,
+        guard !reviewMutationInFlight, !mutationInFlight,
               let review = state.liveReviewSession,
-              let desiredSelected = ResumeImportMapper.bulkSelectionTarget(in: section) else {
+              let currentSection = ResumeImportMapper.groupedItems(from: review).first(where: { $0.id == section.id }),
+              let presentation = ResumeBulkSelectionPresentation(reviewID: review.id, section: currentSection) else {
             return
         }
 
-        let itemIDs = ResumeImportMapper.bulkSelectionChanges(
-            in: section,
-            selected: desiredSelected
-        ).map(\.id)
-        guard !itemIDs.isEmpty else { return }
-
+        // No suspension before publishing the complete local intent and locking mutations.
         reviewMutationInFlight = true
-        bulkSelectionSectionID = section.id
+        bulkSelectionPresentation = presentation
         state.errorMessage = nil
         defer {
-            bulkSelectionSectionID = nil
+            bulkSelectionPresentation = nil
             reviewMutationInFlight = false
         }
 
         do {
-            for itemID in itemIDs {
+            for itemID in presentation.itemIDs {
                 try await persistSelection(
                     reviewID: review.id,
                     itemID: itemID,
-                    selected: desiredSelected
+                    selected: presentation.selected
                 )
             }
             let authoritative = try await resumeImportService.refreshReviewSession(reviewID: review.id)
             state.applyReviewSession(authoritative)
         } catch {
-            state.setError(message(for: error), stage: .review, phase: .readyForReview)
+            // A failed response may have reached the server. Never roll back to a
+            // guessed snapshot or leave optimistic selections presented as saved.
+            do {
+                let authoritative = try await resumeImportService.refreshReviewSession(reviewID: review.id)
+                state.applyReviewSession(authoritative)
+                state.setError("Some selections couldn’t be saved. The latest saved review is shown.",
+                               stage: .review, phase: .readyForReview)
+            } catch {
+                state.setError("We couldn’t refresh the saved selections. Reload the review before continuing.",
+                               stage: .reviewHydration)
+            }
         }
     }
 
@@ -1279,7 +1290,8 @@ struct ResumeImportScreenView: View {
         itemID: String,
         selected: Bool
     ) async throws {
-        guard let item = state.liveReviewSession?.items.first(where: { $0.id == itemID }) else {
+        guard let item = state.liveReviewSession?.items.first(where: { $0.id == itemID }),
+              ResumeImportMapper.isSelectionEditable(for: item), item.selected != selected else {
             return
         }
 
@@ -1298,6 +1310,7 @@ struct ResumeImportScreenView: View {
             let latest = try await resumeImportService.refreshReviewSession(reviewID: reviewID)
             state.applyReviewSession(latest)
             guard let latestItem = latest.items.first(where: { $0.id == itemID }),
+                  ResumeImportMapper.isSelectionEditable(for: latestItem),
                   let request = ResumeImportMapper.reconciledUpdateRequest(
                     for: latestItem,
                     desiredSelected: selected
@@ -1318,7 +1331,8 @@ struct ResumeImportScreenView: View {
         decision: ResumeEmploymentDuplicateDecision,
         distinctRoleConfirmed: Bool
     ) async {
-        guard ResumeImportMapper.employmentDuplicateReviewState(for: item).selectedDecision != decision,
+        guard !reviewMutationInFlight, !mutationInFlight,
+              ResumeImportMapper.employmentDuplicateReviewState(for: item).selectedDecision != decision,
               let review = state.liveReviewSession,
               let payload = ResumeImportMapper.employmentDecisionUpdateRequest(
                   for: item,
@@ -1332,7 +1346,11 @@ struct ResumeImportScreenView: View {
             return
         }
         employmentDecisionErrorID = nil
-        defer { employmentDecisionSubmissionGate.finish(itemID: item.id) }
+        reviewMutationInFlight = true
+        defer {
+            reviewMutationInFlight = false
+            employmentDecisionSubmissionGate.finish(itemID: item.id)
+        }
 
         do {
             let updated = try await resumeImportService.updateReviewItem(
@@ -1587,6 +1605,7 @@ private struct ResumeImportLiveReviewSectionCard: View {
                             onKeepExisting: { onKeepExisting(item) },
                             onRequestAddAsNew: { onRequestAddAsNew(item) }
                         )
+                        .disabled(selectionMutationInFlight)
                     case .noConflict:
                         ResumeImportReviewItemCard(
                             item: item,
@@ -1622,6 +1641,7 @@ private struct ResumeImportLiveReviewSectionCard: View {
                     if bulkSelectionInFlight {
                         ProgressView()
                             .controlSize(.small)
+                            .accessibilityHidden(true)
                     }
                     Text(target ? "Select all" : "Deselect all")
                         .lineLimit(1)
@@ -1633,6 +1653,7 @@ private struct ResumeImportLiveReviewSectionCard: View {
             .disabled(selectionMutationInFlight)
             .accessibilityIdentifier("\(KairoAccessibilityID.resumeImportSectionBulkSelection).\(section.id)")
             .accessibilityLabel("\(target ? "Select" : "Deselect") all eligible \(section.title) claims")
+            .accessibilityValue(bulkSelectionInFlight ? "Saving selections" : "Saved")
         }
     }
 }
@@ -1803,6 +1824,7 @@ private struct ResumeImportReviewItemCard: View {
                     .buttonStyle(.plain)
                     .disabled(selectionMutationInFlight)
                     .accessibilityLabel(item.selected ? "Exclude claim" : "Select claim")
+                    .accessibilityIdentifier("resume.review.selection.\(item.id)")
                 } else {
                     Image(systemName: item.claimType == "profile" ? "lightbulb" : "exclamationmark.triangle")
                         .font(.system(size: 18, weight: .semibold))

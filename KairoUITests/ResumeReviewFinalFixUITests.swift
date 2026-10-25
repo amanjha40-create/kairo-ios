@@ -6,6 +6,73 @@ final class ResumeReviewFinalFixUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testBulkSelectionIsImmediateWhileSerialSavesRunAndDoubleTapDoesNotOverlap() {
+        let app = launch(appearance: "light", accessibilityXXXL: false,
+                         extraEnvironment: ["KAIRO_UI_TEST_RESUME_EDIT_MODE": "bulk_slow"])
+        let bulk = app.buttons["resume.import.section.bulkSelection.project"]
+        app.revealContent(bulk)
+        bulk.doubleTap()
+        XCTAssertEqual(bulk.label, "Deselect all eligible Projects claims")
+        XCTAssertEqual(bulk.value as? String, "Saving selections")
+        XCTAssertFalse(bulk.isEnabled)
+        XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("5"))
+        for id in ["project-1", "project-2", "project-3"] {
+            XCTAssertEqual(app.buttons["resume.review.selection.\(id)"].label, "Exclude claim")
+        }
+        XCTAssertFalse(app.buttons["resume.review.selection.profile"].exists)
+        XCTAssertFalse(app.buttons["resume.review.selection.project-conflict"].exists)
+        waitForSaved(bulk)
+        XCTAssertFalse(app.staticTexts["Some selections couldn’t be saved. The latest saved review is shown."].exists)
+        bulk.tap()
+        XCTAssertEqual(bulk.label, "Select all eligible Projects claims")
+        XCTAssertEqual(bulk.value as? String, "Saving selections")
+        XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("2"))
+        waitForSaved(bulk)
+        XCTAssertEqual(bulk.label, "Select all eligible Projects claims")
+    }
+
+    func testBulkFailureRefetchesPartialServerTruthAndReviewRemainsUsable() {
+        let app = launch(appearance: "light", accessibilityXXXL: false,
+                         extraEnvironment: ["KAIRO_UI_TEST_RESUME_EDIT_MODE": "bulk_failure"])
+        let bulk = app.buttons["resume.import.section.bulkSelection.project"]
+        app.revealContent(bulk); bulk.tap()
+        XCTAssertEqual(bulk.label, "Deselect all eligible Projects claims")
+        waitForSaved(bulk)
+        XCTAssertEqual(bulk.label, "Select all eligible Projects claims")
+        XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("4"))
+        XCTAssertEqual(app.buttons["resume.review.selection.project-2"].label, "Exclude claim")
+        XCTAssertEqual(app.buttons["resume.review.selection.project-3"].label, "Select claim")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@",
+            "Some selections couldn’t be saved. The latest saved review is shown.")).count, 1)
+        XCTAssertTrue(bulk.isEnabled)
+    }
+
+    func testBulkFinalRefetchWinsOverSuccessfulPatchResponses() {
+        let app = launch(appearance: "light", accessibilityXXXL: false,
+                         extraEnvironment: ["KAIRO_UI_TEST_RESUME_EDIT_MODE": "bulk_server_truth"])
+        let bulk = app.buttons["resume.import.section.bulkSelection.project"]
+        app.revealContent(bulk); bulk.tap()
+        XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("5"))
+        waitForSaved(bulk)
+        XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("4"))
+        XCTAssertEqual(app.buttons["resume.review.selection.project-3"].label, "Select claim")
+    }
+
+    func testBulkRefetchFailureRequiresReloadInsteadOfClaimingSavedState() {
+        let app = launch(appearance: "light", accessibilityXXXL: false,
+                         extraEnvironment: ["KAIRO_UI_TEST_RESUME_EDIT_MODE": "bulk_refresh_failure"])
+        let bulk = app.buttons["resume.import.section.bulkSelection.project"]
+        app.revealContent(bulk); bulk.tap()
+        XCTAssertTrue(app.staticTexts["We couldn’t refresh the saved selections. Reload the review before continuing."].waitForExistence(timeout: 25))
+        XCTAssertFalse(bulk.exists)
+        XCTAssertFalse(app.buttons["onboarding.resumeImport.looksGood"].exists)
+    }
+
+    private func waitForSaved(_ button: XCUIElement) {
+        let saved = NSPredicate { _, _ in button.exists && button.isEnabled && button.value as? String == "Saved" }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: nil)], timeout: 30), .completed)
+    }
+
     func testProjectBulkSelectionAndSuggestionOnlyProfileInLightMode() {
         verifyBulkSelection(appearance: "light", accessibilityXXXL: false)
     }
@@ -82,6 +149,7 @@ final class ResumeReviewFinalFixUITests: XCTestCase {
         )
         XCTAssertTrue(element(in: app, identifier: "resume.import.stat.selected").label.contains("5"))
 
+        waitForSaved(deselect)
         deselect.tap()
         let becameSelect = NSPredicate { _, _ in
             bulk.exists && bulk.label == "Select all eligible Projects claims"

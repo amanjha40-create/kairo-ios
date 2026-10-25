@@ -46,6 +46,52 @@ final class DigiLockerTests: XCTestCase {
         )
         XCTAssertFalse(store.verificationErrorMessage?.contains("uri_missing") == true)
     }
+    func testStalePANReferenceUsesActionableRefreshWithoutProviderDetails() async throws {
+        let response = try decode(
+            DigiLockerVerificationHistoryDTO.self,
+            #"{"items":[{"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z"}],"identity_verified":true,"document_outcomes":[{"document_type":"DRVLC","status":"already_verified","verification_id":"safe-id","error_code":null,"retryable":false},{"document_type":"PANCR","status":"failed","verification_id":null,"error_code":"digilocker_pan_reference_unavailable","retryable":false}]}"#
+        )
+        let service = DigiLockerServiceStub(
+            status: .init(connected: true, status: .active),
+            trust: try decode(DigiLockerIdentityTrustDTO.self, String(decoding: Self.trustPayload, as: UTF8.self)),
+            history: response
+        )
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+
+        let verified = await store.verify([.pan, .drivingLicence])
+
+        XCTAssertTrue(verified)
+        XCTAssertEqual(store.history?.items.map(\.documentType), ["DRVLC"])
+        XCTAssertEqual(store.history?.items.first?.matchResult, .verifiedMatch)
+        XCTAssertFalse(store.history?.items.contains(where: { $0.documentType == "PANCR" }) == true)
+        XCTAssertNil(store.actionErrorMessage, "PAN failure belongs to Verify, not Refresh")
+        let calls = await service.verificationCalls()
+        XCTAssertEqual(calls, 1, "No automatic retry for an unavailable PAN reference")
+        XCTAssertEqual(
+            store.verificationErrorMessage,
+            "DigiLocker couldn’t resolve this PAN. Refresh or re-add your PAN in DigiLocker, then return to KairoID and verify again."
+        )
+        XCTAssertFalse(store.verificationErrorMessage?.contains("uri_missing") == true)
+        XCTAssertFalse(store.verificationErrorMessage?.contains("XML") == true)
+        XCTAssertFalse(store.verificationErrorMessage?.contains("provider") == true)
+    }
+
+    func testSuccessfulPANRetainsVerifiedPresentationWithoutRecoveryGuidance() async throws {
+        let history = DigiLockerVerificationHistoryDTO(items: [.init(documentType: "PANCR", source: .digilocker,
+            current: true, matchResult: .verifiedMatch, matchReason: nil, integrityResult: "verified", verifiedAt: .distantPast)],
+            identityVerified: true)
+        let trust = try decode(DigiLockerIdentityTrustDTO.self,
+            #"{"state":"verified","sources":[{"source":"digilocker","document_type":"PANCR","current":true,"match_result":"VERIFIED_MATCH","reason":null}]}"#)
+        let store = DigiLockerStore(service: DigiLockerServiceStub(status: .init(connected: true, status: .active),
+            trust: trust, history: history))
+        await store.refreshSummary()
+        let success = await store.verify([.pan])
+        XCTAssertTrue(success)
+        XCTAssertTrue(store.history?.items.first?.isVerified == true)
+        XCTAssertTrue(store.identityIsVerified)
+        XCTAssertNil(store.verificationErrorMessage)
+    }
     func testVerificationFailureKeepsSafeBackendCategoriesWithoutProviderProse() async throws {
         let service = try await makeService()
         for (status, code, expected) in [
@@ -53,7 +99,8 @@ final class DigiLockerTests: XCTestCase {
             (503, "digilocker_not_configured", "currently unavailable"),
             (403, "digilocker_insufficient_scope", "not granted access"),
             (503, "digilocker_integrity_failed", "integrity checks"),
-            (400, "digilocker_document_request_rejected", "PAN verification couldn’t be completed")
+            (400, "digilocker_document_request_rejected", "PAN verification couldn’t be completed"),
+            (400, "digilocker_pan_reference_unavailable", "Refresh or re-add your PAN in DigiLocker")
         ] {
             await MockURLProtocolStorage.shared.setHandler { request in
                 XCTAssertEqual(request.url?.path, "/api/v1/integrations/digilocker/identity/verify")

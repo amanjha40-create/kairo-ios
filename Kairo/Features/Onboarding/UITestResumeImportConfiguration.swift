@@ -105,6 +105,8 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     private var duplicatePossibleVersion = 1
     private var editorSelections: [String: Bool] = [:]
     private var editorVersions: [String: Int] = [:]
+    private var editorRequestInFlight = false
+    private var editorSelectionRequestCount = 0
     private var deletedIDs: Set<String> = []
     private(set) var deleteCalls: [String] = []
     private let deleteMode: String
@@ -206,6 +208,12 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
 
     func refreshReviewSession(reviewID: String) async throws -> ResumeReviewSession {
         if scenario == .editorControls {
+            if editMode == "bulk_refresh_failure", editorSelectionRequestCount > 0 {
+                throw NetworkError.transport("Synthetic refetch failure")
+            }
+            if editMode == "bulk_server_truth", editorSelectionRequestCount > 0 {
+                editorSelections["project-3"] = false
+            }
             return editorReview
         }
         if scenario == .duplicateReview {
@@ -224,6 +232,19 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
         payload: ResumeReviewItemUpdateRequestDTO
     ) async throws -> ResumeReviewSession {
         if scenario == .editorControls {
+            guard !editorRequestInFlight else { throw NetworkError.transport("Overlapping synthetic PATCH") }
+            editorRequestInFlight = true
+            defer { editorRequestInFlight = false }
+            guard payload.expectedVersion == editorVersions[itemID, default: 1] else {
+                throw NetworkError.transport("Stale synthetic version")
+            }
+            if payload.selected != nil {
+                editorSelectionRequestCount += 1
+                if editMode.hasPrefix("bulk_") { try await Task.sleep(for: .seconds(5)) }
+                if (editMode == "bulk_failure" || editMode == "bulk_refresh_failure"), editorSelectionRequestCount == 2 {
+                    throw NetworkError.transport("Synthetic selection failure")
+                }
+            }
             if editMode == "failure", payload.editedPayload != nil {
                 try await Task.sleep(for: .milliseconds(250))
                 throw NetworkError.transport("Synthetic save failure")

@@ -58,10 +58,35 @@ struct DocumentsHubView: View {
                         router.showDocumentPacks(history: true)
                     }
                     Button { showsVault = true } label: {
-                        Label("Vault · Private identity & personal documents", systemImage: "lock.doc")
-                            .font(KairoTypography.body).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }.accessibilityIdentifier("documents.vault")
+                        HStack(spacing: KairoSpacing.small) {
+                            Image(systemName: "lock.doc")
+                                .font(KairoTypography.bodyStrong)
+                                .foregroundStyle(KairoColors.brandPrimary)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                                Text("Vault")
+                                    .font(KairoTypography.bodyStrong)
+                                    .foregroundStyle(KairoColors.textPrimary)
+                                Text("Private identity & personal documents")
+                                    .font(KairoTypography.footnote)
+                                    .foregroundStyle(KairoColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: KairoSpacing.xSmall)
+                            Image(systemName: "chevron.right")
+                                .font(KairoTypography.footnote)
+                                .foregroundStyle(KairoColors.textSecondary)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: KairoControlMetrics.minimumTarget, alignment: .leading)
+                        .kairoSemanticSurface(.neutral)
+                        .contentShape(RoundedRectangle(cornerRadius: KairoCornerRadius.large))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, KairoSpacing.small)
+                    .accessibilityLabel("Vault, Private identity & personal documents")
+                    .accessibilityHint("Opens your private document Vault")
+                    .accessibilityIdentifier("documents.vault")
                 }
                 .padding(KairoSpacing.medium)
             }
