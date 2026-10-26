@@ -29,6 +29,33 @@ final class ResumeManagementUITests: XCTestCase {
         }
     }
 
+    func testCareerResumeReviewContinuityAcrossRelaunchAndAccessibilityMatrix() {
+        for dark in [false, true] {
+            for large in [false, true] {
+                let app = launchCareerContinuity(large: large, dark: dark)
+                let action = app.buttons.matching(NSPredicate(
+                    format: "label == %@", "Continue resume review"
+                )).firstMatch
+                XCTAssertTrue(action.waitForExistence(timeout: 10))
+                XCTAssertEqual(action.label, "Continue resume review")
+                XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+
+                app.terminate()
+                app.launch()
+                app.tabBars.buttons["Career"].tap()
+                XCTAssertTrue(action.waitForExistence(timeout: 10))
+                action.tap()
+
+                XCTAssertTrue(app.staticTexts.containing(NSPredicate(
+                    format: "label CONTAINS %@", "Synthetic_current_"
+                )).firstMatch.waitForExistence(timeout: 10))
+                XCTAssertTrue(app.buttons["onboarding.resumeImport.looksGood"].exists)
+                XCTAssertFalse(app.buttons["resume.management.upload"].exists)
+                app.terminate()
+            }
+        }
+    }
+
     // Opt-in runner flag is used only for the separately approved physical read-only check.
     // Default Test action remains deterministic and never consumes the device's real session.
     func testOwnerResumeReadOnlyNavigationAndSessionRestart() {
@@ -318,6 +345,36 @@ final class ResumeManagementUITests: XCTestCase {
         ]
         app.launch()
         app.tabBars.buttons["More"].tap()
+        return app
+    }
+
+    private func launchCareerContinuity(large: Bool, dark: Bool) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-KAIRO_UI_TESTING",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+            "-kairo.appearance.preference",
+            dark ? "dark" : "light"
+        ]
+        if large {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+        }
+        app.launchEnvironment = [
+            "KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1",
+            "KAIRO_UI_TEST_ROUTE": "demoHome",
+            "KAIRO_APP_ENVIRONMENT": "staging",
+            "KAIRO_DEMO_MODE": "false",
+            "KAIRO_UI_TEST_MORE_STATE": "populated",
+            "KAIRO_UI_TEST_CAREER_STATE": "populated",
+            "KAIRO_UI_TEST_RESUME_CONTINUITY": "1",
+            "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": "management_history"
+        ]
+        app.launch()
+        app.tabBars.buttons["Career"].tap()
         return app
     }
 

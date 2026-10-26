@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum ResumeManagementDestination: Hashable {
+enum ResumeManagementDestination: Hashable {
     case upload
     case existing(String)
 }
@@ -27,10 +27,10 @@ struct ResumeManagementScreenView: View {
                     .font(KairoTypography.title).fixedSize(horizontal: false, vertical: true)
                 Text("Imported claims remain candidate-provided, not verified. Importing a resume does not request verification or contact anyone.")
                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
-                KairoPrimaryButton(title: "Import resume", accessibilityIdentifier: "resume.management.upload") {
-                    destination = .upload
+                KairoPrimaryButton(title: primaryAction.title, accessibilityIdentifier: primaryActionIdentifier) {
+                    openPrimaryAction()
                 }
-                .disabled(deletion.isDeleting || deletion.needsReconciliation)
+                .disabled(!primaryAction.isEnabled || deletion.isDeleting || deletion.needsReconciliation)
                 if loading && !loaded { ProgressView("Loading resumes").accessibilityIdentifier("resume.management.loading") }
                 if deletion.isDeleting { ProgressView("Updating resume history").accessibilityIdentifier("resume.delete.progress") }
                 if let message = deletion.message {
@@ -120,6 +120,27 @@ struct ResumeManagementScreenView: View {
         }
     }
 
+    private var primaryAction: ResumeCareerAction {
+        guard loaded else { return .loading }
+        guard errorMessage == nil else { return .unavailable }
+        return ResumeCareerAction.resolveLatest(entries)
+    }
+
+    private var primaryActionIdentifier: String {
+        primaryAction == .importResume ? "resume.management.upload" : "resume.management.primaryAction"
+    }
+
+    private func openPrimaryAction() {
+        switch primaryAction {
+        case .importResume:
+            destination = .upload
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+            destination = .existing(resumeID)
+        case .loading, .unavailable:
+            break
+        }
+    }
+
     private func load(reset: Bool) async {
         guard !loading, !deletion.isDeleting else { return }
         loading = true
@@ -151,7 +172,7 @@ struct ResumeManagementScreenView: View {
     }
 }
 
-private struct ResumeManagementWorkflowView: View {
+struct ResumeManagementWorkflowView: View {
     let resumeID: String?
     let onFinished: () -> Void
     @Environment(\.resumeImportService) private var service

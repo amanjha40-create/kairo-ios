@@ -5,6 +5,86 @@ nonisolated enum ResumePresentationContext: Equatable, Sendable {
     case authenticated
 }
 
+nonisolated enum ResumeCareerAction: Equatable, Sendable {
+    case loading
+    case importResume
+    case processing(resumeID: String)
+    case continueReview(resumeID: String, reviewID: String?)
+    case retry(resumeID: String)
+    case unavailable
+
+    static func resolve(_ snapshot: ResumeImportWorkflowSnapshot?) -> ResumeCareerAction {
+        guard let snapshot else { return .importResume }
+
+        switch snapshot.resume.processingStatus {
+        case .pendingUpload, .uploaded, .queued, .extracting, .extracted, .parsing:
+            return .processing(resumeID: snapshot.resume.id)
+        case .needsReview:
+            if snapshot.isImported || snapshot.reviewSession?.status == .cancelled {
+                return .importResume
+            }
+            return .continueReview(
+                resumeID: snapshot.resume.id,
+                reviewID: snapshot.reviewSession?.id
+            )
+        case .failed:
+            return .retry(resumeID: snapshot.resume.id)
+        case .cancelled, .deleted:
+            return .importResume
+        case .unknown:
+            return .unavailable
+        }
+    }
+
+    static func resolveLatest(_ snapshots: [ResumeImportWorkflowSnapshot]) -> ResumeCareerAction {
+        let latest = snapshots
+            .filter {
+                $0.resume.uploadStatus != .deleted && $0.resume.processingStatus != .deleted
+            }
+            .sorted { $0.resume.createdAt > $1.resume.createdAt }
+            .first
+        return resolve(latest)
+    }
+
+    var title: String {
+        switch self {
+        case .loading: "Checking resume status"
+        case .importResume: "Import resume"
+        case .processing: "View resume processing"
+        case .continueReview: "Continue resume review"
+        case .retry: "Resume needs attention"
+        case .unavailable: "Resume status unavailable"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .loading: "Checking your latest resume before offering another upload."
+        case .importResume: "Upload a resume and review every claim before adding it to Career."
+        case .processing: "Your latest resume is still being processed."
+        case .continueReview: "Return to the same saved review and continue where you left off."
+        case .retry: "Open the existing resume to review the failure and available retry action."
+        case .unavailable: "KairoID couldn't confirm your latest resume state. Try again before uploading."
+        }
+    }
+
+    var resumeID: String? {
+        switch self {
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+            resumeID
+        case .loading, .importResume, .unavailable:
+            nil
+        }
+    }
+
+    var isEnabled: Bool {
+        switch self {
+        case .importResume, .processing, .continueReview, .retry: true
+        case .loading, .unavailable: false
+        }
+    }
+}
+
 nonisolated struct ResumeHistoryPage: Equatable, Sendable {
     let entries: [ResumeImportWorkflowSnapshot]
     let total: Int

@@ -22,6 +22,8 @@ struct CareerOverviewScreenView: View {
     var editPortfolioAction: ((CareerPortfolioItem) -> Void)?
     var addSkillAction: (() -> Void)?
     var deleteSkillAction: ((CareerSkillItem) -> Void)?
+    var resumeAction: ResumeCareerAction = .importResume
+    var resumeActionHandler: (() -> Void)?
 
     @EnvironmentObject private var router: AppRouter
     @State private var selectedDetail: CareerRecordDetailPresentation?
@@ -40,6 +42,7 @@ struct CareerOverviewScreenView: View {
                     .foregroundStyle(KairoColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(KairoAccessibilityID.careerSummarySection)
+                resumeSection
                 KairoCompactDestinationRow(
                     title: "Verification activity",
                     metadata: "Review invitations, requests and next steps",
@@ -67,6 +70,26 @@ struct CareerOverviewScreenView: View {
                 performAfterDetailDismissal { router.showCareerDocuments(for: parent) }
             })
         }
+    }
+
+    private var resumeSection: some View {
+        KairoSection(compact: true, accent: .identity) {
+            Text("Resume")
+                .font(KairoTypography.bodyStrong)
+                .foregroundStyle(KairoColors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Text(resumeAction.message)
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            KairoPrimaryButton(
+                title: resumeAction.title,
+                accessibilityIdentifier: "career.resume.primaryAction",
+                action: { resumeActionHandler?() }
+            )
+            .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
+        }
+        .accessibilityIdentifier("career.resume.section")
     }
 
     @ViewBuilder

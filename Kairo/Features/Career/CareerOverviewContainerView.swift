@@ -3,6 +3,8 @@ import SwiftUI
 struct CareerOverviewContainerView: View {
     @Environment(\.careerOverviewService) private var careerOverviewService
     @Environment(\.verificationInitiationService) private var verificationInitiationService
+    @Environment(\.resumeImportService) private var resumeImportService
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var sessionStore: AppSessionStore
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
@@ -15,6 +17,8 @@ struct CareerOverviewContainerView: View {
     @State private var activeLoadingMessage: String?
     @State private var isDeleting = false
     @State private var verificationPreset: VerificationInitiationPreset?
+    @State private var resumeAction = ResumeCareerAction.loading
+    @State private var resumeDestination: ResumeManagementDestination?
 
     var body: some View {
         CareerOverviewScreenView(
@@ -25,7 +29,9 @@ struct CareerOverviewContainerView: View {
                 }
             },
             refreshAction: {
-                await load(showLoading: false)
+                async let overviewLoad: Void = load(showLoading: false)
+                async let resumeLoad: Void = loadResumeAction()
+                _ = await (overviewLoad, resumeLoad)
             },
             addEmploymentAction: { presentedSheet = .employment(mode: .create, recordID: nil, draft: .init()) },
             editEmploymentAction: { item in
@@ -78,7 +84,9 @@ struct CareerOverviewContainerView: View {
             addSkillAction: { presentedSheet = .skill(mode: .create, recordID: nil, draft: .init(), existingNames: currentSkillNames()) },
             deleteSkillAction: { item in
                 pendingDeleteRequest = .skill(item)
-            }
+            },
+            resumeAction: resumeAction,
+            resumeActionHandler: openResumeAction
         )
         .task {
             guard !hasLoaded else {
@@ -87,7 +95,23 @@ struct CareerOverviewContainerView: View {
 
             hasLoaded = true
             state = .loading(summary: cachedSummary)
-            await load(showLoading: true)
+            async let overviewLoad: Void = load(showLoading: true)
+            async let resumeLoad: Void = loadResumeAction()
+            _ = await (overviewLoad, resumeLoad)
+        }
+        .navigationDestination(item: $resumeDestination) { destination in
+            switch destination {
+            case .upload:
+                ResumeManagementWorkflowView(resumeID: nil) {
+                    resumeDestination = nil
+                    Task { await loadResumeAction() }
+                }
+            case .existing(let resumeID):
+                ResumeManagementWorkflowView(resumeID: resumeID) {
+                    resumeDestination = nil
+                    Task { await loadResumeAction() }
+                }
+            }
         }
         .overlay {
             if let activeLoadingMessage {
@@ -102,7 +126,15 @@ struct CareerOverviewContainerView: View {
             router.selectTab(.verify)
         }
         .onChange(of: refreshStore.revision) { _, _ in
-            Task { await load(showLoading: false) }
+            Task {
+                async let overviewLoad: Void = load(showLoading: false)
+                async let resumeLoad: Void = loadResumeAction()
+                _ = await (overviewLoad, resumeLoad)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await loadResumeAction() }
         }
         .alert(item: $mutationError) { error in
             Alert(
@@ -132,6 +164,28 @@ struct CareerOverviewContainerView: View {
             if let pendingDeleteRequest {
                 Text(pendingDeleteRequest.message)
             }
+        }
+    }
+
+    private func loadResumeAction() async {
+        do {
+            let page = try await resumeImportService.resumeHistory(offset: 0, limit: 20)
+            guard !Task.isCancelled else { return }
+            resumeAction = ResumeCareerAction.resolveLatest(page.entries)
+        } catch {
+            guard !Task.isCancelled else { return }
+            resumeAction = .unavailable
+        }
+    }
+
+    private func openResumeAction() {
+        switch resumeAction {
+        case .importResume:
+            resumeDestination = .upload
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+            resumeDestination = .existing(resumeID)
+        case .loading, .unavailable:
+            break
         }
     }
 
