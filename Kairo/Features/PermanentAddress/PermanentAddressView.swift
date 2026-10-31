@@ -57,6 +57,7 @@ struct PermanentAddressView: View {
             .navigationTitle("Permanent address").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { model.stop(); dismiss() } } }
             .task { model.refresh() }
+            .task { consumeDigiLockerHandoff() }
             .sheet(isPresented: $editing) {
                 PermanentAddressEditorView(address: $address, model: model)
             }
@@ -147,6 +148,18 @@ struct PermanentAddressView: View {
         }
     }
     private func resetDocumentInput() { adding = false; file = nil; type = ""; issued = ""; confirmed = false }
+    private func consumeDigiLockerHandoff() {
+        guard let handoff = DigiLockerAddressHandoffStore.shared.consume() else { return }
+        switch handoff {
+        case .structured(let candidate):
+            address = candidate
+        case .prefill(let text):
+            // Keep the provider text transient and editable. It is never saved until the
+            // Candidate completes every canonical address field and explicitly taps Save.
+            address = ClaimedPermanentAddress(addressLine1: String(text.prefix(160)))
+        }
+        editing = true
+    }
     private static func expiryText(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.dateStyle = .medium; formatter.timeZone = TimeZone(identifier: "Asia/Kolkata")
         return formatter.string(from: date)

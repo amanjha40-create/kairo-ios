@@ -8,6 +8,7 @@ final class AppRouter: ObservableObject {
     @Published var selectedTab: CandidateTab
     @Published var showsCareerVerification = false
     @Published var requestedMoreDestination: MoreHubDestination?
+    @Published var requestsPermanentAddress = false
     @Published var showsDocumentsHub = false
     @Published var trustInvitationPresentation: TrustInvitationPresentation?
     var pendingTrustInvitation: TrustInvitationPresentation?
@@ -15,6 +16,11 @@ final class AppRouter: ObservableObject {
     func showMoreSettings() {
         selectTab(.more)
         requestedMoreDestination = .settings
+    }
+
+    func showPermanentAddress() {
+        selectTab(.more)
+        requestsPermanentAddress = true
     }
     @Published var onboardingPath: [OnboardingDestination]
     @Published private(set) var publicPassportPresentation: PublicPassportPresentation?
@@ -151,8 +157,7 @@ final class AppRouter: ObservableObject {
         GoogleReturnDiagnostics.emit(.routerReceived, deliveryID: diagnosticDeliveryID, link: .init(url))
         guard !configuration.isDemoModeEnabled else { return false }
 
-        if configuration.environment == .staging,
-           let invitation = TrustInvitationPresentation.parse(url, allowedHosts: configuration.documentPackHosts) {
+        if let invitation = TrustInvitationPresentation.parse(url, allowedHosts: configuration.trustInvitationHosts) {
             trustInvitationPresentation = invitation
             return true
         }
@@ -210,6 +215,10 @@ final class AppRouter: ObservableObject {
 
     func showNotificationCenter() {
         notificationCenterPresentation = NotificationCenterPresentation()
+    }
+
+    func showTrustInvitation(id: String) {
+        trustInvitationPresentation = TrustInvitationPresentation(invitationID: id)
     }
 
     func showDigiLocker() {

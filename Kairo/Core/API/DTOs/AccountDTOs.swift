@@ -122,6 +122,19 @@ nonisolated struct ChangePasswordResponseDTO: Decodable, Equatable, Sendable {
     let message: String
 }
 
+nonisolated struct SetPasswordVerificationResponseDTO: Decodable, Equatable, Sendable {
+    let emailMasked: String
+    let expiresInSeconds: Int
+    let resendAfterSeconds: Int
+    let message: String
+}
+
+nonisolated struct SetPasswordRequestDTO: Encodable, Equatable, Sendable {
+    let code: String
+    let password: String
+    let confirmPassword: String
+}
+
 nonisolated struct AccountDeletionRequestDTO: Encodable, Equatable, Sendable {
     let confirm: String
     let currentPassword: String?

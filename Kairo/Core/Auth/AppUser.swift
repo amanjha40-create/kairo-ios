@@ -32,6 +32,7 @@ nonisolated struct AppUser: Equatable, Sendable {
     let avatarURL: String?
     let role: String
     let isActive: Bool
+    var hasPassword: Bool = true
     let phoneVerifiedAt: Date?
     let emailVerifiedAt: Date?
     let employmentOnboardingCompletedAt: Date?
@@ -62,6 +63,7 @@ extension UserPublicDTO {
             avatarURL: avatarURL,
             role: role,
             isActive: isActive,
+            hasPassword: hasPassword,
             phoneVerifiedAt: phoneVerifiedAt,
             emailVerifiedAt: emailVerifiedAt,
             employmentOnboardingCompletedAt: employmentOnboardingCompletedAt,

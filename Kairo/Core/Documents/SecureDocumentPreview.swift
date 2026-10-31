@@ -7,6 +7,7 @@ struct SecureDocumentPreview: Identifiable {
     enum Source {
         case authorizedCareerURL(URL)
         case protectedCareerContent(CareerDocumentParent)
+        case educationEvidence(educationID: String, evidenceID: String)
         case vault(documentID: String)
         case documentPack(DocumentPackCapability, itemID: String)
     }
@@ -20,6 +21,11 @@ struct SecureDocumentPreview: Identifiable {
 
     init(careerParent: CareerDocumentParent, filename: String) {
         source = .protectedCareerContent(careerParent)
+        self.filename = filename
+    }
+
+    init(educationID: String, evidenceID: String, filename: String) {
+        source = .educationEvidence(educationID: educationID, evidenceID: evidenceID)
         self.filename = filename
     }
 
@@ -66,6 +72,11 @@ struct SecureDocumentPreviewSheet: View {
                 case .vault(let id): content = try await vault.content(documentID: id)
                 case .documentPack(let capability, let itemID): content = try await documentPacks.content(capability, itemID: itemID)
                 case .protectedCareerContent(let parent): content = try await careerDocuments.protectedContent(for: parent)
+                case .educationEvidence(let educationID, let evidenceID):
+                    content = try await careerDocuments.educationEvidenceContent(
+                        educationID: educationID,
+                        evidenceID: evidenceID
+                    )
                 case .authorizedCareerURL(let url):
                     content = try await ProtectedDocumentContent(response: ProtectedDocumentTransport.send(URLRequest(url: url)))
                 }

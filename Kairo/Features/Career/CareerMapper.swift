@@ -133,7 +133,8 @@ enum CareerOverviewMapper {
                 ("Field of study", record.fieldOfStudy),
                 ("Education level", record.educationLevel?.replacingOccurrences(of: "_", with: " ").capitalized),
                 ("Grade", record.grade)
-            ])
+            ]),
+            evidence: record.evidence
         )
     }
 

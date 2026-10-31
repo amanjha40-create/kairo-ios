@@ -65,6 +65,25 @@ final class CandidateNotificationTests: XCTestCase {
         XCTAssertTrue(notification.isRead)
     }
 
+    func test_trustInvitationLifecycleNotificationRoutesToNativeAuthoritativeDetail() throws {
+        for event in ["trust_invitation_created", "trust_invitation_accepted", "trust_invitation_completed", "trust_invitation_declined", "trust_invitation_cancelled", "trust_invitation_expired"] {
+            let data = try JSONSerialization.data(withJSONObject: [
+                "public_id": "notification-\(event)",
+                "category": "verification",
+                "event_type": event,
+                "title": "Trust Invitation update",
+                "body": "Review the current invitation state.",
+                "metadata": ["trust_invitation_public_id": "invite-1"],
+                "created_at": "2026-10-31T10:00:00Z"
+            ])
+            let notification = CandidateNotificationMapper.map(
+                try APIJSONCoder.makeDecoder().decode(CandidateNotificationDTO.self, from: data)
+            )
+            XCTAssertEqual(notification.destination, .trustInvitation("invite-1"))
+            XCTAssertEqual(notification.relatedEntityID, "invite-1")
+        }
+    }
+
     func test_unreadCountAndReadMutationsUseCanonicalRoutes() async throws {
         let service = try await makeLiveService()
         await MockURLProtocolStorage.shared.setHandler { request in

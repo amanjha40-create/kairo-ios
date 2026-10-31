@@ -15,6 +15,7 @@ nonisolated enum CandidateNotificationType: Equatable, Sendable {
 }
 
 nonisolated enum CandidateNotificationDestination: Equatable, Sendable {
+    case trustInvitation(String)
     case verificationRequest(String)
     case verify
     case documents
@@ -74,7 +75,13 @@ nonisolated enum CandidateNotificationMapper {
         let requestID = ["verification_request_public_id", "verificationRequestPublicId", "request_public_id", "requestPublicId"]
             .compactMap { dto.metadata[$0]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { $0.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil }
-        if let requestID, ["verification", "review", "clarification", "evidence"].contains(where: event.contains) {
+        let invitationID = ["trust_invitation_public_id", "trustInvitationPublicId"]
+            .compactMap { dto.metadata[$0]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil }
+        if let invitationID, event.hasPrefix("trust_invitation_") {
+            relatedEntityID = invitationID
+            destination = .trustInvitation(invitationID)
+        } else if let requestID, ["verification", "review", "clarification", "evidence"].contains(where: event.contains) {
             relatedEntityID = requestID
             destination = .verificationRequest(requestID)
         } else {

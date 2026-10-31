@@ -168,6 +168,10 @@ struct AppConfiguration: Equatable, Sendable {
         ["app.kairoid.com"]
     }
 
+    nonisolated var trustInvitationHosts: Set<String> {
+        ["kairoid.com", "www.kairoid.com", "app.kairoid.com"]
+    }
+
     nonisolated var googleHandoffHosts: Set<String> {
         guard
             apiBaseURL.scheme?.lowercased() == "https",

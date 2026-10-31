@@ -52,6 +52,7 @@ struct CandidateNotificationCenterView: View {
         .onDisappear {
             guard let destination = pendingDestination else { return }
             switch destination {
+            case .trustInvitation(let id): router.showTrustInvitation(id: id)
             case .verificationRequest(let id):
                 refreshStore.focusVerificationRequest(identifier: id)
                 router.selectTab(.verify)

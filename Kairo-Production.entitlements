@@ -5,6 +5,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:api.kairoid.com</string>
+		<string>applinks:kairoid.com</string>
 	</array>
 </dict>
 </plist>

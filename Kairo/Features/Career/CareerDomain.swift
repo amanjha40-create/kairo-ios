@@ -58,6 +58,7 @@ struct CareerEducationRecord: Identifiable, Equatable, Sendable {
     let rawVerificationStatus: String
     var institutionCatalogueID: String? = nil
     var institutionCatalogueVersion: String? = nil
+    var evidence: [EducationEvidenceDTO] = []
 }
 
 struct CareerCertificationRecord: Identifiable, Equatable, Sendable {
@@ -169,7 +170,8 @@ extension CareerEducationRecord {
             verificationStatus: .init(rawBackendValue: dto.verificationStatus),
             rawVerificationStatus: dto.verificationStatus,
             institutionCatalogueID: dto.institutionCatalogueID,
-            institutionCatalogueVersion: dto.institutionCatalogueVersion
+            institutionCatalogueVersion: dto.institutionCatalogueVersion,
+            evidence: dto.evidence
         )
     }
 }

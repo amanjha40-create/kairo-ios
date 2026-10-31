@@ -221,7 +221,7 @@ struct AppDependencies: Sendable {
                 ? PermanentAddressService(session: sessionService, enabled: true) : nil,
             trustInvitationService: configuration.environment == .staging && uiTestConfiguration.isEnabled
                 ? SyntheticTrustInvitationService()
-                : (configuration.environment == .staging && !configuration.isDemoModeEnabled
+                : ([.staging, .production].contains(configuration.environment) && !configuration.isDemoModeEnabled
                    ? TrustInvitationService(publicClient: networkClient, session: sessionService) : nil)
         )
     }

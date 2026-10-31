@@ -33,6 +33,30 @@ nonisolated struct ClaimedPermanentAddress: Codable, Equatable, Sendable {
     }
     var display: String { [addressLine1, addressLine2, locality, city, state, postalCode, "India"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ") }
 }
+
+@MainActor
+final class DigiLockerAddressHandoffStore {
+    enum Handoff: Equatable {
+        case structured(ClaimedPermanentAddress)
+        case prefill(String)
+    }
+
+    static let shared = DigiLockerAddressHandoffStore()
+    private var pending: Handoff?
+
+    func prepare(_ handoff: Handoff) {
+        pending = handoff
+    }
+
+    func consume() -> Handoff? {
+        defer { pending = nil }
+        return pending
+    }
+
+    func clear() {
+        pending = nil
+    }
+}
 // No target coordinates, geocoder diagnostics, risk fields or reviewer identity.
 nonisolated struct PermanentAddressState: Codable, Equatable, Sendable {
     let enabled: Bool

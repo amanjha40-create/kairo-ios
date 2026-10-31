@@ -8,6 +8,8 @@ protocol MoreOverviewServiceProtocol: Sendable {
         newPassword: String,
         confirmPassword: String
     ) async throws -> String
+    func requestSetPassword() async throws -> SetPasswordVerificationResponseDTO
+    func setPassword(code: String, password: String, confirmPassword: String) async throws -> MoreOverview
     func loadSessions() async throws -> [MoreSessionRecord]
     func revokeSession(id: String) async throws
     func deleteAccount(confirm: String, currentPassword: String?) async throws
@@ -83,6 +85,38 @@ actor MoreOverviewService: MoreOverviewServiceProtocol {
         return try APIJSONCoder.makeDecoder()
             .decode(ChangePasswordResponseDTO.self, from: data)
             .message
+    }
+
+    func requestSetPassword() async throws -> SetPasswordVerificationResponseDTO {
+        let data = try await sessionService.sendAuthenticated(NetworkRequest(
+            path: "/auth/set-password/request",
+            method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"]
+        ))
+        return try APIJSONCoder.makeDecoder().decode(SetPasswordVerificationResponseDTO.self, from: data)
+    }
+
+    func setPassword(code: String, password: String, confirmPassword: String) async throws -> MoreOverview {
+        _ = try await sessionService.sendAuthenticated(jsonRequest(
+            path: "/auth/set-password",
+            method: .post,
+            body: SetPasswordRequestDTO(code: code, password: password, confirmPassword: confirmPassword)
+        ))
+        let userData = try await sessionService.sendAuthenticated(
+            NetworkRequest(path: "/users/me", headers: ["Accept": "application/json"])
+        )
+        let user = try APIJSONCoder.makeDecoder().decode(UserPublicDTO.self, from: userData).asDomainModel()
+        guard user.hasPassword else { throw NetworkError.invalidResponse }
+        let overview = try await loadOverview()
+        return MoreOverview(
+            user: user,
+            trustScoreConsent: overview.trustScoreConsent,
+            notificationPreferences: overview.notificationPreferences,
+            bundleAppVersion: overview.bundleAppVersion,
+            backendAppVersion: overview.backendAppVersion,
+            apiVersion: overview.apiVersion,
+            trustScoreVersion: overview.trustScoreVersion
+        )
     }
 
     func loadSessions() async throws -> [MoreSessionRecord] {

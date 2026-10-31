@@ -29,6 +29,7 @@ struct CareerRecordDetailPresentation: Identifiable {
     var supportingMetadata: [(title: String, value: String)] = []
     var links: [CareerRecordLink] = []
     var attachmentPresent: Bool? = nil
+    var educationEvidence: [EducationEvidenceDTO] = []
 
     var showsVerification: Bool { kind == .employment || kind == .education }
 
@@ -63,7 +64,8 @@ struct CareerRecordDetailPresentation: Identifiable {
             metadata: [("Dates", item.dateRange)] + item.detailMetadata.filter { $0.title == "Field of study" }.map { ($0.title, $0.value) },
             documents: .education(id: item.routeID, title: item.institution), edit: edit, delete: delete,
             verify: item.verificationStatus.canStartVerification ? verify : nil, kind: .education,
-            supportingMetadata: item.detailMetadata.filter { $0.title != "Field of study" }.map { ($0.title, $0.value) })
+            supportingMetadata: item.detailMetadata.filter { $0.title != "Field of study" }.map { ($0.title, $0.value) },
+            educationEvidence: item.evidence)
     }
 
     static func certification(_ item: CareerCertificationItem, edit: (() -> Void)?, delete: (() -> Void)?) -> Self {
@@ -116,6 +118,10 @@ struct CareerRecordDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.careerDocumentService) private var documentService
     @State private var documentCount: Int?
+    @State private var documentPreview: SecureDocumentPreview?
+    @State private var structuredPreview: EducationEvidenceStructuredPreviewDTO?
+    @State private var evidenceLoadingID: String?
+    @State private var evidenceError: String?
 
     var body: some View {
         NavigationStack {
@@ -162,7 +168,7 @@ struct CareerRecordDetailView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             if record.kind == .education {
-                                Text("Historical verification evidence may not be available to view. Documents shows only supported actions.")
+                                Text("Uploaded documents are managed separately from DigiLocker evidence shown below.")
                                     .font(KairoTypography.footnote).foregroundStyle(KairoColors.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .accessibilityIdentifier("career.detail.educationEvidenceNotice")
@@ -170,6 +176,9 @@ struct CareerRecordDetailView: View {
                             KairoCompactDestinationRow(title: record.documentActionTitle, systemImage: "doc.text",
                                 accessibilityIdentifier: "career.detail.documents") { openDocuments(documents) }
                         }
+                    }
+                    if record.kind == .education, !record.educationEvidence.isEmpty {
+                        educationEvidenceSection
                     }
                     if record.kind == .employment {
                         EmploymentReferencesView(employmentID: record.id)
@@ -213,6 +222,10 @@ struct CareerRecordDetailView: View {
         .task(id: record.documents?.id) {
             await loadDocumentCount()
         }
+        .sheet(item: $documentPreview) { SecureDocumentPreviewSheet(preview: $0) }
+        .sheet(item: $structuredPreview) { preview in
+            StructuredEducationEvidenceView(preview: preview)
+        }
     }
 
     private func metadata(_ items: [(title: String, value: String)]) -> some View {
@@ -236,6 +249,83 @@ struct CareerRecordDetailView: View {
             ? "Metadata edits preserve this file. Use Documents to view, replace, or remove the attachment."
             : "Use Documents to add an attachment. Uploading a file does not verify this record."
     }
+
+    @ViewBuilder private var educationEvidenceSection: some View {
+        KairoSection(compact: true) {
+            KairoSectionHeading(title: "DigiLocker evidence", count: record.educationEvidence.count)
+            ForEach(record.educationEvidence) { evidence in
+                VStack(alignment: .leading, spacing: KairoSpacing.xSmall) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                            Text(evidence.displayName).font(KairoTypography.bodyStrong)
+                            Text("Verified via DigiLocker").font(KairoTypography.footnote)
+                            if let verifiedAt = evidence.verifiedAt {
+                                Text("Verified on \(Self.evidenceDate.string(from: verifiedAt))")
+                                    .font(KairoTypography.caption)
+                            }
+                        }
+                        Spacer(minLength: KairoSpacing.small)
+                        CareerRecordStatus(status: CareerVerificationStatus(rawBackendValue: evidence.verificationStatus))
+                    }
+                    if evidence.previewAvailable {
+                        Button {
+                            openEducationEvidence(evidence)
+                        } label: {
+                            Label(evidenceLoadingID == evidence.id ? "Opening…" : "View document", systemImage: "doc.text.magnifyingglass")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .disabled(evidenceLoadingID != nil)
+                        .accessibilityIdentifier("career.education.evidence.\(evidence.id)")
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if let evidenceError {
+                Text(evidenceError)
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.danger)
+                    .accessibilityIdentifier("career.education.evidence.error")
+            }
+        }
+    }
+
+    private func openEducationEvidence(_ evidence: EducationEvidenceDTO) {
+        guard evidence.previewAvailable, evidenceLoadingID == nil else { return }
+        evidenceError = nil
+        if evidence.previewType != .structured {
+            documentPreview = SecureDocumentPreview(
+                educationID: record.id,
+                evidenceID: evidence.id,
+                filename: evidence.displayName
+            )
+            return
+        }
+        evidenceLoadingID = evidence.id
+        Task {
+            defer { evidenceLoadingID = nil }
+            do {
+                let response = try await documentService.educationEvidencePreview(
+                    educationID: record.id,
+                    evidenceID: evidence.id
+                )
+                guard response.previewType == .structured, let structured = response.structured else {
+                    throw CareerDocumentServiceError.protectedContentUnavailable
+                }
+                structuredPreview = structured
+            } catch is CancellationError { }
+            catch {
+                evidenceError = "Unable to open this document. Please try again."
+            }
+        }
+    }
+
+    private static let evidenceDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 
     @ViewBuilder private var status: some View {
         if let status = record.status,
@@ -266,6 +356,39 @@ struct CareerRecordDetailView: View {
             await MainActor.run { documentCount = documents.count }
         } catch {
             await MainActor.run { documentCount = nil }
+        }
+    }
+}
+
+extension EducationEvidenceStructuredPreviewDTO: Identifiable {
+    var id: String { safeRows.map { "\($0.0):\($0.1)" }.joined(separator: "|") }
+}
+
+private struct StructuredEducationEvidenceView: View {
+    @Environment(\.dismiss) private var dismiss
+    let preview: EducationEvidenceStructuredPreviewDTO
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                KairoSection(compact: true) {
+                    Text("Verified education evidence from DigiLocker.")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    ForEach(preview.safeRows, id: \.0) { row in
+                        VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                            Text(row.0).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                            Text(row.1).font(KairoTypography.body).foregroundStyle(KairoColors.textPrimary)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(KairoSpacing.medium)
+            }
+            .background(KairoColors.background.ignoresSafeArea())
+            .navigationTitle("Education evidence")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 }

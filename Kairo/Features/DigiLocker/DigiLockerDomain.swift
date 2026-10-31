@@ -68,6 +68,7 @@ nonisolated enum DigiLockerMatchResult: String, Decodable, Equatable, Sendable {
     case partialMatch = "PARTIAL_MATCH"
     case mismatch = "MISMATCH"
     case unableToVerify = "UNABLE_TO_VERIFY"
+    case noKairoRecord = "NO_KAIRO_RECORD"
 }
 
 nonisolated enum DigiLockerMismatchReason: String, Decodable, Equatable, Sendable {
@@ -215,6 +216,182 @@ nonisolated struct DigiLockerIssuedDocumentsDTO: Decodable, Equatable, Sendable 
     let items: [DigiLockerIssuedDocumentDTO]
 }
 
+nonisolated enum DigiLockerDiscoveryReviewState: String, Decodable, Equatable, Sendable {
+    case ready
+    case alreadyAdded = "already_added"
+    case needsReview = "needs_review"
+    case parseFailed = "parse_failed"
+}
+
+nonisolated enum DigiLockerImportStatus: String, Decodable, Equatable, Sendable {
+    case available
+    case alreadyAdded = "already_added"
+    case needsReview = "needs_review"
+}
+
+nonisolated enum DigiLockerExistingMatch: String, Decodable, Equatable, Sendable {
+    case clearMatch = "CLEAR_MATCH"
+    case noMatch = "NO_MATCH"
+    case ambiguous = "AMBIGUOUS"
+    case alreadyAdded = "ALREADY_ADDED"
+}
+
+nonisolated struct DigiLockerDiscoveryRecordDTO: Decodable, Equatable, Identifiable, Sendable {
+    let candidateId: String
+    let documentType: String
+    let recordType: String
+    let displayType: String
+    let description: String?
+    let issuerName: String?
+    let source: String
+    let xmlAvailable: Bool
+    let pdfAvailable: Bool
+    let parsedDataAvailable: Bool
+    let importStatus: DigiLockerImportStatus
+    let possibleExistingRecordMatch: DigiLockerExistingMatch
+    let reviewState: DigiLockerDiscoveryReviewState
+
+    var id: String { candidateId }
+    var canImport: Bool { importStatus == .available && reviewState == .ready }
+
+    private enum CodingKeys: String, CodingKey {
+        case candidateId
+        case documentType = "doctype"
+        case recordType, displayType, description, issuerName, source
+        case xmlAvailable, pdfAvailable, parsedDataAvailable, importStatus
+        case possibleExistingRecordMatch, reviewState
+    }
+}
+
+nonisolated struct DigiLockerEducationEvidenceDTO: Decodable, Equatable, Identifiable, Sendable {
+    let candidateId: String
+    let documentType: String
+    let recordType: String
+    let displayType: String
+    let description: String?
+    let issuerName: String?
+    let source: String
+    let xmlAvailable: Bool
+    let pdfAvailable: Bool
+    let parsedDataAvailable: Bool
+    let importStatus: DigiLockerImportStatus
+    let possibleExistingRecordMatch: DigiLockerExistingMatch
+    let reviewState: DigiLockerDiscoveryReviewState
+    let evidenceType: String
+
+    var id: String { candidateId }
+
+    private enum CodingKeys: String, CodingKey {
+        case candidateId
+        case documentType = "doctype"
+        case recordType, displayType, description, issuerName, source
+        case xmlAvailable, pdfAvailable, parsedDataAvailable, importStatus
+        case possibleExistingRecordMatch, reviewState, evidenceType
+    }
+}
+
+nonisolated struct DigiLockerEducationGroupDTO: Decodable, Equatable, Identifiable, Sendable {
+    let candidateId: String
+    let recordType: String
+    let displayType: String
+    let source: String
+    let possibleExistingRecordMatch: DigiLockerExistingMatch
+    let importStatus: DigiLockerImportStatus
+    let reviewState: DigiLockerDiscoveryReviewState
+    let evidence: [DigiLockerEducationEvidenceDTO]
+
+    var id: String { candidateId }
+    var canImport: Bool { importStatus == .available && reviewState == .ready }
+}
+
+nonisolated enum DigiLockerAddressCandidateType: String, Decodable, Equatable, Sendable {
+    case structured
+    case prefill
+}
+
+nonisolated enum DigiLockerAddressState: String, Decodable, Equatable, Sendable {
+    case structured = "STRUCTURED_ADDRESS_CANDIDATE"
+    case prefill = "ADDRESS_PREFILL_CANDIDATE"
+}
+
+nonisolated struct DigiLockerAddressCandidateDTO: Decodable, Equatable, Identifiable, Sendable {
+    let candidateId: String
+    let documentType: String
+    let displayType: String
+    let source: String
+    let reviewState: DigiLockerDiscoveryReviewState
+    let candidateType: DigiLockerAddressCandidateType
+    let addressState: DigiLockerAddressState
+    let documentAddressType: String
+    let requiresPermanentConfirmation: Bool
+    let requiresReplacementConfirmation: Bool
+    let address: ClaimedPermanentAddress?
+    let structuredAddress: ClaimedPermanentAddress?
+    let prefillText: String?
+
+    var id: String { candidateId }
+
+    private enum CodingKeys: String, CodingKey {
+        case candidateId
+        case documentType = "doctype"
+        case displayType, source, reviewState, candidateType, addressState
+        case documentAddressType, requiresPermanentConfirmation
+        case requiresReplacementConfirmation, address, structuredAddress, prefillText
+    }
+}
+
+nonisolated struct DigiLockerDiscoveryCountsDTO: Decodable, Equatable, Sendable {
+    let totalIssued: Int
+    let supported: Int
+    let unsupported: Int
+    let identity: Int
+    let education: Int
+    let addressCandidates: Int
+    let addressPrefillCandidates: Int
+    let xmlAvailable: Int
+    let pdfOnly: Int
+    let parseFailures: Int
+    let malformed: Int
+}
+
+nonisolated struct DigiLockerAvailableRecordsDTO: Decodable, Equatable, Sendable {
+    let identity: [DigiLockerDiscoveryRecordDTO]
+    let education: [DigiLockerEducationGroupDTO]
+    let addressCandidates: [DigiLockerAddressCandidateDTO]
+    let addressPrefillCandidates: [DigiLockerAddressCandidateDTO]
+    let addressDiscoveryState: String
+    let counts: DigiLockerDiscoveryCountsDTO
+    let discoveredAt: Date
+
+    var allAddressCandidates: [DigiLockerAddressCandidateDTO] {
+        var seen = Set<String>()
+        return (addressCandidates + addressPrefillCandidates).filter { seen.insert($0.candidateId).inserted }
+    }
+}
+
+nonisolated struct DigiLockerImportRequestDTO: Encodable, Equatable, Sendable {
+    let candidateIds: [String]
+    let educationTargets: [String: String]
+    let consent: Bool
+    let consentVersion = "v1"
+}
+
+nonisolated struct DigiLockerImportOutcomeDTO: Decodable, Equatable, Identifiable, Sendable {
+    let candidateId: String
+    let domain: String
+    let status: String
+    let recordId: String?
+    let verificationId: String?
+    let evidenceCount: Int
+    let reviewState: DigiLockerDiscoveryReviewState
+    var id: String { candidateId }
+}
+
+nonisolated struct DigiLockerImportResponseDTO: Decodable, Equatable, Sendable {
+    let outcomes: [DigiLockerImportOutcomeDTO]
+    let completedAt: Date
+}
+
 nonisolated struct DigiLockerConnectResponseDTO: Decodable, Equatable, Sendable {
     let authorizationURL: String
     let expiresAt: Date
@@ -285,6 +462,7 @@ nonisolated enum DigiLockerPresentation {
         case .partialMatch: "Partially verified"
         case .mismatch: "Needs review"
         case .unableToVerify: "Unable to verify"
+        case .noKairoRecord: "Available"
         case .verifiedMatch: "Verified"
         }
     }

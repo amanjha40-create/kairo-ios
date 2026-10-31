@@ -196,6 +196,7 @@ struct DigiLockerTrustScoreProvenance: View {
 struct DigiLockerHubView: View {
     @EnvironmentObject private var store: DigiLockerStore
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
+    @EnvironmentObject private var router: AppRouter
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -210,6 +211,10 @@ struct DigiLockerHubView: View {
     @State private var connectionMotion = 0
     @State private var recoveryTask: Task<Void, Never>?
     @State private var showsDOBEditor = false
+    @State private var selectedDiscoveryIDs: Set<String> = []
+    @State private var discoveryConsent = false
+    @State private var dismissedAddressIDs: Set<String> = []
+    @State private var pendingAddressReplacement: DigiLockerAddressCandidateDTO?
 
     var body: some View {
         NavigationStack {
@@ -231,6 +236,7 @@ struct DigiLockerHubView: View {
                     }
                     savedSection
                     availableSection
+                    discoverySection
                     DigiLockerAadhaarView()
                 }
                 .padding(.horizontal, KairoSpacing.medium)
@@ -293,6 +299,23 @@ struct DigiLockerHubView: View {
                     )
                 }
             }
+        }
+        .confirmationDialog(
+            "Replace your current Permanent Address draft?",
+            isPresented: Binding(
+                get: { pendingAddressReplacement != nil },
+                set: { if !$0 { pendingAddressReplacement = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Continue") {
+                guard let candidate = pendingAddressReplacement else { return }
+                pendingAddressReplacement = nil
+                openAddress(candidate, confirmedReplacement: true)
+            }
+            Button("Cancel", role: .cancel) { pendingAddressReplacement = nil }
+        } message: {
+            Text("You will review and explicitly save the address in Permanent Address. Nothing is replaced automatically.")
         }
         .accessibilityIdentifier("candidate.digilocker.hub")
     }
@@ -426,6 +449,161 @@ struct DigiLockerHubView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("DigiLocker action failed. \(error)")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var discoverySection: some View {
+        KairoSection {
+            KairoSectionHeading(
+                title: "Found in DigiLocker",
+                count: store.availableRecords.map {
+                    $0.identity.count + $0.education.count + $0.allAddressCandidates.count
+                }
+            )
+            if store.status?.connected != true {
+                Text("Connect to see records available to add.")
+                    .font(KairoTypography.metadata).foregroundStyle(KairoColors.textSecondary)
+            } else if store.isLoadingInventory && store.availableRecords == nil {
+                ProgressView("Looking for supported records…")
+            } else if store.inventoryError {
+                failureCopy("Couldn't refresh DigiLocker. Your existing KairoID records are unchanged.")
+            } else if let records = store.availableRecords {
+                if records.identity.isEmpty && records.education.isEmpty && records.allAddressCandidates.isEmpty {
+                    KairoEmptyStateView(
+                        title: "No supported records found",
+                        message: "You can continue adding records manually in Career.",
+                        systemImage: "doc.text.magnifyingglass"
+                    )
+                } else {
+                    discoveryRecords(records)
+                }
+            }
+        }
+        .accessibilityIdentifier("candidate.digilocker.discovery")
+    }
+
+    @ViewBuilder
+    private func discoveryRecords(_ records: DigiLockerAvailableRecordsDTO) -> some View {
+        if !records.identity.isEmpty {
+            Text("Identity").font(KairoTypography.headline)
+            ForEach(records.identity) { item in
+                discoveryToggle(
+                    id: item.candidateId,
+                    title: item.displayType,
+                    detail: discoveryStatus(item.importStatus),
+                    enabled: item.canImport
+                )
+            }
+        }
+        if !records.education.isEmpty {
+            Text("Education").font(KairoTypography.headline)
+            ForEach(records.education) { item in
+                discoveryToggle(
+                    id: item.candidateId,
+                    title: item.displayType,
+                    detail: "\(item.evidence.count) evidence item\(item.evidence.count == 1 ? "" : "s") · \(discoveryStatus(item.importStatus))",
+                    enabled: item.canImport
+                )
+            }
+        }
+        ForEach(records.allAddressCandidates.filter { !dismissedAddressIDs.contains($0.id) }) { candidate in
+            Divider()
+            VStack(alignment: .leading, spacing: KairoSpacing.small) {
+                Text("Address found on your Driving Licence")
+                    .font(KairoTypography.recordTitle)
+                if let prefill = candidate.prefillText {
+                    Text(prefill).font(KairoTypography.metadata)
+                }
+                Text("Review this in Permanent Address. DigiLocker alone does not verify your address.")
+                    .font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+                HStack {
+                    KairoPrimaryButton(title: "Use this address") { openAddress(candidate) }
+                    KairoSecondaryButton(title: "Edit") { openAddress(candidate) }
+                }
+                Button("Not now") { dismissedAddressIDs.insert(candidate.id) }
+                    .frame(minHeight: 44)
+            }
+        }
+        if !selectedDiscoveryIDs.isEmpty {
+            let includesIdentity = records.identity.contains { selectedDiscoveryIDs.contains($0.id) }
+            if includesIdentity {
+                Button {
+                    discoveryConsent.toggle()
+                } label: {
+                    Label(
+                        "I consent to KairoID retrieving the selected identity record from DigiLocker for identity verification.",
+                        systemImage: discoveryConsent ? "checkmark.square.fill" : "square"
+                    )
+                    .font(KairoTypography.metadata)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(discoveryConsent ? "Checked" : "Unchecked")
+            }
+            KairoPrimaryButton(
+                title: "Import selected",
+                isLoading: store.isImporting,
+                accessibilityIdentifier: "candidate.digilocker.import"
+            ) {
+                Task {
+                    if await store.importRecords(
+                        candidateIDs: Array(selectedDiscoveryIDs).sorted(),
+                        includesIdentity: includesIdentity,
+                        dateOfBirth: sessionStore.currentUser?.dateOfBirth
+                    ) {
+                        selectedDiscoveryIDs = []
+                        discoveryConsent = false
+                        refreshStore.candidateDataChanged()
+                    }
+                }
+            }
+            .disabled(store.actionInProgress || (includesIdentity && !discoveryConsent))
+        }
+    }
+
+    private func discoveryToggle(id: String, title: String, detail: String, enabled: Bool) -> some View {
+        Toggle(isOn: Binding(
+            get: { selectedDiscoveryIDs.contains(id) },
+            set: { selected in
+                if selected { selectedDiscoveryIDs.insert(id) }
+                else { selectedDiscoveryIDs.remove(id) }
+                discoveryConsent = false
+            }
+        )) {
+            VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                Text(title).font(KairoTypography.recordTitle)
+                Text(detail).font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
+            }
+        }
+        .disabled(!enabled || store.actionInProgress)
+    }
+
+    private func discoveryStatus(_ status: DigiLockerImportStatus) -> String {
+        switch status {
+        case .available: "Available"
+        case .alreadyAdded: "Already added"
+        case .needsReview: "Needs review"
+        }
+    }
+
+    private func openAddress(_ candidate: DigiLockerAddressCandidateDTO, confirmedReplacement: Bool = false) {
+        if candidate.requiresReplacementConfirmation && !confirmedReplacement {
+            pendingAddressReplacement = candidate
+            return
+        }
+        if let prefill = candidate.prefillText {
+            DigiLockerAddressHandoffStore.shared.prepare(.prefill(prefill))
+            dismiss()
+            router.showPermanentAddress()
+            return
+        }
+        guard let structured = candidate.address ?? candidate.structuredAddress else { return }
+        Task {
+            guard await store.prepareStructuredAddress(candidateID: candidate.candidateId) else { return }
+            DigiLockerAddressHandoffStore.shared.prepare(.structured(structured))
+            dismiss()
+            router.showPermanentAddress()
         }
     }
 

@@ -61,6 +61,8 @@ nonisolated protocol DigiLockerServiceProtocol: Sendable {
     func status() async throws -> DigiLockerStatusDTO
     func connect() async throws -> DigiLockerConnectResponseDTO
     func issuedDocuments() async throws -> DigiLockerIssuedDocumentsDTO
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO
+    func importRecords(candidateIDs: [String], educationTargets: [String: String], consent: Bool) async throws -> DigiLockerImportResponseDTO
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO
     func identityTrust() async throws -> DigiLockerIdentityTrustDTO
     func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO
@@ -69,6 +71,15 @@ nonisolated protocol DigiLockerServiceProtocol: Sendable {
 }
 
 extension DigiLockerServiceProtocol {
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO {
+        throw DigiLockerServiceError.invalidResponse
+    }
+
+    func importRecords(candidateIDs: [String], educationTargets: [String: String], consent: Bool) async throws -> DigiLockerImportResponseDTO {
+        _ = (candidateIDs, educationTargets, consent)
+        throw DigiLockerServiceError.invalidResponse
+    }
+
     func aadhaarAvailability() async throws -> DigiLockerAadhaarAvailabilityDTO {
         throw DigiLockerAadhaarState.unavailable
     }
@@ -141,6 +152,32 @@ actor DigiLockerService: DigiLockerServiceProtocol {
 
     func issuedDocuments() async throws -> DigiLockerIssuedDocumentsDTO {
         try await decode(path: "\(Self.root)/documents/issued")
+    }
+
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO {
+        try await decode(path: "\(Self.root)/available-records")
+    }
+
+    func importRecords(
+        candidateIDs: [String], educationTargets: [String: String], consent: Bool
+    ) async throws -> DigiLockerImportResponseDTO {
+        guard !candidateIDs.isEmpty, candidateIDs.count <= 25,
+              Set(candidateIDs).count == candidateIDs.count,
+              candidateIDs.allSatisfy({ (1...255).contains($0.utf8.count) }) else {
+            throw DigiLockerServiceError.invalidResponse
+        }
+        return try await decode(NetworkRequest(
+            path: "\(Self.root)/records/import",
+            method: .post,
+            headers: ["Accept": "application/json", "Content-Type": "application/json"],
+            body: try APIJSONCoder.makeEncoder().encode(DigiLockerImportRequestDTO(
+                candidateIds: candidateIDs,
+                educationTargets: educationTargets,
+                consent: consent
+            )),
+            allowsSessionRefreshOnUnauthorized: false,
+            requiresDigiLockerTransport: true
+        ))
     }
 
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO {
@@ -251,6 +288,30 @@ actor DemoDigiLockerService: DigiLockerServiceProtocol {
             DigiLockerIssuedDocumentDTO(documentType: "PANCR", supported: true),
             DigiLockerIssuedDocumentDTO(documentType: "DRVLC", supported: true)
         ])
+    }
+
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO {
+        try APIJSONCoder.makeDecoder().decode(
+            DigiLockerAvailableRecordsDTO.self,
+            from: Data(#"{"identity":[{"candidate_id":"demo-identity","doctype":"PANCR","record_type":"identity","display_type":"PAN","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":false,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready"}],"education":[],"address_candidates":[],"address_prefill_candidates":[],"address_discovery_state":"NO_ADDRESS_AVAILABLE","counts":{"total_issued":1,"supported":1,"unsupported":0,"identity":1,"education":0,"address_candidates":0,"address_prefill_candidates":0,"xml_available":1,"pdf_only":0,"parse_failures":0,"malformed":0},"discovered_at":"2026-10-31T10:00:00Z"}"#.utf8)
+        )
+    }
+
+    func importRecords(
+        candidateIDs: [String], educationTargets: [String: String], consent: Bool
+    ) async throws -> DigiLockerImportResponseDTO {
+        _ = educationTargets
+        guard !candidateIDs.isEmpty else { throw DigiLockerServiceError.invalidResponse }
+        return DigiLockerImportResponseDTO(
+            outcomes: candidateIDs.map {
+                DigiLockerImportOutcomeDTO(
+                    candidateId: $0, domain: "identity", status: consent ? "imported" : "needs_review",
+                    recordId: nil, verificationId: nil, evidenceCount: 0,
+                    reviewState: consent ? .ready : .needsReview
+                )
+            },
+            completedAt: Date()
+        )
     }
 
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO {

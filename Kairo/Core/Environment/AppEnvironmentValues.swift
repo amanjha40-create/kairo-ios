@@ -500,6 +500,15 @@ private struct MissingMoreOverviewService: MoreOverviewServiceProtocol {
         fatalError("Missing More overview service injection.")
     }
 
+    func requestSetPassword() async throws -> SetPasswordVerificationResponseDTO {
+        fatalError("Missing More overview service injection.")
+    }
+
+    func setPassword(code: String, password: String, confirmPassword: String) async throws -> MoreOverview {
+        _ = (code, password, confirmPassword)
+        fatalError("Missing More overview service injection.")
+    }
+
     func loadSessions() async throws -> [MoreSessionRecord] {
         fatalError("Missing More overview service injection.")
     }

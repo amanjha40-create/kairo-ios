@@ -475,6 +475,7 @@ nonisolated struct CareerEducationItem: Equatable, Identifiable, Sendable {
     let dateRange: String
     let verificationStatus: CareerVerificationStatus
     var detailMetadata: [CareerDetailMetadata] = []
+    var evidence: [EducationEvidenceDTO] = []
 
     var id: String { routeID }
 }

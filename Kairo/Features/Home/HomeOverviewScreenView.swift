@@ -129,6 +129,7 @@ struct HomeOverviewScreenView: View {
             .id(GuidedTourTarget.trustScore)
             .guidedTourTarget(.trustScore)
         verificationRequestsSection(content.verificationRequests, available: content.verificationRequestsAvailable)
+        TrustInvitationHomeCard()
         VStack(alignment: .leading, spacing: KairoSpacing.small) {
             requestGroup(content.verificationRequests.filter { !$0.needsAttention }, title: "In progress")
             careerSection(content, isEmpty: isEmpty)

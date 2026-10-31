@@ -141,6 +141,42 @@ final class MoreOverviewServiceTests: XCTestCase {
         }
     }
 
+    func test_federatedSetPasswordRequestsOTPThenConfirmsUsersMeBeforePromotion() async throws {
+        let service = try await makeService()
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/api/v1/auth/set-password/request"):
+                XCTAssertNil(request.url?.query)
+                return (try Self.response(for: request, statusCode: 200), Data(#"{"email_masked":"a***@example.com","expires_in_seconds":600,"resend_after_seconds":30,"message":"Code sent"}"#.utf8))
+            case ("POST", "/api/v1/auth/set-password"):
+                let body = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: Any])
+                XCTAssertEqual(body["code"] as? String, "123456")
+                XCTAssertEqual(body["password"] as? String, "StrongPassword@2026")
+                XCTAssertEqual(body["confirm_password"] as? String, "StrongPassword@2026")
+                XCTAssertNil(body["current_password"])
+                return (try Self.response(for: request, statusCode: 200), Data(#"{"message":"Password set"}"#.utf8))
+            case ("GET", "/api/v1/users/me"):
+                return (try Self.response(for: request, statusCode: 200), Self.userWithPasswordPayload)
+            case ("GET", "/api/v1/account/settings"):
+                return (try Self.response(for: request, statusCode: 200), Self.accountSettingsPayload)
+            default:
+                XCTFail("Unexpected Set Password request")
+                return (try Self.response(for: request, statusCode: 404), Data())
+            }
+        }
+
+        let challenge = try await service.requestSetPassword()
+        XCTAssertEqual(challenge.resendAfterSeconds, 30)
+        let overview = try await service.setPassword(
+            code: "123456", password: "StrongPassword@2026", confirmPassword: "StrongPassword@2026"
+        )
+        XCTAssertTrue(overview.user.hasPassword)
+        let requestPaths = await MockURLProtocolStorage.shared.requests().map { $0.url?.path }
+        XCTAssertEqual(requestPaths, [
+            "/api/v1/auth/set-password/request", "/api/v1/auth/set-password", "/api/v1/users/me", "/api/v1/account/settings"
+        ])
+    }
+
     func test_deleteAccountUsesAuthenticatedCandidateContract() async throws {
         let service = try await makeService()
 
@@ -496,6 +532,10 @@ final class MoreOverviewServiceTests: XCTestCase {
           "trust_score_version": "ts_2026_08"
         }
         """.utf8
+    )
+
+    private nonisolated static let userWithPasswordPayload = Data(
+        #"{"id":"user_123","email":"aman@kairoid.com","full_name":"Aman Jha","role":"user","is_active":true,"has_password":true,"created_at":"2026-08-09T08:00:00Z"}"#.utf8
     )
 
     private nonisolated static let accountSettingsAfterNotificationUpdatePayload = Data(

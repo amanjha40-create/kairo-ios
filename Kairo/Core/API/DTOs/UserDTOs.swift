@@ -19,6 +19,7 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
     let avatarURL: String?
     let role: String
     let isActive: Bool
+    let hasPassword: Bool
     let phoneVerifiedAt: Date?
     let emailVerifiedAt: Date?
     let employmentOnboardingCompletedAt: Date?
@@ -47,6 +48,7 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
         case avatarURL = "avatarUrl"
         case role
         case isActive
+        case hasPassword
         case phoneVerifiedAt
         case emailVerifiedAt
         case employmentOnboardingCompletedAt
@@ -75,6 +77,7 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
         avatarURL: String?,
         role: String,
         isActive: Bool,
+        hasPassword: Bool = true,
         phoneVerifiedAt: Date?,
         emailVerifiedAt: Date?,
         employmentOnboardingCompletedAt: Date?,
@@ -101,6 +104,7 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
         self.avatarURL = avatarURL
         self.role = role
         self.isActive = isActive
+        self.hasPassword = hasPassword
         self.phoneVerifiedAt = phoneVerifiedAt
         self.emailVerifiedAt = emailVerifiedAt
         self.employmentOnboardingCompletedAt = employmentOnboardingCompletedAt
@@ -130,6 +134,7 @@ nonisolated struct UserPublicDTO: Decodable, Equatable, Sendable {
         avatarURL = try container.decodeIfPresent(String.self, forKey: .avatarURL)
         role = try container.decode(String.self, forKey: .role)
         isActive = try container.decode(Bool.self, forKey: .isActive)
+        hasPassword = try container.decodeIfPresent(Bool.self, forKey: .hasPassword) ?? true
         phoneVerifiedAt = try container.decodeIfPresent(Date.self, forKey: .phoneVerifiedAt)
         emailVerifiedAt = try container.decodeIfPresent(Date.self, forKey: .emailVerifiedAt)
         employmentOnboardingCompletedAt = try container.decodeIfPresent(

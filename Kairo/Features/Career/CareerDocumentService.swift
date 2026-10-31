@@ -117,6 +117,8 @@ protocol CareerDocumentServiceProtocol: Sendable {
     ) async throws -> [CareerDocument]
     func downloadURL(for document: CareerDocument, parent: CareerDocumentParent) async throws -> URL
     func protectedContent(for parent: CareerDocumentParent) async throws -> ProtectedDocumentContent
+    func educationEvidencePreview(educationID: String, evidenceID: String) async throws -> EducationEvidencePreviewDTO
+    func educationEvidenceContent(educationID: String, evidenceID: String) async throws -> ProtectedDocumentContent
     func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument]
 }
 
@@ -139,6 +141,14 @@ extension CareerDocumentServiceProtocol {
     }
     func protectedContent(for parent: CareerDocumentParent) async throws -> ProtectedDocumentContent {
         _ = parent
+        throw CareerDocumentServiceError.protectedContentUnavailable
+    }
+    func educationEvidencePreview(educationID: String, evidenceID: String) async throws -> EducationEvidencePreviewDTO {
+        _ = (educationID, evidenceID)
+        throw CareerDocumentServiceError.protectedContentUnavailable
+    }
+    func educationEvidenceContent(educationID: String, evidenceID: String) async throws -> ProtectedDocumentContent {
+        _ = (educationID, evidenceID)
         throw CareerDocumentServiceError.protectedContentUnavailable
     }
 
@@ -378,6 +388,49 @@ actor CareerDocumentService: CareerDocumentServiceProtocol {
             )
         )
         return try ProtectedDocumentContent(response: response)
+    }
+
+    func educationEvidencePreview(educationID: String, evidenceID: String) async throws -> EducationEvidencePreviewDTO {
+        guard !educationID.isEmpty, !evidenceID.isEmpty else {
+            throw CareerDocumentServiceError.protectedContentUnavailable
+        }
+        let data = try await sessionService.sendAuthenticated(
+            NetworkRequest(
+                path: "/educations/\(educationID)/evidence/\(evidenceID)/preview",
+                headers: ["Accept": "application/json", "Cache-Control": "no-store"]
+            )
+        )
+        return try decoder.decode(EducationEvidencePreviewDTO.self, from: data)
+    }
+
+    func educationEvidenceContent(educationID: String, evidenceID: String) async throws -> ProtectedDocumentContent {
+        var lastError: Error = CareerDocumentServiceError.protectedContentUnavailable
+        for attempt in 0..<2 {
+            do {
+                let preview = try await educationEvidencePreview(educationID: educationID, evidenceID: evidenceID)
+                guard [.pdf, .image].contains(preview.previewType),
+                      let url = preview.previewURL,
+                      url.scheme?.lowercased() == "https",
+                      url.user == nil,
+                      url.password == nil
+                else { throw CareerDocumentServiceError.protectedContentUnavailable }
+                var request = URLRequest(url: url)
+                request.httpMethod = "GET"
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                request.setValue("application/pdf,image/jpeg,image/png,image/webp", forHTTPHeaderField: "Accept")
+                let response = try await ProtectedDocumentTransport.send(request)
+                let content = try ProtectedDocumentContent(response: response)
+                let isExpectedType = preview.previewType == .pdf
+                    ? content.contentType == "application/pdf"
+                    : content.contentType.hasPrefix("image/")
+                guard isExpectedType else { throw ProtectedDocumentError.unsupportedType }
+                return content
+            } catch {
+                lastError = error
+                if attempt == 1 || error is CancellationError { throw error }
+            }
+        }
+        throw lastError
     }
 
     func deleteDocument(_ document: CareerDocument, parent: CareerDocumentParent) async throws -> [CareerDocument] {

@@ -181,6 +181,7 @@ nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
     let endDatePrecision: String?
     let isCurrentlyStudying: Bool
     let verificationStatus: String
+    let evidence: [EducationEvidenceDTO]
 
     nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
@@ -206,7 +207,65 @@ nonisolated struct CareerEducationDTO: Decodable, Equatable, Sendable {
         verificationStatus = try container.decodeFirstPresentString(
             forKeys: ["verification_status", "status"]
         ) ?? "draft"
+        evidence = (try? container.decode([EducationEvidenceDTO].self, forKey: DynamicCodingKey("evidence"))) ?? []
     }
+}
+
+nonisolated enum EducationEvidencePreviewType: String, Decodable, Equatable, Sendable {
+    case pdf, image, structured
+}
+
+nonisolated struct EducationEvidenceDTO: Decodable, Equatable, Identifiable, Sendable {
+    let evidenceID: String
+    let documentType: String
+    let displayName: String
+    let source: String
+    let verificationStatus: String
+    let verifiedAt: Date?
+    let previewAvailable: Bool
+    let previewType: EducationEvidencePreviewType
+    let contentType: String?
+
+    var id: String { evidenceID }
+}
+
+nonisolated struct EducationEvidenceStructuredPreviewDTO: Decodable, Equatable, Sendable {
+    let documentType: String
+    let issuer: String?
+    let qualification: String?
+    let completionYear: Int?
+    let verificationSource: String
+    let verifiedAt: Date?
+
+    var safeRows: [(String, String)] {
+        [
+            ("Document type", documentType.replacingOccurrences(of: "_", with: " ").capitalized),
+            ("Issuer", issuer ?? ""),
+            ("Qualification", qualification ?? ""),
+            ("Completion year", completionYear.map(String.init) ?? ""),
+            ("Verification source", verificationSource.lowercased() == "digilocker" ? "DigiLocker" : ""),
+            ("Verified on", verifiedAt.map { DateFormatter.educationEvidence.string(from: $0) } ?? "")
+        ].filter { !$0.1.isEmpty }
+    }
+}
+
+nonisolated struct EducationEvidencePreviewDTO: Decodable, Equatable, Sendable {
+    let evidenceID: String
+    let previewType: EducationEvidencePreviewType
+    let contentType: String?
+    let previewURL: URL?
+    let expiresInSeconds: Int?
+    let structured: EducationEvidenceStructuredPreviewDTO?
+}
+
+private extension DateFormatter {
+    nonisolated static let educationEvidence: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 nonisolated struct CareerCertificationDTO: Decodable, Equatable, Sendable {

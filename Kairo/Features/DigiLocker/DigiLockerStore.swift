@@ -53,10 +53,12 @@ final class DigiLockerStore: ObservableObject {
     @Published private(set) var trust: DigiLockerIdentityTrustDTO?
     @Published private(set) var history: DigiLockerVerificationHistoryDTO?
     @Published private(set) var issuedDocuments: [DigiLockerIssuedDocumentDTO] = []
+    @Published private(set) var availableRecords: DigiLockerAvailableRecordsDTO?
     @Published private(set) var isLoadingSummary = false
     @Published private(set) var isLoadingInventory = false
     @Published private(set) var isConnecting = false
     @Published private(set) var isVerifying = false
+    @Published private(set) var isImporting = false
     @Published private(set) var summaryError = false
     @Published private(set) var inventoryError = false
     @Published private(set) var actionErrorMessage: String?
@@ -89,7 +91,7 @@ final class DigiLockerStore: ObservableObject {
 
     var identityIsVerified: Bool { trust?.state == .verified }
     var identityVerifiedViaDigiLocker: Bool { !verifiedDigiLockerSources.isEmpty }
-    var actionInProgress: Bool { isConnecting || isVerifying || aadhaarState.isBusy || isReconcilingAadhaar }
+    var actionInProgress: Bool { isConnecting || isVerifying || isImporting || aadhaarState.isBusy || isReconcilingAadhaar }
     var savedAadhaar: DigiLockerVerificationDTO? {
         history?.items.first { $0.documentType == "EAADHAAR" }
     }
@@ -132,6 +134,7 @@ final class DigiLockerStore: ObservableObject {
         if status?.connected == true { await refreshInventory() }
         else {
             issuedDocuments = []
+            availableRecords = nil
             inventoryError = false
         }
     }
@@ -142,14 +145,80 @@ final class DigiLockerStore: ObservableObject {
         isLoadingInventory = true
         inventoryError = false
         do {
-            let response = try await service.issuedDocuments()
+            async let issued = service.issuedDocuments()
+            async let discovered = service.availableRecords()
+            let (response, records) = try await (issued, discovered)
             guard revision == identityRevision else { return }
             issuedDocuments = uniqueDocuments(response.items)
+            availableRecords = records
         } catch {
             guard revision == identityRevision else { return }
             inventoryError = true
         }
         isLoadingInventory = false
+    }
+
+    func importRecords(candidateIDs: [String], includesIdentity: Bool, dateOfBirth: Date? = nil) async -> Bool {
+        guard status?.connected == true, !summaryError, !candidateIDs.isEmpty,
+              !actionInProgress else { return false }
+        if includesIdentity, dateOfBirth == nil {
+            verificationErrorMessage = "Add your date of birth to continue verification."
+            return false
+        }
+        let current = Set(
+            (availableRecords?.identity.filter(\.canImport).map(\.candidateId) ?? [])
+                + (availableRecords?.education.filter(\.canImport).map(\.candidateId) ?? [])
+        )
+        guard Set(candidateIDs).isSubset(of: current) else {
+            verificationErrorMessage = "One or more records changed. Refresh and choose again."
+            return false
+        }
+        let revision = identityRevision
+        isImporting = true
+        verificationErrorMessage = nil
+        defer { if revision == identityRevision { isImporting = false } }
+        do {
+            _ = try await service.importRecords(
+                candidateIDs: candidateIDs,
+                educationTargets: [:],
+                consent: includesIdentity
+            )
+            guard revision == identityRevision, !Task.isCancelled else { return false }
+            await refreshAll()
+            return !summaryError && !inventoryError
+        } catch {
+            guard revision == identityRevision, !Task.isCancelled else { return false }
+            verificationErrorMessage = "We couldn't import the selected records. Your existing records are unchanged."
+            await refreshAll()
+            return false
+        }
+    }
+
+    func prepareStructuredAddress(candidateID: String) async -> Bool {
+        guard status?.connected == true, !summaryError, !actionInProgress,
+              availableRecords?.addressCandidates.contains(where: {
+                  $0.candidateId == candidateID && $0.candidateType == .structured
+              }) == true else { return false }
+        let revision = identityRevision
+        isImporting = true
+        verificationErrorMessage = nil
+        defer { if revision == identityRevision { isImporting = false } }
+        do {
+            let response = try await service.importRecords(
+                candidateIDs: [candidateID], educationTargets: [:], consent: false
+            )
+            guard revision == identityRevision, !Task.isCancelled,
+                  response.outcomes.contains(where: {
+                      $0.candidateId == candidateID && $0.domain == "address" && $0.status == "use_address_save"
+                  }) else { throw DigiLockerServiceError.invalidResponse }
+            await refreshAll()
+            return !summaryError && !inventoryError
+        } catch {
+            guard revision == identityRevision, !Task.isCancelled else { return false }
+            verificationErrorMessage = "We couldn't open this address. Refresh DigiLocker before trying again."
+            await refreshAll()
+            return false
+        }
     }
 
     func startConnection() async -> URL? {
@@ -325,10 +394,12 @@ final class DigiLockerStore: ObservableObject {
         isLoadingInventory = false
         isConnecting = false
         isVerifying = false
+        isImporting = false
         status = nil
         trust = nil
         history = nil
         issuedDocuments = []
+        availableRecords = nil
         summaryError = false
         inventoryError = false
         actionErrorMessage = nil

@@ -253,6 +253,43 @@ final class DigiLockerTests: XCTestCase {
         XCTAssertFalse(reflected.contains("opaque-reference"))
     }
 
+    func test_dynamicDiscoveryAndImportUseAPI79ContractsWithoutProviderSecrets() async throws {
+        let service = try await makeService()
+        let available = Data(
+            #"{"identity":[{"candidate_id":"identity-1","doctype":"PANCR","record_type":"identity","display_type":"PAN","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready"}],"education":[{"candidate_id":"education-1","record_type":"education","display_type":"Degree certificate","source":"digilocker","possible_existing_record_match":"CLEAR_MATCH","import_status":"needs_review","review_state":"needs_review","evidence":[]}],"address_candidates":[],"address_prefill_candidates":[{"candidate_id":"address-1","doctype":"DRVLC","display_type":"Driving Licence address","source":"digilocker_driving_licence","review_state":"ready","candidate_type":"prefill","address_state":"ADDRESS_PREFILL_CANDIDATE","document_address_type":"untyped","requires_permanent_confirmation":true,"requires_replacement_confirmation":false,"prefill_text":"Synthetic address for review","structured_address":null}],"address_discovery_state":"ADDRESS_PREFILL_CANDIDATE","counts":{"total_issued":3,"supported":3,"unsupported":0,"identity":1,"education":1,"address_candidates":0,"address_prefill_candidates":1,"xml_available":2,"pdf_only":0,"parse_failures":0,"malformed":0},"discovered_at":"2026-10-31T10:00:00Z"}"#.utf8
+        )
+        let imported = Data(
+            #"{"outcomes":[{"candidate_id":"identity-1","domain":"identity","status":"imported","record_id":null,"verification_id":null,"evidence_count":1,"review_state":"ready"}],"completed_at":"2026-10-31T10:01:00Z"}"#.utf8
+        )
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/integrations/digilocker/available-records"):
+                return (try Self.response(for: request), available)
+            case ("POST", "/api/v1/integrations/digilocker/records/import"):
+                let json = try XCTUnwrap(JSONSerialization.jsonObject(with: requestBodyData(from: request)) as? [String: Any])
+                XCTAssertEqual(json["candidate_ids"] as? [String], ["identity-1"])
+                XCTAssertEqual(json["education_targets"] as? [String: String], [:])
+                XCTAssertEqual(json["consent"] as? Bool, true)
+                XCTAssertEqual(json["consent_version"] as? String, "v1")
+                XCTAssertNil(json["provider_token"])
+                return (try Self.response(for: request), imported)
+            default:
+                XCTFail("Unexpected dynamic DigiLocker request")
+                return (try Self.response(for: request, statusCode: 404), Data())
+            }
+        }
+
+        let discovery = try await service.availableRecords()
+        XCTAssertEqual(discovery.identity.map(\.displayType), ["PAN"])
+        XCTAssertEqual(discovery.education.first?.importStatus, .needsReview)
+        XCTAssertEqual(discovery.addressPrefillCandidates.first?.candidateType, .prefill)
+        XCTAssertTrue(discovery.addressPrefillCandidates.first?.requiresPermanentConfirmation == true)
+        let result = try await service.importRecords(
+            candidateIDs: ["identity-1"], educationTargets: [:], consent: true
+        )
+        XCTAssertEqual(result.outcomes.first?.status, "imported")
+    }
+
     func test_historicalVerificationRemainsVisibleWhenDisconnected() async throws {
         let service = DigiLockerServiceStub(
             status: DigiLockerStatusDTO(connected: false, status: .disconnected),

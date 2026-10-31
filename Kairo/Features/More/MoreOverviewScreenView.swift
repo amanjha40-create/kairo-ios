@@ -78,6 +78,11 @@ struct MoreOverviewScreenView: View {
             openRequestedDestination()
         }
         .onChange(of: router.requestedMoreDestination) { _, _ in openRequestedDestination() }
+        .onChange(of: router.requestsPermanentAddress) { _, requested in
+            guard requested, permanentAddressService != nil else { return }
+            router.requestsPermanentAddress = false
+            presentedModal = .permanentAddress
+        }
         .task { await digiLockerStore.loadSummaryIfNeeded() }
         .onChange(of: appearanceStore.selection) { _, selection in
             state.selectAppearance(selection)
@@ -159,6 +164,16 @@ struct MoreOverviewScreenView: View {
             MoreSectionTitle(title: "Activity & documents", accessibilityIdentifier: "candidate.more.activityDocuments")
             KairoSection(accent: .neutral) {
                 DigiLockerMoreRow()
+                Divider()
+                MoreNavigationRow(
+                    item: MoreRowItem(
+                        id: "trustInvitations",
+                        title: "Trust Invitations",
+                        subtitle: "Review organization requests and sharing progress",
+                        systemImage: "person.crop.circle.badge.checkmark"
+                    ),
+                    action: { presentedModal = .trustInvitations }
+                )
                 Divider()
                 MoreNavigationRow(
                     item: MoreRowItem(
@@ -505,11 +520,20 @@ struct MoreOverviewScreenView: View {
                 ProfileOverviewSheetView(initialUser: content.user, service: profileService)
             }
         case .password:
-            MoreChangePasswordSheetView(onSubmit: changePassword)
+            if case .populated(let content) = state.phase, content.user.hasPassword {
+                MoreChangePasswordSheetView(onSubmit: changePassword)
+            } else {
+                MoreSetPasswordSheetView(
+                    requestCode: { try await moreOverviewService.requestSetPassword() },
+                    setPassword: setFederatedPassword
+                )
+            }
         case .sessions:
             MoreSessionsSheetView()
         case .documentVault:
             DocumentsHubView()
+        case .trustInvitations:
+            TrustInvitationsListView()
         case .consent:
             if case .populated(let content) = state.phase {
                 MoreConsentManagementSheetView(
@@ -755,6 +779,22 @@ struct MoreOverviewScreenView: View {
         return message
     }
 
+    private func setFederatedPassword(
+        _ code: String, _ password: String, _ confirmation: String
+    ) async throws -> String {
+        let overview = try await moreOverviewService.setPassword(
+            code: code,
+            password: password,
+            confirmPassword: confirmation
+        )
+        await MainActor.run {
+            sessionStore.replaceCurrentUser(overview.user)
+            state.apply(overview: overview, destinations: destinations)
+            actionStatusMessage = "Password set. Email login is now available."
+        }
+        return "Password set"
+    }
+
     private func withdrawConsent() async throws -> String {
         let overview = try await moreOverviewService.withdrawTrustScoreConsent()
         await MainActor.run {
@@ -949,6 +989,7 @@ private enum MorePresentedModal: Identifiable {
     case password
     case sessions
     case documentVault
+    case trustInvitations
     case consent
     case deleteAccount
     case information(MoreInformationSheetModel)
@@ -966,6 +1007,8 @@ private enum MorePresentedModal: Identifiable {
             "sessions"
         case .documentVault:
             "documentVault"
+        case .trustInvitations:
+            "trustInvitations"
         case .consent:
             "consent"
         case .deleteAccount:
@@ -1360,6 +1403,94 @@ private struct MoreProfileSheetView: View {
         case yearsOfExperience
         case currentCity
         case currentCountry
+    }
+}
+
+private struct MoreSetPasswordSheetView: View {
+    let requestCode: () async throws -> SetPasswordVerificationResponseDTO
+    let setPassword: (String, String, String) async throws -> String
+    @Environment(\.dismiss) private var dismiss
+    @State private var challenge: SetPasswordVerificationResponseDTO?
+    @State private var code = ""
+    @State private var password = ""
+    @State private var confirmation = ""
+    @State private var busy = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: KairoSpacing.large) {
+                    KairoSection {
+                        Text("Set Password").font(KairoTypography.headline)
+                        Text("Add email and password login while keeping your Google sign-in connected.")
+                            .font(KairoTypography.footnote)
+                        if let challenge {
+                            Text("Code sent to \(challenge.emailMasked)")
+                                .font(KairoTypography.bodyStrong)
+                            KairoTextField(title: "Verification code", prompt: "6-digit code", text: $code,
+                                           keyboardType: .numberPad, textContentType: .oneTimeCode)
+                            KairoTextField(title: "New Password", prompt: NewPasswordPolicy.guidance, text: $password,
+                                           textContentType: .newPassword, textInputAutocapitalization: .never, isSecure: true)
+                            KairoTextField(title: "Confirm Password", prompt: "Re-enter your new password", text: $confirmation,
+                                           textContentType: .newPassword, textInputAutocapitalization: .never, isSecure: true)
+                            KairoPrimaryButton(title: "Set Password", isLoading: busy) { submit() }
+                                .disabled(busy)
+                            KairoSecondaryButton(title: "Resend verification code") { sendCode() }
+                                .disabled(busy)
+                        } else {
+                            Text("We'll send a verification code to your verified account email. You do not need to enter your email again.")
+                                .font(KairoTypography.footnote)
+                            KairoPrimaryButton(title: "Send verification code", isLoading: busy) { sendCode() }
+                                .disabled(busy)
+                        }
+                        if let errorMessage {
+                            Text(errorMessage).font(KairoTypography.footnote).foregroundStyle(KairoColors.danger)
+                        }
+                    }
+                }.padding(KairoSpacing.medium)
+            }
+            .navigationTitle("Login & security").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { clear(); dismiss() } } }
+            .interactiveDismissDisabled(busy)
+        }
+    }
+
+    private func sendCode() {
+        guard !busy else { return }
+        busy = true; errorMessage = nil
+        Task {
+            do {
+                let result = try await requestCode()
+                await MainActor.run { challenge = result; code = ""; busy = false }
+            } catch {
+                await MainActor.run { busy = false; errorMessage = "KairoID couldn't send the verification code. Please try again." }
+            }
+        }
+    }
+
+    private func submit() {
+        guard !busy else { return }
+        let digits = code.filter(\.isNumber)
+        guard digits.count == 6 else { errorMessage = "Enter the 6-digit code."; return }
+        if let error = CreateAccountValidation.passwordErrorMessage(password) { errorMessage = error; return }
+        guard password == confirmation else { errorMessage = "Passwords do not match."; return }
+        busy = true; errorMessage = nil
+        Task {
+            do {
+                _ = try await setPassword(digits, password, confirmation)
+                await MainActor.run { busy = false; clear(); dismiss() }
+            } catch {
+                await MainActor.run {
+                    busy = false; password = ""; confirmation = ""
+                    errorMessage = "KairoID couldn't set your password. Check the code and try again."
+                }
+            }
+        }
+    }
+
+    private func clear() {
+        code = ""; password = ""; confirmation = ""; challenge = nil
     }
 }
 
