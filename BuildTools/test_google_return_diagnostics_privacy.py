@@ -18,10 +18,11 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
         for event in ('APP_LAUNCH', 'SCENE_ACTIVE', 'OPENURL_RECEIVED', 'USER_ACTIVITY_RECEIVED', 'LINK_VALIDATED', 'ROUTER_RECEIVED', 'PRESENTATION_CREATED', 'EXCHANGE_STARTED', 'EXCHANGE_RESPONSE', 'BOOTSTRAP_STARTED', 'BOOTSTRAP_SUCCEEDED', 'AUTH_ROOT_CHANGED'):
             self.assertIn('IOS_OAUTH_' + event, source)
 
-    def test_production_plist_changes_only_export_declaration(self):
+    def test_production_plist_changes_only_export_and_places_substitution(self):
         base = plistlib.loads((ROOT / 'Kairo-Info.plist').read_bytes())
         prod = plistlib.loads((ROOT / 'Kairo-Production-Info.plist').read_bytes())
         self.assertIs(prod.pop('ITSAppUsesNonExemptEncryption'), False)
+        self.assertEqual(prod.pop('GOOGLE_PLACES_API_KEY'), '$(GOOGLE_PLACES_API_KEY)')
         self.assertEqual(prod, base)
         objects = json.loads(subprocess.check_output(['plutil', '-convert', 'json', '-o', '-', str(ROOT / 'Kairo.xcodeproj/project.pbxproj')]))['objects']
         configs = [v for v in objects.values() if v.get('isa') == 'XCBuildConfiguration' and 'KAIRO_BUILD_CONFIGURATION' in v.get('buildSettings', {})]

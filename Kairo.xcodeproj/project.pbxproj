@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AABA0001301796C10044E7FE /* GooglePlacesSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AABA0002301796C10044E7FE /* GooglePlacesSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		0738F9DB301796C10044E7FE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AABA0004301796C10044E7FE /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configuration/Production.xcconfig; sourceTree = SOURCE_ROOT; };
 		0738F9CD301796C00044E7FE /* Kairo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kairo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0738F9DA301796C10044E7FE /* KairoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KairoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0738F9E4301796C10044E7FE /* KairoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KairoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AABA0001301796C10044E7FE /* GooglePlacesSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +81,7 @@
 		0738F9C4301796BF0044E7FE = {
 			isa = PBXGroup;
 			children = (
+				AABA0004301796C10044E7FE /* Production.xcconfig */,
 				0738F9CF301796C00044E7FE /* Kairo */,
 				0738F9DD301796C10044E7FE /* KairoTests */,
 				0738F9E7301796C10044E7FE /* KairoUITests */,
@@ -113,6 +120,7 @@
 			);
 			name = Kairo;
 			packageProductDependencies = (
+				AABA0002301796C10044E7FE /* GooglePlacesSwift */,
 			);
 			productName = Kairo;
 			productReference = 0738F9CD301796C00044E7FE /* Kairo.app */;
@@ -199,6 +207,9 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0738F9CE301796C00044E7FE /* Products */;
 			projectDirPath = "";
+			packageReferences = (
+				AABA0003301796C10044E7FE /* ios-places-sdk */,
+			);
 			projectRoot = "";
 			targets = (
 				0738F9CC301796BF0044E7FE /* Kairo */,
@@ -545,6 +556,7 @@
 		};
 		0738F9F0301796C10044E7FE /* Production */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AABA0004301796C10044E7FE /* Production.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -841,6 +853,22 @@
 			name = Demo;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AABA0003301796C10044E7FE /* ios-places-sdk */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googlemaps/ios-places-sdk";
+			requirement = {kind = exactVersion; version = 11.2.0; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AABA0002301796C10044E7FE /* GooglePlacesSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AABA0003301796C10044E7FE /* ios-places-sdk */;
+			productName = GooglePlacesSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		0738F9C8301796BF0044E7FE /* Build configuration list for PBXProject "Kairo" */ = {

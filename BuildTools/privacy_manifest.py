@@ -22,6 +22,24 @@ COLLECTED = {
     'PaymentInfo', 'OtherFinancialInfo', 'PreciseLocation', 'CoarseLocation', 'PhotosorVideos',
     'CustomerSupport', 'OtherUserContent', 'UserID', 'ProductInteraction', 'OtherDataTypes',
 }
+# Exact vendor declarations audited for the pinned Places 11.2.0 distribution.
+# These are SDK-owned, not account-linked app telemetry or location permissions.
+SDK_MANIFESTS = {
+    'GooglePlaces_GooglePlacesTarget.bundle/GooglePlaces.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [
+            {'NSPrivacyAccessedAPIType': API_PREFIX + 'FileTimestamp', 'NSPrivacyAccessedAPITypeReasons': ['C617.1']},
+            {'NSPrivacyAccessedAPIType': API_PREFIX + 'UserDefaults', 'NSPrivacyAccessedAPITypeReasons': ['1C8F.1', 'CA92.1']},
+        ],
+        'NSPrivacyCollectedDataTypes': [{
+            DATA_PREFIX: DATA_PREFIX + 'DeviceID', DATA_PREFIX + 'Linked': False,
+            DATA_PREFIX + 'Purposes': [DATA_PREFIX + 'PurposeAnalytics', DATA_PREFIX + 'PurposeAppFunctionality'],
+            DATA_PREFIX + 'Tracking': False,
+        }],
+    },
+    'GooglePlaces_GooglePlacesSwiftTarget.bundle/GooglePlacesSwift.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [], 'NSPrivacyCollectedDataTypes': [],
+    },
+}
 INVENTORY = {
     'UserDefaults': {
         'App/AppAppearanceStore.swift': 2,
@@ -121,9 +139,14 @@ def verify_source(root=ROOT):
             'Missing app synchronized root')
     require('membershipExceptions' not in project and 'PrivacyInfo.xcprivacy' not in project,
             'Resource exceptions/explicit membership need re-audit')
-    require(all(not value.strip() for value in re.findall(r'packageProductDependencies = \((.*?)\);', project, re.S)),
-            'New package dependency needs privacy audit')
-    require('PBXBuildFile' not in project, 'New explicit source/framework dependency needs audit')
+    products = [re.sub(r'/\*.*?\*/', '', value).strip().rstrip(',').strip()
+                for value in re.findall(r'packageProductDependencies = \((.*?)\);', project, re.S) if value.strip()]
+    require(products == ['AABA0002301796C10044E7FE'], 'New package dependency needs privacy audit')
+    require(re.findall(r'productName = (Google\w+);', project) == ['GooglePlacesSwift'], 'Unaudited SDK product')
+    require(re.findall(r'repositoryURL = "([^"]+)";', project) == ['https://github.com/googlemaps/ios-places-sdk'],
+            'Unaudited package repository')
+    require('requirement = {kind = exactVersion; version = 11.2.0; };' in project, 'Places version needs re-audit')
+    require(len(re.findall(r'isa = PBXBuildFile;', project)) == 1, 'New explicit dependency needs audit')
     require(inventory(root) == INVENTORY, 'Required-reason API inventory changed; re-audit before certification')
     metadata = (root / 'Kairo/Features/Onboarding/ResumeImportState.swift').read_text()
     block = metadata.split('private static func resolvedByteSize', 1)[1].split('\n}\n', 1)[0]
@@ -138,9 +161,11 @@ def verify_artifact(artifact, root=ROOT, require_signed=False):
     app = artifact / 'Products/Applications/Kairo.app' if artifact.suffix == '.xcarchive' else artifact
     require(app.is_dir() and app.suffix == '.app', 'Expected .app or .xcarchive')
     manifests = sorted(app.rglob('*.xcprivacy'))
-    require(manifests == [app / 'PrivacyInfo.xcprivacy'],
-            'Expected exactly one app-owned manifest; missing/nested/new SDK manifests need audit')
-    require(read_manifest(manifests[0]) == expected, 'Artifact manifest differs from source policy')
+    require(set(manifests) == {app / 'PrivacyInfo.xcprivacy', *(app / path for path in SDK_MANIFESTS)},
+            'Missing or unaudited app/SDK privacy manifest')
+    require(read_manifest(app / 'PrivacyInfo.xcprivacy') == expected, 'Artifact manifest differs from source policy')
+    for path, declaration in SDK_MANIFESTS.items():
+        require(plistlib.loads((app / path).read_bytes()) == declaration, 'SDK privacy declaration changed; re-audit')
     require(not list(app.rglob('*.framework')), 'Embedded framework added; re-audit privacy')
     if require_signed:
         result = subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)],

@@ -14,6 +14,7 @@ struct KairoApp: App {
     init() {
         GoogleReturnDiagnostics.emit(.appLaunch)
         let configuration = AppConfiguration.resolve()
+        PlacesBootstrap.configure(configuration: configuration)
         let uiTestConfiguration = UITestLaunchConfiguration.current().validated(for: configuration)
         let dependencies = AppDependencies.make(
             configuration: configuration,

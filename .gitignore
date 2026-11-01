@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+DerivedData/
+*.xcresult/
+**/xcuserdata/
+Configuration/*Secrets.xcconfig
+Configuration/*Secrets.xcconfig.*

@@ -5,6 +5,7 @@ protocol PermanentAddressServing: Sendable {
     var enabled: Bool { get }
     func state() async throws -> PermanentAddressState
     func save(_ address: ClaimedPermanentAddress) async throws -> PermanentAddressState
+    func save(_ address: ClaimedPermanentAddress, googlePlaceID: String?) async throws -> PermanentAddressState
     func policy() async throws -> AddressDocumentPolicy
     func document(version: String) async throws -> AddressDocumentState
     func upload(version: String, type: String, file: URL, issued: String?) async throws -> AddressDocumentState
@@ -12,6 +13,12 @@ protocol PermanentAddressServing: Sendable {
     func start(version: String) async throws -> AddressLocationChallenge
     func complete(_ challenge: AddressLocationChallenge, samples: [AddressLocationSample]) async throws -> PermanentAddressState
     func cancel(_ challenge: AddressLocationChallenge) async throws
+}
+extension PermanentAddressServing {
+    func save(_ address: ClaimedPermanentAddress, googlePlaceID: String?) async throws -> PermanentAddressState {
+        guard googlePlaceID == nil else { throw NetworkError.invalidResponse }
+        return try await save(address)
+    }
 }
 actor PermanentAddressService: PermanentAddressServing {
     nonisolated let enabled: Bool
@@ -34,8 +41,13 @@ actor PermanentAddressService: PermanentAddressServing {
     }
     func state() async throws -> PermanentAddressState { try await request() }
     func save(_ address: ClaimedPermanentAddress) async throws -> PermanentAddressState {
+        try await save(address, googlePlaceID: nil)
+    }
+    func save(_ address: ClaimedPermanentAddress, googlePlaceID: String?) async throws -> PermanentAddressState {
         guard address.isValid else { throw NetworkError.invalidResponse }
-        return try await request(method: .put, body: APIJSONCoder.makeEncoder().encode(address))
+        if let googlePlaceID, !PlacesAddressSelection.validPlaceID(googlePlaceID) { throw NetworkError.invalidResponse }
+        return try await request(method: .put, body: APIJSONCoder.makeEncoder().encode(
+            PermanentAddressSaveRequest(address: address, googlePlaceID: googlePlaceID)))
     }
     func policy() async throws -> AddressDocumentPolicy { try await request("/document-types") }
     func document(version: String) async throws -> AddressDocumentState { try await request("/\(id(version))/document") }

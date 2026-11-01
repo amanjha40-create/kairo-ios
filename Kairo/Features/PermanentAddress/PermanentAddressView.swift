@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import GooglePlacesSwift
 
 struct PermanentAddressView: View {
     @StateObject private var model: PermanentAddressStore
@@ -172,6 +173,11 @@ private struct PermanentAddressEditorView: View {
     @Binding var address: ClaimedPermanentAddress
     @ObservedObject var model: PermanentAddressStore
     @Environment(\.dismiss) private var dismiss
+    @State private var showPlaces = false
+    @State private var selection: PlacesAddressSelection?
+    @State private var placesError: String?
+    @State private var fetchingPlace = false
+    @State private var fetchTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -179,6 +185,27 @@ private struct PermanentAddressEditorView: View {
                 KairoSection(compact: true) {
                     KairoSectionHeading(title: "Permanent Address")
                     Text("Enter your permanent address, not just your city. Changing it starts a new verification version; previous location checks will not carry over.")
+                    if PlacesBootstrap.isReady {
+                        Button("Search address with Google") {
+                            selection = nil
+                            placesError = nil
+                            showPlaces = true
+                        }
+                        .accessibilityIdentifier("address.places.search")
+                        .placeAutocomplete(filter: AutocompleteFilter(countries: ["IN"]),
+                            initialQuery: address.addressLine1, show: $showPlaces,
+                            onSelection: { suggestion, token in fetchPlace(suggestion.placeID, token: token) },
+                            onError: { _ in placesError = "Address search is unavailable. Try again or enter your address manually." })
+                        if fetchingPlace { ProgressView("Loading selected address...") }
+                        if selection?.placeID(for: address) != nil {
+                            Text("Google address selected. Review all fields before saving.")
+                                .accessibilityIdentifier("address.places.selected")
+                        }
+                    } else {
+                        Text("Address search is not configured for this build. You can enter your address manually.")
+                            .accessibilityIdentifier("address.places.unconfigured")
+                    }
+                    if let placesError { Text(placesError).foregroundStyle(KairoColors.danger) }
                     TextField("Address line 1", text: $address.addressLine1)
                     TextField("Address line 2 (optional)", text: Binding(get: { address.addressLine2 ?? "" }, set: { address.addressLine2 = $0 }))
                     TextField("Locality (optional)", text: Binding(get: { address.locality ?? "" }, set: { address.locality = $0 }))
@@ -186,17 +213,41 @@ private struct PermanentAddressEditorView: View {
                         fixedIndia: true, required: true, cityMaxLength: 100, identifier: "address.location")
                     TextField("PIN code", text: $address.postalCode).keyboardType(.numberPad)
                     if let error = model.error { Text(error).foregroundStyle(KairoColors.danger) }
-                }.textFieldStyle(.roundedBorder).disabled(model.busy).padding()
+                }.textFieldStyle(.roundedBorder).disabled(model.busy || fetchingPlace).padding()
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom) {
-                KairoPrimaryButton(title: "Save permanent address", isLoading: model.busy) { model.save(address) }
-                    .disabled(!model.actionsAvailable || !address.isValid)
+                KairoPrimaryButton(title: "Save permanent address", isLoading: model.busy) {
+                    model.save(address, googlePlaceID: selection?.placeID(for: address))
+                }
+                    .disabled(!model.actionsAvailable || !address.isValid || fetchingPlace)
                     .padding().background(KairoColors.surface)
             }
             .navigationTitle("Permanent address").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(model.busy) } }
             .interactiveDismissDisabled(model.busy)
+            .onDisappear { fetchTask?.cancel(); fetchTask = nil; selection = nil }
+        }
+    }
+
+    private func fetchPlace(_ placeID: String, token: AutocompleteSessionToken) {
+        showPlaces = false
+        fetchTask?.cancel()
+        selection = nil
+        fetchingPlace = true
+        fetchTask = Task { @MainActor in
+            let result = await PlacesClient.shared.fetchPlace(with: FetchPlaceRequest(placeID: placeID,
+                placeProperties: [.placeID, .addressComponents], sessionToken: token))
+            guard !Task.isCancelled else { return }
+            fetchingPlace = false
+            guard case .success(let place) = result, place.placeID == placeID,
+                  let mapped = PlacesAddressSelection.map(placeID: placeID, components: place.addressComponents ?? []) else {
+                placesError = "We couldn't load that address. Search again or enter your address manually."
+                return
+            }
+            address = mapped.address
+            selection = mapped
+            placesError = nil
         }
     }
 }

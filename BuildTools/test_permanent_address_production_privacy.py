@@ -30,7 +30,7 @@ class PermanentAddressProductionPrivacyTests(unittest.TestCase):
         self.assertIn("busy = true; error = nil; stateIsCurrent = false", source)
         view = (ADDRESS / "PermanentAddressView.swift").read_text()
         self.assertIn(".disabled(!model.actionsAvailable || state.canStartLocation != true)", view)
-        self.assertIn(".disabled(!model.actionsAvailable || !address.isValid)", view)
+        self.assertIn(".disabled(!model.actionsAvailable || !address.isValid || fetchingPlace)", view)
 
     def test_review_enum_and_storage_details_never_render_directly(self):
         view = (ADDRESS / "PermanentAddressView.swift").read_text()

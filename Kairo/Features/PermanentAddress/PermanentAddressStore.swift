@@ -57,10 +57,10 @@ import Combine
             documentError = "Document status unavailable. Refresh before uploading."
         }
     }
-    func save(_ address: ClaimedPermanentAddress) {
+    func save(_ address: ClaimedPermanentAddress, googlePlaceID: String? = nil) {
         guard actionsAvailable, address.isValid else { return }
         run { [self] ticket in
-            let next = try await service.save(address)
+            let next = try await service.save(address, googlePlaceID: googlePlaceID)
             guard generation == ticket else { return }
             apply(next); addressSaveRevision += 1; await loadDocument(ticket)
         }

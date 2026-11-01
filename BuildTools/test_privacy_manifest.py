@@ -18,6 +18,8 @@ class PrivacyManifestTests(unittest.TestCase):
         self.app = Path(self.temp.name) / 'Kairo.app'
         self.app.mkdir()
         self.write(self.app / 'PrivacyInfo.xcprivacy', self.manifest)
+        for path, declaration in policy.SDK_MANIFESTS.items():
+            self.write(self.app / path, declaration)
 
     def write(self, path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +33,16 @@ class PrivacyManifestTests(unittest.TestCase):
         policy.verify_source()
 
     def test_artifact_recursive_validation(self):
-        self.assertEqual(policy.verify_artifact(self.app)['manifestCount'], 1)
+        self.assertEqual(policy.verify_artifact(self.app)['manifestCount'], 3)
+
+    def test_sdk_manifest_change_or_omission_fails(self):
+        path = self.app / next(iter(policy.SDK_MANIFESTS))
+        self.write(path, {})
+        with self.assertRaises(policy.PrivacyError):
+            policy.verify_artifact(self.app)
+        path.unlink()
+        with self.assertRaises(policy.PrivacyError):
+            policy.verify_artifact(self.app)
 
     def test_archive_validation(self):
         archive = Path(self.temp.name) / 'Kairo.xcarchive'

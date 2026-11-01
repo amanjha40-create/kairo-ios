@@ -17,6 +17,8 @@ import XCTest
         let app = launch("no_address")
         app.buttons["Add permanent address"].tap()
         XCTAssertTrue(app.textFields["Address line 1"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["address.places.unconfigured"].exists)
+        XCTAssertFalse(app.buttons["address.places.search"].exists)
         XCTAssertFalse(app.buttons["Save permanent address"].isEnabled)
         XCTAssertFalse(app.staticTexts["Legacy Location"].exists)
         app.buttons["Cancel"].tap()
