@@ -103,8 +103,24 @@ invitation screen. A successful HTTP AASA check alone is not that proof.
   Apple's association CDN also returns the same correct configuration.
 - The signed local QA build was installed on the paired founder iPhone 11.
   This is a developer build, not a release-attested archive or upload.
-- Physical search/save, DRVLC, Universal Link, and GPS outcomes must be
-  recorded separately from these automated results.
+- Founder-approved XCTest automation on the iPhone 11 passed the normal
+  authenticated route: More > Permanent Address > Add/Edit. The editor
+  exposes both Google search and manual fields.
+- A live public-landmark smoke test (not a candidate-address certification)
+  passed autocomplete, selection, structured field population, and the
+  transient ID-bound selection confirmation. Editing the resulting draft
+  cleared that selection. Cancel/reopen restored the original draft.
+  No Save, document upload, consent, or GPS action was performed.
+- The physical check used a temporary UI-only Production scheme. The normal
+  scheme also builds demo-dependent unit tests, which cannot compile against
+  Production's intentionally excluded demo types. This does not replace the
+  passing Development unit suite or change the normal scheme. The temporary
+  harness and scheme were removed after inspection; private screenshots and
+  Xcode results were not committed.
+- Backend save/server resolution, controlled candidate address, physical
+  DRVLC prefill, real-invitation Universal Link, and GPS certification remain
+  unverified. No controlled real invitation URL was available. A public
+  landmark was not saved as the candidate's address.
 
 **Unresolved release gate:** the unchanged `endpoint_scan.py` flags
 `localhost` and `127.0.0.1` in both Production executables. These exact strings
