@@ -176,6 +176,13 @@ class PrivacyManifestTests(unittest.TestCase):
         self.assertEqual(policy.inventory(policy.ROOT)['FileTimestamp'], {})
         self.assertNotIn('FileTimestamp', policy.REASONS)
 
+    def test_timestamp_scanner_ignores_non_api_identifier_text(self):
+        root = Path(self.temp.name)
+        source = root / 'Kairo/Accessibility.swift'
+        source.parent.mkdir(exist_ok=True)
+        source.write_text('let identifier = "resume.import.status"; let state = "stat"')
+        self.assertEqual(policy.inventory(root)['FileTimestamp'], {})
+
 
 if __name__ == '__main__':
     unittest.main()

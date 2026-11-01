@@ -480,7 +480,6 @@ struct DigiLockerHubView: View {
                 }
             }
         }
-        .accessibilityIdentifier("candidate.digilocker.discovery")
     }
 
     @ViewBuilder
@@ -527,6 +526,10 @@ struct DigiLockerHubView: View {
         }
         if !selectedDiscoveryIDs.isEmpty {
             let includesIdentity = records.identity.contains { selectedDiscoveryIDs.contains($0.id) }
+            let missingIdentityDOB = DigiLockerDiscoveryDOBPrecondition.isBlocking(
+                includesIdentity: includesIdentity,
+                dateOfBirth: sessionStore.currentUser?.dateOfBirth
+            )
             if includesIdentity {
                 Button {
                     discoveryConsent.toggle()
@@ -540,6 +543,22 @@ struct DigiLockerHubView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityValue(discoveryConsent ? "Checked" : "Unchecked")
+            }
+            if missingIdentityDOB {
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    Text(DigiLockerDiscoveryDOBPrecondition.title)
+                        .font(KairoTypography.bodyStrong)
+                        .foregroundStyle(KairoColors.danger)
+                    Text(DigiLockerDiscoveryDOBPrecondition.message)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Add date of birth") { showsDOBEditor = true }
+                        .buttonStyle(KairoActionStyle(role: .secondary))
+                        .accessibilityIdentifier("candidate.digilocker.import.addDOB")
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("candidate.digilocker.import.dobRequired")
             }
             KairoPrimaryButton(
                 title: "Import selected",
@@ -558,7 +577,7 @@ struct DigiLockerHubView: View {
                     }
                 }
             }
-            .disabled(store.actionInProgress || (includesIdentity && !discoveryConsent))
+            .disabled(store.actionInProgress || missingIdentityDOB || (includesIdentity && !discoveryConsent))
         }
     }
 
@@ -577,6 +596,7 @@ struct DigiLockerHubView: View {
             }
         }
         .disabled(!enabled || store.actionInProgress)
+        .accessibilityIdentifier("candidate.digilocker.discovery.select.\(id)")
     }
 
     private func discoveryStatus(_ status: DigiLockerImportStatus) -> String {

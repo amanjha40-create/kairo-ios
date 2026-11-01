@@ -8,6 +8,15 @@ nonisolated enum DigiLockerDOBPrecondition {
     }
 }
 
+nonisolated enum DigiLockerDiscoveryDOBPrecondition {
+    static let title = "Date of birth required"
+    static let message = "Add your date of birth to your profile before importing this identity document."
+
+    static func isBlocking(includesIdentity: Bool, dateOfBirth: Date?) -> Bool {
+        includesIdentity && dateOfBirth == nil
+    }
+}
+
 /// Only finite categories/statuses are rendered; provider bodies and identifiers are never shown.
 nonisolated enum DigiLockerVerificationFailure {
     static func message(for error: Error) -> String {

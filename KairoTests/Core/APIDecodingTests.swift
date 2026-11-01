@@ -515,6 +515,16 @@ final class APIDecodingTests: XCTestCase {
         XCTAssertEqual(employment.verificationStatus, "approved")
     }
 
+    func test_careerEmploymentDTODecodesNullEmploymentType() throws {
+        let data = Data(#"[{"id":"employment_null","subject_full_name":null,"subject_email":null,"employer_legal_name":"Synthetic","employer_trade_name":null,"job_title":"Engineer","employment_type":null,"start_date":"2024-01-01","end_date":null,"work_location_country":null,"work_location_region":null,"verification_method":"document","verification_status":"draft"}]"#.utf8)
+        let employment = try XCTUnwrap(
+            APIJSONCoder.makeDecoder().decode([CareerEmploymentDTO].self, from: data).first
+        )
+        XCTAssertNil(employment.employmentType)
+        let record = CareerEmploymentRecord(dto: employment)
+        XCTAssertNil(record.employmentType)
+    }
+
     func test_careerCollectionEnvelopeDecodesArrayAndEmptyPageShapes() throws {
         let skillsData = Data(
             """

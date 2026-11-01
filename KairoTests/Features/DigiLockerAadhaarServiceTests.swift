@@ -256,7 +256,7 @@ final class DigiLockerAadhaarServiceTests: XCTestCase {
             #"{"available":true,"entitlement_confirmed":false"# + extras)
         XCTAssertFalse(String(reflecting: availability).contains("PRIVATE_"))
         let fields = Set(Mirror(reflecting: result).children.compactMap(\.label))
-        XCTAssertEqual(fields, ["documentType", "source", "current", "matchResult", "matchReason", "integrityResult", "verifiedAt"])
+        XCTAssertEqual(fields, ["documentType", "source", "current", "matchResult", "matchReason", "integrityResult", "verifiedAt", "maskedIdentifier"])
     }
 
     func testFiniteErrorDecoderDiscardsUnknownCodesAndAllRawDescriptions() {

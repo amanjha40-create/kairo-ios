@@ -3,6 +3,35 @@ import XCTest
 @testable import Kairo
 
 final class CareerOverviewMapperTests: XCTestCase {
+    func testEmploymentUsesStableCareerChronology() {
+        let records = [
+            makeEmployment(id: "unknown-a", start: nil, end: nil),
+            makeEmployment(id: "ended-old", start: date(2018), end: date(2020)),
+            makeEmployment(id: "current-old", start: date(2021), end: nil, current: true),
+            makeEmployment(id: "ended-new", start: date(2022), end: date(2025)),
+            makeEmployment(id: "current-new", start: date(2024), end: nil, current: true),
+            makeEmployment(id: "unknown-b", start: nil, end: nil)
+        ]
+
+        XCTAssertEqual(
+            CareerOverviewMapper.chronologicallySorted(records).map(\.id),
+            ["current-new", "current-old", "ended-new", "ended-old", "unknown-a", "unknown-b"]
+        )
+    }
+
+    func testNullEmploymentTypeIsSafeInCareerListAndDetailMetadata() {
+        let overview = CareerOverview(
+            user: makeUser(),
+            employments: [makeEmployment(id: "null-type", start: date(2024), end: nil, current: true)],
+            educations: [], certifications: [], projects: [], skills: []
+        )
+        guard case .populated(let content) = CareerOverviewMapper.map(overview).phase else {
+            return XCTFail("Missing Career content")
+        }
+        XCTAssertEqual(content.employment.first?.routeID, "null-type")
+        XCTAssertFalse(content.employment[0].detailMetadata.contains { $0.title == "Employment type" })
+    }
+
     func testCertificationExpiryUsesExplicitCopyWithoutInventingMissingDate() throws {
         for never in [false, true] {
             let record = CareerCertificationRecord(id: "expiry", title: "Certificate", issuer: "Synthetic issuer",
@@ -384,6 +413,26 @@ final class CareerOverviewMapperTests: XCTestCase {
             profileCompletionPercentage: 75,
             createdAt: makeUTCTimestamp(year: 2026, month: 7, day: 30, hour: 8, minute: 0, second: 0)!
         )
+    }
+
+    private func makeEmployment(
+        id: String,
+        start: Date?,
+        end: Date?,
+        current: Bool = false
+    ) -> CareerEmploymentRecord {
+        CareerEmploymentRecord(
+            id: id, subjectFullName: nil, subjectEmail: nil, company: id,
+            employerLegalName: id, employerTradeName: nil, role: "Role",
+            employmentType: nil, startDate: start, endDate: end,
+            currentlyWorking: current, workLocationCountry: nil,
+            workLocationRegion: nil, verificationMethod: nil,
+            verificationStatus: .notVerified, rawVerificationStatus: "draft"
+        )
+    }
+
+    private func date(_ year: Int) -> Date {
+        makeUTCTimestamp(year: year, month: 1, day: 1) ?? .distantPast
     }
 
     private func makeUTCTimestamp(

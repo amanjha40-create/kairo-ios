@@ -180,9 +180,6 @@ struct CareerRecordDetailView: View {
                     if record.kind == .education, !record.educationEvidence.isEmpty {
                         educationEvidenceSection
                     }
-                    if record.kind == .employment {
-                        EmploymentReferencesView(employmentID: record.id)
-                    }
                     if record.showsVerification {
                         KairoSection(compact: true) {
                             KairoSectionHeading(title: "Verification")

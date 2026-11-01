@@ -241,6 +241,8 @@ struct TrustInvitationView: View {
                     ProductGuidanceView(topic: .invitation)
                     if let invitation {
                         Text("Trust Invitation").font(KairoTypography.title)
+                        Text(invitation.organizationName)
+                            .font(KairoTypography.headline)
                         Text("Review this invitation using the verified account it was sent to.")
                             .font(KairoTypography.body)
                         Text(accepted ? "Accepted" : invitation.status.capitalized).font(KairoTypography.headline)

@@ -102,6 +102,31 @@ final class DigiLockerWave1UITests: XCTestCase {
         XCTAssertTrue(dateOfBirth.isHittable, "The requested DOB field must be visible without manually scrolling the editor")
     }
 
+    func testMissingDOBBlocksIdentityDiscoveryImportBeforeSubmission() {
+        let app = launch(missingDOB: true)
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app); entry.tap()
+
+        let discoveryHeading = app.staticTexts["Found in DigiLocker"]
+        reveal(discoveryHeading, in: app)
+        let identity = app.switches["candidate.digilocker.discovery.select.demo-identity"]
+        reveal(identity, in: app); identity.tap()
+
+        let guardMessage = app.descendants(matching: .any)["candidate.digilocker.import.dobRequired"]
+        reveal(guardMessage, in: app)
+        XCTAssertTrue(guardMessage.exists)
+        XCTAssertTrue(app.staticTexts["Date of birth required"].exists)
+        XCTAssertTrue(app.staticTexts["Add your date of birth to your profile before importing this identity document."].exists)
+
+        let importButton = app.buttons["candidate.digilocker.import"]
+        reveal(importButton, in: app)
+        XCTAssertFalse(importButton.isEnabled)
+
+        let addDOB = app.buttons["candidate.digilocker.import.addDOB"]
+        reveal(addDOB, in: app); addDOB.tap()
+        XCTAssertTrue(app.buttons["candidate.profile.edit.dobPicker"].waitForExistence(timeout: 10))
+    }
+
     private func checkFixtureVerification(fails: Bool) {
         // Existing UI-test dependencies are in-memory; this never calls live Verify or OAuth.
         let app = launch(fixture: fails ? "consent" : nil)

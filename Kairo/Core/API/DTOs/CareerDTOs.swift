@@ -227,6 +227,31 @@ nonisolated struct EducationEvidenceDTO: Decodable, Equatable, Identifiable, Sen
     let contentType: String?
 
     var id: String { evidenceID }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        evidenceID = try container.decodeRequiredString(forKeys: ["evidence_id"], debugName: "education evidence id")
+        documentType = try container.decodeRequiredString(forKeys: ["document_type"], debugName: "education evidence document type")
+        displayName = try container.decodeRequiredString(forKeys: ["display_name"], debugName: "education evidence display name")
+        source = try container.decodeRequiredString(forKeys: ["source"], debugName: "education evidence source")
+        verificationStatus = try container.decodeRequiredString(
+            forKeys: ["verification_status"],
+            debugName: "education evidence verification status"
+        )
+        verifiedAt = try container.decodeFirstPresentDate(forKeys: ["verified_at"])
+        previewAvailable = try container.decodeFirstPresentBool(forKeys: ["preview_available"], defaultValue: false)
+        let previewTypeValue = try container.decodeRequiredString(
+            forKeys: ["preview_type"],
+            debugName: "education evidence preview type"
+        )
+        guard let decodedPreviewType = EducationEvidencePreviewType(rawValue: previewTypeValue) else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported education evidence preview type.")
+            )
+        }
+        previewType = decodedPreviewType
+        contentType = try container.decodeFirstPresentString(forKeys: ["content_type"])
+    }
 }
 
 nonisolated struct EducationEvidenceStructuredPreviewDTO: Decodable, Equatable, Sendable {
@@ -256,6 +281,32 @@ nonisolated struct EducationEvidencePreviewDTO: Decodable, Equatable, Sendable {
     let previewURL: URL?
     let expiresInSeconds: Int?
     let structured: EducationEvidenceStructuredPreviewDTO?
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        evidenceID = try container.decodeRequiredString(forKeys: ["evidence_id"], debugName: "education evidence id")
+        let previewTypeValue = try container.decodeRequiredString(
+            forKeys: ["preview_type"],
+            debugName: "education evidence preview type"
+        )
+        guard let decodedPreviewType = EducationEvidencePreviewType(rawValue: previewTypeValue) else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported education evidence preview type.")
+            )
+        }
+        previewType = decodedPreviewType
+        contentType = try container.decodeFirstPresentString(forKeys: ["content_type"])
+        if let previewURLValue = try container.decodeFirstPresentString(forKeys: ["preview_url"]) {
+            previewURL = URL(string: previewURLValue)
+        } else {
+            previewURL = nil
+        }
+        expiresInSeconds = try container.decodeFirstPresentInt(forKeys: ["expires_in_seconds"])
+        structured = try container.decodeFirstPresent(
+            EducationEvidenceStructuredPreviewDTO.self,
+            forKeys: ["structured"]
+        )
+    }
 }
 
 private extension DateFormatter {
@@ -567,6 +618,21 @@ private extension KeyedDecodingContainer where Key == DynamicCodingKey {
                 if let value = try decodeIfPresent(String.self, forKey: key)?
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                    !value.isEmpty {
+                    return value
+                }
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated func decodeFirstPresent<Value: Decodable>(
+        _ type: Value.Type,
+        forKeys keys: [String]
+    ) throws -> Value? {
+        for rawKey in keys {
+            for key in candidateKeys(for: rawKey) {
+                if let value = try decodeIfPresent(type, forKey: key) {
                     return value
                 }
             }

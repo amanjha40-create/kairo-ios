@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class DigiLockerTests: XCTestCase {
+    func testDiscoveryDOBGuardBlocksIdentityButNotEducationOnly() {
+        XCTAssertTrue(DigiLockerDiscoveryDOBPrecondition.isBlocking(includesIdentity: true, dateOfBirth: nil))
+        XCTAssertFalse(DigiLockerDiscoveryDOBPrecondition.isBlocking(includesIdentity: false, dateOfBirth: nil))
+        XCTAssertFalse(DigiLockerDiscoveryDOBPrecondition.isBlocking(
+            includesIdentity: true,
+            dateOfBirth: Date(timeIntervalSince1970: 946_684_800)
+        ))
+        XCTAssertEqual(DigiLockerDiscoveryDOBPrecondition.title, "Date of birth required")
+    }
+
     func testMissingDOBBlocksPANAndDLWithoutProviderOrRefreshError() async throws {
         let service = DigiLockerServiceStub(status: .init(connected: true, status: .active),
             trust: try decode(DigiLockerIdentityTrustDTO.self, #"{"state":"unverified","sources":[]}"#),

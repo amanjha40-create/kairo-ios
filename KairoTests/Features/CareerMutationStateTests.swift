@@ -3,6 +3,48 @@ import XCTest
 @testable import Kairo
 
 final class CareerMutationStateTests: XCTestCase {
+    func testNullEmploymentTypeRemainsAbsentOnUnrelatedEditAndCreateUsesCanonicalType() throws {
+        let record = CareerEmploymentRecord(
+            id: "null-type", subjectFullName: nil, subjectEmail: nil,
+            company: "Synthetic", employerLegalName: "Synthetic", employerTradeName: nil,
+            role: "Engineer", employmentType: nil, startDate: nil, endDate: nil,
+            currentlyWorking: false, workLocationCountry: nil, workLocationRegion: nil,
+            verificationMethod: nil, verificationStatus: .notVerified, rawVerificationStatus: "draft"
+        )
+        var edit = CareerEmploymentDraft(record: record)
+        edit.jobTitle = "Senior Engineer"
+        let patch = try JSONSerialization.jsonObject(
+            with: APIJSONCoder.makeEncoder().encode(edit.updateRequest())
+        ) as! [String: Any]
+        XCTAssertNil(patch["employment_type"])
+
+        var create = CareerEmploymentDraft()
+        create.employerLegalName = "Synthetic"
+        create.jobTitle = "Engineer"
+        create.includesStartDate = true
+        create.selectEmploymentType(.other)
+        XCTAssertEqual(create.createRequest(currentUser: makeUser()).employmentType, "other")
+    }
+
+    func testCustomSkillNormalizesNFKCWhitespaceAndPersists() {
+        let draft = CareerSkillDraft(name: "  Ｄａｔａ   Storytelling  ")
+        XCTAssertTrue(draft.validationErrors(existingNames: []).isEmpty)
+        XCTAssertEqual(draft.createRequest().name, "Data Storytelling")
+    }
+
+    func testCustomSkillRejectsNormalizedDuplicateAndUnsafeLength() {
+        XCTAssertEqual(
+            CareerSkillDraft(name: "Café Analytics")
+                .validationErrors(existingNames: ["Café Analytics"])["name"],
+            "That skill already exists."
+        )
+        XCTAssertNotNil(
+            CareerSkillDraft(name: String(repeating: "a", count: CareerSkillDraft.maximumNameLength + 1))
+                .validationErrors(existingNames: [])["name"]
+        )
+        XCTAssertNotNil(CareerSkillDraft(name: "---").validationErrors(existingNames: [])["name"])
+    }
+
     func testProjectRoleClearRefetchReopenDoesNotInjectPresentationCopy() throws {
         func draft(role: Any) throws -> CareerProjectDraft {
             let payload: [String: Any] = ["id": "project-qa", "title": "Synthetic project",

@@ -684,6 +684,7 @@ nonisolated struct CareerPortfolioDraft: Equatable, Sendable {
 }
 
 nonisolated struct CareerSkillDraft: Equatable, Sendable {
+    static let maximumNameLength = 100
     var name = ""
 
     init() {}
@@ -698,20 +699,44 @@ nonisolated struct CareerSkillDraft: Equatable, Sendable {
 
     var displayName: String {
         ProfileCatalogues.resolve(name, in: ProfileCatalogues.skills)?.name
-            ?? normalized(name).nonEmpty
+            ?? Self.normalizedCustomName(name).nonEmpty
             ?? "skill"
     }
 
+    static func normalizedCustomName(_ value: String) -> String {
+        value.precomposedStringWithCompatibilityMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+    }
+
+    static func duplicateKey(_ value: String) -> String {
+        normalizedCustomName(value)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
+    }
+
+    static func isDuplicate(_ value: String, existingNames: [String]) -> Bool {
+        if let entry = ProfileCatalogues.resolve(value, in: ProfileCatalogues.skills),
+           ProfileCatalogues.contains(entry, values: existingNames, in: ProfileCatalogues.skills) {
+            return true
+        }
+        let key = duplicateKey(value)
+        return existingNames.contains { duplicateKey($0) == key }
+    }
+
     func validationErrors(existingNames: [String]) -> [String: String] {
-        let normalizedName = normalized(name)
+        let normalizedName = Self.normalizedCustomName(name)
         guard !normalizedName.isEmpty else {
             return ["name": "Choose a Skill."]
         }
-        guard let entry = ProfileCatalogues.resolve(normalizedName, in: ProfileCatalogues.skills) else {
-            return ["name": "Choose a Skill from the KairoID catalogue."]
+        guard normalizedName.count <= Self.maximumNameLength else {
+            return ["name": "Keep the Skill name to \(Self.maximumNameLength) characters or fewer."]
         }
-
-        if ProfileCatalogues.contains(entry, values: existingNames, in: ProfileCatalogues.skills) {
+        guard normalizedName.unicodeScalars.contains(where: CharacterSet.alphanumerics.contains) else {
+            return ["name": "Enter a valid Skill name."]
+        }
+        if Self.isDuplicate(normalizedName, existingNames: existingNames) {
             return ["name": "That skill already exists."]
         }
 
@@ -720,7 +745,8 @@ nonisolated struct CareerSkillDraft: Equatable, Sendable {
 
     func createRequest() -> CareerSkillCreateRequestDTO {
         CareerSkillCreateRequestDTO(
-            name: ProfileCatalogues.resolve(name, in: ProfileCatalogues.skills)?.name ?? normalized(name)
+            name: ProfileCatalogues.resolve(name, in: ProfileCatalogues.skills)?.name
+                ?? Self.normalizedCustomName(name)
         )
     }
 }

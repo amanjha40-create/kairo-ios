@@ -3,7 +3,7 @@ import Foundation
 enum CareerOverviewMapper {
     nonisolated static func map(_ overview: CareerOverview) -> CareerOverviewState {
         let content = CareerOverviewContent(
-            employment: overview.employments.map(makeEmploymentItem),
+            employment: chronologicallySorted(overview.employments).map(makeEmploymentItem),
             education: overview.educations.map(makeEducationItem),
             certifications: overview.certifications.map(makeCertificationItem),
             projects: overview.projects.map(makeProjectItem),
@@ -17,6 +17,25 @@ enum CareerOverviewMapper {
             content: content,
             isEmpty: isEmpty(content: content)
         )
+    }
+
+    /// Candidate timelines are ordered by career chronology, never insertion or update time.
+    /// The original position is the final tie-breaker so equal/unknown records remain stable.
+    nonisolated static func chronologicallySorted(
+        _ records: [CareerEmploymentRecord]
+    ) -> [CareerEmploymentRecord] {
+        records.enumerated().sorted { lhs, rhs in
+            if lhs.element.currentlyWorking != rhs.element.currentlyWorking {
+                return lhs.element.currentlyWorking
+            }
+            if lhs.element.endDate != rhs.element.endDate {
+                return (lhs.element.endDate ?? .distantPast) > (rhs.element.endDate ?? .distantPast)
+            }
+            if lhs.element.startDate != rhs.element.startDate {
+                return (lhs.element.startDate ?? .distantPast) > (rhs.element.startDate ?? .distantPast)
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
     }
 
     nonisolated static func errorState(for error: Error, summary: CareerProfessionalSummary) -> CareerOverviewState {

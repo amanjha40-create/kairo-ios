@@ -1,8 +1,58 @@
 import Foundation
 
+nonisolated struct KairoIDClientMetadata: Equatable, Sendable {
+    static let nullableEmploymentTypeCapability = "nullable-employment-type-v1"
+
+    let packageName: String
+    let versionCode: String
+    let versionName: String
+    let capabilities: [String]
+
+    init(
+        packageName: String,
+        versionCode: String,
+        versionName: String,
+        capabilities: [String] = [nullableEmploymentTypeCapability]
+    ) {
+        self.packageName = packageName
+        self.versionCode = versionCode
+        self.versionName = versionName
+        self.capabilities = capabilities
+    }
+
+    static func current(bundle: Bundle = .main) -> Self {
+        Self(
+            packageName: bundle.bundleIdentifier ?? "",
+            versionCode: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
+            versionName: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        )
+    }
+
+    var headers: [String: String] {
+        [
+            "X-KairoID-Platform": "ios",
+            "X-KairoID-Package": packageName,
+            "X-KairoID-Version-Code": versionCode,
+            "X-KairoID-Version-Name": versionName,
+            "X-KairoID-Capabilities": capabilities.joined(separator: ",")
+        ]
+    }
+}
+
 struct URLSessionNetworkClient: NetworkClient {
     let baseURL: URL
     let session: URLSession
+    let clientMetadata: KairoIDClientMetadata
+
+    init(
+        baseURL: URL,
+        session: URLSession,
+        clientMetadata: KairoIDClientMetadata = .current()
+    ) {
+        self.baseURL = baseURL
+        self.session = session
+        self.clientMetadata = clientMetadata
+    }
 
     func send(_ request: NetworkRequest) async throws -> Data {
         try await sendResponse(request).data
@@ -108,6 +158,9 @@ struct URLSessionNetworkClient: NetworkClient {
         urlRequest.httpBody = request.body
 
         request.headers.forEach { key, value in
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
+        clientMetadata.headers.forEach { key, value in
             urlRequest.setValue(value, forHTTPHeaderField: key)
         }
 

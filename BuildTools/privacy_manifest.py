@@ -35,7 +35,7 @@ INVENTORY = {
 PATTERNS = {
     'UserDefaults': r'\b(?:NSUserDefaults|UserDefaults|CFPreferences\w*|AppStorage|SceneStorage)\b',
     'SystemBootTime': r'\b(?:systemUptime|mach_absolute_time)\b',
-    'FileTimestamp': r'\b(?:creationDate|modificationDate|fileModificationDate|contentModificationDateKey|creationDateKey|stat|fstat|fstatat|lstat|getattrlist|getattrlistbulk|fgetattrlist|getattrlistat)\b',
+    'FileTimestamp': r'\b(?:creationDate|modificationDate|fileModificationDate|contentModificationDateKey|creationDateKey)\b|\b(?:stat|fstat|fstatat|lstat|getattrlist|getattrlistbulk|fgetattrlist|getattrlistat)\s*\(',
     'DiskSpace': r'\b(?:volumeAvailableCapacity\w*|volumeTotalCapacity\w*|systemFreeSize|systemSize|statfs|statvfs|fstatfs|fstatvfs|attributesOfFileSystem)\b',
     'ActiveKeyboards': r'\bactiveInputModes\b',
 }

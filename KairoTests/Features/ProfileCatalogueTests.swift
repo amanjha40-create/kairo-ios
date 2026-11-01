@@ -135,8 +135,10 @@ final class ProfileCatalogueTests: XCTestCase {
         XCTAssertEqual(draft.request.locationCountry, "IN")
     }
 
-    func test_careerSkillDraftRejectsFreeTextAndCanonicalizesAlias() {
-        XCTAssertNotNil(CareerSkillDraft(name: "Made Up").validationErrors(existingNames: [])["name"])
+    func test_careerSkillDraftAcceptsSafeFreeTextAndCanonicalizesAlias() {
+        let custom = CareerSkillDraft(name: "  Stakeholder   Storytelling ")
+        XCTAssertTrue(custom.validationErrors(existingNames: []).isEmpty)
+        XCTAssertEqual(custom.createRequest().name, "Stakeholder Storytelling")
         let alias = CareerSkillDraft(name: "ms excel")
         XCTAssertTrue(alias.validationErrors(existingNames: []).isEmpty)
         XCTAssertEqual(alias.createRequest().name, "Microsoft Excel")

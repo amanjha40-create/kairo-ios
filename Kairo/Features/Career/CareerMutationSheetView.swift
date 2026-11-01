@@ -914,11 +914,11 @@ struct CareerSkillEditorSheet: View {
                         accessibilityIdentifier: KairoAccessibilityID.careerMutationField("skill", "search")
                     )
 
-                    if let selected = ProfileCatalogues.resolve(draft.name, in: ProfileCatalogues.skills) {
+                    if !CareerSkillDraft.normalizedCustomName(draft.name).isEmpty {
                         HStack {
                             VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
                                 Text("Selected").font(KairoTypography.caption).foregroundStyle(KairoColors.textSecondary)
-                                Text(selected.name).font(KairoTypography.bodyStrong)
+                                Text(draft.displayName).font(KairoTypography.bodyStrong)
                             }
                             Spacer()
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(KairoColors.brandPrimary)
@@ -929,7 +929,7 @@ struct CareerSkillEditorSheet: View {
 
                     let results = ProfileCatalogues.search(searchQuery, in: ProfileCatalogues.skills)
                     if results.isEmpty {
-                        Text("No matching Skills. Free-text Skills cannot be added.")
+                        Text("No matching Skills.")
                             .font(KairoTypography.footnote)
                             .foregroundStyle(KairoColors.textSecondary)
                     } else {
@@ -961,6 +961,34 @@ struct CareerSkillEditorSheet: View {
                             .disabled(unavailable)
                             .accessibilityLabel(entry.name)
                         }
+                    }
+
+                    let customName = CareerSkillDraft.normalizedCustomName(searchQuery)
+                    let exactCatalogueMatch = ProfileCatalogues.resolve(customName, in: ProfileCatalogues.skills) != nil
+                    if !customName.isEmpty, !exactCatalogueMatch {
+                        let duplicate = CareerSkillDraft.isDuplicate(customName, existingNames: existingNames)
+                        Button {
+                            if !duplicate, customName.count <= CareerSkillDraft.maximumNameLength {
+                                draft.name = customName
+                            }
+                        } label: {
+                            HStack(spacing: KairoSpacing.small) {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Add “\(customName)”")
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                                if duplicate {
+                                    Text("Already added")
+                                        .font(KairoTypography.caption)
+                                        .foregroundStyle(KairoColors.textSecondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(duplicate || customName.count > CareerSkillDraft.maximumNameLength)
+                        .accessibilityIdentifier("career.skill.addCustom")
                     }
 
                     if let error = fieldErrors["name"] {

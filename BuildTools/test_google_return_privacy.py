@@ -9,10 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class GoogleReturnPrivacyTests(unittest.TestCase):
-    def test_entitlement_is_only_the_production_applink_domain(self):
+    def test_entitlement_contains_only_the_approved_production_applink_domains(self):
         with (ROOT / 'Kairo-Production.entitlements').open('rb') as handle:
             self.assertEqual(plistlib.load(handle), {
-                'com.apple.developer.associated-domains': ['applinks:api.kairoid.com']})
+                'com.apple.developer.associated-domains': [
+                    'applinks:api.kairoid.com',
+                    'applinks:kairoid.com',
+                ]})
 
     def test_only_app_production_configuration_uses_entitlement(self):
         project = json.loads(subprocess.check_output([

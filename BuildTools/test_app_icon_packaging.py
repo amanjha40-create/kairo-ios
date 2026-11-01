@@ -63,14 +63,19 @@ class AppIconPackagingTests(unittest.TestCase):
             if config["name"] == "Production":
                 self.assertEqual(settings["DEVELOPMENT_TEAM"], "MVT4T97ZGC")
                 self.assertEqual(settings["PRODUCT_BUNDLE_IDENTIFIER"], "com.kairoid.Kairo")
-                self.assertEqual(str(settings["CURRENT_PROJECT_VERSION"]), "4")
+                self.assertEqual(str(settings["CURRENT_PROJECT_VERSION"]), "16")
                 self.assertEqual(settings["MARKETING_VERSION"], "1.0")
                 self.assertEqual(settings["KAIRO_APP_ENVIRONMENT_NAME"], "production")
                 self.assertEqual(settings["KAIRO_DEMO_MODE_DEFAULT"], "NO")
 
     def test_associated_domains_remain_exact(self):
         entitlements = plistlib.loads((ROOT / "Kairo-Production.entitlements").read_bytes())
-        self.assertEqual(entitlements, {"com.apple.developer.associated-domains": ["applinks:api.kairoid.com"]})
+        self.assertEqual(entitlements, {
+            "com.apple.developer.associated-domains": [
+                "applinks:api.kairoid.com",
+                "applinks:kairoid.com",
+            ]
+        })
 
     @unittest.skipUnless(os.environ.get("KAIRO_ICON_APP_PATH"), "Requires a built app bundle")
     def test_built_bundle_has_compiled_metadata_and_required_device_icons(self):

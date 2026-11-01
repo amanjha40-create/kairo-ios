@@ -107,6 +107,14 @@ struct CareerHierarchyFixtureHostView: View {
                         verificationStatus: "draft"
                     ))
                 )
+            },
+            addSkillAction: {
+                presentedSheet = .skill(
+                    mode: .create,
+                    recordID: nil,
+                    draft: .init(),
+                    existingNames: existingSkillNames
+                )
             })
             .environment(\.careerDocumentService, DemoCareerDocumentService())
             .sheet(item: $presentedSheet) { sheet in
@@ -117,6 +125,15 @@ struct CareerHierarchyFixtureHostView: View {
 
     init(state: CareerOverviewState) {
         self.state = state
+    }
+
+    private var existingSkillNames: [String] {
+        switch state.phase {
+        case .populated(let content), .empty(let content):
+            content.skills.map(\.name)
+        case .loading, .error:
+            []
+        }
     }
 
     @ViewBuilder

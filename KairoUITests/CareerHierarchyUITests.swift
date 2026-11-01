@@ -61,6 +61,8 @@ final class CareerHierarchyUITests: XCTestCase {
             app.buttons["career.detail.disclosure"].tap()
             XCTAssertTrue(dates.exists)
             XCTAssertLessThan(app.descendants(matching: .any)["career.detail.status"].firstMatch.frame.minY, dates.frame.minY)
+            XCTAssertFalse(app.staticTexts["Reporting Manager"].exists)
+            XCTAssertFalse(app.buttons["Add Reporting Manager"].exists)
             keepScreenshot("Wave 2 - Employment detail", app)
             app.buttons["Done"].tap()
         }
@@ -158,6 +160,29 @@ final class CareerHierarchyUITests: XCTestCase {
             app.buttons["candidate.career.mutation.cancel"].tap()
             XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
         }
+    }
+
+    func testCustomSkillCanBeSelectedWithoutWriting() {
+        let app = launch(actions: true)
+        let addSkill = app.buttons["candidate.career.skills.add"]
+        reveal(addSkill, app); addSkill.tap()
+
+        XCTAssertEqual(app.staticTexts["candidate.career.mutation.title"].label, "Add Skill")
+        let search = app.textFields["candidate.career.skill.field.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("  Community   Outreach  ")
+
+        let addCustom = app.buttons["career.skill.addCustom"]
+        XCTAssertTrue(addCustom.waitForExistence(timeout: 10))
+        XCTAssertTrue(addCustom.isEnabled)
+        XCTAssertTrue(addCustom.label.contains("Community Outreach"))
+        addCustom.tap()
+
+        XCTAssertTrue(app.staticTexts["Community Outreach"].exists)
+        XCTAssertTrue(app.buttons["candidate.career.mutation.save"].isEnabled)
+        app.buttons["candidate.career.mutation.cancel"].tap()
+        XCTAssertTrue(app.staticTexts["candidate.screen.career"].waitForExistence(timeout: 10))
     }
 
     func testAllWave2EditScreensAreNavigableWithoutWriting() {
