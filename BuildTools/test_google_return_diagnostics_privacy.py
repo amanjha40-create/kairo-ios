@@ -30,11 +30,12 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
             settings = config['buildSettings']
             if config['name'] == 'Production':
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Production-Info.plist')
-                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '16')
+                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '17')
+                self.assertEqual(settings['MARKETING_VERSION'], '1.0.1')
             else:
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Info.plist')
                 self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '1')
-            self.assertEqual(settings['MARKETING_VERSION'], '1.0')
+                self.assertEqual(settings['MARKETING_VERSION'], '1.0')
 
     def test_delivery_id_never_added_to_network_request(self):
         source = (ROOT / 'Kairo/Core/Networking/URLSessionNetworkClient.swift').read_text()
