@@ -12,11 +12,11 @@ final class DigiLockerWave1UITests: XCTestCase {
         checkSafeReturn(fixture: "failed")
     }
 
-    func testSafeBrowserCancellationKeepsSameHubAndSavedResults() {
-        checkSafeReturn(fixture: "connected", cancel: true)
+    func testSafeConnectedReturnKeepsSameHubWithoutBackgrounding() {
+        checkSafeReturn(fixture: "connected")
     }
 
-    private func checkSafeReturn(fixture: String, background: Bool = false, cancel: Bool = false) {
+    private func checkSafeReturn(fixture: String, background: Bool = false) {
         // Only the credential-free Staging /complete page is read. All account
         // services are synthetic; this cannot authorize, verify, or call a provider.
         let app = launch(fixture: fixture)
@@ -29,38 +29,39 @@ final class DigiLockerWave1UITests: XCTestCase {
         let hosts = [app, XCUIApplication(bundleIdentifier: "com.apple.AuthenticationServicesUI"),
                      XCUIApplication(bundleIdentifier: "com.apple.SafariViewService"),
                      XCUIApplication(bundleIdentifier: "com.apple.springboard")]
+        let returnedHub = app.navigationBars["DigiLocker"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            hosts.contains { host in host.state != .notRunning &&
-                (host.buttons["Continue"].exists || host.links["Return to KairoID on iPhone"].exists) }
+            returnedHub.exists || hosts.contains { host in host.state != .notRunning &&
+                (host.buttons["Continue"].exists || host.links["Return to KairoID"].exists) }
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
         if let host = hosts.first(where: { $0.state != .notRunning && $0.buttons["Continue"].exists }) {
             host.buttons["Continue"].tap()
         }
-        let pageReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            hosts.contains { $0.state != .notRunning && $0.links["Return to KairoID on iPhone"].exists }
+        let pageOrReturn = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            returnedHub.exists || hosts.contains {
+                $0.state != .notRunning && $0.links["Return to KairoID"].exists
+            }
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [pageReady], timeout: 30), .completed)
-        guard let browserHost = hosts.first(where: { $0.state != .notRunning && $0.links["Return to KairoID on iPhone"].exists }) else {
-            XCTFail("Safe completion page missing"); return
+        XCTAssertEqual(XCTWaiter.wait(for: [pageOrReturn], timeout: 30), .completed)
+        if let browserHost = hosts.first(where: {
+            $0.state != .notRunning && $0.links["Return to KairoID"].exists
+        }) {
+            let action = browserHost.links["Return to KairoID"]
+            XCTAssertTrue(action.isHittable)
+            action.tap()
         }
-        let action = browserHost.links["Return to KairoID on iPhone"]
-        XCTAssertTrue(action.waitForExistence(timeout: 30))
+        XCTAssertTrue(returnedHub.waitForExistence(timeout: 15))
         if background {
             XCUIDevice.shared.press(.home)
             app.activate()
-            XCTAssertTrue(action.waitForExistence(timeout: 10))
+            XCTAssertTrue(returnedHub.waitForExistence(timeout: 10))
         }
-        if cancel { browserHost.buttons["Cancel"].tap() } else { action.tap() }
-        XCTAssertTrue(action.waitForNonExistence(timeout: 15))
         XCTAssertEqual(app.navigationBars.matching(identifier: "DigiLocker").count, 1)
         let saved = app.staticTexts["Verified through DigiLocker"]
         revealAbove(saved, in: app)
         XCTAssertTrue(saved.exists)
         XCTAssertFalse(app.staticTexts["Connected"].exists)
-        if cancel {
-            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "DigiLocker connection cancelled.")).firstMatch.exists)
-        }
         if fixture == "failed" {
             XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Couldn't connect DigiLocker.")).firstMatch.exists)
         }

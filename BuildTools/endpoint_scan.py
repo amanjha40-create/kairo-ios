@@ -8,6 +8,7 @@ import stat
 import zipfile
 
 
+ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION_API = "https://api.kairoid.com/api/v1"
 # Host fragments also catch alternate paths, ports and schemes. Only the packaged
 # app is scanned, not source/docs, dSYMs or other non-shipping archive metadata.
@@ -16,6 +17,10 @@ PROHIBITED = ("localhost", "127.0.0.1", "staging-api.kairoid.com",
 MOCK_TOKEN_LITERALS = ("demo-access-token", "demo-refresh-token",
                        "ui-test-access-token", "ui-test-refresh-token")
 ENCODINGS = ("utf-8", "utf-16-le", "utf-16-be")
+PLACES_RESOURCE_PREFIXES = (
+    "GooglePlaces_GooglePlacesTarget.bundle/GooglePlaces.bundle/",
+    "GooglePlaces_GooglePlacesSwiftTarget.bundle/GooglePlacesSwift.bundle/",
+)
 
 
 class EndpointError(ValueError):
@@ -39,7 +44,7 @@ def app_path(artifact):
     return path
 
 
-def scan(artifact):
+def scan(artifact, *, first_party_objects=None, third_party_archive=None, source_root=None):
     path = Path(artifact)
     require(not path.is_symlink(), "artifact_symlink_rejected")
     if path.suffix == ".ipa":
@@ -62,7 +67,9 @@ def scan(artifact):
                 prefix = "/".join(next(iter(roots))) + "/"
                 files = {entry.filename[len(prefix):]: (lambda item=entry: archive.open(item))
                          for entry in entries if entry.filename.startswith(prefix) and not entry.is_dir()}
-                return scan_files(files)
+                return scan_files(files, first_party_objects=first_party_objects,
+                                  third_party_archive=third_party_archive,
+                                  source_root=source_root)
         except (zipfile.BadZipFile, RuntimeError):
             raise EndpointError("invalid_ipa") from None
     app = app_path(artifact)
@@ -72,10 +79,73 @@ def scan(artifact):
         require(path.is_file() or path.is_dir(), "unsupported_packaged_entry")
         if path.is_file():
             files[path.relative_to(app).as_posix()] = lambda item=path: item.open("rb")
-    return scan_files(files)
+    return scan_files(files, first_party_objects=first_party_objects,
+                      third_party_archive=third_party_archive,
+                      source_root=source_root)
 
 
-def scan_files(files):
+def _patterns(values):
+    return [(value, value.encode(encoding)) for value in values for encoding in ENCODINGS]
+
+
+def _stream_findings(stream, patterns):
+    overlap = max(len(pattern) for _, pattern in patterns) - 1
+    tail = b""
+    findings = set()
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        data = tail + chunk
+        normalized = data.lower()
+        for label, pattern in patterns:
+            if pattern in normalized:
+                findings.add(label)
+        tail = data[-overlap:]
+    return findings
+
+
+def _verified_places_dependency(root):
+    root = Path(root).resolve()
+    project = (root / "Kairo.xcodeproj/project.pbxproj").read_text()
+    resolved = json.loads((root / "Kairo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved").read_text())
+    pins = [pin for pin in resolved.get("pins", []) if pin.get("identity") == "ios-places-sdk"]
+    return (len(pins) == 1
+            and pins[0].get("location") == "https://github.com/googlemaps/ios-places-sdk"
+            and pins[0].get("state", {}).get("version") == "11.2.0"
+            and 'repositoryURL = "https://github.com/googlemaps/ios-places-sdk";' in project
+            and 'requirement = {kind = exactVersion; version = 11.2.0; };' in project
+            and "productName = GooglePlacesSwift;" in project)
+
+
+def _verify_owner_split(first_party_objects, third_party_archive, source_root, patterns):
+    require(first_party_objects is not None and third_party_archive is not None,
+            "ownership_inputs_incomplete")
+    require(source_root is not None and _verified_places_dependency(source_root),
+            "third_party_ownership_unverified")
+    objects = Path(first_party_objects)
+    vendor = Path(third_party_archive)
+    require(objects.is_dir() and not objects.is_symlink(), "first_party_objects_missing")
+    require(vendor.is_file() and not vendor.is_symlink() and vendor.name == "GooglePlaces.a",
+            "third_party_archive_invalid")
+
+    object_files = []
+    first_party_findings = set()
+    for path in sorted(objects.rglob("*")):
+        require(not path.is_symlink(), "first_party_object_symlink_rejected")
+        if path.is_file() and path.suffix == ".o":
+            object_files.append(path)
+            with path.open("rb") as stream:
+                first_party_findings.update(_stream_findings(stream, patterns))
+    require(object_files, "first_party_objects_empty")
+    require(not first_party_findings,
+            "prohibited_first_party_object_material:" + json.dumps(sorted(first_party_findings)))
+
+    with vendor.open("rb") as stream:
+        vendor_findings = _stream_findings(stream, patterns)
+    require(vendor_findings == {"localhost", "127.0.0.1"},
+            "unexpected_third_party_endpoint_material:" + json.dumps(sorted(vendor_findings)))
+    return len(object_files)
+
+
+def scan_files(files, *, first_party_objects=None, third_party_archive=None, source_root=None):
     try:
         with files["Info.plist"]() as stream:
             info = plistlib.loads(stream.read())
@@ -90,8 +160,13 @@ def scan_files(files):
     executable = name
     require(executable in files, "executable_missing")
 
-    patterns = [(value, value.encode(encoding)) for value in PROHIBITED + MOCK_TOKEN_LITERALS
-                for encoding in ENCODINGS]
+    patterns = _patterns(PROHIBITED + MOCK_TOKEN_LITERALS)
+    ownership_mode = any(value is not None for value in
+                         (first_party_objects, third_party_archive, source_root))
+    object_count = None
+    if ownership_mode:
+        object_count = _verify_owner_split(first_party_objects, third_party_archive,
+                                           source_root, patterns)
     positive = PRODUCTION_API.encode("utf-8")
     overlap = max(len(pattern) for _, pattern in patterns + [("production", positive)]) - 1
     production_present = False
@@ -102,7 +177,11 @@ def scan_files(files):
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 data = tail + chunk
                 normalized = data.lower()
+                excluded_endpoint_path = (ownership_mode and
+                                          (path == executable or path.startswith(PLACES_RESOURCE_PREFIXES)))
                 for label, pattern in patterns:
+                    if excluded_endpoint_path and label in PROHIBITED:
+                        continue
                     if pattern in normalized:
                         findings.add((path, label))
                 if path == executable and positive in data:
@@ -114,18 +193,32 @@ def scan_files(files):
     require(not endpoints, "prohibited_endpoint_material:" + json.dumps(endpoints))
     require(not mock_tokens, "prohibited_mock_token_material:" + json.dumps(mock_tokens))
     require(production_present, "production_endpoint_missing_from_executable")
-    return {"endpointScan": "PASS", "filesScanned": len(files),
+    result = {"endpointScan": "PASS", "filesScanned": len(files),
             "configuration": "Production", "environment": "production", "demo": False,
             "productionEndpointPresent": True, "prohibitedEndpointCount": 0,
             "mockTokenLiteralScan": "PASS", "prohibitedMockTokenCount": 0}
+    if ownership_mode:
+        result.update({"ownershipMode": "verified-static-sdk",
+                       "firstPartyObjectCount": object_count,
+                       "firstPartyLocalhostFound": False,
+                       "thirdPartySDKLocalhostOnly": True})
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifact", help="Actual built .app, .xcarchive or exported .ipa; no network access")
+    parser.add_argument("--first-party-objects",
+                        help="Kairo target Objects-normal directory from this exact Production build")
+    parser.add_argument("--third-party-archive",
+                        help="GooglePlaces.a from this exact pinned Production build")
     args = parser.parse_args()
     try:
-        print(json.dumps(scan(args.artifact), sort_keys=True))
+        ownership = args.first_party_objects is not None or args.third_party_archive is not None
+        print(json.dumps(scan(args.artifact,
+                              first_party_objects=args.first_party_objects,
+                              third_party_archive=args.third_party_archive,
+                              source_root=ROOT if ownership else None), sort_keys=True))
     except (EndpointError, OSError) as error:
         # OSError can carry an external path; keep infrastructure errors categorical.
         print(json.dumps({"endpointScan": "FAIL", "reason": str(error) if isinstance(error, EndpointError)

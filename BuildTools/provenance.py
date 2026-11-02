@@ -251,7 +251,10 @@ def build(args):
         # Candidate construction must reject packaged endpoint leakage, even when
         # runtime environment overrides are already disabled.
         from endpoint_scan import scan
-        scan(artifact)
+        scan(artifact,
+             first_party_objects=Path(targets[0]["OBJECT_FILE_DIR_normal"]),
+             third_party_archive=Path(targets[0]["BUILT_PRODUCTS_DIR"]) / "GooglePlaces.a",
+             source_root=root)
     xcode = run(["xcodebuild", "-version"]).splitlines()
     require(len(xcode) == 2 and re.fullmatch(r"Xcode [0-9.]+", xcode[0]) and
             re.fullmatch(r"Build version [A-Za-z0-9]+", xcode[1]), "unexpected_toolchain_version")

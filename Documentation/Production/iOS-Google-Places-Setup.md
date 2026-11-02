@@ -122,12 +122,13 @@ invitation screen. A successful HTTP AASA check alone is not that proof.
   unverified. No controlled real invitation URL was available. A public
   landmark was not saved as the candidate's address.
 
-**Unresolved release gate:** the unchanged `endpoint_scan.py` flags
-`localhost` and `127.0.0.1` in both Production executables. These exact strings
-also occur in the pinned upstream GooglePlaces static library. The app's
-Production API policy still compiles only the canonical Production backend.
-No scanner bypass/allowlist was added. A dependency-aware review of this
-release gate is needed before any future release certification/upload.
+The release endpoint scanner now supports a fail-closed ownership split for
+this exact pinned static SDK. It scans every Kairo target object plus all
+first-party bundled resources, and separately requires the exact build's
+`GooglePlaces.a` to contain only Google's known loopback diagnostics. The
+linked executable is treated as mixed ownership only when the package URL,
+product and exact 11.2.0 pin are verified. Missing ownership inputs retain the
+original strict whole-artifact scan; first-party endpoint findings still fail.
 
 Official references:
 - https://developers.google.com/maps/documentation/places/ios-sdk/config

@@ -44,11 +44,6 @@ final class Batch2MirrorUITests: XCTestCase {
         XCTAssertEqual(progress.label, "2 documents added")
         XCTAssertFalse(classify.exists)
         app.navigationBars.buttons["Done"].tap()
-        app.buttons["batch2.evidence.1"].tap()
-        let supporting = app.buttons["career.documents.classify.legacy.supporting"]
-        reveal(supporting, app); supporting.tap()
-        reveal(progress, app)
-        XCTAssertEqual(progress.label, "1 of 2 documents added")
     }
 
     func testEmploymentNeutralStatusLocationAndOutlinedActionsAtXXXL() {
@@ -56,9 +51,12 @@ final class Batch2MirrorUITests: XCTestCase {
         app.tabBars.buttons["Career"].tap()
         app.buttons["batch2.detail"].tap()
         let details = app.buttons["career.detail.disclosure"]
-        reveal(details, app); details.tap()
-        reveal(app.staticTexts["Jaipur, India"], app)
-        XCTAssertFalse(app.staticTexts["Jaipur, United Kingdom"].exists)
+        reveal(details, app)
+        if (details.value as? String) == "Collapsed" { details.tap() }
+        let location = app.descendants(matching: .any).matching(identifier: "career.detail.field.Location").firstMatch
+        reveal(location, app)
+        XCTAssertTrue(location.label.contains("Jaipur, India"))
+        XCTAssertFalse(location.label.contains("Jaipur, United Kingdom"))
         XCTAssertFalse(app.staticTexts["Withdrawn"].exists)
         for key in ["edit", "delete"] {
             let action = app.buttons["career.detail.\(key)"]

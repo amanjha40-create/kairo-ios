@@ -43,6 +43,25 @@ import GooglePlacesSwift
         XCTAssertNil(PlacesAddressSelection.map(placeID: "invalid\nplace", components: []))
         XCTAssertNil(PlacesAddressSelection.map(placeID: "synthetic", components: [.init(types: [.country], name: "USA", shortName: "US")]))
     }
+    func testFormattedAddressPreservesCompleteResultWhenStreetComponentsAreMissing() throws {
+        let result = try XCTUnwrap(PlacesAddressSelection.map(
+            placeID: "synthetic-place-id",
+            formattedAddress: "  Building 4, Example Campus, Sector 7, Bengaluru, Karnataka 560001, India  ",
+            components: [
+                .init(types: [.country], name: "India", shortName: "IN"),
+                .init(types: [.sublocalityLevel1], name: "Sector 7"),
+                .init(types: [.locality], name: "Bengaluru"),
+                .init(types: [.administrativeAreaLevel1], name: "Karnataka"),
+                .init(types: [.postalCode], name: "560001")
+            ]
+        ))
+        XCTAssertEqual(result.address.addressLine1,
+                       "Building 4, Example Campus, Sector 7, Bengaluru, Karnataka 560001, India")
+        XCTAssertEqual(result.address.locality, "Sector 7")
+        XCTAssertEqual(result.address.city, "Bengaluru")
+        XCTAssertEqual(result.address.state, "Karnataka")
+        XCTAssertEqual(result.address.postalCode, "560001")
+    }
     func testManualSaveOmitsPlaceIDAndSelectionAddsOnlyPlaceID() throws {
         let manual = try payload(nil)
         let selected = try payload("synthetic-place-id")

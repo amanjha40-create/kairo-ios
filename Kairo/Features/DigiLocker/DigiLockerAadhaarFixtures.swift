@@ -23,6 +23,19 @@ actor DigiLockerAadhaarFixtureService: DigiLockerServiceProtocol {
         try await base.issuedDocuments()
     }
 
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO {
+        DigiLockerAvailableRecordsDTO(
+            identity: [], education: [], addressCandidates: [], addressPrefillCandidates: [],
+            addressDiscoveryState: "NO_ADDRESS_AVAILABLE",
+            counts: DigiLockerDiscoveryCountsDTO(
+                totalIssued: 0, supported: 0, unsupported: 0, identity: 0, education: 0,
+                addressCandidates: 0, addressPrefillCandidates: 0,
+                xmlAvailable: 0, pdfOnly: 0, parseFailures: 0, malformed: 0
+            ),
+            discoveredAt: Date(timeIntervalSince1970: 1_790_000_000)
+        )
+    }
+
     func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO {
         let saved = try await base.verificationHistory()
         return .init(items: saved.items + ((didVerify || scenario == "verified") ? [verifiedRecord()] : []), identityVerified: saved.identityVerified)

@@ -31,6 +31,49 @@ class EndpointScanTests(unittest.TestCase):
     def test_clean_app_passes(self):
         self.assertEqual(policy.scan(self.app)["endpointScan"], "PASS")
 
+    def ownership_inputs(self):
+        objects = self.root / "Objects-normal"
+        objects.mkdir()
+        (objects / "FirstParty.o").write_bytes(b"first-party-production-object")
+        vendor = self.root / "GooglePlaces.a"
+        vendor.write_bytes(b"pinned-vendor\0localhost\0" + b"127.0.0.1\0")
+        return objects, vendor
+
+    def test_verified_static_sdk_owner_split_passes(self):
+        objects, vendor = self.ownership_inputs()
+        (self.app / "Kairo").write_bytes(
+            b"linked\0" + policy.PRODUCTION_API.encode() + b"\0localhost\0" + b"127.0.0.1\0"
+        )
+        result = policy.scan(self.app, first_party_objects=objects,
+                             third_party_archive=vendor, source_root=ROOT)
+        self.assertEqual(result["ownershipMode"], "verified-static-sdk")
+        self.assertFalse(result["firstPartyLocalhostFound"])
+        self.assertTrue(result["thirdPartySDKLocalhostOnly"])
+        self.assertEqual(result["firstPartyObjectCount"], 1)
+
+    def test_owner_split_still_rejects_first_party_objects_and_resources(self):
+        objects, vendor = self.ownership_inputs()
+        (objects / "Leaked.o").write_bytes(b"localhost")
+        with self.assertRaisesRegex(policy.EndpointError, "prohibited_first_party_object_material"):
+            policy.scan(self.app, first_party_objects=objects,
+                        third_party_archive=vendor, source_root=ROOT)
+        (objects / "Leaked.o").unlink()
+        (self.app / "FirstParty.json").write_text("127.0.0.1")
+        with self.assertRaisesRegex(policy.EndpointError, "prohibited_endpoint_material"):
+            policy.scan(self.app, first_party_objects=objects,
+                        third_party_archive=vendor, source_root=ROOT)
+
+    def test_owner_split_requires_exact_pinned_vendor_findings(self):
+        objects, vendor = self.ownership_inputs()
+        vendor.write_bytes(b"localhost\0" + b"127.0.0.1\0staging-api.kairoid.com")
+        with self.assertRaisesRegex(policy.EndpointError, "unexpected_third_party_endpoint_material"):
+            policy.scan(self.app, first_party_objects=objects,
+                        third_party_archive=vendor, source_root=ROOT)
+        vendor.unlink()
+        with self.assertRaisesRegex(policy.EndpointError, "third_party_archive_invalid"):
+            policy.scan(self.app, first_party_objects=objects,
+                        third_party_archive=vendor, source_root=ROOT)
+
     def test_archive_scans_only_shipping_payload(self):
         archive = self.root / "Kairo.xcarchive"
         shutil.copytree(self.app, archive / "Products/Applications/Kairo.app")

@@ -27,7 +27,7 @@ class PlacesPrivacyTests(unittest.TestCase):
         view = (ADDRESS / "PermanentAddressView.swift").read_text()
         for forbidden in ("print(", "NSLog(", "Logger(", "UserDefaults", "@AppStorage", "latitude", "longitude"):
             self.assertNotIn(forbidden, source)
-        self.assertIn("placeProperties: [.placeID, .addressComponents]", view)
+        self.assertIn("placeProperties: [.placeID, .formattedAddress, .addressComponents]", view)
         self.assertIn("initialQuery: address.addressLine1", view)
         self.assertIn("selection?.placeID(for: address)", view)
         self.assertIn("fetchTask?.cancel(); fetchTask = nil; selection = nil", view)

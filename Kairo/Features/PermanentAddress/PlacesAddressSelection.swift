@@ -38,7 +38,11 @@ nonisolated struct PlacesAddressSelection: Equatable, Sendable {
         draft == address ? placeID : nil
     }
 
-    static func map(placeID: String, components: [AddressComponent]) -> PlacesAddressSelection? {
+    static func map(
+        placeID: String,
+        formattedAddress: String? = nil,
+        components: [AddressComponent]
+    ) -> PlacesAddressSelection? {
         guard validPlaceID(placeID) else { return nil }
         func component(_ type: PlaceType, short: Bool = false) -> String {
             guard let value = components.first(where: { $0.types.contains(type) }) else { return "" }
@@ -46,10 +50,12 @@ nonisolated struct PlacesAddressSelection: Equatable, Sendable {
         }
         guard component(.country, short: true) == "IN" else { return nil }
         let street = [component(.streetNumber), component(.route)].filter { !$0.isEmpty }.joined(separator: " ")
-        let line1 = [component(.premise), street].filter { !$0.isEmpty }.joined(separator: ", ")
+        let componentLine1 = [component(.premise), street].filter { !$0.isEmpty }.joined(separator: ", ")
         let locality = [component(.sublocalityLevel1), component(.sublocality)].first { !$0.isEmpty }
         let city = [component(.locality), component(.administrativeAreaLevel3), component(.administrativeAreaLevel2)].first { !$0.isEmpty } ?? ""
-        let address = ClaimedPermanentAddress(addressLine1: line1.isEmpty ? locality ?? "" : line1,
+        let completeAddress = formattedAddress?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let line1 = completeAddress.isEmpty ? (componentLine1.isEmpty ? locality ?? "" : componentLine1) : completeAddress
+        let address = ClaimedPermanentAddress(addressLine1: line1,
             locality: locality, city: city, state: component(.administrativeAreaLevel1),
             postalCode: component(.postalCode), country: "IN")
         return PlacesAddressSelection(placeID: placeID, address: address)

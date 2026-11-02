@@ -81,7 +81,7 @@ final class CareerHierarchyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["career.detail.field.Dates"].waitForExistence(timeout: 10))
         let notice = app.staticTexts["career.detail.educationEvidenceNotice"]
         reveal(notice, app)
-        XCTAssertTrue(notice.label.contains("Historical verification evidence"))
+        XCTAssertTrue(notice.label.contains("managed separately from DigiLocker evidence"))
         XCTAssertFalse(app.buttons["Download"].exists)
         keepScreenshot("Wave 2 - Education detail", app)
         let documents = app.buttons["career.detail.documents"]

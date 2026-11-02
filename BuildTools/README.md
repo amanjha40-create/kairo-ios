@@ -115,6 +115,20 @@ artifact; a passing app does not substitute for checking a later archive/export:
 /usr/bin/python3 BuildTools/endpoint_scan.py /path/to/Kairo.ipa
 ```
 
+Production builds that statically link the pinned Places SDK must additionally
+provide the exact Kairo target object directory and exact `GooglePlaces.a` from
+that same build. This scans first-party compiled objects and bundled resources
+while attributing SDK-owned loopback diagnostics by build-path ownership:
+
+```sh
+/usr/bin/python3 BuildTools/endpoint_scan.py /path/to/Kairo.app \
+  --first-party-objects /path/to/Kairo.build/Objects-normal \
+  --third-party-archive /path/to/GooglePlaces.a
+```
+
+Without both ownership inputs, the original strict whole-artifact scan remains
+active and no endpoint finding is excluded.
+
 IPA inspection reads ZIP entries without extracting them. Ambiguous app payloads,
 duplicate entries, traversal paths and symbolic links fail closed. The scanner
 does not sign, archive, export or upload anything.

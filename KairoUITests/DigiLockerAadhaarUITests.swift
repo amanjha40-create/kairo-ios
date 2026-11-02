@@ -72,7 +72,7 @@ final class DigiLockerAadhaarUITests: XCTestCase {
         let app = assertAvailabilityFailure(scenario: "disabled", message: "not available")
         let available = element("candidate.digilocker.available", in: app)
         reveal(available, in: app)
-        XCTAssertTrue(available.staticTexts["PAN"].exists)
+        XCTAssertTrue(available.staticTexts["PAN Card"].exists)
         XCTAssertTrue(available.staticTexts["Driving Licence"].exists)
     }
 

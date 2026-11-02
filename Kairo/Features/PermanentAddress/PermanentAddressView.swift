@@ -237,11 +237,12 @@ private struct PermanentAddressEditorView: View {
         fetchingPlace = true
         fetchTask = Task { @MainActor in
             let result = await PlacesClient.shared.fetchPlace(with: FetchPlaceRequest(placeID: placeID,
-                placeProperties: [.placeID, .addressComponents], sessionToken: token))
+                placeProperties: [.placeID, .formattedAddress, .addressComponents], sessionToken: token))
             guard !Task.isCancelled else { return }
             fetchingPlace = false
             guard case .success(let place) = result, place.placeID == placeID,
-                  let mapped = PlacesAddressSelection.map(placeID: placeID, components: place.addressComponents ?? []) else {
+                  let mapped = PlacesAddressSelection.map(placeID: placeID,
+                      formattedAddress: place.formattedAddress, components: place.addressComponents ?? []) else {
                 placesError = "We couldn't load that address. Search again or enter your address manually."
                 return
             }

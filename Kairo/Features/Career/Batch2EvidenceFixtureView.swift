@@ -47,11 +47,12 @@ private actor Batch2EvidenceFixtureService: CareerDocumentServiceProtocol {
         return .init(eligiblePrimaryCount: count, minimumRequired: 2, eligible: count >= 2)
     }
     func listDocuments(for parent: CareerDocumentParent) async throws -> [CareerDocument] {
-        (0..<primaryCount).map { document("primary-\($0)", .primary) }
-            + [document("supporting", .supporting), document("legacy", legacyRole)]
+        (0..<primaryCount).map { document("primary-\($0)", .primary, type: "payslip") }
+            + [document("supporting", .supporting, type: "other"),
+               document("legacy", legacyRole, type: "payslip")]
     }
-    private func document(_ id: String, _ role: EmploymentEvidenceRole?) -> CareerDocument {
-        .init(id: id, documentType: "other", originalFilename: "synthetic-\(id).pdf", contentType: "application/pdf", byteSize: 120, verificationStatus: "pending_review", evidenceRole: role, checksumSha256: String(repeating: "a", count: 64))
+    private func document(_ id: String, _ role: EmploymentEvidenceRole?, type: String) -> CareerDocument {
+        .init(id: id, documentType: type, originalFilename: "synthetic-\(id).pdf", contentType: "application/pdf", byteSize: 120, verificationStatus: "pending_review", evidenceRole: role, checksumSha256: String(repeating: "a", count: 64))
     }
     func classifyEvidence(_ document: CareerDocument, parent: CareerDocumentParent, role: EmploymentEvidenceRole) async throws {
         guard document.id == "legacy", legacyRole == nil else { throw NetworkError.unavailableInDemoMode }

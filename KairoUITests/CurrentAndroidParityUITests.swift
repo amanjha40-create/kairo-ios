@@ -155,7 +155,12 @@ import XCTest
         XCTAssertTrue(reveal(consent, app).isHittable)
         XCTAssertFalse(reveal(app.buttons["address.document.submit"], app).isEnabled)
         reveal(consent, app).tap()
-        XCTAssertTrue(reveal(app.buttons["address.document.submit"], app).isEnabled)
+        let submit = reveal(app.buttons["address.document.submit"], app)
+        let submitReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND isEnabled == true"),
+            object: submit
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [submitReady], timeout: 5), .completed)
         capture("Synthetic document consent dark XXXL")
         try app.performAccessibilityAudit(for: [.textClipped, .trait, .sufficientElementDescription])
         app.navigationBars.buttons["Done"].tap()
@@ -251,13 +256,15 @@ import XCTest
         for _ in 0..<24 {
             if element.exists && element.isHittable && element.frame.minY > 100 && element.frame.maxY < app.frame.maxY - 55 { return element }
             // A native switch includes its multiline label in its AX frame.
-            // At XXXL, requiring that whole label to fit oscillates the scroll
-            // position although the control's tap point is already reachable.
+            // At XXXL the switch control is aligned with the top of that frame;
+            // centering the full label can leave the control off-screen and tap
+            // inert text instead. Require the top/control region to be visible.
             if element.exists && element.elementType == .switch && element.isHittable &&
-                element.frame.midY > 100 && element.frame.midY < app.frame.maxY - 55 { return element }
+                element.frame.minY > 100 && element.frame.minY < app.frame.maxY - 55 { return element }
             // At XXXL the full consent label can exceed the viewport. Its native
             // switch remains reachable; the accessibility audit checks clipping.
-            if element.exists && element.isHittable && element.frame.height > app.frame.height - 155 &&
+            if element.exists && element.elementType != .switch && element.isHittable &&
+                element.frame.height > app.frame.height - 155 &&
                 element.frame.intersection(app.frame.insetBy(dx: 0, dy: 100)).height > 160 { return element }
             let down = element.exists && element.frame.minY < 100
             app.coordinate(withNormalizedOffset: .init(dx: 0.8, dy: down ? 0.35 : 0.72))
