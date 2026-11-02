@@ -230,6 +230,49 @@ final class DigiLockerWave1UITests: XCTestCase {
         attach(app, name: "Wave1-DigiLocker-Hub-Light")
     }
 
+    func testPartialDiscoveryKeepsUsableRecordsWhenIssuedSupplementFails() {
+        let app = launch(discoveryFixture: "partial-issued-failure")
+        let entry = app.buttons["candidate.home.digilocker"]
+        reveal(entry, in: app)
+        entry.tap()
+        XCTAssertTrue(app.navigationBars["DigiLocker"].waitForExistence(timeout: 10))
+
+        let partial = app.descendants(matching: .any)["candidate.digilocker.discovery.partial"]
+        reveal(partial, in: app)
+        XCTAssertTrue(partial.exists)
+        XCTAssertTrue(partial.label.contains("temporarily unavailable"))
+        XCTAssertTrue(partial.label.contains("continue with the records shown below"))
+
+        for id in ["fixture-pan", "fixture-dl", "fixture-education"] {
+            let record = app.switches["candidate.digilocker.discovery.select.\(id)"]
+            reveal(record, in: app)
+            XCTAssertTrue(record.exists)
+            XCTAssertTrue(record.isEnabled)
+        }
+        let unavailable = app.staticTexts["candidate.digilocker.discovery.unavailable.fixture-school"]
+        reveal(unavailable, in: app)
+        XCTAssertEqual(unavailable.label, "School certificate: Temporarily unavailable")
+
+        let address = app.staticTexts["Address found on your Driving Licence"]
+        reveal(address, in: app)
+        XCTAssertTrue(address.exists)
+        XCTAssertTrue(app.buttons["Use this address"].exists)
+        XCTAssertTrue(app.buttons["Edit"].exists)
+        XCTAssertTrue(app.buttons["Not now"].exists)
+
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "530")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "provider_unavailable")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "parse_failed")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Couldn't refresh DigiLocker")).firstMatch.exists)
+
+        app.buttons["Done"].tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        XCTAssertTrue(entry.label.contains("verified"), "Home DigiLocker label: \(entry.label)")
+        XCTAssertTrue(entry.label.contains("needs review"), "Home DigiLocker label: \(entry.label)")
+        XCTAssertFalse(entry.label.contains("Not connected"))
+        XCTAssertFalse(entry.label.contains("status unavailable"))
+    }
+
     func test_moreEntryAndProfileExposeOnlySafeIdentityProvenance() {
         let app = launch()
         app.tabBars.buttons["More"].tap()
@@ -316,7 +359,13 @@ final class DigiLockerWave1UITests: XCTestCase {
         attach(app, name: "Wave1-Passport-Provenance-Dark")
     }
 
-    private func launch(appearance: String = "light", largeType: Bool = false, fixture: String? = nil, missingDOB: Bool = false) -> XCUIApplication {
+    private func launch(
+        appearance: String = "light",
+        largeType: Bool = false,
+        fixture: String? = nil,
+        discoveryFixture: String? = nil,
+        missingDOB: Bool = false
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-KAIRO_UI_TESTING", "-ApplePersistenceIgnoreState", "YES", "-kairo.appearance.preference", appearance]
         if largeType { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -328,6 +377,9 @@ final class DigiLockerWave1UITests: XCTestCase {
             "KAIRO_UI_TEST_MORE_STATE": "populated", "KAIRO_UI_TEST_NOTIFICATIONS_STATE": "populated"
         ]
         if let fixture { app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_RETURN"] = fixture }
+        if let discoveryFixture {
+            app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_DISCOVERY"] = discoveryFixture
+        }
         app.launchEnvironment["KAIRO_UI_TEST_DIGILOCKER_DOB"] = missingDOB ? "missing" : "present"
         app.launch()
         return app

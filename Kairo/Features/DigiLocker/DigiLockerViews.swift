@@ -387,10 +387,14 @@ struct DigiLockerHubView: View {
             } else if store.status?.connected != true {
                 Text("Connect to see your available documents.")
                     .font(KairoTypography.metadata).foregroundStyle(KairoColors.textSecondary)
-            } else if store.isLoadingInventory {
+            } else if store.isLoadingInventory && store.issuedDocuments.isEmpty {
                 ProgressView("Loading available documents…")
-            } else if store.inventoryError {
-                failureCopy("Available documents could not be loaded. Refresh to try again.")
+            } else if store.issuedDocumentsError {
+                Text("The supplemental document list is temporarily unavailable. Records found below are unaffected.")
+                    .font(KairoTypography.metadata)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Supplemental DigiLocker document list unavailable. Records found below are unaffected.")
             } else if store.issuedDocuments.isEmpty {
                 KairoEmptyStateView(title: "No documents available", message: "DigiLocker did not return available documents.", systemImage: "doc")
             } else {
@@ -469,6 +473,18 @@ struct DigiLockerHubView: View {
             } else if store.inventoryError {
                 failureCopy("Couldn't refresh DigiLocker. Your existing KairoID records are unchanged.")
             } else if let records = store.availableRecords {
+                if records.discoveryStatus == .partialSuccess {
+                    VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                        Text(DigiLockerDiscoveryPresentation.partialTitle)
+                            .font(KairoTypography.bodyStrong)
+                            .foregroundStyle(KairoColors.textPrimary)
+                        Text(DigiLockerDiscoveryPresentation.partialMessage)
+                            .font(KairoTypography.metadata)
+                            .foregroundStyle(KairoColors.textSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("candidate.digilocker.discovery.partial")
+                }
                 if records.identity.isEmpty && records.education.isEmpty && records.allAddressCandidates.isEmpty {
                     KairoEmptyStateView(
                         title: "No supported records found",
@@ -490,7 +506,7 @@ struct DigiLockerHubView: View {
                 discoveryToggle(
                     id: item.candidateId,
                     title: item.displayType,
-                    detail: discoveryStatus(item.importStatus),
+                    detail: discoveryStatus(item.importStatus, failureReason: item.failureReason),
                     enabled: item.canImport
                 )
             }
@@ -498,12 +514,24 @@ struct DigiLockerHubView: View {
         if !records.education.isEmpty {
             Text("Education").font(KairoTypography.headline)
             ForEach(records.education) { item in
-                discoveryToggle(
-                    id: item.candidateId,
-                    title: item.displayType,
-                    detail: "\(item.evidence.count) evidence item\(item.evidence.count == 1 ? "" : "s") · \(discoveryStatus(item.importStatus))",
-                    enabled: item.canImport
-                )
+                VStack(alignment: .leading, spacing: KairoSpacing.xxSmall) {
+                    discoveryToggle(
+                        id: item.candidateId,
+                        title: item.displayType,
+                        detail: educationDiscoveryStatus(item),
+                        enabled: item.canImport
+                    )
+                    ForEach(item.evidence.filter {
+                        $0.failureReason != nil || $0.reviewState == .parseFailed
+                    }) { evidence in
+                        Text("\(evidence.displayType): Temporarily unavailable")
+                            .font(KairoTypography.caption)
+                            .foregroundStyle(KairoColors.textSecondary)
+                            .accessibilityIdentifier(
+                                "candidate.digilocker.discovery.unavailable.\(evidence.candidateId)"
+                            )
+                    }
+                }
             }
         }
         ForEach(records.allAddressCandidates.filter { !dismissedAddressIDs.contains($0.id) }) { candidate in
@@ -599,12 +627,21 @@ struct DigiLockerHubView: View {
         .accessibilityIdentifier("candidate.digilocker.discovery.select.\(id)")
     }
 
-    private func discoveryStatus(_ status: DigiLockerImportStatus) -> String {
-        switch status {
-        case .available: "Available"
-        case .alreadyAdded: "Already added"
-        case .needsReview: "Needs review"
+    private func discoveryStatus(
+        _ status: DigiLockerImportStatus,
+        failureReason: DigiLockerDiscoveryFailureReason? = nil
+    ) -> String {
+        DigiLockerDiscoveryPresentation.status(status, failureReason: failureReason)
+    }
+
+    private func educationDiscoveryStatus(_ item: DigiLockerEducationGroupDTO) -> String {
+        let unavailable = item.evidence.filter { $0.failureReason != nil || $0.reviewState == .parseFailed }.count
+        let available = item.evidence.count - unavailable
+        let evidenceCopy = "\(available) available evidence item\(available == 1 ? "" : "s")"
+        if unavailable > 0 {
+            return "\(evidenceCopy) · \(unavailable) temporarily unavailable · \(discoveryStatus(item.importStatus, failureReason: item.failureReason))"
         }
+        return "\(item.evidence.count) evidence item\(item.evidence.count == 1 ? "" : "s") · \(discoveryStatus(item.importStatus, failureReason: item.failureReason))"
     }
 
     private func openAddress(_ candidate: DigiLockerAddressCandidateDTO, confirmedReplacement: Bool = false) {

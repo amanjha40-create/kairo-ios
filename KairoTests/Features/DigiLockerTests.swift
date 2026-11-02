@@ -300,6 +300,206 @@ final class DigiLockerTests: XCTestCase {
         XCTAssertEqual(result.outcomes.first?.status, "imported")
     }
 
+    func testAPI87PartialDiscoveryDecodesAuthoritativeRecordsAndSafeFailures() throws {
+        let response = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87PartialPayload, as: UTF8.self)
+        )
+
+        XCTAssertEqual(response.discoveryStatus, .partialSuccess)
+        XCTAssertEqual(response.counts.providerFailures, 1)
+        XCTAssertEqual(response.identity.map(\.documentType), ["PANCR", "DRVLC"])
+        XCTAssertTrue(response.identity.allSatisfy(\.canImport))
+        XCTAssertEqual(response.education.first?.evidence.map(\.documentType), ["DGCER", "SPCER"])
+        XCTAssertEqual(response.education.first?.evidence.last?.failureReason, .providerUnavailable)
+        XCTAssertEqual(response.education.first?.evidence.last?.reviewState, .parseFailed)
+        XCTAssertTrue(response.education.first?.canImport == true)
+        XCTAssertEqual(response.addressPrefillCandidates.first?.documentType, "DRVLC")
+        XCTAssertEqual(response.addressPrefillCandidates.first?.prefillText, "Synthetic address for review")
+
+        let reflected = String(reflecting: response)
+        XCTAssertFalse(reflected.contains("PRIVATE_PROVIDER_BODY"))
+        XCTAssertFalse(reflected.contains("530"))
+    }
+
+    func testAuthoritativeSuccessSurvivesSupplementalIssuedFailure() async throws {
+        let records = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87SuccessPayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(available: [.value(records)], issued: .failure)
+        let store = DigiLockerStore(service: service)
+
+        await store.refreshSummary()
+        await store.refreshInventory()
+
+        XCTAssertFalse(store.inventoryError)
+        XCTAssertTrue(store.issuedDocumentsError)
+        XCTAssertEqual(store.availableRecords?.identity.map(\.documentType), ["PANCR", "DRVLC"])
+        XCTAssertEqual(store.availableRecords?.addressPrefillCandidates.count, 1)
+        XCTAssertTrue(store.issuedDocuments.isEmpty)
+    }
+
+    func testPartialDiscoveryAndAddressSurviveIssued530Equivalent() async throws {
+        let records = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87PartialPayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(available: [.value(records)], issued: .failure)
+        let store = DigiLockerStore(service: service)
+
+        await store.refreshSummary()
+        await store.refreshInventory()
+
+        XCTAssertFalse(store.inventoryError)
+        XCTAssertTrue(store.issuedDocumentsError)
+        XCTAssertEqual(store.availableRecords?.discoveryStatus, .partialSuccess)
+        XCTAssertEqual(store.availableRecords?.identity.filter(\.canImport).count, 2)
+        XCTAssertEqual(store.availableRecords?.education.filter(\.canImport).count, 1)
+        XCTAssertEqual(store.availableRecords?.addressPrefillCandidates.count, 1)
+        XCTAssertEqual(
+            DigiLockerDiscoveryPresentation.status(.needsReview, failureReason: .providerUnavailable),
+            "Temporarily unavailable"
+        )
+    }
+
+    func testUnavailableDiscoveryWinsOverSuccessfulIssuedSupplement() async throws {
+        let records = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87UnavailablePayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(
+            available: [.value(records)],
+            issued: .value(DigiLockerIssuedDocumentsDTO(items: [
+                DigiLockerIssuedDocumentDTO(documentType: "PANCR", supported: true)
+            ]))
+        )
+        let store = DigiLockerStore(service: service)
+
+        await store.refreshSummary()
+        await store.refreshInventory()
+
+        XCTAssertTrue(store.inventoryError)
+        XCTAssertEqual(store.availableRecords?.discoveryStatus, .unavailable)
+        XCTAssertEqual(store.issuedDocuments.map(\.documentType), ["PANCR"])
+        XCTAssertTrue(store.availableRecords?.identity.isEmpty == true)
+    }
+
+    func testAuthoritativeRequestFailureCannotBeReconstructedFromIssuedSupplement() async {
+        let service = DigiLockerInventoryStub(
+            available: [.failure],
+            issued: .value(DigiLockerIssuedDocumentsDTO(items: [
+                DigiLockerIssuedDocumentDTO(documentType: "PANCR", supported: true)
+            ]))
+        )
+        let store = DigiLockerStore(service: service)
+
+        await store.refreshSummary()
+        await store.refreshInventory()
+
+        XCTAssertTrue(store.inventoryError)
+        XCTAssertNil(store.availableRecords)
+        XCTAssertEqual(store.issuedDocuments.map(\.documentType), ["PANCR"])
+    }
+
+    func testRefreshRelaunchAndReconnectRemainAuthoritative() async throws {
+        let partial = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87PartialPayload, as: UTF8.self)
+        )
+        let success = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87SuccessPayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(
+            status: DigiLockerStatusDTO(connected: true, status: .active),
+            available: [.value(partial), .value(success), .value(success)],
+            issued: .failure
+        )
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+        await store.refreshInventory()
+        XCTAssertEqual(store.availableRecords?.discoveryStatus, .partialSuccess)
+
+        await store.refreshInventory()
+        XCTAssertEqual(store.availableRecords?.discoveryStatus, .success)
+        XCTAssertFalse(store.inventoryError)
+
+        let relaunched = DigiLockerStore(service: service)
+        await relaunched.refreshAll()
+        XCTAssertEqual(relaunched.availableRecords?.identity.count, 2)
+        XCTAssertFalse(relaunched.inventoryError)
+
+        await service.setStatus(.init(connected: false, status: .reconnectRequired))
+        await relaunched.refreshAll()
+        XCTAssertNil(relaunched.availableRecords)
+        await service.appendAvailable(.value(success))
+        await service.setStatus(.init(connected: true, status: .active))
+        await relaunched.refreshAll()
+        XCTAssertEqual(relaunched.availableRecords?.discoveryStatus, .success)
+    }
+
+    func testCancellationKeepsAlreadyAppliedAuthoritativeDiscovery() async throws {
+        let records = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87SuccessPayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(
+            available: [.value(records)],
+            issued: .delayedValue(DigiLockerIssuedDocumentsDTO(items: []))
+        )
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+
+        let task = Task { await store.refreshInventory() }
+        for _ in 0..<100 where store.availableRecords == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(store.availableRecords?.identity.count, 2)
+        task.cancel()
+        await task.value
+
+        XCTAssertEqual(store.availableRecords?.identity.count, 2)
+        XCTAssertFalse(store.inventoryError)
+    }
+
+    func testIdentityResetRejectsStaleAuthoritativeAndSupplementalResponses() async throws {
+        let records = try decode(
+            DigiLockerAvailableRecordsDTO.self,
+            String(decoding: Self.api87SuccessPayload, as: UTF8.self)
+        )
+        let service = DigiLockerInventoryStub(
+            available: [.delayedValue(records)],
+            issued: .delayedValue(DigiLockerIssuedDocumentsDTO(items: [
+                DigiLockerIssuedDocumentDTO(documentType: "PANCR", supported: true)
+            ]))
+        )
+        let store = DigiLockerStore(service: service)
+        await store.refreshSummary()
+
+        let task = Task { await store.refreshInventory() }
+        try await Task.sleep(for: .milliseconds(50))
+        store.resetForIdentityChange()
+        await task.value
+
+        XCTAssertNil(store.availableRecords)
+        XCTAssertTrue(store.issuedDocuments.isEmpty)
+        XCTAssertFalse(store.inventoryError)
+        XCTAssertFalse(store.issuedDocumentsError)
+    }
+
+    func testPartialDiscoveryCopyNeverExposesProviderCodes() {
+        let copy = [
+            DigiLockerDiscoveryPresentation.partialTitle,
+            DigiLockerDiscoveryPresentation.partialMessage,
+            DigiLockerDiscoveryPresentation.status(.needsReview, failureReason: .providerUnavailable)
+        ].joined(separator: " ")
+        XCTAssertFalse(copy.contains("530"))
+        XCTAssertFalse(copy.contains("provider_unavailable"))
+        XCTAssertFalse(copy.contains("parse_failed"))
+        XCTAssertTrue(copy.contains("temporarily unavailable"))
+    }
+
     func test_historicalVerificationRemainsVisibleWhenDisconnected() async throws {
         let service = DigiLockerServiceStub(
             status: DigiLockerStatusDTO(connected: false, status: .disconnected),
@@ -469,6 +669,71 @@ final class DigiLockerTests: XCTestCase {
     private nonisolated static let trustPayload = Data(#"{"state":"verified","sources":[{"source":"digilocker","document_type":"DRVLC","current":true,"match_result":"VERIFIED_MATCH","reason":null}]}"#.utf8)
     private nonisolated static let historyPayload = Data(#"{"items":[{"document_type":"DRVLC","source":"digilocker","current":true,"match_result":"VERIFIED_MATCH","match_reason":null,"integrity_result":"verified","verified_at":"2026-09-25T10:00:00Z"}],"identity_verified":true}"#.utf8)
     private nonisolated static let issuedPayload = Data(#"{"items":[{"doctype":"PANCR","supported":true,"name":"Private Source Name","description":"ABCDE1234F","uri":"provider-private-uri","reference":"opaque-reference"},{"doctype":"DRVLC","supported":true}],"count":2,"malformed_count":0}"#.utf8)
+    private nonisolated static let api87PartialPayload = Data(#"{"discovery_status":"partial_success","identity":[{"candidate_id":"pan-1","doctype":"PANCR","record_type":"identity","display_type":"PAN","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready","failure_reason":null},{"candidate_id":"dl-1","doctype":"DRVLC","record_type":"identity","display_type":"Driving Licence","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready","failure_reason":null}],"education":[{"candidate_id":"education-1","record_type":"education","display_type":"Education records","source":"digilocker","possible_existing_record_match":"NO_MATCH","import_status":"available","review_state":"ready","evidence":[{"candidate_id":"degree-1","doctype":"DGCER","record_type":"education","display_type":"Degree certificate","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready","evidence_type":"degree","failure_reason":null},{"candidate_id":"school-1","doctype":"SPCER","record_type":"education","display_type":"School certificate","description":null,"issuer_name":null,"source":"digilocker","xml_available":false,"pdf_available":false,"parsed_data_available":false,"import_status":"needs_review","possible_existing_record_match":"NO_MATCH","review_state":"parse_failed","evidence_type":"certificate","failure_reason":"provider_unavailable"}]}],"address_candidates":[],"address_prefill_candidates":[{"candidate_id":"address-1","doctype":"DRVLC","display_type":"Driving Licence address","source":"digilocker_driving_licence","review_state":"ready","candidate_type":"prefill","address_state":"ADDRESS_PREFILL_CANDIDATE","document_address_type":"untyped","requires_permanent_confirmation":true,"requires_replacement_confirmation":false,"prefill_text":"Synthetic address for review","structured_address":null}],"address_discovery_state":"ADDRESS_PREFILL_CANDIDATE","counts":{"total_issued":5,"supported":5,"unsupported":0,"identity":2,"education":1,"address_candidates":0,"address_prefill_candidates":1,"xml_available":3,"pdf_only":0,"parse_failures":1,"malformed":0,"provider_failures":1},"discovered_at":"2026-11-02T10:00:00Z"}"#.utf8)
+    private nonisolated static let api87SuccessPayload = Data(#"{"discovery_status":"success","identity":[{"candidate_id":"pan-1","doctype":"PANCR","record_type":"identity","display_type":"PAN","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready","failure_reason":null},{"candidate_id":"dl-1","doctype":"DRVLC","record_type":"identity","display_type":"Driving Licence","description":null,"issuer_name":null,"source":"digilocker","xml_available":true,"pdf_available":true,"parsed_data_available":true,"import_status":"available","possible_existing_record_match":"NO_MATCH","review_state":"ready","failure_reason":null}],"education":[],"address_candidates":[],"address_prefill_candidates":[{"candidate_id":"address-1","doctype":"DRVLC","display_type":"Driving Licence address","source":"digilocker_driving_licence","review_state":"ready","candidate_type":"prefill","address_state":"ADDRESS_PREFILL_CANDIDATE","document_address_type":"untyped","requires_permanent_confirmation":true,"requires_replacement_confirmation":false,"prefill_text":"Synthetic address for review","structured_address":null}],"address_discovery_state":"ADDRESS_PREFILL_CANDIDATE","counts":{"total_issued":2,"supported":2,"unsupported":0,"identity":2,"education":0,"address_candidates":0,"address_prefill_candidates":1,"xml_available":2,"pdf_only":0,"parse_failures":0,"malformed":0,"provider_failures":0},"discovered_at":"2026-11-02T10:00:00Z"}"#.utf8)
+    private nonisolated static let api87UnavailablePayload = Data(#"{"discovery_status":"unavailable","identity":[],"education":[],"address_candidates":[],"address_prefill_candidates":[],"address_discovery_state":"UNAVAILABLE","counts":{"total_issued":0,"supported":0,"unsupported":0,"identity":0,"education":0,"address_candidates":0,"address_prefill_candidates":0,"xml_available":0,"pdf_only":0,"parse_failures":0,"malformed":0,"provider_failures":0},"discovered_at":"2026-11-02T10:00:00Z"}"#.utf8)
+}
+
+private actor DigiLockerInventoryStub: DigiLockerServiceProtocol {
+    enum AvailableResponse: Sendable {
+        case value(DigiLockerAvailableRecordsDTO)
+        case delayedValue(DigiLockerAvailableRecordsDTO)
+        case failure
+    }
+
+    enum IssuedResponse: Sendable {
+        case value(DigiLockerIssuedDocumentsDTO)
+        case delayedValue(DigiLockerIssuedDocumentsDTO)
+        case failure
+    }
+
+    private var currentStatus: DigiLockerStatusDTO
+    private var availableResponses: [AvailableResponse]
+    private let issuedResponse: IssuedResponse
+
+    init(
+        status: DigiLockerStatusDTO = .init(connected: true, status: .active),
+        available: [AvailableResponse],
+        issued: IssuedResponse
+    ) {
+        currentStatus = status
+        availableResponses = available
+        issuedResponse = issued
+    }
+
+    func setStatus(_ value: DigiLockerStatusDTO) { currentStatus = value }
+    func appendAvailable(_ value: AvailableResponse) { availableResponses.append(value) }
+    func status() async throws -> DigiLockerStatusDTO { currentStatus }
+    func connect() async throws -> DigiLockerConnectResponseDTO { throw DigiLockerServiceError.invalidResponse }
+    func issuedDocuments() async throws -> DigiLockerIssuedDocumentsDTO {
+        switch issuedResponse {
+        case .value(let value): return value
+        case .delayedValue(let value):
+            try await Task.sleep(for: .seconds(5))
+            return value
+        case .failure: throw DigiLockerBackendError(statusCode: 530, code: nil)
+        }
+    }
+    func availableRecords() async throws -> DigiLockerAvailableRecordsDTO {
+        guard !availableResponses.isEmpty else { throw DigiLockerServiceError.invalidResponse }
+        switch availableResponses.removeFirst() {
+        case .value(let value): return value
+        case .delayedValue(let value):
+            try await Task.sleep(for: .milliseconds(250))
+            return value
+        case .failure: throw DigiLockerServiceError.invalidResponse
+        }
+    }
+    func verificationHistory() async throws -> DigiLockerVerificationHistoryDTO {
+        .init(items: [], identityVerified: false)
+    }
+    func identityTrust() async throws -> DigiLockerIdentityTrustDTO {
+        .init(state: .unverified, sources: [])
+    }
+    func verify(documentTypes: [DigiLockerDocumentType]) async throws -> DigiLockerVerificationHistoryDTO {
+        _ = documentTypes
+        return .init(items: [], identityVerified: false)
+    }
 }
 
 private actor DigiLockerServiceStub: DigiLockerServiceProtocol {

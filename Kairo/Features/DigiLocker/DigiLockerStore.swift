@@ -70,6 +70,7 @@ final class DigiLockerStore: ObservableObject {
     @Published private(set) var isImporting = false
     @Published private(set) var summaryError = false
     @Published private(set) var inventoryError = false
+    @Published private(set) var issuedDocumentsError = false
     @Published private(set) var actionErrorMessage: String?
     @Published private(set) var verificationErrorMessage: String?
     @Published private(set) var aadhaarState: DigiLockerAadhaarState = .idle
@@ -145,6 +146,7 @@ final class DigiLockerStore: ObservableObject {
             issuedDocuments = []
             availableRecords = nil
             inventoryError = false
+            issuedDocumentsError = false
         }
     }
 
@@ -153,18 +155,32 @@ final class DigiLockerStore: ObservableObject {
         let revision = identityRevision
         isLoadingInventory = true
         inventoryError = false
+        issuedDocumentsError = false
+        defer {
+            if revision == identityRevision { isLoadingInventory = false }
+        }
+
+        async let supplemental = Self.loadIssuedDocuments(using: service)
         do {
-            async let issued = service.issuedDocuments()
-            async let discovered = service.availableRecords()
-            let (response, records) = try await (issued, discovered)
-            guard revision == identityRevision else { return }
-            issuedDocuments = uniqueDocuments(response.items)
+            let records = try await service.availableRecords()
+            guard revision == identityRevision, !Task.isCancelled else { return }
             availableRecords = records
+            inventoryError = records.discoveryStatus == .unavailable
+        } catch is CancellationError {
+            return
         } catch {
-            guard revision == identityRevision else { return }
+            guard revision == identityRevision, !Task.isCancelled else { return }
             inventoryError = true
         }
-        isLoadingInventory = false
+
+        let issuedResult = await supplemental
+        guard revision == identityRevision, !Task.isCancelled else { return }
+        switch issuedResult {
+        case .success(let response):
+            issuedDocuments = uniqueDocuments(response.items)
+        case .failure:
+            issuedDocumentsError = true
+        }
     }
 
     func importRecords(candidateIDs: [String], includesIdentity: Bool, dateOfBirth: Date? = nil) async -> Bool {
@@ -411,6 +427,7 @@ final class DigiLockerStore: ObservableObject {
         availableRecords = nil
         summaryError = false
         inventoryError = false
+        issuedDocumentsError = false
         actionErrorMessage = nil
         verificationErrorMessage = nil
         hasLoadedSummary = false
@@ -419,5 +436,18 @@ final class DigiLockerStore: ObservableObject {
     private func uniqueDocuments(_ documents: [DigiLockerIssuedDocumentDTO]) -> [DigiLockerIssuedDocumentDTO] {
         var seen = Set<String>()
         return documents.filter { seen.insert($0.documentType).inserted }
+    }
+
+    private nonisolated enum IssuedDocumentsResult: Sendable {
+        case success(DigiLockerIssuedDocumentsDTO)
+        case failure
+    }
+
+    private nonisolated static func loadIssuedDocuments(
+        using service: any DigiLockerServiceProtocol
+    ) async -> IssuedDocumentsResult {
+        do { return .success(try await service.issuedDocuments()) }
+        catch is CancellationError { return .failure }
+        catch { return .failure }
     }
 }

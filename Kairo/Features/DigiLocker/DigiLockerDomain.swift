@@ -223,6 +223,63 @@ nonisolated enum DigiLockerDiscoveryReviewState: String, Decodable, Equatable, S
     case parseFailed = "parse_failed"
 }
 
+nonisolated enum DigiLockerDiscoveryStatus: Equatable, Sendable {
+    case success
+    case partialSuccess
+    case unavailable
+}
+
+extension DigiLockerDiscoveryStatus: Decodable {
+    nonisolated init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = switch value {
+        case "success": .success
+        case "partial_success": .partialSuccess
+        case "unavailable": .unavailable
+        default: .unavailable
+        }
+    }
+}
+
+/// Safe backend-owned categories only. Provider prose never enters presentation state.
+nonisolated enum DigiLockerDiscoveryFailureReason: Equatable, Sendable {
+    case providerUnavailable
+    case parseFailed
+    case documentUnavailable
+    case other
+
+    var safeMessage: String { "Temporarily unavailable" }
+}
+
+extension DigiLockerDiscoveryFailureReason: Decodable {
+    nonisolated init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = switch value {
+        case "provider_unavailable": .providerUnavailable
+        case "parse_failed": .parseFailed
+        case "document_unavailable": .documentUnavailable
+        default: .other
+        }
+    }
+}
+
+nonisolated enum DigiLockerDiscoveryPresentation {
+    static let partialTitle = "Some DigiLocker records are temporarily unavailable."
+    static let partialMessage = "You can still continue with the records shown below."
+
+    static func status(
+        _ status: DigiLockerImportStatus,
+        failureReason: DigiLockerDiscoveryFailureReason? = nil
+    ) -> String {
+        if let failureReason { return failureReason.safeMessage }
+        return switch status {
+        case .available: "Available"
+        case .alreadyAdded: "Already added"
+        case .needsReview: "Needs review"
+        }
+    }
+}
+
 nonisolated enum DigiLockerImportStatus: String, Decodable, Equatable, Sendable {
     case available
     case alreadyAdded = "already_added"
@@ -250,6 +307,7 @@ nonisolated struct DigiLockerDiscoveryRecordDTO: Decodable, Equatable, Identifia
     let importStatus: DigiLockerImportStatus
     let possibleExistingRecordMatch: DigiLockerExistingMatch
     let reviewState: DigiLockerDiscoveryReviewState
+    let failureReason: DigiLockerDiscoveryFailureReason?
 
     var id: String { candidateId }
     var canImport: Bool { importStatus == .available && reviewState == .ready }
@@ -259,7 +317,7 @@ nonisolated struct DigiLockerDiscoveryRecordDTO: Decodable, Equatable, Identifia
         case documentType = "doctype"
         case recordType, displayType, description, issuerName, source
         case xmlAvailable, pdfAvailable, parsedDataAvailable, importStatus
-        case possibleExistingRecordMatch, reviewState
+        case possibleExistingRecordMatch, reviewState, failureReason
     }
 }
 
@@ -278,6 +336,7 @@ nonisolated struct DigiLockerEducationEvidenceDTO: Decodable, Equatable, Identif
     let possibleExistingRecordMatch: DigiLockerExistingMatch
     let reviewState: DigiLockerDiscoveryReviewState
     let evidenceType: String
+    let failureReason: DigiLockerDiscoveryFailureReason?
 
     var id: String { candidateId }
 
@@ -286,7 +345,7 @@ nonisolated struct DigiLockerEducationEvidenceDTO: Decodable, Equatable, Identif
         case documentType = "doctype"
         case recordType, displayType, description, issuerName, source
         case xmlAvailable, pdfAvailable, parsedDataAvailable, importStatus
-        case possibleExistingRecordMatch, reviewState, evidenceType
+        case possibleExistingRecordMatch, reviewState, evidenceType, failureReason
     }
 }
 
@@ -299,6 +358,7 @@ nonisolated struct DigiLockerEducationGroupDTO: Decodable, Equatable, Identifiab
     let importStatus: DigiLockerImportStatus
     let reviewState: DigiLockerDiscoveryReviewState
     let evidence: [DigiLockerEducationEvidenceDTO]
+    let failureReason: DigiLockerDiscoveryFailureReason?
 
     var id: String { candidateId }
     var canImport: Bool { importStatus == .available && reviewState == .ready }
@@ -352,6 +412,48 @@ nonisolated struct DigiLockerDiscoveryCountsDTO: Decodable, Equatable, Sendable 
     let pdfOnly: Int
     let parseFailures: Int
     let malformed: Int
+    let providerFailures: Int
+
+    init(
+        totalIssued: Int, supported: Int, unsupported: Int, identity: Int, education: Int,
+        addressCandidates: Int, addressPrefillCandidates: Int, xmlAvailable: Int,
+        pdfOnly: Int, parseFailures: Int, malformed: Int, providerFailures: Int = 0
+    ) {
+        self.totalIssued = totalIssued
+        self.supported = supported
+        self.unsupported = unsupported
+        self.identity = identity
+        self.education = education
+        self.addressCandidates = addressCandidates
+        self.addressPrefillCandidates = addressPrefillCandidates
+        self.xmlAvailable = xmlAvailable
+        self.pdfOnly = pdfOnly
+        self.parseFailures = parseFailures
+        self.malformed = malformed
+        self.providerFailures = providerFailures
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        totalIssued = try container.decode(Int.self, forKey: .totalIssued)
+        supported = try container.decode(Int.self, forKey: .supported)
+        unsupported = try container.decode(Int.self, forKey: .unsupported)
+        identity = try container.decode(Int.self, forKey: .identity)
+        education = try container.decode(Int.self, forKey: .education)
+        addressCandidates = try container.decode(Int.self, forKey: .addressCandidates)
+        addressPrefillCandidates = try container.decode(Int.self, forKey: .addressPrefillCandidates)
+        xmlAvailable = try container.decode(Int.self, forKey: .xmlAvailable)
+        pdfOnly = try container.decode(Int.self, forKey: .pdfOnly)
+        parseFailures = try container.decode(Int.self, forKey: .parseFailures)
+        malformed = try container.decode(Int.self, forKey: .malformed)
+        providerFailures = try container.decodeIfPresent(Int.self, forKey: .providerFailures) ?? 0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case totalIssued, supported, unsupported, identity, education
+        case addressCandidates, addressPrefillCandidates, xmlAvailable, pdfOnly
+        case parseFailures, malformed, providerFailures
+    }
 }
 
 nonisolated struct DigiLockerAvailableRecordsDTO: Decodable, Equatable, Sendable {
@@ -362,6 +464,44 @@ nonisolated struct DigiLockerAvailableRecordsDTO: Decodable, Equatable, Sendable
     let addressDiscoveryState: String
     let counts: DigiLockerDiscoveryCountsDTO
     let discoveredAt: Date
+    let discoveryStatus: DigiLockerDiscoveryStatus
+
+    init(
+        identity: [DigiLockerDiscoveryRecordDTO],
+        education: [DigiLockerEducationGroupDTO],
+        addressCandidates: [DigiLockerAddressCandidateDTO],
+        addressPrefillCandidates: [DigiLockerAddressCandidateDTO],
+        addressDiscoveryState: String,
+        counts: DigiLockerDiscoveryCountsDTO,
+        discoveredAt: Date,
+        discoveryStatus: DigiLockerDiscoveryStatus = .success
+    ) {
+        self.identity = identity
+        self.education = education
+        self.addressCandidates = addressCandidates
+        self.addressPrefillCandidates = addressPrefillCandidates
+        self.addressDiscoveryState = addressDiscoveryState
+        self.counts = counts
+        self.discoveredAt = discoveredAt
+        self.discoveryStatus = discoveryStatus
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        identity = try container.decode([DigiLockerDiscoveryRecordDTO].self, forKey: .identity)
+        education = try container.decode([DigiLockerEducationGroupDTO].self, forKey: .education)
+        addressCandidates = try container.decode([DigiLockerAddressCandidateDTO].self, forKey: .addressCandidates)
+        addressPrefillCandidates = try container.decode([DigiLockerAddressCandidateDTO].self, forKey: .addressPrefillCandidates)
+        addressDiscoveryState = try container.decode(String.self, forKey: .addressDiscoveryState)
+        counts = try container.decode(DigiLockerDiscoveryCountsDTO.self, forKey: .counts)
+        discoveredAt = try container.decode(Date.self, forKey: .discoveredAt)
+        discoveryStatus = try container.decodeIfPresent(DigiLockerDiscoveryStatus.self, forKey: .discoveryStatus) ?? .success
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case identity, education, addressCandidates, addressPrefillCandidates
+        case addressDiscoveryState, counts, discoveredAt, discoveryStatus
+    }
 
     var allAddressCandidates: [DigiLockerAddressCandidateDTO] {
         var seen = Set<String>()
@@ -448,6 +588,7 @@ nonisolated enum DigiLockerPresentation {
         case "EAADHAAR": "e-Aadhaar"
         case "identity": "Identity"
         case "DGCER": "Degree"
+        case "SPCER": "School certificate"
         case "HSCER": "Class XII certificate"
         case "SSCER": "Class X certificate"
         case "HSMRK": "Class XII marksheet"
@@ -476,6 +617,7 @@ nonisolated enum DigiLockerPresentation {
 private nonisolated enum DigiLockerDecodedDocumentType: String, Decodable {
     case identity, pan = "PANCR", drivingLicence = "DRVLC", aadhaar = "EAADHAAR"
     case degree = "DGCER", classXII = "HSCER", classX = "SSCER"
+    case schoolCertificate = "SPCER"
     case classXIIMarksheet = "HSMRK", classXMarksheet = "SSMRK"
 
     static func decode<K: CodingKey>(from container: KeyedDecodingContainer<K>, forKey key: K) throws -> String {

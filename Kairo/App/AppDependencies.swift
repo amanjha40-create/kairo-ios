@@ -114,6 +114,9 @@ struct AppDependencies: Sendable {
             }
         let digiLockerService: any DigiLockerServiceProtocol =
             if uiTestConfiguration.isEnabled,
+               let scenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_DIGILOCKER_DISCOVERY"] {
+                DigiLockerDiscoveryFixtureService(scenario: scenario)
+            } else if uiTestConfiguration.isEnabled,
                let scenario = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_AADHAAR"] {
                 DigiLockerAadhaarFixtureService(scenario: scenario)
             } else if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
