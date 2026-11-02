@@ -10,6 +10,9 @@ final class VisualPolishV2UITests: XCTestCase {
 
     @available(iOS 27.0, *)
     func testPhysicalVoiceOverHome() throws {
+        if ProcessInfo.processInfo.environment["SIMULATOR_UDID"] != nil {
+            throw XCTSkip("VoiceOver remote control is a physical-device-only gate")
+        }
         let service = XCUIDevice.shared.voiceOverService
         let initiallyEnabled = service.isEnabled
         defer {

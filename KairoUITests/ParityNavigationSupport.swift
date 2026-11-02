@@ -8,7 +8,7 @@ extension XCUIApplication {
         career.tap()
         let activity = buttons["career.verification.activity"]
         XCTAssertTrue(activity.waitForExistence(timeout: 10), file: file, line: line)
-        for _ in 0..<4 where !activity.isHittable { swipeDown() }
+        revealContent(activity, file: file, line: line)
         XCTAssertTrue(activity.isHittable, file: file, line: line)
         activity.tap()
     }

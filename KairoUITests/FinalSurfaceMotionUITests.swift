@@ -68,7 +68,7 @@ import XCTest
         toggle.tap()
         XCTAssertTrue((field.value as? String)?.contains("retained") == true)
     }
-    func testLocationPreservesBengaluruUntilExplicitParentChangeAndSupportsCityFallback() {
+    func testLocationPreservesBengaluruUntilExplicitParentChangeAndRequiresCatalogueCity() {
         let app = launch(); openPreview(app)
         let city = app.buttons["mirror.location.city"]
         reveal(city, app); XCTAssertEqual(city.value as? String, "Bengaluru")
@@ -82,8 +82,13 @@ import XCTest
         XCTAssertEqual(city.value as? String, "Not selected")
         reveal(city, app); city.tap()
         search.tap(); search.typeText("Synthetic Town")
-        app.buttons["candidate.location.customCity"].tap()
-        XCTAssertEqual(city.value as? String, "Synthetic Town")
+        XCTAssertFalse(app.buttons["candidate.location.customCity"].exists)
+        XCTAssertFalse(app.buttons["Synthetic Town"].exists)
+        search.tap()
+        search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "Synthetic Town".count))
+        search.typeText("Mumbai")
+        app.buttons["Mumbai"].tap()
+        XCTAssertEqual(city.value as? String, "Mumbai")
         XCTAssertFalse(app.staticTexts["Legacy Location"].exists)
     }
     func testRealTabReentryKeepsAuthoritativeScoreAndNoBlockingOverlay() {

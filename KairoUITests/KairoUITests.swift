@@ -84,8 +84,8 @@ final class KairoUITests: XCTestCase {
     private let passportCreatedContinueHomeButton = "onboarding.passportCreated.continueHome"
     private let passportCreatedReviewProfileButton = "onboarding.passportCreated.reviewProfile"
     private let manualProfileHeadlineField = "onboarding.manualProfile.headline"
-    private let manualProfileCurrentCityField = "onboarding.manualProfile.currentCity"
-    private let manualProfileCurrentCountryField = "onboarding.manualProfile.currentCountry"
+    private let manualProfileCurrentCityField = "candidate.manualProfile.location.city"
+    private let manualProfileCurrentCountryField = "candidate.manualProfile.location.country"
     private let manualProfileBasicContinueButton = "onboarding.manualProfile.basic.continue"
     private let manualProfileEmploymentAddButton = "onboarding.manualProfile.employment.add"
     private let manualProfileEmploymentContinueButton = "onboarding.manualProfile.employment.continue"
@@ -1169,10 +1169,7 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(waitForElementAfterScrolling(signOutButton, in: app))
         signOutButton.tap()
 
-        let confirmation = app.buttons
-            .matching(identifier: moreSignOutConfirmation)
-            .matching(NSPredicate(format: "label == %@", "Log out"))
-            .firstMatch
+        let confirmation = app.buttons["more.logout.confirm"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
         confirmation.tap()
 
@@ -1297,7 +1294,7 @@ final class KairoUITests: XCTestCase {
             into: app.secureTextFields[passwordResetTokenField]
         )
         enterText(
-            "a-valid-password",
+            "a-valid-password1",
             into: app.secureTextFields[passwordResetNewPasswordField]
         )
         // Use the form's native Next action instead of dragging through the
@@ -1313,7 +1310,7 @@ final class KairoUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter().wait(for: [confirmationFocused], timeout: 2), .completed)
         enterText(
-            "a-valid-password",
+            "a-valid-password1",
             into: app.secureTextFields[passwordResetConfirmPasswordField]
         )
 

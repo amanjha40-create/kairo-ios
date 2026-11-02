@@ -195,6 +195,10 @@ final class PassportHierarchyUITests: XCTestCase {
         let app = launch(large: true)
         let share = app.buttons["candidate.passport.share"]
         reveal(share, app)
+        let passportScroll = app.scrollViews.firstMatch
+        for _ in 0..<4 where share.frame.minY <= 95 {
+            passportScroll.swipeDown()
+        }
         XCTAssertGreaterThanOrEqual(share.frame.height, 44)
         // The system status bar is not part of the app's XCUITest hierarchy on iOS 27.
         XCTAssertGreaterThan(share.frame.minY, 95)

@@ -259,7 +259,7 @@ final class ResumeManagementUITests: XCTestCase {
         let app = launch(deleteMode: "slow"); openResume(app)
         confirmDelete(index: 1, app: app)
         XCTAssertTrue(app.descendants(matching: .any)["resume.delete.progress"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["resume.management.upload"].isEnabled)
+        XCTAssertFalse(app.buttons["resume.management.primaryAction"].isEnabled)
         XCTAssertTrue(app.staticTexts["Resume deleted. Imported Career records were not deleted."].waitForExistence(timeout: 12))
         XCTAssertTrue(app.buttons["resume.management.entry.0"].label.contains("Synthetic_current_"))
         XCTAssertTrue(app.buttons["resume.management.entry.1"].label.contains("Synthetic_failed_"))
@@ -380,7 +380,13 @@ final class ResumeManagementUITests: XCTestCase {
 
     private func openResume(_ app: XCUIApplication) {
         let row = app.buttons["candidate.more.resume"]; reveal(row, app); row.tap()
-        XCTAssertTrue(app.buttons["resume.management.upload"].waitForExistence(timeout: 10))
+        let upload = app.buttons["resume.management.upload"]
+        let continuation = app.buttons["resume.management.primaryAction"]
+        let loaded = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in upload.exists || continuation.exists },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 10), .completed)
     }
     private func reveal(_ row: XCUIElement, _ app: XCUIApplication) {
         app.revealContent(row)

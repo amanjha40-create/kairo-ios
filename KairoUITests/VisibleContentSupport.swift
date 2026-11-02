@@ -5,13 +5,11 @@ extension XCUIApplication {
     /// Use the scroll container and actual occluding chrome, not a device-sized
     /// guessed footer. Short drags near the target avoid flinging past it.
     func revealContent(_ element: XCUIElement, fullyVisible: Bool = false, missingTargetIsAbove: Bool = false, file: StaticString = #filePath, line: UInt = #line) {
-        let scroll: XCUIElement
-        if element.exists {
-            let containing = scrollViews.containing(.any, identifier: element.identifier).firstMatch
-            scroll = containing.exists ? containing : scrollViews.firstMatch
-        } else {
-            scroll = scrollViews.firstMatch
-        }
+        // Query the stable screen scroll view directly. Asking XCTest for a
+        // `containing` query against a lazy, currently off-screen descendant
+        // can fail while materializing the accessibility snapshot before this
+        // helper gets a chance to scroll the element into view.
+        let scroll = scrollViews.firstMatch
         XCTAssertTrue(scroll.waitForExistence(timeout: 10), "Missing content scroll view", file: file, line: line)
         guard scroll.exists else { return }
         var previousFrame: CGRect?
@@ -26,7 +24,12 @@ extension XCUIApplication {
             remainingDrags -= 1
             var viewport = scroll.frame.intersection(frame)
             let navigation = navigationBars.firstMatch
-            if navigation.exists, navigation.isHittable {
+            // Navigation bars still occlude scroll content when XCTest reports
+            // the container itself as non-hittable (its child controls remain
+            // interactive). Respect the real frame whenever the bar exists so
+            // a revealed target cannot settle beneath the status/navigation
+            // chrome at large accessibility sizes.
+            if navigation.exists {
                 let top = max(viewport.minY, navigation.frame.maxY)
                 viewport = CGRect(x: viewport.minX, y: top, width: viewport.width, height: max(0, viewport.maxY - top))
             }
