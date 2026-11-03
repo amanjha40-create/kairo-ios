@@ -3,6 +3,14 @@ import XCTest
 
 @MainActor
 final class VerifyIdentityFlowStateTests: XCTestCase {
+    func test_mobileCompletionUsesPlainContinueWithoutChangingEmailStepCopy() {
+        XCTAssertEqual(VerificationChannel.mobile.continueButtonTitle, "Continue")
+        XCTAssertEqual(
+            VerificationChannel.email.continueButtonTitle,
+            "Continue to Mobile Verification"
+        )
+    }
+
     func test_preparePrefillsCreateAccountContactsWhenVerificationIsPristine() {
         var state = VerifyIdentityFlowState()
 

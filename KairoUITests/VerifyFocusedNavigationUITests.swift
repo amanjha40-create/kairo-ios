@@ -25,6 +25,36 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
         app.terminate() // No submit or provider call.
     }
 
+    func testEmploymentCanChooseReportingManagerOnlyInsideVerificationRequest() {
+        let app = launch()
+        app.openCareerVerification()
+        XCTAssertTrue(app.buttons["fixture.verify.begin"].waitForExistence(timeout: 10))
+        app.buttons["fixture.verify.begin"].tap()
+
+        // SwiftUI's menu-style Picker exposes its semantic label/value as a
+        // button on iOS, while the modifier identifier is not retained by XCUI.
+        let contactType = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@", "Verification contact"
+        )).firstMatch
+        reveal(contactType, app)
+        XCTAssertTrue(contactType.exists)
+        contactType.tap()
+        let manager = app.buttons["Reporting Manager"]
+        XCTAssertTrue(manager.waitForExistence(timeout: 5))
+        manager.tap()
+
+        XCTAssertTrue(app.staticTexts["Reporting Manager details"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS %@",
+            "not added to your Career record or public Trust Passport"
+        )).firstMatch.exists)
+        XCTAssertTrue(app.textFields["Manager work email"].exists)
+        XCTAssertTrue(app.textFields["Manager name (optional)"].exists)
+        XCTAssertTrue(app.textFields["Designation (optional)"].exists)
+        XCTAssertFalse(app.textFields["Phone"].exists)
+        app.terminate()
+    }
+
     func testNewRequestSurvivesSheetDismissalAndStaleWithdrawnHistory() {
         let app = launch()
         prepareAndOpenNewRequest(app)

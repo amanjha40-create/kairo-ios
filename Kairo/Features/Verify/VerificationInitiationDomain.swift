@@ -104,7 +104,7 @@ nonisolated enum VerificationContactType: String, CaseIterable, Equatable, Senda
     var title: String {
         switch self {
         case .hr: "HR"
-        case .manager: "Manager"
+        case .manager: "Reporting Manager"
         case .founder: "Founder"
         case .authorizedRepresentative: "Authorised representative"
         case .other: "Other"

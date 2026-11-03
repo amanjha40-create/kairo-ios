@@ -11,6 +11,7 @@ nonisolated enum ResumeCareerAction: Equatable, Sendable {
     case processing(resumeID: String)
     case continueReview(resumeID: String, reviewID: String?)
     case retry(resumeID: String)
+    case manage(resumeID: String)
     case unavailable
 
     static func resolve(_ snapshot: ResumeImportWorkflowSnapshot?) -> ResumeCareerAction {
@@ -20,7 +21,10 @@ nonisolated enum ResumeCareerAction: Equatable, Sendable {
         case .pendingUpload, .uploaded, .queued, .extracting, .extracted, .parsing:
             return .processing(resumeID: snapshot.resume.id)
         case .needsReview:
-            if snapshot.isImported || snapshot.reviewSession?.status == .cancelled {
+            if snapshot.isImported {
+                return .manage(resumeID: snapshot.resume.id)
+            }
+            if snapshot.reviewSession?.status == .cancelled {
                 return .importResume
             }
             return .continueReview(
@@ -53,6 +57,7 @@ nonisolated enum ResumeCareerAction: Equatable, Sendable {
         case .processing: "View resume processing"
         case .continueReview: "Continue resume review"
         case .retry: "Resume needs attention"
+        case .manage: "Resume"
         case .unavailable: "Resume status unavailable"
         }
     }
@@ -64,13 +69,14 @@ nonisolated enum ResumeCareerAction: Equatable, Sendable {
         case .processing: "Your latest resume is still being processed."
         case .continueReview: "Return to the same saved review and continue where you left off."
         case .retry: "Open the existing resume to review the failure and available retry action."
+        case .manage: "View your imported resume. Resume history and another import remain available from Resume management."
         case .unavailable: "KairoID couldn't confirm your latest resume state. Try again before uploading."
         }
     }
 
     var resumeID: String? {
         switch self {
-        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID), .manage(let resumeID):
             resumeID
         case .loading, .importResume, .unavailable:
             nil
@@ -79,7 +85,7 @@ nonisolated enum ResumeCareerAction: Equatable, Sendable {
 
     var isEnabled: Bool {
         switch self {
-        case .importResume, .processing, .continueReview, .retry: true
+        case .importResume, .processing, .continueReview, .retry, .manage: true
         case .loading, .unavailable: false
         }
     }

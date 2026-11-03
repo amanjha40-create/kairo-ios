@@ -710,6 +710,7 @@ struct PassportOverviewScreenView: View {
                 KairoSecondaryButton(
                     title: "Download PDF",
                     accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
+                    systemImage: "arrow.down.doc",
                     action: { pdfExportModel.startExport(using: passportPDFExportService) }
                 )
             }

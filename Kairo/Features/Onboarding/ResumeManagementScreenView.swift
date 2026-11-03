@@ -134,7 +134,7 @@ struct ResumeManagementScreenView: View {
         switch primaryAction {
         case .importResume:
             destination = .upload
-        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID), .manage(let resumeID):
             destination = .existing(resumeID)
         case .loading, .unavailable:
             break

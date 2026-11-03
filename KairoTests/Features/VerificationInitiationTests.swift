@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import XCTest
 @testable import Kairo
 
@@ -50,6 +51,79 @@ final class VerificationInitiationTests: XCTestCase {
         XCTAssertTrue(draft.canSubmit)
         XCTAssertTrue(draft.consentedFields.contains("employment.role"))
         XCTAssertEqual(draft.consentedEvidenceScope, ["offer_letter"])
+    }
+
+    func test_reportingManagerUsesOnlySupportedVerificationContactContract() async throws {
+        let service = try await makeService()
+        var draft = draft(kind: .employment)
+        makeSubmittable(&draft)
+        draft.contactType = .manager
+        draft.contactName = "Test Manager"
+        draft.contactRole = "Regional Lead"
+        draft.contactEmail = "manager@brightpath.example"
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/v1/employments/employment_1/evidence-eligibility"):
+                return (try Self.response(request, 200), Data(#"{"eligible_primary_count":2,"minimum_required":2,"eligible":true}"#.utf8))
+            case ("POST", "/api/v1/employments/employment_1/verification-request"):
+                let body = try requestJSONBody(from: request)
+                let contact = try XCTUnwrap(body["verification_contact"] as? [String: Any])
+                XCTAssertEqual(contact["contact_type"] as? String, "manager")
+                XCTAssertEqual(contact["contact_name"] as? String, "Test Manager")
+                XCTAssertEqual(contact["contact_role"] as? String, "Regional Lead")
+                XCTAssertEqual(contact["contact_email"] as? String, "manager@brightpath.example")
+                XCTAssertNil(contact["phone"])
+                XCTAssertNil(contact["country_code"])
+                return (try Self.response(request, 201), Self.requestPayload(status: "pending_subject_submission"))
+            case ("POST", "/api/v1/verification-requests/request_1/submit-for-review"):
+                return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
+            case ("GET", "/api/v1/verification-requests/request_1"):
+                return (try Self.response(request, 200), Self.requestPayload(status: "pending_admin_review"))
+            default:
+                XCTFail("Unexpected request: \(request.httpMethod ?? "nil") \(request.url?.path ?? "nil")")
+                throw URLError(.badURL)
+            }
+        }
+
+        _ = try await service.submit(draft)
+    }
+
+    func test_stableDraftBindingDoesNotForceUnwrapAfterSuccessTransition() {
+        let model = VerificationInitiationViewModel(
+            service: RetryVerificationInitiationService(),
+            preset: nil
+        )
+        let fallback = draft(kind: .employment)
+        model.draft = fallback
+        let binding = model.stableDraftBinding(fallback: fallback)
+
+        model.draft = nil
+        XCTAssertEqual(binding.wrappedValue, fallback)
+
+        var staleUpdate = fallback
+        staleUpdate.contactEmail = "stale@example.com"
+        binding.wrappedValue = staleUpdate
+        XCTAssertNil(model.draft, "An offscreen control must not resurrect the completed draft")
+    }
+
+    func test_doubleTapStartsOnlyOneSubmissionAndPublishesOneResult() async {
+        let service = CountingVerificationInitiationService()
+        let model = VerificationInitiationViewModel(service: service, preset: nil)
+        var ready = draft(kind: .employment)
+        makeSubmittable(&ready)
+        model.draft = ready
+
+        let first = Task { await model.submit() }
+        await Task.yield()
+        let second = Task { await model.submit() }
+        await first.value
+        await second.value
+
+        let submissionCount = service.submissionCount()
+        XCTAssertEqual(submissionCount, 1)
+        XCTAssertEqual(model.result?.requestID, "single-request")
+        XCTAssertFalse(model.isSubmitting)
     }
 
     func test_employmentSubmissionCreatesDraftSubmitsConsentAndRefetchesAuthoritativeRequest() async throws {
@@ -439,4 +513,22 @@ private final class RetryVerificationInitiationService: VerificationInitiationSe
     func loadCount() -> Int {
         loads
     }
+}
+
+@MainActor
+private final class CountingVerificationInitiationService: VerificationInitiationServiceProtocol {
+    private var submissions = 0
+
+    func loadEligibility() async throws -> VerificationInitiationEligibility { .init(subjects: []) }
+    func loadEvidence(for subject: VerificationInitiationSubject) async throws -> [VerificationEvidenceDocument] {
+        _ = subject
+        return []
+    }
+    func submit(_ draft: VerificationInitiationDraft) async throws -> VerificationInitiationResult {
+        _ = draft
+        submissions += 1
+        try await Task.sleep(for: .milliseconds(100))
+        return .init(requestID: "single-request", status: .pendingAdminReview, reusedExistingRequest: false)
+    }
+    func submissionCount() -> Int { submissions }
 }

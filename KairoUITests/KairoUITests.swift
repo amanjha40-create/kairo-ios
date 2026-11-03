@@ -1525,8 +1525,10 @@ final class KairoUITests: XCTestCase {
             .merging(verifyIdentityEnvironment(phase: "mobile", mobileState: "verified")) { _, override in override })
 
         XCTAssertTrue(app.staticTexts[verifyIdentityMobileSuccess].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[onboardingContinueButton].waitForExistence(timeout: 10))
-        app.buttons[onboardingContinueButton].tap()
+        let continueButton = app.buttons[onboardingContinueButton]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 10))
+        XCTAssertEqual(continueButton.label, "Continue")
+        continueButton.tap()
 
         XCTAssertTrue(app.staticTexts[onboardingChooseStartTitle].waitForExistence(timeout: 10))
     }

@@ -182,7 +182,7 @@ struct CareerOverviewContainerView: View {
         switch resumeAction {
         case .importResume:
             resumeDestination = .upload
-        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID):
+        case .processing(let resumeID), .continueReview(let resumeID, _), .retry(let resumeID), .manage(let resumeID):
             resumeDestination = .existing(resumeID)
         case .loading, .unavailable:
             break

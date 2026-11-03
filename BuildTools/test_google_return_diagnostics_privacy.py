@@ -30,7 +30,7 @@ class GoogleReturnDiagnosticsPrivacyTests(unittest.TestCase):
             settings = config['buildSettings']
             if config['name'] == 'Production':
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Production-Info.plist')
-                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '17')
+                self.assertEqual(str(settings['CURRENT_PROJECT_VERSION']), '18')
                 self.assertEqual(settings['MARKETING_VERSION'], '1.0.1')
             else:
                 self.assertEqual(settings['INFOPLIST_FILE'], 'Kairo-Info.plist')

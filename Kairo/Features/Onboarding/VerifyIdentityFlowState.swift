@@ -124,7 +124,7 @@ enum VerificationChannel: String, Equatable, Sendable {
         case .email:
             "Continue to Mobile Verification"
         case .mobile:
-            "Continue to Choose Start"
+            "Continue"
         }
     }
 

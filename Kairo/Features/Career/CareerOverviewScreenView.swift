@@ -73,21 +73,34 @@ struct CareerOverviewScreenView: View {
     }
 
     private var resumeSection: some View {
-        KairoSection(compact: true, accent: .identity) {
-            Text("Resume")
-                .font(KairoTypography.bodyStrong)
-                .foregroundStyle(KairoColors.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-            Text(resumeAction.message)
-                .font(KairoTypography.footnote)
-                .foregroundStyle(KairoColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            KairoPrimaryButton(
-                title: resumeAction.title,
-                accessibilityIdentifier: "career.resume.primaryAction",
-                action: { resumeActionHandler?() }
-            )
-            .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
+        Group {
+            if resumeAction == .importResume {
+                KairoSection(compact: true, accent: .identity) {
+                    Text("Resume")
+                        .font(KairoTypography.bodyStrong)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(resumeAction.message)
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    KairoPrimaryButton(
+                        title: resumeAction.title,
+                        accessibilityIdentifier: "career.resume.primaryAction",
+                        action: { resumeActionHandler?() }
+                    )
+                    .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
+                }
+            } else {
+                KairoCompactDestinationRow(
+                    title: resumeAction.title,
+                    metadata: resumeAction.message,
+                    systemImage: "doc.text",
+                    accessibilityIdentifier: "career.resume.secondaryAction",
+                    action: { resumeActionHandler?() }
+                )
+                .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
+            }
         }
         .accessibilityIdentifier("career.resume.section")
     }

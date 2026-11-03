@@ -101,6 +101,19 @@ final class VerificationInitiationViewModel: ObservableObject {
             self.error = .map(error, fallbackTitle: "Request not sent")
         }
     }
+
+    /// Keeps SwiftUI from manufacturing a force-unwrapped binding to `draft`.
+    /// The sheet can replace the draft with a success or selection state while
+    /// controls from the previous render are still completing an update pass.
+    func stableDraftBinding(fallback: VerificationInitiationDraft) -> Binding<VerificationInitiationDraft> {
+        Binding(
+            get: { [weak self] in self?.draft ?? fallback },
+            set: { [weak self] value in
+                guard self?.draft != nil else { return }
+                self?.draft = value
+            }
+        )
+    }
 }
 
 struct VerificationInitiationSheet: View {
@@ -169,8 +182,8 @@ struct VerificationInitiationSheet: View {
 
             if let result = model.result {
                 successContent(result)
-            } else if let draft = Binding($model.draft) {
-                detailsContent(draft)
+            } else if let draft = model.draft {
+                detailsContent(model.stableDraftBinding(fallback: draft))
             } else if model.isLoading && model.eligibility == nil {
                 KairoLoadingStateView(
                     title: "Checking eligible records",
@@ -328,23 +341,45 @@ struct VerificationInitiationSheet: View {
             }
 
             KairoSection {
-                Text(draft.wrappedValue.subject.kind.contactHeading)
+                Text(draft.wrappedValue.contactType == .manager && draft.wrappedValue.subject.kind == .employment
+                     ? "Reporting Manager details"
+                     : draft.wrappedValue.subject.kind.contactHeading)
                     .font(KairoTypography.headline)
                     .foregroundStyle(KairoColors.textPrimary)
 
-                KairoTextField(title: "Contact email", prompt: draft.wrappedValue.subject.kind.contactEmailPrompt, text: draft.contactEmail)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
-                    .autocorrectionDisabled()
-                KairoTextField(title: "Contact name (optional)", prompt: "Name", text: draft.contactName)
-                KairoTextField(title: "Role (optional)", prompt: draft.wrappedValue.subject.kind.contactRolePrompt, text: draft.contactRole)
+                if draft.wrappedValue.subject.kind == .employment {
+                    Text("You may choose a Reporting Manager as the verification contact. These details stay with this verification request and are not added to your Career record or public Trust Passport.")
+                        .font(KairoTypography.footnote)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                Picker("Contact type", selection: draft.contactType) {
+                Picker("Verification contact", selection: draft.contactType) {
                     ForEach(draft.wrappedValue.subject.kind.contactTypes, id: \.self) { type in
                         Text(type.title).tag(type)
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("verification.initiation.contactType")
+
+                KairoTextField(
+                    title: draft.wrappedValue.contactType == .manager ? "Manager work email" : "Contact email",
+                    prompt: draft.wrappedValue.contactType == .manager ? "manager@organisation.com" : draft.wrappedValue.subject.kind.contactEmailPrompt,
+                    text: draft.contactEmail
+                )
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                    .autocorrectionDisabled()
+                KairoTextField(
+                    title: draft.wrappedValue.contactType == .manager ? "Manager name (optional)" : "Contact name (optional)",
+                    prompt: "Name",
+                    text: draft.contactName
+                )
+                KairoTextField(
+                    title: draft.wrappedValue.contactType == .manager ? "Designation (optional)" : "Role (optional)",
+                    prompt: draft.wrappedValue.contactType == .manager ? "Reporting Manager" : draft.wrappedValue.subject.kind.contactRolePrompt,
+                    text: draft.contactRole
+                )
 
                 KairoTextField(title: "Note (optional)", prompt: "Context for the verifier", text: draft.candidateNote)
             }

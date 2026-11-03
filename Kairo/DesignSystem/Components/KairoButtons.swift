@@ -124,6 +124,7 @@ struct KairoSecondaryButton: View {
     let title: String
     var isLoading: Bool = false
     var accessibilityIdentifier: String?
+    var systemImage: String?
     let action: () -> Void
 
     var body: some View {
@@ -132,6 +133,11 @@ struct KairoSecondaryButton: View {
                 if isLoading {
                     ProgressView()
                         .tint(KairoColors.brandPrimary)
+                }
+
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .accessibilityHidden(true)
                 }
 
                 Text(title)

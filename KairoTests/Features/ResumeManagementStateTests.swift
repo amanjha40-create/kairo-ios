@@ -60,16 +60,20 @@ final class ResumeManagementStateTests: XCTestCase {
         XCTAssertEqual(ResumeCareerAction.resolve(snapshot(.cancelled)), .importResume)
     }
 
-    func testImportedReviewClearsStaleContinueAction() {
+    func testImportedReviewBecomesSecondaryManagementActionInsteadOfAnotherPrimaryImport() {
         XCTAssertEqual(
             ResumeCareerAction.resolve(snapshot(.needsReview, reviewStatus: .imported)),
-            .importResume
+            .manage(resumeID: "selected-history-id")
         )
         XCTAssertEqual(
             ResumeCareerAction.resolve(
                 snapshot(.needsReview, reviewStatus: .reviewing, importCompleted: true)
             ),
-            .importResume
+            .manage(resumeID: "selected-history-id")
+        )
+        XCTAssertEqual(
+            ResumeCareerAction.resolve(snapshot(.needsReview, reviewStatus: .imported)).title,
+            "Resume"
         )
     }
 

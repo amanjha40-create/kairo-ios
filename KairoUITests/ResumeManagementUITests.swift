@@ -33,11 +33,10 @@ final class ResumeManagementUITests: XCTestCase {
         for dark in [false, true] {
             for large in [false, true] {
                 let app = launchCareerContinuity(large: large, dark: dark)
-                let action = app.buttons.matching(NSPredicate(
-                    format: "label == %@", "Continue resume review"
-                )).firstMatch
+                let action = app.buttons["career.resume.section"]
                 XCTAssertTrue(action.waitForExistence(timeout: 10))
-                XCTAssertEqual(action.label, "Continue resume review")
+                XCTAssertTrue(action.label.contains("Continue resume review"))
+                XCTAssertTrue(action.label.contains("Return to the same saved review"))
                 XCTAssertGreaterThanOrEqual(action.frame.height, 44)
 
                 app.terminate()
