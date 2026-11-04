@@ -52,6 +52,10 @@ final class VerifyFocusedNavigationUITests: XCTestCase {
         XCTAssertTrue(app.textFields["Manager name (optional)"].exists)
         XCTAssertTrue(app.textFields["Designation (optional)"].exists)
         XCTAssertFalse(app.textFields["Phone"].exists)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Synthetic Reporting Manager request fields"
+        proof.lifetime = .keepAlways
+        add(proof)
         app.terminate()
     }
 

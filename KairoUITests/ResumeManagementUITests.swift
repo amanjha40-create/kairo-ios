@@ -55,6 +55,42 @@ final class ResumeManagementUITests: XCTestCase {
         }
     }
 
+    func testCompletedResumeUsesCompactTopRightManagementAction() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-KAIRO_UI_TESTING",
+            "-ApplePersistenceIgnoreState",
+            "YES",
+            "-kairo.appearance.preference",
+            "light"
+        ]
+        app.launchEnvironment = [
+            "KAIRO_UI_TEST_DISABLE_ANIMATIONS": "1",
+            "KAIRO_UI_TEST_ROUTE": "demoHome",
+            "KAIRO_APP_ENVIRONMENT": "staging",
+            "KAIRO_DEMO_MODE": "false",
+            "KAIRO_UI_TEST_CAREER_STATE": "populated",
+            "KAIRO_UI_TEST_RESUME_MANAGEMENT": "1",
+            "KAIRO_UI_TEST_RESUME_IMPORTED": "1",
+            "KAIRO_UI_TEST_RESUME_IMPORT_SERVICE_SCENARIO": "management_history"
+        ]
+        app.launch()
+        app.tabBars.buttons["Career"].tap()
+
+        let action = app.buttons["career.resume.secondaryAction"]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        XCTAssertEqual(action.label, "Resume")
+        XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+        XCTAssertLessThan(action.frame.width, app.windows.firstMatch.frame.width * 0.6)
+        XCTAssertFalse(app.buttons["career.resume.primaryAction"].exists)
+        XCTAssertTrue(app.buttons["career.verification.activity"].exists)
+        capture("Completed import compact Resume action")
+
+        action.tap()
+        XCTAssertTrue(app.navigationBars["Import summary"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.scrollViews["resume.management.historyDetail"].exists)
+    }
+
     // Opt-in runner flag is used only for the separately approved physical read-only check.
     // Default Test action remains deterministic and never consumes the device's real session.
     func testOwnerResumeReadOnlyNavigationAndSessionRestart() {

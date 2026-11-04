@@ -7,6 +7,7 @@ struct UITestCareerConfiguration {
     var showsAttachedCertificationEditor = false
     var showsHierarchyFixture = false
     var showsResumeContinuity = false
+    var showsCompletedResumeManagement = false
 
     static func current(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -39,19 +40,21 @@ struct UITestCareerConfiguration {
             state: state,
             showsAttachedCertificationEditor: environment["KAIRO_UI_TEST_ATTACHED_CERTIFICATION"] == "1",
             showsHierarchyFixture: environment["KAIRO_UI_TEST_CAREER_HIERARCHY"] == "1",
-            showsResumeContinuity: environment["KAIRO_UI_TEST_RESUME_CONTINUITY"] == "1"
+            showsResumeContinuity: environment["KAIRO_UI_TEST_RESUME_CONTINUITY"] == "1",
+            showsCompletedResumeManagement: environment["KAIRO_UI_TEST_RESUME_MANAGEMENT"] == "1"
         )
     }
 }
 
 struct CareerResumeContinuityFixtureHostView: View {
     let state: CareerOverviewState
+    var resumeAction: ResumeCareerAction = .continueReview(resumeID: "current", reviewID: "review-current")
     @State private var destination: ResumeManagementDestination?
 
     var body: some View {
         CareerOverviewScreenView(
             state: state,
-            resumeAction: .continueReview(resumeID: "current", reviewID: "review-current"),
+            resumeAction: resumeAction,
             resumeActionHandler: { destination = .existing("current") }
         )
         .navigationDestination(item: $destination) { target in

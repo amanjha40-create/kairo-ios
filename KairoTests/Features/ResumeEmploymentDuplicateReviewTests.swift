@@ -138,6 +138,32 @@ final class ResumeEmploymentDuplicateReviewTests: XCTestCase {
         XCTAssertEqual(summary.skipped, 3)
     }
 
+    func test_finalSummaryExplainsZeroAddedSingleSkippedOutcome() {
+        let summary = ResumeImportResultSummary(batch: makeBatch(
+            imported: 0,
+            linked: 0,
+            skipped: 1
+        ))
+
+        XCTAssertEqual(
+            summary.outcomeMessage,
+            "No Career records were added. 1 item was skipped."
+        )
+    }
+
+    func test_finalSummaryExplainsAddedLinkedAndSkippedWithoutCallingLinkedNew() {
+        let summary = ResumeImportResultSummary(batch: makeBatch(
+            imported: 2,
+            linked: 1,
+            skipped: 3
+        ))
+
+        XCTAssertEqual(
+            summary.outcomeMessage,
+            "2 records were added. 1 item was already in Career. 3 items were skipped."
+        )
+    }
+
     func test_postImportCareerRefreshReturnsOnlyAuthoritativeLoaderValue() async throws {
         let probe = AuthoritativeLoaderProbe()
 

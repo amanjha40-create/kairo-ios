@@ -459,8 +459,13 @@ struct ResumeImportScreenView: View {
                         .font(KairoTypography.title2)
                         .foregroundStyle(KairoColors.textPrimary)
 
-                    Text("KairoID used the completed backend result. Existing Career records are not counted as newly added.")
+                    Text(summary.outcomeMessage)
                         .font(KairoTypography.body)
+                        .foregroundStyle(KairoColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("This summary reflects the completed backend result. Existing Career records are not counted as newly added.")
+                        .font(KairoTypography.footnote)
                         .foregroundStyle(KairoColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 

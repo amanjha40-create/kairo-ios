@@ -210,6 +210,8 @@ struct ResumeManagementWorkflowView: View {
                              ? "Approved claims were imported. They remain candidate-provided, not verified. View your Career for those records."
                              : "No review action is available for this resume. Return to Resume to choose a new file or refresh its status.")
                         if let batch = snapshot.importBatch {
+                            Text(ResumeImportResultSummary(batch: batch).outcomeMessage)
+                                .foregroundStyle(KairoColors.textSecondary)
                             Text("Added: \(batch.importedCount) · Already in Career: \(batch.linkedCount) · Skipped: \(batch.skippedCount)")
                         }
                     }.fixedSize(horizontal: false, vertical: true).padding()
@@ -219,10 +221,16 @@ struct ResumeManagementWorkflowView: View {
                     onBuildProfileManually: {}, context: .authenticated, onAuthenticatedCompletion: onFinished)
             }
         }
-        .navigationTitle(resumeID == nil ? "Import resume" : "Resume details")
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .task { await load() }
+    }
+
+    private var navigationTitle: String {
+        if resumeID == nil { return "Import resume" }
+        if snapshot?.isReadOnlyHistory == true { return "Import summary" }
+        return "Resume details"
     }
 
     private func load() async {

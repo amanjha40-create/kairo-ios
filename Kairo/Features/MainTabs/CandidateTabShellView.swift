@@ -197,8 +197,14 @@ struct CandidateTabShellView: View {
                 AttachedCertificationFixtureHostView()
             } else if uiTestCareerConfiguration.showsHierarchyFixture, let state = uiTestCareerConfiguration.state {
                 CareerHierarchyFixtureHostView(state: state)
-            } else if uiTestCareerConfiguration.showsResumeContinuity, let state = uiTestCareerConfiguration.state {
-                CareerResumeContinuityFixtureHostView(state: state)
+            } else if (uiTestCareerConfiguration.showsResumeContinuity || uiTestCareerConfiguration.showsCompletedResumeManagement),
+                      let state = uiTestCareerConfiguration.state {
+                CareerResumeContinuityFixtureHostView(
+                    state: state,
+                    resumeAction: uiTestCareerConfiguration.showsCompletedResumeManagement
+                        ? .manage(resumeID: "current")
+                        : .continueReview(resumeID: "current", reviewID: "review-current")
+                )
             } else if let uiTestState = uiTestCareerConfiguration.state {
                 CareerOverviewScreenView(state: uiTestState)
             } else if appConfiguration.isDemoModeEnabled {

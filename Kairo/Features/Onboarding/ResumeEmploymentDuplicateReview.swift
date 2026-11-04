@@ -102,6 +102,49 @@ nonisolated struct ResumeImportResultSummary: Equatable, Sendable {
         needsAttention = batch.failedCount + batch.blockedCount + batch.incompleteCount
     }
 
+    var outcomeMessage: String {
+        if added == 0, alreadyInCareer == 0, updated == 0 {
+            if skipped == 0, needsAttention == 0 {
+                return "No Career records were added from this resume."
+            }
+
+            let skippedCopy = Self.itemCount(skipped, singular: "item was skipped", plural: "items were skipped")
+            let attentionCopy = Self.itemCount(
+                needsAttention,
+                singular: "item needs attention",
+                plural: "items need attention"
+            )
+            let details = [skippedCopy, attentionCopy].compactMap { $0 }.joined(separator: " ")
+            return "No Career records were added. \(details)"
+        }
+
+        var outcomes: [String] = []
+        if let addedCopy = Self.itemCount(added, singular: "record was added", plural: "records were added") {
+            outcomes.append(addedCopy)
+        }
+        if let linkedCopy = Self.itemCount(
+            alreadyInCareer,
+            singular: "item was already in Career",
+            plural: "items were already in Career"
+        ) {
+            outcomes.append(linkedCopy)
+        }
+        if let updatedCopy = Self.itemCount(updated, singular: "record was updated", plural: "records were updated") {
+            outcomes.append(updatedCopy)
+        }
+        if let skippedCopy = Self.itemCount(skipped, singular: "item was skipped", plural: "items were skipped") {
+            outcomes.append(skippedCopy)
+        }
+        if let attentionCopy = Self.itemCount(
+            needsAttention,
+            singular: "item needs attention",
+            plural: "items need attention"
+        ) {
+            outcomes.append(attentionCopy)
+        }
+        return outcomes.joined(separator: " ")
+    }
+
     static func outcome(for result: ResumeImportResultItem) -> ResumeImportResultOutcome {
         switch result.outcome.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "imported", "created", "added":
@@ -115,6 +158,11 @@ nonisolated struct ResumeImportResultSummary: Equatable, Sendable {
         default:
             .needsAttention
         }
+    }
+
+    private static func itemCount(_ count: Int, singular: String, plural: String) -> String? {
+        guard count > 0 else { return nil }
+        return "\(count) \(count == 1 ? singular : plural)."
     }
 }
 

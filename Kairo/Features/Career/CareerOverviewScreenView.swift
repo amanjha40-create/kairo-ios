@@ -32,11 +32,27 @@ struct CareerOverviewScreenView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: KairoSpacing.large) {
-                Text("Career")
-                    .font(KairoTypography.screenTitle)
-                    .foregroundStyle(KairoColors.textPrimary)
-                    .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
-                    .accessibilityAddTraits(.isHeader)
+                HStack(alignment: .center, spacing: KairoSpacing.medium) {
+                    Text("Career")
+                        .font(KairoTypography.screenTitle)
+                        .foregroundStyle(KairoColors.textPrimary)
+                        .accessibilityIdentifier(CandidateTab.career.titleAccessibilityIdentifier)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Spacer(minLength: KairoSpacing.small)
+
+                    if showsCompletedResumeAction {
+                        Button {
+                            resumeActionHandler?()
+                        } label: {
+                            Label("Resume", systemImage: "doc.text")
+                        }
+                        .buttonStyle(KairoActionStyle(role: .secondary))
+                        .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
+                        .accessibilityIdentifier("career.resume.secondaryAction")
+                        .accessibilityHint("Opens resume history and lets you import another resume")
+                    }
+                }
                 Text(overviewSubtitle)
                     .font(KairoTypography.footnote)
                     .foregroundStyle(KairoColors.textSecondary)
@@ -91,7 +107,7 @@ struct CareerOverviewScreenView: View {
                     )
                     .disabled(!resumeAction.isEnabled || resumeActionHandler == nil)
                 }
-            } else {
+            } else if !showsCompletedResumeAction {
                 KairoCompactDestinationRow(
                     title: resumeAction.title,
                     metadata: resumeAction.message,
@@ -103,6 +119,11 @@ struct CareerOverviewScreenView: View {
             }
         }
         .accessibilityIdentifier("career.resume.section")
+    }
+
+    private var showsCompletedResumeAction: Bool {
+        if case .manage = resumeAction { return true }
+        return false
     }
 
     @ViewBuilder

@@ -707,12 +707,18 @@ struct PassportOverviewScreenView: View {
                 )
                 .accessibilityIdentifier(KairoAccessibilityID.passportPDFLoading)
             } else {
+                Text("Download a private owner export containing your current Passport information. PDFs downloaded from a specific share use that share's disclosure scope instead.")
+                    .font(KairoTypography.footnote)
+                    .foregroundStyle(KairoColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 KairoSecondaryButton(
                     title: "Download PDF",
                     accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
                     systemImage: "arrow.down.doc",
                     action: { pdfExportModel.startExport(using: passportPDFExportService) }
                 )
+                .accessibilityHint("Downloads the private owner Trust Passport PDF for preview, saving, or sharing")
             }
 
             if let error = pdfExportModel.error {

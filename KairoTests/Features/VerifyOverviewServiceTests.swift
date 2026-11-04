@@ -64,7 +64,11 @@ final class VerifyOverviewServiceTests: XCTestCase {
         XCTAssertEqual(overview.requests.first?.organizationName, "BrightPath Technologies")
         XCTAssertEqual(overview.requests.first?.status, .pendingSubjectAcceptance)
         XCTAssertEqual(overview.requests.first?.timeline.first?.newStatus, .pendingSubjectAcceptance)
-        XCTAssertEqual(overview.requests.first?.verificationContact?.email, "hr@brightpath.example.com")
+        XCTAssertEqual(overview.requests.first?.verificationContact?.name, "Test Manager")
+        XCTAssertEqual(overview.requests.first?.verificationContact?.email, "manager@brightpath.example.com")
+        XCTAssertEqual(overview.requests.first?.verificationContact?.role, "Regional Lead")
+        XCTAssertEqual(overview.requests.first?.verificationContact?.type, "manager")
+        XCTAssertEqual(overview.requests.first?.verificationContact?.candidateNote, "Please confirm employment.")
         XCTAssertEqual(overview.requests.first?.evidence.first?.originalFilename, "employment-letter.pdf")
         XCTAssertEqual(overview.requests.first?.corrections.first?.requestText, "Clarify the employment start date.")
     }
@@ -343,7 +347,7 @@ final class VerifyOverviewServiceTests: XCTestCase {
     }
 
     private nonisolated static let contactPayload = Data(
-        #"{"public_id":"contact_1","contact_name":"Hiring Manager","contact_email":"hr@brightpath.example.com","contact_role":"HR","contact_type":"hr","candidate_note":"Please confirm employment.","review_status":"approved","review_notes":null,"reviewed_at":"2026-08-08T08:30:00Z","created_at":"2026-08-08T08:00:00Z","updated_at":"2026-08-08T08:30:00Z"}"#.utf8
+        #"{"public_id":"contact_1","contact_name":"Test Manager","contact_email":"manager@brightpath.example.com","contact_role":"Regional Lead","contact_type":"manager","candidate_note":"Please confirm employment.","review_status":"approved","review_notes":null,"reviewed_at":"2026-08-08T08:30:00Z","created_at":"2026-08-08T08:00:00Z","updated_at":"2026-08-08T08:30:00Z"}"#.utf8
     )
 
     private nonisolated static let evidencePayload = Data(

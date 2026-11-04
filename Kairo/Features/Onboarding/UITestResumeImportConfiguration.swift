@@ -99,7 +99,7 @@ struct UITestResumeImportConfiguration {
 
 actor UITestResumeImportService: ResumeImportServiceProtocol {
     private let scenario: UITestResumeImportConfiguration.ServiceScenario
-    private var imported = false
+    private var imported: Bool
     private var retried = false
     private var duplicatePossibleAction: ResumeImportAction = .skip
     private var duplicatePossibleVersion = 1
@@ -116,11 +116,13 @@ actor UITestResumeImportService: ResumeImportServiceProtocol {
     init(scenario: UITestResumeImportConfiguration.ServiceScenario,
          deleteMode: String = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_MODE"] ?? "success",
          editMode: String = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_EDIT_MODE"] ?? "success",
-         singleResume: Bool = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_SINGLE"] == "1") {
+         singleResume: Bool = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_DELETE_SINGLE"] == "1",
+         imported: Bool = ProcessInfo.processInfo.environment["KAIRO_UI_TEST_RESUME_IMPORTED"] == "1") {
         self.scenario = scenario
         self.deleteMode = deleteMode
         self.editMode = editMode
         self.singleResume = singleResume
+        self.imported = imported
     }
 
     nonisolated func prepareSelection(from pickedURL: URL) throws -> ResumeImportPreparedSelection {
