@@ -688,7 +688,7 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
-    func testPassportDownloadPDFIsAvailableWhileDemoModeStaysOffline() throws {
+    func testPassportDownloadPDFStartsScopedFlowWhileDemoModeStaysOffline() throws {
         let app = launchApp(environment: passportEnvironment())
 
         openPassportTab(in: app)
@@ -698,8 +698,10 @@ final class KairoUITests: XCTestCase {
         XCTAssertTrue(button.isEnabled)
         button.tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)[passportPDFError].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons[passportPDFRetry].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["passport.pdf.scope"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Create share"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)[passportPDFError].exists)
+        XCTAssertFalse(app.buttons[passportPDFRetry].exists)
     }
 
     @MainActor
