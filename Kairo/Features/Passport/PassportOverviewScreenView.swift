@@ -8,15 +8,12 @@ struct PassportOverviewScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var refreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.kairoMotionEntry) private var motionEntry
     @Environment(\.passportShareService) private var passportShareService
-    @Environment(\.passportPDFExportService) private var passportPDFExportService
     @State private var modalDestination: PassportModalDestination?
     @State private var scoreMemory = PremiumScoreMemory()
     @State private var shieldEntry: Int?
-    @StateObject private var pdfExportModel = PassportPDFExportViewModel()
     @ScaledMetric(relativeTo: .largeTitle) private var scoreSize = 40.0
 
     var body: some View {
@@ -37,33 +34,17 @@ struct PassportOverviewScreenView: View {
                         service: passportShareService,
                         onMutation: { refreshStore.passportSharesChanged() }
                     )
+                case .sharePassportPDF:
+                    PassportPDFShareExportSheet(
+                        service: passportShareService,
+                        onMutation: { refreshStore.passportSharesChanged() }
+                    )
                 }
-            }
-            .sheet(item: $pdfExportModel.artifact, onDismiss: {
-                Task {
-                    await pdfExportModel.cleanupDismissedPreview(using: passportPDFExportService)
-                }
-            }) { artifact in
-                PassportPDFPreviewView(
-                    artifact: artifact,
-                    onRetry: { pdfExportModel.retryAfterPreviewDismissal() }
-                )
             }
             .onAppear { openRequestedActivityIfNeeded() }
             .task { await digiLockerStore.loadSummaryIfNeeded() }
             .onChange(of: router.passportActivityRequestID) { _, _ in
                 openRequestedActivityIfNeeded()
-            }
-            .onDisappear {
-                Task {
-                    await pdfExportModel.endLifecycle(using: passportPDFExportService)
-                }
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                guard newPhase == .background, pdfExportModel.artifact == nil else { return }
-                Task {
-                    await pdfExportModel.endLifecycle(using: passportPDFExportService)
-                }
             }
     }
 
@@ -700,42 +681,18 @@ struct PassportOverviewScreenView: View {
                 .font(KairoTypography.title2)
                 .foregroundStyle(KairoColors.textPrimary)
 
-            if pdfExportModel.isDownloading {
-                KairoLoadingStateView(
-                    title: "Downloading Passport PDF",
-                    message: "KairoID is preparing a fresh, private export for this preview."
-                )
-                .accessibilityIdentifier(KairoAccessibilityID.passportPDFLoading)
-            } else {
-                Text("Download a private owner export containing your current Passport information. PDFs downloaded from a specific share use that share's disclosure scope instead.")
-                    .font(KairoTypography.footnote)
-                    .foregroundStyle(KairoColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Text("Choose exactly what to disclose, create the corresponding Passport share, then download the same branded page as a PDF.")
+                .font(KairoTypography.footnote)
+                .foregroundStyle(KairoColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-                KairoSecondaryButton(
-                    title: "Download PDF",
-                    accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
-                    systemImage: "arrow.down.doc",
-                    action: { pdfExportModel.startExport(using: passportPDFExportService) }
-                )
-                .accessibilityHint("Downloads the private owner Trust Passport PDF for preview, saving, or sharing")
-            }
-
-            if let error = pdfExportModel.error {
-                VStack(alignment: .leading, spacing: KairoSpacing.small) {
-                    KairoErrorStateView(
-                        title: error.title,
-                        message: error.message,
-                        messageAccessibilityIdentifier: KairoAccessibilityID.passportPDFError
-                    )
-
-                    KairoSecondaryButton(
-                        title: "Retry PDF download",
-                        accessibilityIdentifier: KairoAccessibilityID.passportPDFRetry,
-                        action: { pdfExportModel.retry(using: passportPDFExportService) }
-                    )
-                }
-            }
+            KairoSecondaryButton(
+                title: "Download PDF",
+                accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
+                systemImage: "arrow.down.doc",
+                action: { modalDestination = .sharePassportPDF }
+            )
+            .accessibilityHint("Choose a Passport share scope, then download that exact public Passport page as a PDF")
             KairoSecondaryButton(
                 title: "Views & Share Activity",
                 accessibilityIdentifier: KairoAccessibilityID.passportShareActivityEntry,
@@ -913,12 +870,15 @@ private struct PassportInlineButton: View {
 
 private enum PassportModalDestination: Identifiable {
     case sharePassport
+    case sharePassportPDF
     case shareActivity
 
     var id: String {
         switch self {
         case .sharePassport:
             "passport.share"
+        case .sharePassportPDF:
+            "passport.share.pdf"
         case .shareActivity:
             "passport.shareActivity"
         }

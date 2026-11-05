@@ -13,7 +13,7 @@ final class PassportPDFExportViewModel: ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var retriesAfterPreviewDismissal = false
 
-    func startExport(using service: any PassportPDFExportServiceProtocol) {
+    func startExport(from publicURL: URL, using service: any PassportPDFExportServiceProtocol) {
         guard !isDownloading else { return }
 
         isDownloading = true
@@ -24,7 +24,7 @@ final class PassportPDFExportViewModel: ObservableObject {
                     await service.removeArtifact(existing)
                 }
 
-                let exportedArtifact = try await service.exportPassportPDF()
+                let exportedArtifact = try await service.exportPassportPDF(from: publicURL)
                 guard !Task.isCancelled else {
                     await service.removeArtifact(exportedArtifact)
                     return
@@ -50,11 +50,11 @@ final class PassportPDFExportViewModel: ObservableObject {
         }
     }
 
-    func retry(using service: any PassportPDFExportServiceProtocol) {
-        startExport(using: service)
+    func retry(from publicURL: URL, using service: any PassportPDFExportServiceProtocol) {
+        startExport(from: publicURL, using: service)
     }
 
-    func cleanupDismissedPreview(using service: any PassportPDFExportServiceProtocol) async {
+    func cleanupDismissedPreview(from publicURL: URL, using service: any PassportPDFExportServiceProtocol) async {
         artifact = nil
         if let managedArtifact {
             await service.removeArtifact(managedArtifact)
@@ -63,7 +63,7 @@ final class PassportPDFExportViewModel: ObservableObject {
 
         if retriesAfterPreviewDismissal {
             retriesAfterPreviewDismissal = false
-            startExport(using: service)
+            startExport(from: publicURL, using: service)
         }
     }
 
@@ -105,6 +105,12 @@ struct PassportPDFPresentationError: Identifiable, Equatable {
                     title: "PDF could not be opened",
                     message: exportError.localizedDescription
                 )
+            case .invalidShareURL:
+                return .init(title: "Unsafe Passport link", message: exportError.localizedDescription)
+            case .shareUnavailable:
+                return .init(title: "Passport share unavailable", message: exportError.localizedDescription)
+            case .exportTimedOut:
+                return .init(title: "PDF export timed out", message: exportError.localizedDescription)
             case .temporaryStorageUnavailable:
                 return .init(
                     title: "PDF storage unavailable",

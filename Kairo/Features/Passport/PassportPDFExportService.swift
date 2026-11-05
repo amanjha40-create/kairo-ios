@@ -1,5 +1,7 @@
 import CoreGraphics
 import Foundation
+import UIKit
+import WebKit
 
 nonisolated struct PassportPDFArtifact: Identifiable, Equatable, Sendable {
     let id: UUID
@@ -24,6 +26,9 @@ nonisolated enum PassportPDFExportError: Error, Equatable, LocalizedError, Senda
     case invalidContentType
     case emptyDocument
     case malformedDocument
+    case invalidShareURL
+    case shareUnavailable
+    case exportTimedOut
     case temporaryStorageUnavailable
     case unavailableInDemoMode
 
@@ -35,6 +40,12 @@ nonisolated enum PassportPDFExportError: Error, Equatable, LocalizedError, Senda
             "KairoID received an empty Passport PDF."
         case .malformedDocument:
             "KairoID received a Passport PDF that could not be opened safely."
+        case .invalidShareURL:
+            "KairoID could not open this Passport share safely."
+        case .shareUnavailable:
+            "This Passport share is no longer available for download."
+        case .exportTimedOut:
+            "The shared Passport page did not finish preparing its PDF."
         case .temporaryStorageUnavailable:
             "KairoID could not prepare temporary storage for the Passport PDF."
         case .unavailableInDemoMode:
@@ -44,22 +55,17 @@ nonisolated enum PassportPDFExportError: Error, Equatable, LocalizedError, Senda
 }
 
 protocol PassportPDFExportServiceProtocol: Sendable {
-    func exportPassportPDF() async throws -> PassportPDFArtifact
+    func exportPassportPDF(from publicURL: URL) async throws -> PassportPDFArtifact
     func removeArtifact(_ artifact: PassportPDFArtifact) async
     func removeAllArtifacts() async
 }
 
 actor PassportPDFExportService: PassportPDFExportServiceProtocol {
-    nonisolated static let fallbackFilename = "KairoID-Trust-Passport.pdf"
+    nonisolated static let fallbackFilename = "KairoID-Shared-Passport.pdf"
 
-    private let sessionService: any SessionServiceProtocol
     private let exportDirectoryURL: URL
 
-    init(
-        sessionService: any SessionServiceProtocol,
-        temporaryDirectory: URL? = nil
-    ) {
-        self.sessionService = sessionService
+    init(temporaryDirectory: URL? = nil) {
         exportDirectoryURL = (temporaryDirectory ?? FileManager.default.temporaryDirectory)
             .appendingPathComponent("KairoPassportPDFExports", isDirectory: true)
 
@@ -67,21 +73,17 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
         try? FileManager.default.removeItem(at: exportDirectoryURL)
     }
 
-    func exportPassportPDF() async throws -> PassportPDFArtifact {
+    func exportPassportPDF(from publicURL: URL) async throws -> PassportPDFArtifact {
         removeAllArtifactsImmediately()
+        guard Self.isAllowedShareURL(publicURL) else {
+            throw PassportPDFExportError.invalidShareURL
+        }
 
-        let response = try await sessionService.sendAuthenticatedResponse(
-            NetworkRequest(
-                path: "/passport/me/pdf",
-                headers: ["Accept": "application/pdf"]
-            )
-        )
+        let download = try await SharedPassportPagePDFDownloader.download(from: publicURL)
+        guard !download.data.isEmpty else { throw PassportPDFExportError.emptyDocument }
+        guard Self.isValidPDF(download.data) else { throw PassportPDFExportError.malformedDocument }
 
-        try Self.validate(response: response)
-
-        let filename = Self.safeFilename(
-            from: response.headerValue(for: "Content-Disposition")
-        )
+        let filename = Self.safeFilename(download.filename)
         let artifactDirectory = exportDirectoryURL
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let fileURL = artifactDirectory.appendingPathComponent(filename, isDirectory: false)
@@ -91,7 +93,7 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
                 at: artifactDirectory,
                 withIntermediateDirectories: true
             )
-            try response.data.write(to: fileURL, options: [.atomic])
+            try download.data.write(to: fileURL, options: [.atomic])
 
             var resourceValues = URLResourceValues()
             resourceValues.isExcludedFromBackup = true
@@ -99,7 +101,7 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
             try? mutableFileURL.setResourceValues(resourceValues)
 
             let writtenData = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
-            guard writtenData.count == response.data.count,
+            guard writtenData.count == download.data.count,
                   Self.isValidPDF(writtenData) else {
                 try? FileManager.default.removeItem(at: artifactDirectory)
                 throw PassportPDFExportError.temporaryStorageUnavailable
@@ -128,8 +130,8 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
         removeAllArtifactsImmediately()
     }
 
-    nonisolated static func safeFilename(from contentDisposition: String?) -> String {
-        guard let candidate = filenameCandidate(from: contentDisposition) else {
+    nonisolated static func safeFilename(_ candidate: String?) -> String {
+        guard let candidate else {
             return fallbackFilename
         }
 
@@ -153,26 +155,15 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
         try? FileManager.default.removeItem(at: exportDirectoryURL)
     }
 
-    private nonisolated static func validate(response: NetworkResponse) throws {
-        guard let contentType = response.headerValue(for: "Content-Type")?
-            .split(separator: ";", maxSplits: 1)
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased(),
-              contentType == "application/pdf" else {
-            throw PassportPDFExportError.invalidContentType
-        }
-
-        guard !response.data.isEmpty else {
-            throw PassportPDFExportError.emptyDocument
-        }
-
-        guard isValidPDF(response.data) else {
-            throw PassportPDFExportError.malformedDocument
-        }
+    nonisolated static func isAllowedShareURL(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(),
+              ["app.kairoid.com", "staging.kairoid.com", "demo.kairoid.invalid"].contains(host)
+        else { return false }
+        return url.path.split(separator: "/").count == 2 && url.path.hasPrefix("/passport/")
     }
 
-    private nonisolated static func isValidPDF(_ data: Data) -> Bool {
+    nonisolated static func isValidPDF(_ data: Data) -> Bool {
         let signature = Data("%PDF-".utf8)
         guard data.count >= signature.count,
               data.prefix(signature.count) == signature,
@@ -185,32 +176,11 @@ actor PassportPDFExportService: PassportPDFExportServiceProtocol {
         return true
     }
 
-    private nonisolated static func filenameCandidate(from contentDisposition: String?) -> String? {
-        guard let contentDisposition else { return nil }
-
-        let parameters = contentDisposition
-            .split(separator: ";", omittingEmptySubsequences: true)
-            .dropFirst()
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-        if let encoded = parameters.first(where: { $0.lowercased().hasPrefix("filename*=") }) {
-            let value = String(encoded.dropFirst("filename*=".count))
-                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-            let encodedFilename = value.split(separator: "'", maxSplits: 2).last.map(String.init) ?? value
-            return encodedFilename.removingPercentEncoding
-        }
-
-        guard let plain = parameters.first(where: { $0.lowercased().hasPrefix("filename=") }) else {
-            return nil
-        }
-
-        return String(plain.dropFirst("filename=".count))
-            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-    }
 }
 
 actor UnavailablePassportPDFExportService: PassportPDFExportServiceProtocol {
-    func exportPassportPDF() async throws -> PassportPDFArtifact {
+    func exportPassportPDF(from publicURL: URL) async throws -> PassportPDFArtifact {
+        _ = publicURL
         throw PassportPDFExportError.unavailableInDemoMode
     }
 
@@ -219,4 +189,156 @@ actor UnavailablePassportPDFExportService: PassportPDFExportServiceProtocol {
     }
 
     func removeAllArtifacts() async {}
+}
+
+private nonisolated struct SharedPassportPagePDFDownload: Sendable {
+    let data: Data
+    let filename: String?
+}
+
+@MainActor
+private final class SharedPassportPagePDFDownloader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    private static let messageName = "kairoPassportPDF"
+    private static let captureScript = #"""
+    (() => {
+      if (window.__kairoPassportPDFCaptureInstalled) return;
+      window.__kairoPassportPDFCaptureInstalled = true;
+      const original = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = function(blob) {
+        if (blob && blob.type === "application/pdf") {
+          const reader = new FileReader();
+          reader.onloadend = () => window.webkit.messageHandlers.kairoPassportPDF.postMessage({
+            filename: "KairoID-Shared-Passport.pdf",
+            data: reader.result
+          });
+          reader.readAsDataURL(blob);
+        }
+        return original(blob);
+      };
+    })();
+    """#
+
+    private var continuation: CheckedContinuation<SharedPassportPagePDFDownload, Error>?
+    private var webView: WKWebView?
+    private var pollingTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+    private var hostView: UIView?
+
+    static func download(from url: URL) async throws -> SharedPassportPagePDFDownload {
+        let downloader = SharedPassportPagePDFDownloader()
+        return try await downloader.start(url: url)
+    }
+
+    private func start(url: URL) async throws -> SharedPassportPagePDFDownload {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                let controller = WKUserContentController()
+                controller.addUserScript(WKUserScript(
+                    source: Self.captureScript,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true
+                ))
+                controller.add(self, name: Self.messageName)
+
+                let configuration = WKWebViewConfiguration()
+                configuration.websiteDataStore = .nonPersistent()
+                configuration.userContentController = controller
+                let webView = WKWebView(frame: CGRect(x: -2_000, y: 0, width: 430, height: 932), configuration: configuration)
+                webView.navigationDelegate = self
+                self.webView = webView
+                attach(webView)
+                webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30))
+
+                timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(35))
+                    guard !Task.isCancelled else { return }
+                    self?.finish(.failure(PassportPDFExportError.exportTimedOut))
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.finish(.failure(CancellationError())) }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        _ = navigation
+        pollingTask?.cancel()
+        pollingTask = Task { [weak self, weak webView] in
+            for _ in 0..<100 {
+                guard !Task.isCancelled, let self, let webView else { return }
+                let result = try? await webView.evaluateJavaScript(#"""
+                (() => {
+                  const button = document.querySelector('[data-testid="public-passport-download"]') ||
+                    Array.from(document.querySelectorAll('button')).find((candidate) =>
+                      (candidate.textContent || '').trim() === 'Download Passport'
+                    );
+                  if (button && !button.disabled) { button.click(); return "clicked"; }
+                  const text = (document.body?.innerText || "").toLowerCase();
+                  if (text.includes("passport link is unavailable") ||
+                      text.includes("no longer available") ||
+                      text.includes("not found")) return "unavailable";
+                  return "waiting";
+                })();
+                """#) as? String
+                if result == "clicked" { return }
+                if result == "unavailable" {
+                    finish(.failure(PassportPDFExportError.shareUnavailable))
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+            self?.finish(.failure(PassportPDFExportError.exportTimedOut))
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        _ = (webView, navigation)
+        finish(.failure(error))
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        _ = (webView, navigation)
+        finish(.failure(error))
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == Self.messageName,
+              let payload = message.body as? [String: Any],
+              let encoded = payload["data"] as? String,
+              let comma = encoded.firstIndex(of: ","),
+              let data = Data(base64Encoded: String(encoded[encoded.index(after: comma)...]))
+        else {
+            finish(.failure(PassportPDFExportError.malformedDocument))
+            return
+        }
+        finish(.success(SharedPassportPagePDFDownload(
+            data: data,
+            filename: payload["filename"] as? String
+        )))
+        _ = userContentController
+    }
+
+    private func attach(_ webView: WKWebView) {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }),
+              let window = scene.windows.first(where: { $0.isKeyWindow }),
+              let root = window.rootViewController?.view else { return }
+        root.addSubview(webView)
+        hostView = root
+    }
+
+    private func finish(_ result: Result<SharedPassportPagePDFDownload, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        pollingTask?.cancel()
+        timeoutTask?.cancel()
+        pollingTask = nil
+        timeoutTask = nil
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: Self.messageName)
+        webView?.stopLoading()
+        webView?.removeFromSuperview()
+        webView = nil
+        hostView = nil
+        continuation.resume(with: result)
+    }
 }

@@ -362,7 +362,9 @@ private struct PassportShareRow: View {
 
 struct PassportShareCreateView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.passportPDFExportService) private var passportPDFExportService
     @StateObject private var model: PassportShareCreateViewModel
+    @StateObject private var pdfExportModel = PassportPDFExportViewModel()
     @State private var showsQRCode = false
     @State private var copiedLink = false
 
@@ -399,8 +401,25 @@ struct PassportShareCreateView: View {
                 PassportShareQRCodeView(publicURL: creation.publicURL)
             }
         }
+        .sheet(item: $pdfExportModel.artifact, onDismiss: {
+            guard let publicURL = model.creation?.publicURL else { return }
+            Task {
+                await pdfExportModel.cleanupDismissedPreview(
+                    from: publicURL,
+                    using: passportPDFExportService
+                )
+            }
+        }) { artifact in
+            PassportPDFPreviewView(
+                artifact: artifact,
+                onRetry: { pdfExportModel.retryAfterPreviewDismissal() }
+            )
+        }
         .interactiveDismissDisabled(model.isSubmitting)
         .task { await model.loadCapabilities() }
+        .onDisappear {
+            Task { await pdfExportModel.endLifecycle(using: passportPDFExportService) }
+        }
     }
 
     private var creationContent: some View {
@@ -527,6 +546,45 @@ struct PassportShareCreateView: View {
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("passport.share.preview")
+
+                if pdfExportModel.isDownloading {
+                    KairoLoadingStateView(
+                        title: "Downloading Passport PDF",
+                        message: "KairoID is exporting this exact shared Passport page."
+                    )
+                    .accessibilityIdentifier(KairoAccessibilityID.passportPDFLoading)
+                } else {
+                    KairoSecondaryButton(
+                        title: "Download Passport PDF",
+                        accessibilityIdentifier: KairoAccessibilityID.passportDownloadAction,
+                        systemImage: "arrow.down.doc",
+                        action: {
+                            pdfExportModel.startExport(
+                                from: creation.publicURL,
+                                using: passportPDFExportService
+                            )
+                        }
+                    )
+                    .accessibilityHint("Downloads the exact public Passport page using this share's permissions")
+                }
+
+                if let error = pdfExportModel.error {
+                    KairoErrorStateView(
+                        title: error.title,
+                        message: error.message,
+                        messageAccessibilityIdentifier: KairoAccessibilityID.passportPDFError
+                    )
+                    KairoSecondaryButton(
+                        title: "Retry PDF download",
+                        accessibilityIdentifier: KairoAccessibilityID.passportPDFRetry,
+                        action: {
+                            pdfExportModel.retry(
+                                from: creation.publicURL,
+                                using: passportPDFExportService
+                            )
+                        }
+                    )
+                }
             }
 
             KairoPrimaryButton(
@@ -546,6 +604,26 @@ struct PassportShareCreateView: View {
             return "Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))"
         }
         return "No expiry"
+    }
+}
+
+struct PassportPDFShareExportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let service: any PassportShareServiceProtocol
+    let onMutation: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            PassportShareCreateView(service: service, onCreated: onMutation)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        .accessibilityIdentifier("passport.pdf.scope")
     }
 }
 

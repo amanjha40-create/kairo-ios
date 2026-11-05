@@ -168,7 +168,7 @@ struct AppDependencies: Sendable {
             if configuration.isDemoModeEnabled || uiTestConfiguration.isEnabled {
                 UnavailablePassportPDFExportService()
             } else {
-                PassportPDFExportService(sessionService: sessionService)
+                PassportPDFExportService()
             }
         let moreOverviewService = MoreOverviewService(
             sessionService: sessionService,

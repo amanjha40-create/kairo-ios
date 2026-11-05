@@ -467,7 +467,8 @@ private struct MissingPassportShareService: PassportShareServiceProtocol {
 }
 
 private actor MissingPassportPDFExportService: PassportPDFExportServiceProtocol {
-    func exportPassportPDF() async throws -> PassportPDFArtifact {
+    func exportPassportPDF(from publicURL: URL) async throws -> PassportPDFArtifact {
+        _ = publicURL
         fatalError("Missing Passport PDF export service injection.")
     }
 

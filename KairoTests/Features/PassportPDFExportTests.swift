@@ -1,304 +1,88 @@
-import Foundation
 import UIKit
+import PDFKit
 import XCTest
 @testable import Kairo
 
 @MainActor
 final class PassportPDFExportTests: XCTestCase {
-    override func tearDown() async throws {
-        await MockURLProtocolStorage.shared.reset()
-        try await super.tearDown()
-    }
+    private let productionShareURL = URL(string: "https://app.kairoid.com/passport/opaque-test-token")!
 
-    func test_exportUsesAuthenticatedCanonicalEndpointAndPreservesSafeFilename() async throws {
-        let root = temporaryRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
+    func test_exportAcceptsOnlyCanonicalHTTPSShareURLs() {
+        XCTAssertTrue(PassportPDFExportService.isAllowedShareURL(productionShareURL))
+        XCTAssertTrue(PassportPDFExportService.isAllowedShareURL(
+            URL(string: "https://staging.kairoid.com/passport/opaque-test-token")!
+        ))
 
-        let tokenStore = InMemoryTokenStore()
-        try await tokenStore.save("access-token", for: .accessToken)
-        let pdfData = makeValidPDFData()
-
-        await MockURLProtocolStorage.shared.setHandler { request in
-            XCTAssertEqual(request.httpMethod, "GET")
-            XCTAssertEqual(request.url?.path, "/api/v1/passport/me/pdf")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/pdf")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
-
-            return (
-                try XCTUnwrap(HTTPURLResponse(
-                    url: try XCTUnwrap(request.url),
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: [
-                        "Content-Type": "application/pdf",
-                        "Content-Disposition": "attachment; filename=\"Founder-Passport.pdf\""
-                    ]
-                )),
-                pdfData
-            )
-        }
-
-        let service = makeService(tokenStore: tokenStore, temporaryDirectory: root)
-        let artifact = try await service.exportPassportPDF()
-
-        XCTAssertEqual(artifact.filename, "Founder-Passport.pdf")
-        XCTAssertEqual(artifact.byteCount, pdfData.count)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: artifact.fileURL.path))
-        XCTAssertTrue(artifact.fileURL.path.hasPrefix(root.path))
-
-        await service.removeArtifact(artifact)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: artifact.fileURL.path))
-    }
-
-    func test_eachExportMakesFreshRequestAndReplacesPreviousTemporaryArtifact() async throws {
-        let root = temporaryRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let tokenStore = InMemoryTokenStore()
-        try await tokenStore.save("access-token", for: .accessToken)
-        let pdfData = makeValidPDFData()
-
-        await MockURLProtocolStorage.shared.setHandler { request in
-            (
-                try XCTUnwrap(HTTPURLResponse(
-                    url: try XCTUnwrap(request.url),
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: ["Content-Type": "application/pdf"]
-                )),
-                pdfData
-            )
-        }
-
-        let service = makeService(tokenStore: tokenStore, temporaryDirectory: root)
-        let first = try await service.exportPassportPDF()
-        let second = try await service.exportPassportPDF()
-        let requests = await MockURLProtocolStorage.shared.requests()
-
-        XCTAssertEqual(requests.filter { $0.url?.path == "/api/v1/passport/me/pdf" }.count, 2)
-        XCTAssertNotEqual(first.fileURL, second.fileURL)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: first.fileURL.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: second.fileURL.path))
-
-        await service.removeAllArtifacts()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: second.fileURL.path))
-    }
-
-    func test_exportRefreshesExpiredSessionOnceAndReplaysPDFRequest() async throws {
-        let root = temporaryRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let tokenStore = InMemoryTokenStore()
-        try await tokenStore.save("expired-access", for: .accessToken)
-        try await tokenStore.save("refresh-token", for: .refreshToken)
-        let pdfData = makeValidPDFData()
-
-        await MockURLProtocolStorage.shared.setHandler { request in
-            switch request.url?.path {
-            case "/api/v1/passport/me/pdf":
-                if request.value(forHTTPHeaderField: "Authorization") == "Bearer expired-access" {
-                    return (
-                        try XCTUnwrap(HTTPURLResponse(
-                            url: try XCTUnwrap(request.url),
-                            statusCode: 401,
-                            httpVersion: nil,
-                            headerFields: ["Content-Type": "application/json"]
-                        )),
-                        Data(#"{"error":{"code":"unauthorized","message":"Expired"}}"#.utf8)
-                    )
-                }
-
-                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer refreshed-access")
-                return (
-                    try XCTUnwrap(HTTPURLResponse(
-                        url: try XCTUnwrap(request.url),
-                        statusCode: 200,
-                        httpVersion: nil,
-                        headerFields: ["Content-Type": "application/pdf"]
-                    )),
-                    pdfData
-                )
-            case "/api/v1/auth/refresh":
-                return (
-                    try XCTUnwrap(HTTPURLResponse(
-                        url: try XCTUnwrap(request.url),
-                        statusCode: 200,
-                        httpVersion: nil,
-                        headerFields: ["Content-Type": "application/json"]
-                    )),
-                    Data(
-                        """
-                        {
-                          "access_token": "refreshed-access",
-                          "refresh_token": "refreshed-token",
-                          "token_type": "bearer",
-                          "expires_in": 3600
-                        }
-                        """.utf8
-                    )
-                )
-            default:
-                XCTFail("Unexpected request")
-                throw URLError(.badURL)
-            }
-        }
-
-        let service = makeService(tokenStore: tokenStore, temporaryDirectory: root)
-        let artifact = try await service.exportPassportPDF()
-        let paths = await MockURLProtocolStorage.shared.requests().map(\.url?.path)
-
-        XCTAssertEqual(paths, [
-            "/api/v1/passport/me/pdf",
-            "/api/v1/auth/refresh",
-            "/api/v1/passport/me/pdf"
-        ])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: artifact.fileURL.path))
-    }
-
-    func test_exportRejectsJSONEvenWhenServerReturnsHTTP200() async throws {
-        try await assertExportFailure(
-            data: Data(#"{"detail":"not a pdf"}"#.utf8),
-            contentType: "application/json",
-            expected: .invalidContentType
-        )
-    }
-
-    func test_exportRejectsEmptyPDFResponse() async throws {
-        try await assertExportFailure(
-            data: Data(),
-            contentType: "application/pdf",
-            expected: .emptyDocument
-        )
-    }
-
-    func test_exportRejectsMalformedPDFWithSignatureOnly() async throws {
-        try await assertExportFailure(
-            data: Data("%PDF-1.7 malformed".utf8),
-            contentType: "application/pdf",
-            expected: .malformedDocument
-        )
-    }
-
-    func test_exportClassifiesTemporaryWriteFailure() async throws {
-        let root = temporaryRoot()
-        try FileManager.default.createDirectory(at: root.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data("blocking parent".utf8).write(to: root)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let tokenStore = InMemoryTokenStore()
-        try await tokenStore.save("access-token", for: .accessToken)
-        let pdfData = makeValidPDFData()
-
-        await MockURLProtocolStorage.shared.setHandler { request in
-            (
-                try XCTUnwrap(HTTPURLResponse(
-                    url: try XCTUnwrap(request.url),
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: ["Content-Type": "application/pdf"]
-                )),
-                pdfData
-            )
-        }
-
-        let service = makeService(tokenStore: tokenStore, temporaryDirectory: root)
-
-        do {
-            _ = try await service.exportPassportPDF()
-            XCTFail("Expected temporary storage failure")
-        } catch let error as PassportPDFExportError {
-            XCTAssertEqual(error, .temporaryStorageUnavailable)
+        for url in [
+            "http://app.kairoid.com/passport/token",
+            "https://evil.example/passport/token",
+            "https://app.kairoid.com/api/v1/passport/me/pdf",
+            "https://app.kairoid.com/passport/token/extra",
+            "https://app.kairoid.com/passport/"
+        ] {
+            XCTAssertFalse(PassportPDFExportService.isAllowedShareURL(URL(string: url)!))
         }
     }
 
-    func test_filenameFallsBackForMissingUnsafeOrNonPDFServerNames() {
-        XCTAssertEqual(PassportPDFExportService.safeFilename(from: nil), "KairoID-Trust-Passport.pdf")
+    func test_exportRejectsLegacyOwnerPDFEndpoint() {
+        let legacy = URL(string: "https://app.kairoid.com/api/v1/passport/me/pdf")!
+        XCTAssertFalse(PassportPDFExportService.isAllowedShareURL(legacy))
+    }
+
+    func test_pdfValidationAcceptsRenderedPDFAndRejectsNonPDFPayloads() {
+        XCTAssertTrue(PassportPDFExportService.isValidPDF(makeValidPDFData()))
+        XCTAssertFalse(PassportPDFExportService.isValidPDF(Data()))
+        XCTAssertFalse(PassportPDFExportService.isValidPDF(Data("%PDF- malformed".utf8)))
+        XCTAssertFalse(PassportPDFExportService.isValidPDF(Data(#"{"detail":"not a pdf"}"#.utf8)))
+    }
+
+    func test_filenameUsesSharedPageNameAndRejectsUnsafeValues() {
+        XCTAssertEqual(PassportPDFExportService.safeFilename(nil), "KairoID-Shared-Passport.pdf")
         XCTAssertEqual(
-            PassportPDFExportService.safeFilename(from: "attachment; filename=\"../../private.pdf\""),
-            "KairoID-Trust-Passport.pdf"
+            PassportPDFExportService.safeFilename("KairoID-Shared-Passport.pdf"),
+            "KairoID-Shared-Passport.pdf"
         )
         XCTAssertEqual(
-            PassportPDFExportService.safeFilename(from: "attachment; filename=\"passport.json\""),
-            "KairoID-Trust-Passport.pdf"
+            PassportPDFExportService.safeFilename("../../private.pdf"),
+            "KairoID-Shared-Passport.pdf"
         )
         XCTAssertEqual(
-            PassportPDFExportService.safeFilename(from: "attachment; filename*=UTF-8''KairoID%20Passport.pdf"),
-            "KairoID Passport.pdf"
+            PassportPDFExportService.safeFilename("passport.json"),
+            "KairoID-Shared-Passport.pdf"
         )
     }
 
-    func test_presentationErrorsAreDistinctForRequiredStatusCodesAndPayloadFailures() {
-        let statusExpectations: [(Int, String)] = [
-            (401, "Sign in required"),
-            (403, "PDF access denied"),
-            (404, "Passport PDF not found"),
-            (429, "Too many PDF requests"),
-            (500, "PDF export failed"),
-            (503, "PDF export temporarily unavailable")
-        ]
-
-        for (statusCode, expectedTitle) in statusExpectations {
-            let error = PassportPDFPresentationError.map(
-                NetworkError.api(APIError(
-                    statusCode: statusCode,
-                    code: .internalError,
-                    message: "server message",
-                    fieldErrors: [:],
-                    globalErrors: [],
-                    validationDetails: []
-                ))
-            )
-            XCTAssertEqual(error.title, expectedTitle)
-        }
-
-        let unknownStatus = PassportPDFPresentationError.map(
-            NetworkError.api(APIError(
-                statusCode: 418,
-                code: .internalError,
-                message: "raw upstream storage failure",
-                fieldErrors: [:],
-                globalErrors: [],
-                validationDetails: []
-            ))
-        )
-        XCTAssertEqual(unknownStatus.title, "PDF export failed")
+    func test_presentationErrorsCoverShareAvailabilityAndCaptureFailures() {
         XCTAssertEqual(
-            unknownStatus.message,
-            "KairoID could not download this Passport PDF. Please try again."
-        )
-        XCTAssertFalse(unknownStatus.message.contains("raw upstream"))
-
-        XCTAssertEqual(
-            PassportPDFPresentationError.map(PassportPDFExportError.invalidContentType).title,
-            "Unexpected PDF response"
+            PassportPDFPresentationError.map(PassportPDFExportError.invalidShareURL).title,
+            "Unsafe Passport link"
         )
         XCTAssertEqual(
-            PassportPDFPresentationError.map(PassportPDFExportError.emptyDocument).title,
-            "Empty PDF"
+            PassportPDFPresentationError.map(PassportPDFExportError.shareUnavailable).title,
+            "Passport share unavailable"
+        )
+        XCTAssertEqual(
+            PassportPDFPresentationError.map(PassportPDFExportError.exportTimedOut).title,
+            "PDF export timed out"
         )
         XCTAssertEqual(
             PassportPDFPresentationError.map(PassportPDFExportError.malformedDocument).title,
             "PDF could not be opened"
         )
-        XCTAssertEqual(
-            PassportPDFPresentationError.map(PassportPDFExportError.temporaryStorageUnavailable).title,
-            "PDF storage unavailable"
-        )
     }
 
-    func test_viewModelPreventsDuplicateDownloadWhileRequestIsInFlight() async throws {
+    func test_viewModelUsesExactShareURLAndPreventsDuplicateDownload() async throws {
         let service = DelayedPassportPDFExportService()
         let model = PassportPDFExportViewModel()
 
-        model.startExport(using: service)
-        model.startExport(using: service)
+        model.startExport(from: productionShareURL, using: service)
+        model.startExport(from: URL(string: "https://app.kairoid.com/passport/other")!, using: service)
 
-        try await Task.sleep(nanoseconds: 50_000_000)
-        let exportCount = service.exportCount()
+        try await Task.sleep(for: .milliseconds(50))
         XCTAssertTrue(model.isDownloading)
-        XCTAssertEqual(exportCount, 1)
+        XCTAssertEqual(service.exportedURLs(), [productionShareURL])
 
-        try await Task.sleep(nanoseconds: 250_000_000)
+        try await Task.sleep(for: .milliseconds(250))
         XCTAssertFalse(model.isDownloading)
         XCTAssertEqual(model.error?.title, "Demo export unavailable")
     }
@@ -307,86 +91,40 @@ final class PassportPDFExportTests: XCTestCase {
         let service = DelayedPassportPDFExportService()
         let model = PassportPDFExportViewModel()
 
-        model.startExport(using: service)
-        try await Task.sleep(nanoseconds: 30_000_000)
+        model.startExport(from: productionShareURL, using: service)
+        try await Task.sleep(for: .milliseconds(30))
         await model.endLifecycle(using: service)
-        try await Task.sleep(nanoseconds: 30_000_000)
-        let removeAllCount = service.removeAllCount()
+        try await Task.sleep(for: .milliseconds(30))
 
         XCTAssertFalse(model.isDownloading)
         XCTAssertNil(model.artifact)
-        XCTAssertEqual(removeAllCount, 1)
+        XCTAssertEqual(service.removeAllCount(), 1)
     }
 
-    private func assertExportFailure(
-        data: Data,
-        contentType: String,
-        expected: PassportPDFExportError
-    ) async throws {
-        let root = temporaryRoot()
+    func test_configuredLiveSharedPageProducesOpenablePDF() async throws {
+        guard let rawURL = ProcessInfo.processInfo.environment["KAIRO_PASSPORT_E2E_URL"],
+              let publicURL = URL(string: rawURL) else {
+            throw XCTSkip("Set KAIRO_PASSPORT_E2E_URL only for an approved active share.")
+        }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PassportLiveExport-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let tokenStore = InMemoryTokenStore()
-        try await tokenStore.save("access-token", for: .accessToken)
-        await MockURLProtocolStorage.shared.setHandler { request in
-            (
-                try XCTUnwrap(HTTPURLResponse(
-                    url: try XCTUnwrap(request.url),
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: ["Content-Type": contentType]
-                )),
-                data
-            )
-        }
+        let service = PassportPDFExportService(temporaryDirectory: root)
+        let artifact = try await service.exportPassportPDF(from: publicURL)
+        let document = try XCTUnwrap(PDFDocument(url: artifact.fileURL))
 
-        let service = makeService(tokenStore: tokenStore, temporaryDirectory: root)
-
-        do {
-            _ = try await service.exportPassportPDF()
-            XCTFail("Expected export failure")
-        } catch let error as PassportPDFExportError {
-            XCTAssertEqual(error, expected)
-        }
-    }
-
-    private func makeService(
-        tokenStore: any TokenStore,
-        temporaryDirectory: URL
-    ) -> PassportPDFExportService {
-        let configuration = AppConfiguration(
-            buildConfiguration: .development,
-            environment: .staging,
-            isDemoModeEnabled: false,
-            apiBaseURL: APIConfiguration.baseURL(for: .staging),
-            keychainService: "com.kairoid.Kairo.tests.pdf"
-        )
-        let client = URLSessionNetworkClient(
-            baseURL: configuration.apiBaseURL,
-            session: makeMockedURLSession()
-        )
-        let sessionService = SessionService(
-            configuration: configuration,
-            networkClient: client,
-            tokenStore: tokenStore
-        )
-        return PassportPDFExportService(
-            sessionService: sessionService,
-            temporaryDirectory: temporaryDirectory
-        )
-    }
-
-    private func temporaryRoot() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("PassportPDFExportTests-\(UUID().uuidString)", isDirectory: true)
+        XCTAssertEqual(artifact.filename, "KairoID-Shared-Passport.pdf")
+        XCTAssertGreaterThan(artifact.byteCount, 1_000)
+        XCTAssertGreaterThan(document.pageCount, 0)
+        await service.removeArtifact(artifact)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: artifact.fileURL.path))
     }
 
     private func makeValidPDFData() -> Data {
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 320, height: 480))
-        return renderer.pdfData { context in
+        UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 320, height: 480)).pdfData { context in
             context.beginPage()
-            let text = "KairoID Trust Passport"
-            text.draw(
+            "KairoID Trust Passport".draw(
                 at: CGPoint(x: 24, y: 24),
                 withAttributes: [.font: UIFont.systemFont(ofSize: 18, weight: .semibold)]
             )
@@ -396,12 +134,12 @@ final class PassportPDFExportTests: XCTestCase {
 
 @MainActor
 private final class DelayedPassportPDFExportService: PassportPDFExportServiceProtocol {
-    private var exports = 0
+    private var urls: [URL] = []
     private var removeAllCalls = 0
 
-    func exportPassportPDF() async throws -> PassportPDFArtifact {
-        exports += 1
-        try await Task.sleep(nanoseconds: 200_000_000)
+    func exportPassportPDF(from publicURL: URL) async throws -> PassportPDFArtifact {
+        urls.append(publicURL)
+        try await Task.sleep(for: .milliseconds(200))
         throw PassportPDFExportError.unavailableInDemoMode
     }
 
@@ -413,6 +151,6 @@ private final class DelayedPassportPDFExportService: PassportPDFExportServicePro
         removeAllCalls += 1
     }
 
-    func exportCount() -> Int { exports }
+    func exportedURLs() -> [URL] { urls }
     func removeAllCount() -> Int { removeAllCalls }
 }
