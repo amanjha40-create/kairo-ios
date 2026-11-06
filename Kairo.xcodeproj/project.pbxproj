@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AABA0001301796C10044E7FE /* GooglePlacesSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AABA0002301796C10044E7FE /* GooglePlacesSwift */; };
+		FBAN0001301796C10044E7FE /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = FBAN0002301796C10044E7FE /* FirebaseAnalyticsCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FBAN0001301796C10044E7FE /* FirebaseAnalyticsCore in Frameworks */,
 				AABA0001301796C10044E7FE /* GooglePlacesSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -109,6 +111,7 @@
 				0738F9C9301796BF0044E7FE /* Sources */,
 				0738F9CA301796BF0044E7FE /* Frameworks */,
 				0738F9CB301796BF0044E7FE /* Resources */,
+				FBAN0004301796C10044E7FE /* Copy Firebase Configuration */,
 				A7B80101301796C10044E7FE /* Package Build Provenance */,
 			);
 			buildRules = (
@@ -121,6 +124,7 @@
 			name = Kairo;
 			packageProductDependencies = (
 				AABA0002301796C10044E7FE /* GooglePlacesSwift */,
+				FBAN0002301796C10044E7FE /* FirebaseAnalyticsCore */,
 			);
 			productName = Kairo;
 			productReference = 0738F9CD301796C00044E7FE /* Kairo.app */;
@@ -209,6 +213,7 @@
 			projectDirPath = "";
 			packageReferences = (
 				AABA0003301796C10044E7FE /* ios-places-sdk */,
+				FBAN0003301796C10044E7FE /* firebase-ios-sdk */,
 			);
 			projectRoot = "";
 			targets = (
@@ -244,6 +249,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		FBAN0004301796C10044E7FE /* Copy Firebase Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(KAIRO_FIREBASE_CONFIG_PATH)",
+			);
+			name = "Copy Firebase Configuration";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nsource_path=\"${KAIRO_FIREBASE_CONFIG_PATH}\"\ndestination=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ ! -f \"$source_path\" ]; then\n  echo \"error: Missing Firebase Analytics configuration at $source_path\" >&2\n  exit 1\nfi\nmkdir -p \"$(dirname \"$destination\")\"\ncp \"$source_path\" \"$destination\"\n";
+			showEnvVarsInLog = 0;
+		};
 		A7B80101301796C10044E7FE /* Package Build Provenance */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -499,6 +522,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = development;
 				KAIRO_BUILD_CONFIGURATION = Development;
+				KAIRO_FIREBASE_CONFIG_PATH = "$(SRCROOT)/Configuration/Firebase/Dev/GoogleService-Info.plist";
 				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.development.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
@@ -533,6 +557,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = staging;
 				KAIRO_BUILD_CONFIGURATION = Staging;
+				KAIRO_FIREBASE_CONFIG_PATH = "$(SRCROOT)/Configuration/Firebase/Dev/GoogleService-Info.plist";
 				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.staging.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
@@ -570,6 +595,7 @@
 				INFOPLIST_FILE = Kairo-Production-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = production;
 				KAIRO_BUILD_CONFIGURATION = Production;
+				KAIRO_FIREBASE_CONFIG_PATH = "$(SRCROOT)/Configuration/Firebase/Prod/GoogleService-Info.plist";
 				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
@@ -790,6 +816,7 @@
 				INFOPLIST_FILE = Kairo-Info.plist;
 				KAIRO_APP_ENVIRONMENT_NAME = development;
 				KAIRO_BUILD_CONFIGURATION = Demo;
+				KAIRO_FIREBASE_CONFIG_PATH = "$(SRCROOT)/Configuration/Firebase/Dev/GoogleService-Info.plist";
 				KAIRO_DIGILOCKER_RETURN_SCHEME = com.kairoid.demo.digilocker;
 				KAIRO_PROVENANCE_INPUT = "$(SRCROOT)/BuildTools/provenance-disabled.plist";
 				KAIRO_PROVENANCE_REQUIRED = NO;
@@ -860,6 +887,11 @@
 			repositoryURL = "https://github.com/googlemaps/ios-places-sdk";
 			requirement = {kind = exactVersion; version = 11.2.0; };
 		};
+		FBAN0003301796C10044E7FE /* firebase-ios-sdk */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {kind = exactVersion; version = 13.1.1; };
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -867,6 +899,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AABA0003301796C10044E7FE /* ios-places-sdk */;
 			productName = GooglePlacesSwift;
+		};
+		FBAN0002301796C10044E7FE /* FirebaseAnalyticsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FBAN0003301796C10044E7FE /* firebase-ios-sdk */;
+			productName = FirebaseAnalyticsCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 

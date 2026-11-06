@@ -144,12 +144,14 @@ actor AuthService: AuthServiceProtocol {
 
     func completeSignup() async throws -> TokenResponseDTO {
         do {
+            let signupSessionID = try await requireSignupSessionID()
             let response: TokenResponseDTO = try await postJSON(
                 path: "/auth/signup/complete",
-                body: SignupCompleteRequestDTO(signupSessionID: try await requireSignupSessionID())
+                body: SignupCompleteRequestDTO(signupSessionID: signupSessionID)
             )
             try await sessionService.persistTokens(response)
             try await sessionService.clearSignupSessionID()
+            await KairoAnalytics.shared.logOnce(.signUp, occurrenceID: signupSessionID)
             return response
         } catch {
             await invalidateSignupSessionIfNeeded(for: error)

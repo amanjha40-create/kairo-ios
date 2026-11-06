@@ -158,6 +158,8 @@ actor VerificationInitiationService: VerificationInitiationServiceProtocol {
             throw VerificationInitiationServiceError.missingRequestIdentifier
         }
 
+        await KairoAnalytics.shared.logOnce(.verificationStarted, occurrenceID: authoritativeID)
+
         return VerificationInitiationResult(
             requestID: authoritativeID,
             status: VerifyVerificationStatus(rawBackendValue: authoritative.status),

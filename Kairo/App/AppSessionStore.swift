@@ -12,6 +12,7 @@ final class AppSessionStore: ObservableObject {
     @Published private(set) var launchPhase: LaunchPhase = .idle
     @Published private(set) var currentUser: AppUser? {
         didSet {
+            Task { await KairoAnalytics.shared.setAnonymousUserID(currentUser?.id) }
             if oldValue?.id != currentUser?.id,
                !LocalBatch1QA.isEnabled(configuration: configuration) {
                 DocumentPreviewFileStore.shared.clear()

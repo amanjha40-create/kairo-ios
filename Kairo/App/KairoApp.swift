@@ -12,6 +12,7 @@ struct KairoApp: App {
     @StateObject private var guidedTourCoordinator: GuidedTourCoordinator
 
     init() {
+        KairoAnalytics.configure()
         GoogleReturnDiagnostics.emit(.appLaunch)
         let configuration = AppConfiguration.resolve()
         PlacesBootstrap.configure(configuration: configuration)

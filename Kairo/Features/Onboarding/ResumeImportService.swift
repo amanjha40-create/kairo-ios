@@ -421,6 +421,8 @@ actor ResumeImportService: ResumeImportServiceProtocol {
             throw ResumeImportServiceError.onboardingIncomplete(refreshedStatus)
         }
 
+        await KairoAnalytics.shared.logOnce(.profileCreated, occurrenceID: refreshedUser.id)
+
         return ResumeImportCompletionResult(
             user: refreshedUser,
             onboardingStatus: refreshedStatus

@@ -107,6 +107,8 @@ actor ManualProfileService: ManualProfileServiceProtocol {
             throw ManualProfileSubmissionError.onboardingIncomplete(onboardingStatus)
         }
 
+        await KairoAnalytics.shared.logOnce(.profileCreated, occurrenceID: updatedUser.id)
+
         return ManualProfileSubmissionResult(
             user: updatedUser,
             onboardingStatus: onboardingStatus

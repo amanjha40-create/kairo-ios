@@ -41,7 +41,10 @@ struct PassportOverviewScreenView: View {
                     )
                 }
             }
-            .onAppear { openRequestedActivityIfNeeded() }
+            .onAppear {
+                openRequestedActivityIfNeeded()
+                Task { await KairoAnalytics.shared.log(.trustScoreViewed) }
+            }
             .task { await digiLockerStore.loadSummaryIfNeeded() }
             .onChange(of: router.passportActivityRequestID) { _, _ in
                 openRequestedActivityIfNeeded()

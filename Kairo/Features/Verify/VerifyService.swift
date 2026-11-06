@@ -74,6 +74,9 @@ actor VerifyOverviewService: VerifyOverviewServiceProtocol {
             return collected
         }
 
+        for request in requests where request.status.group == .completed {
+            await KairoAnalytics.shared.logOnce(.verificationCompleted, occurrenceID: request.id)
+        }
         return VerifyOverview(requests: requests)
     }
 

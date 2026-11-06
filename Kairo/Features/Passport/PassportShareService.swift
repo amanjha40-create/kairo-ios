@@ -84,6 +84,7 @@ actor PassportShareService: PassportShareServiceProtocol {
               let publicURL = validatedPublicURL(from: response.shareURL) else {
             throw PassportShareServiceError.invalidPublicURL
         }
+        await KairoAnalytics.shared.logOnce(.shareLinkCreated, occurrenceID: response.share.id)
         return PassportShareCreation(share: response.share, publicURL: publicURL)
     }
 

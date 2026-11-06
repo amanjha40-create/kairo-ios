@@ -5,3 +5,5 @@ DerivedData/
 **/xcuserdata/
 Configuration/*Secrets.xcconfig
 Configuration/*Secrets.xcconfig.*
+Configuration/Firebase/Dev/GoogleService-Info.plist
+Configuration/Firebase/Prod/GoogleService-Info.plist
