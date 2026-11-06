@@ -2,6 +2,36 @@ import XCTest
 @testable import Kairo
 
 final class FirebaseAnalyticsPrivacyTests: XCTestCase {
+    func test_productionDebugViewTransportWhenExplicitlyEnabled() async throws {
+        #if KAIRO_FIREBASE_DEBUGVIEW_QA
+        let debugModeKey = "/google/firebase/debug_mode"
+        UserDefaults.standard.set(true, forKey: debugModeKey)
+        defer { UserDefaults.standard.removeObject(forKey: debugModeKey) }
+
+        KairoAnalytics.configure()
+        await KairoAnalytics.shared.setAnonymousUserID(UUID().uuidString)
+
+        let occurrenceID = "debugview-\(UUID().uuidString)"
+        await KairoAnalytics.shared.log(.signUp)
+        await KairoAnalytics.shared.logOnce(.profileCreated, occurrenceID: occurrenceID)
+        await KairoAnalytics.shared.logOnce(.profileCreated, occurrenceID: occurrenceID)
+        await KairoAnalytics.shared.log(.verificationStarted)
+        await KairoAnalytics.shared.log(.verificationCompleted)
+        await KairoAnalytics.shared.log(.trustScoreViewed)
+
+        try await Task.sleep(for: .seconds(4))
+
+        // Exercise the same nil transition used by logout/account switching before
+        // emitting the final event, so it cannot inherit the previous account ID.
+        await KairoAnalytics.shared.setAnonymousUserID(nil)
+        await KairoAnalytics.shared.log(.shareLinkCreated)
+
+        try await Task.sleep(for: .seconds(8))
+        #else
+        throw XCTSkip("Production Firebase DebugView transport is opt-in only.")
+        #endif
+    }
+
     func test_onlyApprovedParameterlessEventNamesExist() {
         XCTAssertEqual(
             Set(KairoAnalyticsEvent.allCases.map(\.rawValue)),

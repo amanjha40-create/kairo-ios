@@ -14,8 +14,15 @@ nonisolated enum KairoAnalyticsEvent: String, CaseIterable, Sendable {
 actor KairoAnalytics {
     static let shared = KairoAnalytics()
 
+    private var currentUserID: String?
+
     private nonisolated static let bootstrap: Void = {
         FirebaseApp.configure()
+        applyPrivacyConfiguration()
+        Analytics.setUserID(nil)
+    }()
+
+    private nonisolated static func applyPrivacyConfiguration() {
         Analytics.setConsent([
             .analyticsStorage: .granted,
             .adStorage: .denied,
@@ -23,8 +30,7 @@ actor KairoAnalytics {
             .adPersonalization: .denied
         ])
         Analytics.setAnalyticsCollectionEnabled(true)
-        Analytics.setUserID(nil)
-    }()
+    }
 
     nonisolated static func configure() {
         _ = bootstrap
@@ -50,10 +56,17 @@ actor KairoAnalytics {
 
     func setAnonymousUserID(_ userID: String?) {
         guard FirebaseApp.app() != nil else { return }
-        guard Self.isValidInternalUserID(userID) else {
+
+        let validUserID = Self.isValidInternalUserID(userID) ? userID : nil
+        guard validUserID != currentUserID else { return }
+
+        if currentUserID != nil {
             Analytics.setUserID(nil)
-            return
+            Analytics.resetAnalyticsData()
+            Self.applyPrivacyConfiguration()
         }
-        Analytics.setUserID(userID)
+
+        currentUserID = validUserID
+        Analytics.setUserID(validUserID)
     }
 }
