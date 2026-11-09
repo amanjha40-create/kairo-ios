@@ -1,6 +1,8 @@
 """Offline build/source contract checks; no provider or account access."""
 from pathlib import Path
+import json
 import plistlib
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,11 +13,19 @@ class DigiLockerReturnPrivacyTests(unittest.TestCase):
         info = plistlib.loads((ROOT / 'Kairo-Info.plist').read_bytes())
         self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'],
                          ['$(KAIRO_DIGILOCKER_RETURN_SCHEME)'])
-        project = (ROOT / 'Kairo.xcodeproj/project.pbxproj').read_text()
+        objects = json.loads(subprocess.check_output([
+            'plutil', '-convert', 'json', '-o', '-',
+            str(ROOT / 'Kairo.xcodeproj/project.pbxproj')
+        ]))['objects']
+        configs = [value for value in objects.values()
+                   if value.get('isa') == 'XCBuildConfiguration']
         for configuration, scheme in [('Staging', 'com.kairoid.staging.digilocker'),
                                       ('Production', 'com.kairoid.digilocker')]:
-            self.assertIn(f'KAIRO_BUILD_CONFIGURATION = {configuration};\n'
-                          f'\t\t\t\tKAIRO_DIGILOCKER_RETURN_SCHEME = {scheme};', project)
+            matches = [value['buildSettings'] for value in configs
+                       if value.get('name') == configuration
+                       and value.get('buildSettings', {}).get('KAIRO_BUILD_CONFIGURATION') == configuration]
+            self.assertEqual(len(matches), 1)
+            self.assertEqual(matches[0]['KAIRO_DIGILOCKER_RETURN_SCHEME'], scheme)
 
     def test_callback_has_no_logging_or_exchange(self):
         source = (ROOT / 'Kairo/Features/DigiLocker/DigiLockerAuthentication.swift').read_text()

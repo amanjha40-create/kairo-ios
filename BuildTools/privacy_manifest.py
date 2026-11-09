@@ -20,10 +20,17 @@ REASONS = {'UserDefaults': ['CA92.1'], 'SystemBootTime': ['35F9.1']}
 COLLECTED = {
     'Name', 'EmailAddress', 'PhoneNumber', 'PhysicalAddress', 'OtherUserContactInfo',
     'PaymentInfo', 'OtherFinancialInfo', 'PreciseLocation', 'CoarseLocation', 'PhotosorVideos',
-    'CustomerSupport', 'OtherUserContent', 'UserID', 'ProductInteraction', 'OtherDataTypes',
+    'CustomerSupport', 'OtherUserContent', 'UserID', 'ProductInteraction', 'DeviceID',
+    'OtherDataTypes',
 }
-# Exact vendor declarations audited for the pinned Places 11.2.0 distribution.
-# These are SDK-owned, not account-linked app telemetry or location permissions.
+ANALYTICS = {'CoarseLocation', 'UserID', 'ProductInteraction', 'DeviceID', 'OtherDataTypes'}
+# Exact vendor declarations audited for the pinned Places 11.2.0 and Firebase 13.1.1
+# distributions. These declarations are SDK-owned and are checked independently of
+# KairoID's account-linked app telemetry policy above.
+EMPTY_SDK_MANIFEST = {
+    'NSPrivacyAccessedAPITypes': [], 'NSPrivacyCollectedDataTypes': [],
+    'NSPrivacyTracking': False, 'NSPrivacyTrackingDomains': [],
+}
 SDK_MANIFESTS = {
     'GooglePlaces_GooglePlacesTarget.bundle/GooglePlaces.bundle/PrivacyInfo.xcprivacy': {
         'NSPrivacyAccessedAPITypes': [
@@ -39,11 +46,72 @@ SDK_MANIFESTS = {
     'GooglePlaces_GooglePlacesSwiftTarget.bundle/GooglePlacesSwift.bundle/PrivacyInfo.xcprivacy': {
         'NSPrivacyAccessedAPITypes': [], 'NSPrivacyCollectedDataTypes': [],
     },
+    'Firebase_FirebaseCore.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [{
+            'NSPrivacyAccessedAPIType': API_PREFIX + 'UserDefaults',
+            'NSPrivacyAccessedAPITypeReasons': ['CA92.1'],
+        }],
+        'NSPrivacyCollectedDataTypes': [], 'NSPrivacyTracking': False,
+        'NSPrivacyTrackingDomains': [],
+    },
+    'Firebase_FirebaseCoreInternal.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [{
+            'NSPrivacyAccessedAPIType': API_PREFIX + 'UserDefaults',
+            'NSPrivacyAccessedAPITypeReasons': ['1C8F.1'],
+        }],
+        'NSPrivacyCollectedDataTypes': [], 'NSPrivacyTracking': False,
+        'NSPrivacyTrackingDomains': [],
+    },
+    'Firebase_FirebaseInstallations.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [],
+        'NSPrivacyCollectedDataTypes': [{
+            DATA_PREFIX: DATA_PREFIX + 'OtherDiagnosticData', DATA_PREFIX + 'Linked': False,
+            DATA_PREFIX + 'Purposes': [DATA_PREFIX + 'PurposeAnalytics'],
+            DATA_PREFIX + 'Tracking': False,
+        }],
+        'NSPrivacyTracking': False, 'NSPrivacyTrackingDomains': [],
+    },
+    'GoogleUtilities_GoogleUtilities-Environment.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [{
+            'NSPrivacyAccessedAPIType': API_PREFIX + 'UserDefaults',
+            'NSPrivacyAccessedAPITypeReasons': ['C56D.1'],
+        }],
+        'NSPrivacyCollectedDataTypes': [], 'NSPrivacyTracking': False,
+        'NSPrivacyTrackingDomains': [],
+    },
+    'GoogleUtilities_GoogleUtilities-Network.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [{
+            'NSPrivacyAccessedAPIType': API_PREFIX + 'FileTimestamp',
+            'NSPrivacyAccessedAPITypeReasons': ['C617.1'],
+        }],
+        'NSPrivacyCollectedDataTypes': [], 'NSPrivacyTracking': False,
+        'NSPrivacyTrackingDomains': [],
+    },
+    'GoogleUtilities_GoogleUtilities-UserDefaults.bundle/PrivacyInfo.xcprivacy': {
+        'NSPrivacyAccessedAPITypes': [{
+            'NSPrivacyAccessedAPIType': API_PREFIX + 'UserDefaults',
+            'NSPrivacyAccessedAPITypeReasons': ['1C8F.1', 'C56D.1'],
+        }],
+        'NSPrivacyCollectedDataTypes': [], 'NSPrivacyTracking': False,
+        'NSPrivacyTrackingDomains': [],
+    },
+    **{
+        path: EMPTY_SDK_MANIFEST for path in (
+            'GoogleUtilities_GoogleUtilities-AppDelegateSwizzler.bundle/PrivacyInfo.xcprivacy',
+            'GoogleUtilities_GoogleUtilities-Logger.bundle/PrivacyInfo.xcprivacy',
+            'GoogleUtilities_GoogleUtilities-MethodSwizzler.bundle/PrivacyInfo.xcprivacy',
+            'GoogleUtilities_GoogleUtilities-NSData.bundle/PrivacyInfo.xcprivacy',
+            'GoogleUtilities_GoogleUtilities-Reachability.bundle/PrivacyInfo.xcprivacy',
+            'Promises_FBLPromises.bundle/PrivacyInfo.xcprivacy',
+            'nanopb_nanopb.bundle/PrivacyInfo.xcprivacy',
+        )
+    },
 }
 INVENTORY = {
     'UserDefaults': {
         'App/AppAppearanceStore.swift': 2,
         'App/LocalBatch1QA.swift': 1,  # Compiled, but gated off in ordinary Production.
+        'Core/Analytics/KairoAnalytics.swift': 2,
         'Features/GuidedTour/GuidedTourPreferences.swift': 2,
         'Features/Onboarding/ManualProfileDraftStore.swift': 1,
     },
@@ -109,8 +177,11 @@ def validate(manifest):
         seen.add(kind)
         require(row[DATA_PREFIX + 'Linked'] is True, 'Collected data is account-linked')
         require(row[DATA_PREFIX + 'Tracking'] is False, 'Collected data is not used for tracking')
-        require(row[DATA_PREFIX + 'Purposes'] == [DATA_PREFIX + 'PurposeAppFunctionality'],
-                'Unexpected collection purpose')
+        short_kind = kind.removeprefix(DATA_PREFIX)
+        purposes = ([] if short_kind == 'DeviceID' else [DATA_PREFIX + 'PurposeAppFunctionality'])
+        if short_kind in ANALYTICS:
+            purposes.append(DATA_PREFIX + 'PurposeAnalytics')
+        require(row[DATA_PREFIX + 'Purposes'] == purposes, 'Unexpected collection purpose')
     require(seen == {DATA_PREFIX + k for k in COLLECTED}, 'Known data omitted or unaudited data added')
 
 
@@ -139,14 +210,26 @@ def verify_source(root=ROOT):
             'Missing app synchronized root')
     require('membershipExceptions' not in project and 'PrivacyInfo.xcprivacy' not in project,
             'Resource exceptions/explicit membership need re-audit')
-    products = [re.sub(r'/\*.*?\*/', '', value).strip().rstrip(',').strip()
-                for value in re.findall(r'packageProductDependencies = \((.*?)\);', project, re.S) if value.strip()]
-    require(products == ['AABA0002301796C10044E7FE'], 'New package dependency needs privacy audit')
-    require(re.findall(r'productName = (Google\w+);', project) == ['GooglePlacesSwift'], 'Unaudited SDK product')
-    require(re.findall(r'repositoryURL = "([^"]+)";', project) == ['https://github.com/googlemaps/ios-places-sdk'],
-            'Unaudited package repository')
-    require('requirement = {kind = exactVersion; version = 11.2.0; };' in project, 'Places version needs re-audit')
-    require(len(re.findall(r'isa = PBXBuildFile;', project)) == 1, 'New explicit dependency needs audit')
+    objects = json.loads(subprocess.check_output([
+        'plutil', '-convert', 'json', '-o', '-', str(root / 'Kairo.xcodeproj/project.pbxproj')
+    ]))['objects']
+    app_targets = [value for value in objects.values()
+                   if value.get('isa') == 'PBXNativeTarget' and value.get('name') == 'Kairo']
+    require(len(app_targets) == 1, 'Kairo target dependency inventory changed')
+    product_ids = set(app_targets[0].get('packageProductDependencies', []))
+    require(product_ids == {'AABA0002301796C10044E7FE', 'FBAN0002301796C10044E7FE'},
+            'New package dependency needs privacy audit')
+    require({objects[identifier].get('productName') for identifier in product_ids} ==
+            {'GooglePlacesSwift', 'FirebaseAnalyticsCore'}, 'Unaudited SDK product')
+    packages = {value.get('repositoryURL'): value.get('requirement') for value in objects.values()
+                if value.get('isa') == 'XCRemoteSwiftPackageReference'}
+    require(packages == {
+        'https://github.com/googlemaps/ios-places-sdk': {'kind': 'exactVersion', 'version': '11.2.0'},
+        'https://github.com/firebase/firebase-ios-sdk': {'kind': 'exactVersion', 'version': '13.1.1'},
+    }, 'Unaudited package repository or version')
+    build_products = {value.get('productRef') for value in objects.values()
+                      if value.get('isa') == 'PBXBuildFile'}
+    require(build_products == product_ids, 'New explicit dependency needs audit')
     require(inventory(root) == INVENTORY, 'Required-reason API inventory changed; re-audit before certification')
     metadata = (root / 'Kairo/Features/Onboarding/ResumeImportState.swift').read_text()
     block = metadata.split('private static func resolvedByteSize', 1)[1].split('\n}\n', 1)[0]

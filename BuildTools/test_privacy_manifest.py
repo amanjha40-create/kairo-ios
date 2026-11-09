@@ -33,7 +33,7 @@ class PrivacyManifestTests(unittest.TestCase):
         policy.verify_source()
 
     def test_artifact_recursive_validation(self):
-        self.assertEqual(policy.verify_artifact(self.app)['manifestCount'], 3)
+        self.assertEqual(policy.verify_artifact(self.app)['manifestCount'], len(policy.SDK_MANIFESTS) + 1)
 
     def test_sdk_manifest_change_or_omission_fails(self):
         path = self.app / next(iter(policy.SDK_MANIFESTS))
