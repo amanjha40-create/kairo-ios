@@ -63,7 +63,7 @@ class AppIconPackagingTests(unittest.TestCase):
             if config["name"] == "Production":
                 self.assertEqual(settings["DEVELOPMENT_TEAM"], "MVT4T97ZGC")
                 self.assertEqual(settings["PRODUCT_BUNDLE_IDENTIFIER"], "com.kairoid.Kairo")
-                self.assertEqual(str(settings["CURRENT_PROJECT_VERSION"]), "19")
+                self.assertEqual(str(settings["CURRENT_PROJECT_VERSION"]), "20")
                 self.assertEqual(settings["MARKETING_VERSION"], "1.0.1")
                 self.assertEqual(settings["KAIRO_APP_ENVIRONMENT_NAME"], "production")
                 self.assertEqual(settings["KAIRO_DEMO_MODE_DEFAULT"], "NO")
