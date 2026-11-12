@@ -282,7 +282,8 @@ actor AuthService: AuthServiceProtocol {
             )
         )
         try await sessionService.storeSignupSessionID(response.signupSessionId)
-        return response
+        let sendResponse = try await sendPhoneCode(mobileNumber: nil)
+        return response.confirmingPhoneCodeSent(with: sendResponse)
     }
 
     func signInWithApple(_ request: AppleSignInRequestDTO) async throws -> GoogleHandoffExchangeResponseDTO {
@@ -306,7 +307,8 @@ actor AuthService: AuthServiceProtocol {
             )
         )
         try await sessionService.storeSignupSessionID(response.signupSessionId)
-        return response
+        let sendResponse = try await sendPhoneCode(mobileNumber: nil)
+        return response.confirmingPhoneCodeSent(with: sendResponse)
     }
 
     func logout() async throws {

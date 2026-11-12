@@ -78,6 +78,24 @@ nonisolated struct SignupStartResponseDTO: Decodable, Equatable, Sendable {
     }
 }
 
+extension SignupStartResponseDTO {
+    nonisolated func confirmingPhoneCodeSent(
+        with response: SignupChannelSendResponseDTO
+    ) -> SignupStartResponseDTO {
+        SignupStartResponseDTO(
+            signupSessionId: signupSessionId,
+            emailMasked: response.emailMasked ?? emailMasked,
+            phoneMasked: response.phoneMasked ?? phoneMasked,
+            emailVerified: response.emailVerified,
+            phoneVerified: response.phoneVerified,
+            emailResendAfterSeconds: emailResendAfterSeconds,
+            phoneResendAfterSeconds: response.resendAfterSeconds,
+            expiresInSeconds: response.expiresInSeconds,
+            message: response.message
+        )
+    }
+}
+
 nonisolated enum SignupSessionRecoveryStateDTO: String, Decodable, Equatable, Sendable {
     case valid
     case completed

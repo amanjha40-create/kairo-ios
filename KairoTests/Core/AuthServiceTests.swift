@@ -588,12 +588,28 @@ final class AuthServiceTests: XCTestCase {
         let authService = makeAuthService(tokenStore: tokenStore)
 
         await MockURLProtocolStorage.shared.setHandler { request in
-            XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/federated/phone")
+            let path = try XCTUnwrap(request.url?.path)
             XCTAssertEqual(request.httpMethod, "POST")
             let json = try Self.jsonBody(from: request)
+
+            if path == "/api/v1/auth/signup/federated/phone" {
+                XCTAssertEqual(json["signup_session_id"] as? String, "google-signup-session")
+                XCTAssertEqual(json["phone"] as? String, "+919876543210")
+                XCTAssertEqual(Set(json.keys), ["signup_session_id", "phone"])
+                return (
+                    try XCTUnwrap(HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )),
+                    Self.googlePhoneSignupPayload
+                )
+            }
+
+            XCTAssertEqual(path, "/api/v1/auth/signup/phone/send")
             XCTAssertEqual(json["signup_session_id"] as? String, "google-signup-session")
-            XCTAssertEqual(json["phone"] as? String, "+919876543210")
-            XCTAssertEqual(Set(json.keys), ["signup_session_id", "phone"])
+            XCTAssertEqual(Set(json.keys), ["signup_session_id"])
             return (
                 try XCTUnwrap(HTTPURLResponse(
                     url: try XCTUnwrap(request.url),
@@ -601,7 +617,7 @@ final class AuthServiceTests: XCTestCase {
                     httpVersion: nil,
                     headerFields: nil
                 )),
-                Self.googlePhoneSignupPayload
+                Self.signupChannelSendPayload(channel: "phone")
             )
         }
 
@@ -609,6 +625,70 @@ final class AuthServiceTests: XCTestCase {
 
         XCTAssertEqual(response.signupSessionId, "google-signup-session")
         XCTAssertEqual(response.phoneMasked, "+91******3210")
+        XCTAssertEqual(response.phoneResendAfterSeconds, 41)
+        XCTAssertEqual(response.message, "Verification code sent")
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(
+            requests.compactMap(\.url?.path),
+            [
+                "/api/v1/auth/signup/federated/phone",
+                "/api/v1/auth/signup/phone/send"
+            ]
+        )
+    }
+
+    func test_applePhoneCompletionAttachesPhoneThenSendsCode() async throws {
+        let tokenStore = InMemoryTokenStore()
+        try await tokenStore.save("apple-signup-session", for: .signupSessionID)
+        let authService = makeAuthService(tokenStore: tokenStore)
+
+        await MockURLProtocolStorage.shared.setHandler { request in
+            let path = try XCTUnwrap(request.url?.path)
+            let json = try Self.jsonBody(from: request)
+
+            if path == "/api/v1/auth/signup/apple/phone" {
+                XCTAssertEqual(json["signup_session_id"] as? String, "apple-signup-session")
+                XCTAssertEqual(json["phone"] as? String, "+919876543210")
+                return (
+                    try XCTUnwrap(HTTPURLResponse(
+                        url: try XCTUnwrap(request.url),
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )),
+                    Self.applePhoneSignupPayload
+                )
+            }
+
+            XCTAssertEqual(path, "/api/v1/auth/signup/phone/send")
+            XCTAssertEqual(json["signup_session_id"] as? String, "apple-signup-session")
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Self.applePhoneChannelSendPayload
+            )
+        }
+
+        let response = try await authService.startApplePhoneVerification(phone: "9876543210")
+
+        XCTAssertEqual(response.signupSessionId, "apple-signup-session")
+        XCTAssertEqual(response.phoneMasked, "+91******3210")
+        XCTAssertEqual(response.phoneResendAfterSeconds, 30)
+        XCTAssertEqual(response.message, "Verification code sent")
+
+        let requests = await MockURLProtocolStorage.shared.requests()
+        XCTAssertEqual(
+            requests.compactMap(\.url?.path),
+            [
+                "/api/v1/auth/signup/apple/phone",
+                "/api/v1/auth/signup/phone/send"
+            ]
+        )
     }
 
     func test_sameEmailUnlinkedGoogleOutcomeFailsClosedWithoutCredentials() async throws {
@@ -1185,6 +1265,43 @@ final class AuthServiceTests: XCTestCase {
               "phone_resend_after_seconds": 30,
               "expires_in_seconds": 900,
               "message": "Phone verification required"
+            }
+            """.utf8
+        )
+    }
+
+    private nonisolated static var applePhoneSignupPayload: Data {
+        Data(
+            """
+            {
+              "signup_session_id": "apple-signup-session",
+              "email_masked": "r***@privaterelay.appleid.com",
+              "phone_masked": "+91******3210",
+              "email_verified": true,
+              "phone_verified": false,
+              "email_resend_after_seconds": 0,
+              "phone_resend_after_seconds": 0,
+              "expires_in_seconds": 900,
+              "message": "Phone number added"
+            }
+            """.utf8
+        )
+    }
+
+    private nonisolated static var applePhoneChannelSendPayload: Data {
+        Data(
+            """
+            {
+              "signup_session_id": "apple-signup-session",
+              "channel": "phone",
+              "verified": false,
+              "email_verified": true,
+              "phone_verified": false,
+              "resend_after_seconds": 30,
+              "expires_in_seconds": 900,
+              "email_masked": "r***@privaterelay.appleid.com",
+              "phone_masked": "+91******3210",
+              "message": "Verification code sent"
             }
             """.utf8
         )
