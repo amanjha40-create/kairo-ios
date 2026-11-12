@@ -21,6 +21,8 @@ protocol KairoAnalyticsTransport: Sendable {
 }
 
 struct FirebaseKairoAnalyticsTransport: KairoAnalyticsTransport {
+    nonisolated init() {}
+
     func prepareForCollection() {
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
