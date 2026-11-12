@@ -20,6 +20,11 @@ class PrivacyManifestTests(unittest.TestCase):
         self.write(self.app / 'PrivacyInfo.xcprivacy', self.manifest)
         for path, declaration in policy.SDK_MANIFESTS.items():
             self.write(self.app / path, declaration)
+        for name, (identifier, version) in policy.EMBEDDED_FRAMEWORKS.items():
+            self.write(self.app / 'Frameworks' / name / 'Info.plist', {
+                'CFBundleIdentifier': identifier,
+                'CFBundleShortVersionString': version,
+            })
 
     def write(self, path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -156,6 +161,15 @@ class PrivacyManifestTests(unittest.TestCase):
 
     def test_new_framework_requires_audit(self):
         (self.app / 'Frameworks/New.framework').mkdir(parents=True)
+        with self.assertRaises(policy.PrivacyError):
+            policy.verify_artifact(self.app)
+
+    def test_embedded_framework_version_change_requires_audit(self):
+        name, (identifier, _) = next(iter(policy.EMBEDDED_FRAMEWORKS.items()))
+        self.write(self.app / 'Frameworks' / name / 'Info.plist', {
+            'CFBundleIdentifier': identifier,
+            'CFBundleShortVersionString': '999.0.0',
+        })
         with self.assertRaises(policy.PrivacyError):
             policy.verify_artifact(self.app)
 

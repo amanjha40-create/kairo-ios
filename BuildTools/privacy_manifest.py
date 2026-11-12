@@ -107,6 +107,10 @@ SDK_MANIFESTS = {
         )
     },
 }
+EMBEDDED_FRAMEWORKS = {
+    'FirebaseAnalytics.framework': ('com.google.FirebaseAnalytics', '13.0.1'),
+    'GoogleAppMeasurement.framework': ('com.google.GoogleAppMeasurement', '13.0.1'),
+}
 INVENTORY = {
     'UserDefaults': {
         'App/AppAppearanceStore.swift': 2,
@@ -250,7 +254,14 @@ def verify_artifact(artifact, root=ROOT, require_signed=False):
     require(read_manifest(app / 'PrivacyInfo.xcprivacy') == expected, 'Artifact manifest differs from source policy')
     for path, declaration in SDK_MANIFESTS.items():
         require(plistlib.loads((app / path).read_bytes()) == declaration, 'SDK privacy declaration changed; re-audit')
-    require(not list(app.rglob('*.framework')), 'Embedded framework added; re-audit privacy')
+    frameworks = sorted((app / 'Frameworks').glob('*.framework'))
+    require({framework.name for framework in frameworks} == set(EMBEDDED_FRAMEWORKS),
+            'Embedded framework added/removed; re-audit privacy')
+    for framework in frameworks:
+        info = plistlib.loads((framework / 'Info.plist').read_bytes())
+        identifier, version = EMBEDDED_FRAMEWORKS[framework.name]
+        require((info.get('CFBundleIdentifier'), info.get('CFBundleShortVersionString')) ==
+                (identifier, version), 'Embedded framework identity/version changed; re-audit privacy')
     if require_signed:
         result = subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)],
                                 capture_output=True, text=True)
