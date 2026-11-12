@@ -240,7 +240,7 @@ struct CreateAccountScreenView: View {
             )
             .disabled(!isFormValid || isSubmitting)
 
-            GoogleAuthenticationButton()
+            FederatedAuthenticationButtons()
 
             loginRow
                 .disabled(isSubmitting)

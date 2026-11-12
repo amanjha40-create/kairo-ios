@@ -70,6 +70,7 @@ final class KairoUITests: XCTestCase {
     private let passwordResetSubmitButton = "auth.passwordReset.submit"
     private let passwordResetSuccess = "auth.passwordReset.success"
     private let googleAuthenticationStart = "auth.google.start"
+    private let appleAuthenticationStart = "auth.apple.start"
     private let resumeImportChooseButton = "onboarding.resumeImport.choose"
     private let resumeImportPrepareButton = "onboarding.resumeImport.prepare"
     private let resumeImportManualButton = "onboarding.resumeImport.manual"
@@ -1231,6 +1232,16 @@ final class KairoUITests: XCTestCase {
     }
 
     @MainActor
+    func testLoginOffersNativeAppleAuthenticationAlongsideGoogle() throws {
+        let app = launchApp()
+        navigateToLogin(in: app)
+
+        XCTAssertTrue(app.buttons[appleAuthenticationStart].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[googleAuthenticationStart].exists)
+        XCTAssertEqual(app.buttons[appleAuthenticationStart].label, "Continue with Apple")
+    }
+
+    @MainActor
     func testLoginSuccessRoutesToMainTabs() throws {
         let app = launchApp(environment: authEnvironment(
             loginResult: "success",
@@ -1347,6 +1358,16 @@ final class KairoUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons[googleAuthenticationStart].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons[googleAuthenticationStart].label, "Continue with Google")
+    }
+
+    @MainActor
+    func testCreateAccountOffersNativeAppleAuthenticationAlongsideGoogle() throws {
+        let app = launchApp()
+        navigateToCreateAccount(in: app)
+
+        XCTAssertTrue(app.buttons[appleAuthenticationStart].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons[googleAuthenticationStart].exists)
+        XCTAssertEqual(app.buttons[appleAuthenticationStart].label, "Continue with Apple")
     }
 
     @MainActor

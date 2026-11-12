@@ -438,6 +438,88 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(signupSessionID)
     }
 
+    func test_appleSignInPostsNativeCredentialAndPersistsReturnedTokens() async throws {
+        let tokenStore = InMemoryTokenStore()
+        let authService = makeAuthService(tokenStore: tokenStore)
+        let request = AppleSignInRequestDTO(
+            identityToken: "signed-apple-identity-token",
+            authorizationCode: "single-use-apple-code",
+            nonce: "raw-nonce-with-sufficient-entropy",
+            givenName: "Private",
+            familyName: "Relay"
+        )
+
+        await MockURLProtocolStorage.shared.setHandler { urlRequest in
+            XCTAssertEqual(urlRequest.url?.path, "/api/v1/auth/apple")
+            XCTAssertEqual(urlRequest.httpMethod, "POST")
+            let json = try Self.jsonBody(from: urlRequest)
+            XCTAssertEqual(json["identity_token"] as? String, request.identityToken)
+            XCTAssertEqual(json["authorization_code"] as? String, request.authorizationCode)
+            XCTAssertEqual(json["nonce"] as? String, request.nonce)
+            XCTAssertEqual(json["given_name"] as? String, "Private")
+            XCTAssertEqual(json["family_name"] as? String, "Relay")
+            XCTAssertEqual(
+                Set(json.keys),
+                ["identity_token", "authorization_code", "nonce", "given_name", "family_name"]
+            )
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(urlRequest.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Data(
+                    #"{"outcome":"LOGIN_COMPLETE","message":"Signed in successfully.","tokens":{"access_token":"apple-access","refresh_token":"apple-refresh","token_type":"bearer","expires_in":3600},"signup":null}"#.utf8
+                )
+            )
+        }
+
+        let response = try await authService.signInWithApple(request)
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+
+        XCTAssertEqual(response.outcome, .loginComplete)
+        XCTAssertEqual(accessToken, "apple-access")
+        XCTAssertEqual(refreshToken, "apple-refresh")
+        XCTAssertNil(signupSessionID)
+    }
+
+    func test_applePhoneRequiredStoresSignupForFederatedCompletion() async throws {
+        let tokenStore = InMemoryTokenStore()
+        let authService = makeAuthService(tokenStore: tokenStore)
+        let request = AppleSignInRequestDTO(
+            identityToken: "signed-apple-identity-token",
+            authorizationCode: "single-use-apple-code",
+            nonce: "raw-nonce-with-sufficient-entropy",
+            givenName: nil,
+            familyName: nil
+        )
+        await MockURLProtocolStorage.shared.setHandler { urlRequest in
+            XCTAssertEqual(urlRequest.url?.path, "/api/v1/auth/apple")
+            return (
+                try XCTUnwrap(HTTPURLResponse(
+                    url: try XCTUnwrap(urlRequest.url),
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )),
+                Self.applePhoneRequiredPayload
+            )
+        }
+
+        let response = try await authService.signInWithApple(request)
+        let signupSessionID = try await tokenStore.readToken(for: .signupSessionID)
+        let accessToken = try await tokenStore.readToken(for: .accessToken)
+        let refreshToken = try await tokenStore.readToken(for: .refreshToken)
+
+        XCTAssertEqual(response.outcome, .phoneVerificationRequired)
+        XCTAssertEqual(signupSessionID, "apple-signup-session")
+        XCTAssertNil(accessToken)
+        XCTAssertNil(refreshToken)
+    }
+
     func test_productionParsedHandoffUsesMockedBackendExchangeNotLocalGoogleCredentials() async throws {
         let configuration = AppConfiguration(buildConfiguration: .production, environment: .production,
             isDemoModeEnabled: false, apiBaseURL: APIConfiguration.baseURL(for: .production),
@@ -506,7 +588,7 @@ final class AuthServiceTests: XCTestCase {
         let authService = makeAuthService(tokenStore: tokenStore)
 
         await MockURLProtocolStorage.shared.setHandler { request in
-            XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/google/phone")
+            XCTAssertEqual(request.url?.path, "/api/v1/auth/signup/federated/phone")
             XCTAssertEqual(request.httpMethod, "POST")
             let json = try Self.jsonBody(from: request)
             XCTAssertEqual(json["signup_session_id"] as? String, "google-signup-session")
@@ -1042,6 +1124,29 @@ final class AuthServiceTests: XCTestCase {
 
     private nonisolated static var googlePhoneRequiredPayload: Data {
         googlePhoneRequiredPayload(requiringMaskedPhone: false)
+    }
+
+    private nonisolated static var applePhoneRequiredPayload: Data {
+        Data(
+            """
+            {
+              "outcome": "PHONE_VERIFICATION_REQUIRED",
+              "message": "Verify your phone number to finish signup.",
+              "tokens": null,
+              "signup": {
+                "signup_session_id": "apple-signup-session",
+                "email_masked": "r***@privaterelay.appleid.com",
+                "phone_masked": "",
+                "email_verified": true,
+                "phone_verified": false,
+                "email_resend_after_seconds": 0,
+                "phone_resend_after_seconds": 0,
+                "expires_in_seconds": 3600,
+                "message": "Phone verification required"
+              }
+            }
+            """.utf8
+        )
     }
 
     private nonisolated static func googlePhoneRequiredPayload(requiringMaskedPhone: Bool) -> Data {

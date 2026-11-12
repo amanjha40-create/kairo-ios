@@ -13,6 +13,9 @@ extension CandidateTab {
 }
 
 nonisolated enum KairoAccessibilityID {
+    static let appleAuthenticationStart = "auth.apple.start"
+    static let appleAuthenticationLoading = "auth.apple.loading"
+    static let appleAuthenticationError = "auth.apple.error"
     static let googleAuthenticationStart = "auth.google.start"
     static let googleAuthenticationHandoff = "auth.google.handoff"
     static let googleAuthenticationRetry = "auth.google.retry"

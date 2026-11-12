@@ -85,7 +85,7 @@ struct LoginScreenView: View {
                 )
                 .disabled(!isFormValid || isSubmitting)
 
-                GoogleAuthenticationButton()
+                FederatedAuthenticationButtons()
 
                 HStack(spacing: KairoSpacing.xxSmall) {
                     Text("New to KairoID?")

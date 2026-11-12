@@ -162,6 +162,10 @@ final class AppSessionStore: ObservableObject {
     }
 
     func continueGooglePhoneSignup(_ signup: SignupStartResponseDTO) {
+        continueFederatedPhoneSignup(signup)
+    }
+
+    func continueFederatedPhoneSignup(_ signup: SignupStartResponseDTO) {
         authenticatedVerificationStatus = nil
         currentUser = nil
         signupRecovery = nil

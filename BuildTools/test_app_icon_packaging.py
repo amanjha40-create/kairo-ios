@@ -74,7 +74,8 @@ class AppIconPackagingTests(unittest.TestCase):
             "com.apple.developer.associated-domains": [
                 "applinks:api.kairoid.com",
                 "applinks:kairoid.com",
-            ]
+            ],
+            "com.apple.developer.applesignin": ["Default"],
         })
 
     @unittest.skipUnless(os.environ.get("KAIRO_ICON_APP_PATH"), "Requires a built app bundle")

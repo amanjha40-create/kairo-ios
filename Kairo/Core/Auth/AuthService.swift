@@ -16,6 +16,8 @@ protocol AuthServiceProtocol: Sendable {
     func googleAuthorizationURL() async throws -> URL
     func exchangeGoogleHandoff(code: String) async throws -> GoogleHandoffExchangeResponseDTO
     func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO
+    func signInWithApple(_ request: AppleSignInRequestDTO) async throws -> GoogleHandoffExchangeResponseDTO
+    func startApplePhoneVerification(phone: String) async throws -> SignupStartResponseDTO
     func logout() async throws
     func currentUser() async throws -> UserPublicDTO
     func onboardingStatus() async throws -> OnboardingStatusResponseDTO
@@ -25,6 +27,16 @@ protocol AuthServiceProtocol: Sendable {
 }
 
 extension AuthServiceProtocol {
+    func signInWithApple(_ request: AppleSignInRequestDTO) async throws -> GoogleHandoffExchangeResponseDTO {
+        _ = request
+        throw NetworkError.unavailableInDemoMode
+    }
+
+    func startApplePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        _ = phone
+        throw NetworkError.unavailableInDemoMode
+    }
+
     // Preview/test implementations must explicitly opt in; never fall back to signup.
     func addMissingAccountMobile(phone: String) async throws {
         throw NetworkError.unavailableInDemoMode
@@ -230,7 +242,13 @@ actor AuthService: AuthServiceProtocol {
             path: "/auth/google/handoff/exchange",
             body: GoogleHandoffExchangeRequestDTO(code: code)
         )
+        try await applyFederatedAuthenticationResponse(response)
+        return response
+    }
 
+    private func applyFederatedAuthenticationResponse(
+        _ response: GoogleHandoffExchangeResponseDTO
+    ) async throws {
         switch response.outcome {
         case .loginComplete:
             guard let tokens = response.tokens, response.signup == nil else {
@@ -250,8 +268,6 @@ actor AuthService: AuthServiceProtocol {
             }
             try await sessionService.clearSession()
         }
-
-        return response
     }
 
     func startGooglePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
@@ -259,8 +275,32 @@ actor AuthService: AuthServiceProtocol {
             throw NetworkError.invalidResponse
         }
         let response: SignupStartResponseDTO = try await postJSON(
-            path: "/auth/signup/google/phone",
+            path: "/auth/signup/federated/phone",
             body: GooglePhoneStartRequestDTO(
+                signupSessionID: try await requireSignupSessionID(),
+                phone: e164Phone
+            )
+        )
+        try await sessionService.storeSignupSessionID(response.signupSessionId)
+        return response
+    }
+
+    func signInWithApple(_ request: AppleSignInRequestDTO) async throws -> GoogleHandoffExchangeResponseDTO {
+        let response: GoogleHandoffExchangeResponseDTO = try await postJSON(
+            path: "/auth/apple",
+            body: request
+        )
+        try await applyFederatedAuthenticationResponse(response)
+        return response
+    }
+
+    func startApplePhoneVerification(phone: String) async throws -> SignupStartResponseDTO {
+        guard let e164Phone = CreateAccountValidation.e164PhoneNumber(phone) else {
+            throw NetworkError.invalidResponse
+        }
+        let response: SignupStartResponseDTO = try await postJSON(
+            path: "/auth/signup/apple/phone",
+            body: ApplePhoneStartRequestDTO(
                 signupSessionID: try await requireSignupSessionID(),
                 phone: e164Phone
             )

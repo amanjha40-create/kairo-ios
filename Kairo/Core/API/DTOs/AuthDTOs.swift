@@ -229,3 +229,16 @@ nonisolated struct GoogleHandoffExchangeResponseDTO: Decodable, Equatable, Senda
     let tokens: TokenResponseDTO?
     let signup: SignupStartResponseDTO?
 }
+
+nonisolated struct AppleSignInRequestDTO: Encodable, Equatable, Sendable {
+    let identityToken: String
+    let authorizationCode: String
+    let nonce: String
+    let givenName: String?
+    let familyName: String?
+}
+
+nonisolated struct ApplePhoneStartRequestDTO: Encodable, Equatable, Sendable {
+    let signupSessionID: String
+    let phone: String
+}

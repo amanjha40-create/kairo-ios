@@ -15,7 +15,9 @@ class GoogleReturnPrivacyTests(unittest.TestCase):
                 'com.apple.developer.associated-domains': [
                     'applinks:api.kairoid.com',
                     'applinks:kairoid.com',
-                ]})
+                ],
+                'com.apple.developer.applesignin': ['Default'],
+            })
 
     def test_only_app_production_configuration_uses_entitlement(self):
         project = json.loads(subprocess.check_output([

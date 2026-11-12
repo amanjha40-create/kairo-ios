@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct GoogleAuthenticationButton: View {
+    var showsDivider = true
+
     @Environment(\.authService) private var authService
     @Environment(\.openURL) private var openURL
     @State private var isLoading = false
@@ -8,18 +10,20 @@ struct GoogleAuthenticationButton: View {
 
     var body: some View {
         VStack(spacing: KairoSpacing.small) {
-            HStack(spacing: KairoSpacing.small) {
-                Rectangle()
-                    .fill(KairoColors.border)
-                    .frame(height: 1)
-                Text("OR")
-                    .font(KairoTypography.caption)
-                    .foregroundStyle(KairoColors.textSecondary)
-                Rectangle()
-                    .fill(KairoColors.border)
-                    .frame(height: 1)
+            if showsDivider {
+                HStack(spacing: KairoSpacing.small) {
+                    Rectangle()
+                        .fill(KairoColors.border)
+                        .frame(height: 1)
+                    Text("OR")
+                        .font(KairoTypography.caption)
+                        .foregroundStyle(KairoColors.textSecondary)
+                    Rectangle()
+                        .fill(KairoColors.border)
+                        .frame(height: 1)
+                }
+                .accessibilityHidden(true)
             }
-            .accessibilityHidden(true)
 
             KairoSecondaryButton(
                 title: "Continue with Google",
@@ -205,9 +209,9 @@ struct GooglePhoneCompletionView: View {
     var body: some View {
         OnboardingScreenLayout(
             layoutMode: .form,
-            eyebrow: "Google sign-in",
+            eyebrow: "Secure sign-in",
             title: "Add your mobile number",
-            subtitle: "Your Google email is confirmed. Add and verify a mobile number to secure your KairoID account.",
+            subtitle: "Your email is confirmed. Add and verify a mobile number to secure your KairoID account.",
             titleAccessibilityIdentifier: KairoAccessibilityID.googlePhoneCompletionTitle
         ) {
             EmptyView()
@@ -249,7 +253,7 @@ struct GooglePhoneCompletionView: View {
                 .disabled(phoneErrorMessage != nil || isSubmitting)
 
                 KairoSecondaryButton(
-                    title: "Cancel Google signup",
+                    title: "Cancel signup",
                     accessibilityIdentifier: KairoAccessibilityID.googleAuthenticationCancel,
                     action: cancel
                 )
@@ -323,7 +327,7 @@ private extension GoogleAuthenticationHandoffView {
         case .invalidResponse, .invalidURL:
             "KairoID couldn't start mobile verification safely. Please try again."
         case .unavailableInDemoMode:
-            "Google signup is unavailable in Demo Mode."
+            "Social signup is unavailable in Demo Mode."
         }
     }
 }
