@@ -12,7 +12,7 @@ final class AppSessionStore: ObservableObject {
     @Published private(set) var launchPhase: LaunchPhase = .idle
     @Published private(set) var currentUser: AppUser? {
         didSet {
-            Task { await KairoAnalytics.shared.setAnonymousUserID(currentUser?.id) }
+            analyticsConsentController?.updateAccount(currentUser?.id)
             if oldValue?.id != currentUser?.id,
                !LocalBatch1QA.isEnabled(configuration: configuration) {
                 DocumentPreviewFileStore.shared.clear()
@@ -31,6 +31,7 @@ final class AppSessionStore: ObservableObject {
     private let manualProfileService: any ManualProfileServiceProtocol
     private let resumeImportService: any ResumeImportServiceProtocol
     private let guidedTourPreferences: any GuidedTourPreferenceStoring
+    private let analyticsConsentController: AnalyticsConsentController?
     private var hasBootstrapped = false
 
     init(
@@ -41,7 +42,8 @@ final class AppSessionStore: ObservableObject {
         sessionService: any SessionServiceProtocol,
         manualProfileService: any ManualProfileServiceProtocol,
         resumeImportService: any ResumeImportServiceProtocol,
-        guidedTourPreferences: (any GuidedTourPreferenceStoring)? = nil
+        guidedTourPreferences: (any GuidedTourPreferenceStoring)? = nil,
+        analyticsConsentController: AnalyticsConsentController? = nil
     ) {
         self.configuration = configuration
         self.uiTestConfiguration = uiTestConfiguration
@@ -51,6 +53,7 @@ final class AppSessionStore: ObservableObject {
         self.manualProfileService = manualProfileService
         self.resumeImportService = resumeImportService
         self.guidedTourPreferences = guidedTourPreferences ?? GuidedTourPreferences()
+        self.analyticsConsentController = analyticsConsentController
     }
 
     func bootstrapIfNeeded() async {
@@ -150,6 +153,7 @@ final class AppSessionStore: ObservableObject {
     }
 
     func completeAccountDeletion() async {
+        analyticsConsentController?.removeCurrentAccountDecision()
         authenticatedVerificationStatus = nil
         try? await sessionService.clearSession()
         signupRecovery = nil

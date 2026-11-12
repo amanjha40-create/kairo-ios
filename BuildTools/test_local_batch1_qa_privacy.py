@@ -32,7 +32,7 @@ class LocalBatch1QAPrivacyTests(unittest.TestCase):
 
     def test_fixture_preferences_and_drafts_are_isolated_and_cache_preserved(self):
         app = (ROOT / 'Kairo/App/KairoApp.swift').read_text()
-        self.assertEqual(app.count('qaEnabled ? LocalBatch1QA.preferences : .standard'), 2)
+        self.assertEqual(app.count('qaEnabled ? LocalBatch1QA.preferences : .standard'), 3)
         self.assertIn('if qaEnabled, let appearance = MoreAppearanceOption(', app)
         self.assertIn('appearanceStore.select(appearance)', app)
         draft = (ROOT / 'Kairo/Features/Onboarding/ManualProfileDraftStore.swift').read_text()

@@ -10,6 +10,7 @@ struct KairoApp: App {
     @StateObject private var appearanceStore: AppAppearanceStore
     @StateObject private var digiLockerStore: DigiLockerStore
     @StateObject private var guidedTourCoordinator: GuidedTourCoordinator
+    @StateObject private var analyticsConsentController: AnalyticsConsentController
 
     init() {
         KairoAnalytics.configure()
@@ -26,6 +27,16 @@ struct KairoApp: App {
         let guidedTourTestConfiguration = UITestGuidedTourConfiguration.current(
             launchConfiguration: uiTestConfiguration
         )
+        let analyticsConsentNamespace = uiTestConfiguration.isEnabled
+            ? ProcessInfo.processInfo.environment["KAIRO_UI_TEST_ANALYTICS_CONSENT_NAMESPACE"] ?? "kairoid.analytics.consent.ui-test"
+            : "kairoid.analytics.consent"
+        let analyticsConsentController = AnalyticsConsentController(
+            preferences: AnalyticsConsentPreferences(
+                defaults: qaEnabled ? LocalBatch1QA.preferences : .standard,
+                namespace: analyticsConsentNamespace
+            ),
+            presentationEnabled: !uiTestConfiguration.isEnabled || ProcessInfo.processInfo.environment["KAIRO_UI_TEST_ANALYTICS_CONSENT_PROMPT"] == "1"
+        )
 
         if uiTestConfiguration.disablesAnimations {
             UIView.setAnimationsEnabled(false)
@@ -40,6 +51,7 @@ struct KairoApp: App {
         )
 
         _router = StateObject(wrappedValue: router)
+        _analyticsConsentController = StateObject(wrappedValue: analyticsConsentController)
         _sessionStore = StateObject(wrappedValue: AppSessionStore(
             configuration: configuration,
             uiTestConfiguration: LocalBatch1QA.mode("restoring", configuration: configuration)
@@ -49,7 +61,8 @@ struct KairoApp: App {
             sessionService: dependencies.sessionService,
             manualProfileService: dependencies.manualProfileService,
             resumeImportService: dependencies.resumeImportService,
-            guidedTourPreferences: guidedTourPreferences
+            guidedTourPreferences: guidedTourPreferences,
+            analyticsConsentController: analyticsConsentController
         ))
         _candidateDataRefreshStore = StateObject(wrappedValue: CandidateDataRefreshStore())
         _candidateNotificationStore = StateObject(wrappedValue: CandidateNotificationStore(
@@ -110,6 +123,7 @@ struct KairoApp: App {
                 .environmentObject(appearanceStore)
                 .environmentObject(digiLockerStore)
                 .environmentObject(guidedTourCoordinator)
+                .environmentObject(analyticsConsentController)
                 .environment(\.appConfiguration, configuration)
                 .environment(\.networkClient, dependencies.networkClient)
                 .environment(\.tokenStore, dependencies.tokenStore)
@@ -134,6 +148,15 @@ struct KairoApp: App {
                 .environment(\.moreOverviewService, dependencies.moreOverviewService)
                 .environment(\.profileService, dependencies.profileService)
                 .preferredColorScheme(appearanceStore.preferredColorScheme)
+                .sheet(isPresented: Binding(
+                    get: { analyticsConsentController.shouldPresentPrompt },
+                    set: { _ in }
+                )) {
+                    AnalyticsConsentPromptView(
+                        onAllow: { analyticsConsentController.choose(.allowed) },
+                        onDeny: { analyticsConsentController.choose(.denied) }
+                    )
+                }
         }
     }
 }

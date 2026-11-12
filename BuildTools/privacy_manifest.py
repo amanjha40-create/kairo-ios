@@ -111,6 +111,7 @@ INVENTORY = {
     'UserDefaults': {
         'App/AppAppearanceStore.swift': 2,
         'App/LocalBatch1QA.swift': 1,  # Compiled, but gated off in ordinary Production.
+        'Core/Analytics/AnalyticsConsent.swift': 2,
         'Core/Analytics/KairoAnalytics.swift': 2,
         'Features/GuidedTour/GuidedTourPreferences.swift': 2,
         'Features/Onboarding/ManualProfileDraftStore.swift': 1,

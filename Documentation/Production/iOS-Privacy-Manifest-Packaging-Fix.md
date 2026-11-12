@@ -37,6 +37,7 @@ as third-party SDKs whose internal implementation requires blanket declarations.
 | File / use | Production | Purpose | Declaration |
 | --- | --- | --- | --- |
 | `App/AppAppearanceStore.swift`, UserDefaults | Yes | App-local appearance preference | UserDefaults `CA92.1` |
+| `Core/Analytics/AnalyticsConsent.swift`, UserDefaults | Yes | Versioned, app-local optional Analytics choice scoped to the signed-in account | UserDefaults `CA92.1` |
 | `Features/GuidedTour/GuidedTourPreferences.swift`, UserDefaults | Yes | App-local per-account pending/completed tour state | UserDefaults `CA92.1` |
 | `Features/Onboarding/ManualProfileDraftStore.swift`, UserDefaults | Yes | Local editable onboarding draft | UserDefaults `CA92.1` |
 | `App/LocalBatch1QA.swift`, UserDefaults suite | Compiled; normal Production entry disabled | Lazy disposable preferences only behind local QA gate | Same app-only reason; no extra category |

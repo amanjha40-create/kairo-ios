@@ -13,6 +13,7 @@ struct MoreOverviewScreenView: View {
     @EnvironmentObject private var candidateDataRefreshStore: CandidateDataRefreshStore
     @EnvironmentObject private var appearanceStore: AppAppearanceStore
     @EnvironmentObject private var digiLockerStore: DigiLockerStore
+    @EnvironmentObject private var analyticsConsentController: AnalyticsConsentController
 
     @Binding private var state: MoreOverviewState
     private let isLiveMode: Bool
@@ -250,6 +251,7 @@ struct MoreOverviewScreenView: View {
             buttonSection(title: "Security", sectionAccessibilityIdentifier: "candidate.more.security",
                           rows: MoreSettingsHierarchy.securityRows(content), action: handleAccountRow)
             preferencesSection(content)
+            analyticsPrivacySection
             buttonSection(
                 title: "Data & privacy",
                 sectionAccessibilityIdentifier: KairoAccessibilityID.morePrivacyDataSection,
@@ -270,6 +272,27 @@ struct MoreOverviewScreenView: View {
                 rows: MoreSettingsHierarchy.destructiveRows(content),
                 action: handlePrivacyRow
             )
+        }
+    }
+
+    private var analyticsPrivacySection: some View {
+        VStack(alignment: .leading, spacing: KairoSpacing.small) {
+            MoreSectionTitle(title: "Privacy", accessibilityIdentifier: "settings.privacy")
+            KairoSection {
+                Toggle(
+                    isOn: Binding(
+                        get: { analyticsConsentController.isUsageAnalyticsEnabled },
+                        set: { analyticsConsentController.setUsageAnalyticsEnabled($0) }
+                    )
+                ) {
+                    MoreToggleLabel(
+                        title: "Share usage analytics",
+                        subtitle: "Optionally share a small set of usage events linked to your internal account ID. KairoID does not use this for advertising or cross-app tracking."
+                    )
+                }
+                .tint(KairoColors.brandPrimary)
+                .accessibilityIdentifier(KairoAccessibilityID.moreUsageAnalyticsToggle)
+            }
         }
     }
 

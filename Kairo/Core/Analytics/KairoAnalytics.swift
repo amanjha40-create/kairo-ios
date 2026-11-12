@@ -11,29 +11,72 @@ nonisolated enum KairoAnalyticsEvent: String, CaseIterable, Sendable {
     case shareLinkCreated = "share_link_created"
 }
 
-actor KairoAnalytics {
-    static let shared = KairoAnalytics()
+protocol KairoAnalyticsTransport: Sendable {
+    func prepareForCollection()
+    func setConsent(analyticsAllowed: Bool)
+    func setCollectionEnabled(_ enabled: Bool)
+    func setUserID(_ userID: String?)
+    func resetAnalyticsData()
+    func log(_ event: KairoAnalyticsEvent)
+}
 
-    private var currentUserID: String?
+struct FirebaseKairoAnalyticsTransport: KairoAnalyticsTransport {
+    func prepareForCollection() {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
+    }
 
-    private nonisolated static let bootstrap: Void = {
-        FirebaseApp.configure()
-        applyPrivacyConfiguration()
-        Analytics.setUserID(nil)
-    }()
-
-    private nonisolated static func applyPrivacyConfiguration() {
+    func setConsent(analyticsAllowed: Bool) {
+        guard FirebaseApp.app() != nil else { return }
         Analytics.setConsent([
-            .analyticsStorage: .granted,
+            .analyticsStorage: analyticsAllowed ? .granted : .denied,
             .adStorage: .denied,
             .adUserData: .denied,
             .adPersonalization: .denied
         ])
-        Analytics.setAnalyticsCollectionEnabled(true)
+    }
+
+    func setCollectionEnabled(_ enabled: Bool) {
+        guard FirebaseApp.app() != nil else { return }
+        Analytics.setAnalyticsCollectionEnabled(enabled)
+    }
+
+    func setUserID(_ userID: String?) {
+        guard FirebaseApp.app() != nil else { return }
+        Analytics.setUserID(userID)
+    }
+
+    func resetAnalyticsData() {
+        guard FirebaseApp.app() != nil else { return }
+        Analytics.resetAnalyticsData()
+    }
+
+    func log(_ event: KairoAnalyticsEvent) {
+        guard FirebaseApp.app() != nil else { return }
+        Analytics.logEvent(event.rawValue, parameters: nil)
+    }
+}
+
+actor KairoAnalytics {
+    static let shared = KairoAnalytics()
+
+    private let transport: any KairoAnalyticsTransport
+    private let occurrenceDefaults: UserDefaults
+    private var currentAccountID: String?
+    private var analyticsAllowed = false
+
+    init(
+        transport: any KairoAnalyticsTransport = FirebaseKairoAnalyticsTransport(),
+        occurrenceDefaults: UserDefaults = .standard
+    ) {
+        self.transport = transport
+        self.occurrenceDefaults = occurrenceDefaults
     }
 
     nonisolated static func configure() {
-        _ = bootstrap
+        // Firebase Analytics is intentionally not initialized here. Startup
+        // stays collection-free until an explicit, persisted opt-in is applied.
     }
 
     nonisolated static func isValidInternalUserID(_ value: String?) -> Bool {
@@ -41,32 +84,50 @@ actor KairoAnalytics {
         return uuid.uuidString.caseInsensitiveCompare(value) == .orderedSame
     }
 
+    func apply(accountID: String?, decision: AnalyticsConsentDecision?) {
+        let validAccountID = Self.isValidInternalUserID(accountID) ? accountID : nil
+        let accountChanged = currentAccountID != validAccountID
+
+        if decision != .allowed || accountChanged {
+            disableAndReset()
+        }
+
+        currentAccountID = validAccountID
+        guard decision == .allowed else { return }
+
+        transport.prepareForCollection()
+        transport.setConsent(analyticsAllowed: true)
+        transport.setCollectionEnabled(true)
+        transport.setUserID(validAccountID)
+        analyticsAllowed = true
+    }
+
     func log(_ event: KairoAnalyticsEvent) {
-        guard FirebaseApp.app() != nil else { return }
-        Analytics.logEvent(event.rawValue, parameters: nil)
+        guard analyticsAllowed else { return }
+        transport.log(event)
     }
 
     func logOnce(_ event: KairoAnalyticsEvent, occurrenceID: String) {
         guard !occurrenceID.isEmpty else { return }
         let key = "kairoid.analytics.once.\(event.rawValue).\(occurrenceID)"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        log(event)
+        guard !occurrenceDefaults.bool(forKey: key) else { return }
+
+        // Mark the occurrence even when consent is absent. This deliberately
+        // discards the action instead of retaining an app-managed replay queue.
+        occurrenceDefaults.set(true, forKey: key)
+        guard analyticsAllowed else { return }
+        transport.log(event)
     }
 
-    func setAnonymousUserID(_ userID: String?) {
-        guard FirebaseApp.app() != nil else { return }
+    func stateForTesting() -> (allowed: Bool, accountID: String?) {
+        (analyticsAllowed, currentAccountID)
+    }
 
-        let validUserID = Self.isValidInternalUserID(userID) ? userID : nil
-        guard validUserID != currentUserID else { return }
-
-        if currentUserID != nil {
-            Analytics.setUserID(nil)
-            Analytics.resetAnalyticsData()
-            Self.applyPrivacyConfiguration()
-        }
-
-        currentUserID = validUserID
-        Analytics.setUserID(validUserID)
+    private func disableAndReset() {
+        transport.setCollectionEnabled(false)
+        transport.setConsent(analyticsAllowed: false)
+        transport.setUserID(nil)
+        transport.resetAnalyticsData()
+        analyticsAllowed = false
     }
 }

@@ -13,6 +13,10 @@ extension CandidateTab {
 }
 
 nonisolated enum KairoAccessibilityID {
+    static let analyticsConsentPrompt = "analytics.consent.prompt"
+    static let analyticsConsentAllow = "analytics.consent.allow"
+    static let analyticsConsentDeny = "analytics.consent.deny"
+    static let moreUsageAnalyticsToggle = "candidate.more.privacy.usageAnalytics"
     static let appleAuthenticationStart = "auth.apple.start"
     static let appleAuthenticationLoading = "auth.apple.loading"
     static let appleAuthenticationError = "auth.apple.error"
