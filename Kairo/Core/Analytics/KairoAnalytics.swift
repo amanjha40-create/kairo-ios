@@ -11,7 +11,7 @@ nonisolated enum KairoAnalyticsEvent: String, CaseIterable, Sendable {
     case shareLinkCreated = "share_link_created"
 }
 
-protocol KairoAnalyticsTransport: Sendable {
+nonisolated protocol KairoAnalyticsTransport: Sendable {
     func prepareForCollection()
     func setConsent(analyticsAllowed: Bool)
     func setCollectionEnabled(_ enabled: Bool)
@@ -20,7 +20,7 @@ protocol KairoAnalyticsTransport: Sendable {
     func log(_ event: KairoAnalyticsEvent)
 }
 
-struct FirebaseKairoAnalyticsTransport: KairoAnalyticsTransport {
+nonisolated struct FirebaseKairoAnalyticsTransport: KairoAnalyticsTransport {
     nonisolated init() {}
 
     func prepareForCollection() {
